@@ -1,0 +1,56 @@
+# ─── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+build/
+dist/
+*.egg-info/
+
+# ─── Virtual environments ─────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+
+# ─── Downpour runtime / sensitive data ────────────────────────────────────────
+downpour_data/
+downpour_tmp/
+fim_baseline.json
+shutdown_trace.txt
+crash_fault.log
+downpour.log
+dp_stderr.txt
+tk_callback_errors.txt
+downpour_quarantine/
+*.db
+*.sqlite
+*.log
+
+# ─── Secrets ──────────────────────────────────────────────────────────────────
+*.pem
+*.key
+secrets.json
+.env
+
+# ─── IDE / OS ─────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ─── Build artefacts ──────────────────────────────────────────────────────────
+*.exe
+*.msi
+*.whl
+
+# ─── Large files ───────────────────────────────────────────────────────────────
+_ARCHIVE/
+_legacy_launchers/
+*.zip
+*.tar.gz
+
+# ─── Legacy versions (keep only v28+) ────────────────────────────────────────
+downpour_v[0-9]_*.py
+downpour_v1[0-9]_*.py
+PUSH_TO_GITHUB.bat
