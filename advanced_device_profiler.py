@@ -122,8 +122,9 @@ class AdvancedDeviceProfiler:
             try:
                 result = subprocess.run(['net', 'session'], capture_output=True, text=True, timeout=5)
                 capabilities['admin_access'] = result.returncode == 0
-            except Exception:
+            except Exception as e:
                 capabilities['admin_access'] = False
+                _adp_logger.debug(f"Admin check unavailable: {e}")
             
             # Check UAC level
             try:

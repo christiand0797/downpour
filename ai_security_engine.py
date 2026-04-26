@@ -611,7 +611,7 @@ class AISecurityEngine:
                 self._save_models()
                 
                 # Sleep for 5 minutes
-                time.sleep(300)
+                time.sleep(300)  # 5 minutes
                 
             except Exception as e:
                 self.logger.error(f"Learning loop error: {e}")
