@@ -1,4 +1,6 @@
 """
+__version__ = "29.0.0"
+
 Threat Feed Aggregator v1.2 - ENHANCED v29
 ==============================================================
 Fetches and processes threat intelligence from 50+ sources.

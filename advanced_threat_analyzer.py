@@ -1,4 +1,6 @@
 """
+__version__ = "29.0.0"
+
 Advanced Threat Analyzer v1.1 - ENHANCED v29
 =============================================
 Intelligent post-scan analysis to reduce false positives and identify real threats.

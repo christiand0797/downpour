@@ -1,4 +1,6 @@
 """
+__version__ = "29.0.0"
+
 Enhanced Security Dashboard - Interactive Security Center v1.1
 Advanced GUI with clickable counters, GPU detection fix, and network speed monitoring
 

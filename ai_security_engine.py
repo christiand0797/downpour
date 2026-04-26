@@ -1,4 +1,6 @@
 """
+__version__ = "29.0.0"
+
 Enhanced AI Security Engine v3.1 - ENHANCED v29
 Advanced machine learning and behavioral analysis for intelligent threat detection
 

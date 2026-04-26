@@ -4,6 +4,8 @@ Threat Detection Engine v1.0
 Real-time threat detection using comprehensive signature database.
 Provides detection, analysis, and protection recommendations.
 
+__version__ = "29.0.0"
+
 v29: Added KEV/CEV/EPSS integration for CVE-based threat enhancement.
 """
 

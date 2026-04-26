@@ -1,4 +1,6 @@
 """
+__version__ = "29.0.0"
+
 Downpour IoT Security Scanner
 ==============================
 Scans the local subnet for all devices, fingerprints them to identify

@@ -1,4 +1,13 @@
 
+"""
+Behavior-Based Threat Scanner v29
+=============================
+
+__version__ = "29.0.0"
+
+Analyzes file BEHAVIOR, not filenames.
+"""
+
 # ══════════════════════════════════════════════════════════════════════════════
 import ctypes
 import hashlib

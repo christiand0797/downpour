@@ -1,4 +1,6 @@
 """
+__version__ = "29.0.0"
+
 Advanced Threat Remediation Engine v1.0 — Downpour v29 Titanium
 ================================================================
 Comprehensive automated and guided remediation for:

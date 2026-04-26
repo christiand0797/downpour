@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """
+__version__ = "29.0.0"
+
 ╔══════════════════════════════════════════════════════════════════════════════════════════════════════╗
 ║                           ADVANCED THREAT DETECTION ENGINE v2.0                                       ║
 ║                        10x Smarter Threat Analysis & Defense System                                   ║
