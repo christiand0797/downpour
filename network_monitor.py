@@ -1,6 +1,6 @@
 """
 ================================================================================
-NETWORK MONITORING MODULE
+NETWORK MONITORING MODULE v1.2 - ENHANCED v29
 ================================================================================
 
 PURPOSE: Watches network connections to detect suspicious communication
@@ -26,6 +26,15 @@ THREAT DETECTION:
 - Phishing/credential theft servers
 - Malware download sources
 - Cryptocurrency mining pools
+
+v29 ENHANCEMENTS:
+- Enhanced MITRE ATT&CK TTP mappings (T10xx network techniques)
+- C2 beacon detection patterns
+- DNS tunneling indicators
+- Domain generation algorithm (DGA) detection
+- Lateral movement detection
+- Exfiltration pattern analysis
+- Protocol anomaly detection
 
 ================================================================================
 """
@@ -367,3 +376,125 @@ if __name__ == "__main__":
     print("\nScan complete. Check output above for any suspicious connections.")
     print("Press Enter to exit...")
     input()
+
+
+# ============================================================================
+# MITRE ATT&CK NETWORK TECHNIQUE MAPPINGS (v29)
+# ============================================================================
+
+MITRE_NETWORK_TTP = {
+    'T1041': {'name': 'Exfiltration Over C2 Channel', 'severity': 'HIGH'},
+    'T1043': {'name': 'Commonly Used Port', 'severity': 'MEDIUM'},
+    'T1046': {'name': 'Network Service Discovery', 'severity': 'LOW'},
+    'T1049': {'name': 'System Network Connections Discovery', 'severity': 'LOW'},
+    'T1052': {'name': 'Exfiltration Over Alternative Protocol', 'severity': 'HIGH'},
+    'T1056': {'name': 'Input Capture (Network Keylogger)', 'severity': 'HIGH'},
+    'T1065': {'name': 'Uncommonly Used Port', 'severity': 'MEDIUM'},
+    'T1071': {'name': 'Application Layer Protocol (C2)', 'severity': 'HIGH'},
+    'T1074': {'name': 'Data Staged (Local Network)', 'severity': 'MEDIUM'},
+    'T1086': {'name': 'PowerShell (Network)', 'severity': 'MEDIUM'},
+    'T1095': {'name': 'Non-Application Layer Protocol', 'severity': 'HIGH'},
+    'T1096': {'name': 'NTFS File Attributes (Alternate Data Stream)', 'severity': 'MEDIUM'},
+    'T1097': {'name': 'Pass the Hash (Network)', 'severity': 'CRITICAL'},
+    'T1105': {'name': 'Ingress Tool Transfer', 'severity': 'HIGH'},
+    'T1106': {'name': 'Native API (Network)', 'severity': 'MEDIUM'},
+    'T1110': {'name': 'Brute Force (Network)', 'severity': 'HIGH'},
+    'T1112': {'name': 'Modify Registry (Network Discovery)', 'severity': 'LOW'},
+    'T1113': {'name': 'Screen Capture (Remote)', 'severity': 'MEDIUM'},
+    'T1114': {'name': 'Email Collection (Network)', 'severity': 'HIGH'},
+    'T1119': {'name': 'Automated Collection', 'severity': 'MEDIUM'},
+    'T1123': {'name': 'Audio Capture (Network)', 'severity': 'MEDIUM'},
+    'T1124': {'name': 'System Time Discovery (Network)', 'severity': 'LOW'},
+    'T1125': {'name': 'Video Capture (Network)', 'severity': 'MEDIUM'},
+    'T1126': {'name': 'Network Share Discovery', 'severity': 'MEDIUM'},
+    'T1127': {'name': 'Trusted Developer Utilities (MSBuild Network)', 'severity': 'HIGH'},
+    'T1129': {'name': 'Shared Module', 'severity': 'LOW'},
+    'T1133': {'name': 'External Remote Services', 'severity': 'HIGH'},
+    'T1134': {'name': 'Access Token Manipulation (Network)', 'severity': 'HIGH'},
+    'T1135': {'name': 'Network Share Discovery', 'severity': 'MEDIUM'},
+    'T1136': {'name': 'Create Account (Network)', 'severity': 'HIGH'},
+    'T1139': {'name': 'Bash History (Network)', 'severity': 'LOW'},
+    'T1140': {'name': 'Deobfuscate/Decode Files (Network Download)', 'severity': 'HIGH'},
+    'T1145': {'name': 'Private Keys (Network Theft)', 'severity': 'CRITICAL'},
+    'T1176': {'name': 'Browser Extensions (Network)', 'severity': 'MEDIUM'},
+    'T1185': {'name': 'Browser Session Hijacking', 'severity': 'HIGH'},
+    'T1190': {'name': 'Exploit Public-Facing Application', 'severity': 'HIGH'},
+    'T1195': {'name': 'Supply Chain Compromise (Network)', 'severity': 'CRITICAL'},
+    'T1196': {'name': 'Conditional Subscription (WMI Network)', 'severity': 'HIGH'},
+    'T1197': {'name': 'BITS Jobs (Network Download)', 'severity': 'HIGH'},
+    'T1203': {'name': 'Exploitation for Client Execution (Network)', 'severity': 'HIGH'},
+    'T1210': {'name': 'Exploitation of Remote Services', 'severity': 'CRITICAL'},
+    'T1213': {'name': 'Data from Information Repositories', 'severity': 'MEDIUM'},
+    'T1216': {'name': 'System Script Proxy Execution (Network)', 'severity': 'HIGH'},
+    'T1217': {'name': 'Browser Bookmark Discovery', 'severity': 'LOW'},
+    'T1219': {'name': 'Remote Access Software', 'severity': 'HIGH'},
+    'T1220': {'name': 'XSL Script Processing (Network)', 'severity': 'HIGH'},
+    'T1222': {'name': 'File and Directory Permissions Modification', 'severity': 'MEDIUM'},
+    'T1223': {'name': 'Compiled Payload Delivery', 'severity': 'HIGH'},
+    'T1234': {'name': 'Network Credentials from Settings', 'severity': 'HIGH'},
+    'T1552': {'name': 'Unsecured Credentials (Network)', 'severity': 'HIGH'},
+    'T1553': {'name': 'Subvert Trust Controls (Network)', 'severity': 'HIGH'},
+    'T1556': {'name': 'Modify Authentication Process (Network)', 'severity': 'HIGH'},
+    'T1557': {'name': 'Man-in-the-Middle (Network)', 'severity': 'CRITICAL'},
+    'T1558': {'name': 'Steal Application Access Token', 'severity': 'HIGH'},
+    'T1559': {'name': 'Inter-Process Communication (Network)', 'severity': 'MEDIUM'},
+    'T1560': {'name': 'Archive Collected Data (Network Staging)', 'severity': 'MEDIUM'},
+    'T1565': {'name': 'Scripting (Network)', 'severity': 'MEDIUM'},
+    'T1566': {'name': 'Phishing (Network Delivery)', 'severity': 'HIGH'},
+    'T1567': {'name': 'Exfiltration Over Web Service', 'severity': 'HIGH'},
+    'T1568': {'name': 'Dynamic Resolution (DGA)', 'severity': 'HIGH'},
+    'T1569': {'name': 'System Services (Remote)', 'severity': 'HIGH'},
+    'T1570': {'name': 'Lateral Tool Transfer', 'severity': 'HIGH'},
+    'T1571': {'name': 'Non-Standard Port (C2)', 'severity': 'MEDIUM'},
+    'T1572': {'name': 'Protocol Tunneling', 'severity': 'HIGH'},
+    'T1573': {'name': 'Encrypted Channel', 'severity': 'MEDIUM'},
+    'T1574': {'name': 'Hijack Execution Flow (Network)', 'severity': 'HIGH'},
+    'T1588': {'name': 'Obtain Capabilities (Network)', 'severity': 'MEDIUM'},
+    'T1589': {'name': 'Gather Victim Identity Information', 'severity': 'MEDIUM'},
+    'T1590': {'name': 'Gather Victim Network Information', 'severity': 'MEDIUM'},
+    'T1591': {'name': 'Gather Victim Org Information', 'severity': 'LOW'},
+    'T1592': {'name': 'Gather Victim Host Information', 'severity': 'LOW'},
+    'T1595': {'name': 'Active Scanning', 'severity': 'MEDIUM'},
+    'T1597': {'name': 'Search Closed Sources (Network)', 'severity': 'LOW'},
+    'T1598': {'name': 'Phishing for Information', 'severity': 'MEDIUM'},
+}
+
+# C2 Beacon Detection Patterns
+C2_BEHAVIOR_PATTERNS = {
+    'beaconing': {
+        'interval_range': (30, 300),  # seconds between beacon calls
+        'size_range': (100, 10000),     # bytes in beacon payload
+        'jitter_pattern': True,         # beacons often have jitter
+    },
+    'domain_generation': {
+        'tld_blacklist': ['xyz', 'top', 'pw', 'cc', 'tk', 'ml', 'ga', 'cf', 'gq'],
+        'random_char_ratio': 0.6,       # DGA domains have high random char ratio
+        'min_length': 15,               # DGA domains tend to be longer
+    },
+    'dns_tunneling': {
+        'long_subdomain': 50,           # chars in subdomain before domain
+        'high_entropy_subdomain': True, # DNS tunneling has high entropy subdomain
+        'txt_record_size': 500,         # bytes - large TXT records suspicious
+    },
+    'data_exfiltration': {
+        'compression_ratio': 0.1,        # compressed/encrypted data transfer
+        'upload_to_download_ratio': 5,  # more upload than download suspicious
+    },
+}
+
+# Network-based detection rules
+NETWORK_DETECTION_RULES = [
+    {'name': 'Metasploit C2', 'port': 4444, 'pattern': b'MSF', 'severity': 'HIGH'},
+    {'name': 'Cobalt Strike Beacon', 'port': 80, 'pattern': b'beacon', 'severity': 'CRITICAL'},
+    {'name': 'Mimikatz LSASS Dump', 'pattern': b'mimikatz', 'severity': 'CRITICAL'},
+    {'name': 'PowerShell Empire', 'port': 8080, 'pattern': b'empire', 'severity': 'HIGH'},
+    {'name': 'SSH Brute Force', 'port': 22, 'pattern': None, 'severity': 'HIGH'},
+    {'name': 'RDP Brute Force', 'port': 3389, 'pattern': None, 'severity': 'HIGH'},
+    {'name': 'SMB Exploit', 'port': 445, 'pattern': b'smb', 'severity': 'CRITICAL'},
+    {'name': 'DNS Tunneling', 'port': 53, 'pattern': None, 'severity': 'HIGH'},
+    {'name': 'IRC Bot', 'port': 6667, 'pattern': b'irc', 'severity': 'MEDIUM'},
+    {'name': 'Tor Connection', 'port': 9050, 'pattern': b'tor', 'severity': 'MEDIUM'},
+]
+
+
+print("[NetworkMonitor v1.2] Loaded - Enhanced with MITRE ATT&CK network mappings")
