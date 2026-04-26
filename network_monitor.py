@@ -42,6 +42,10 @@ v29 ENHANCEMENTS:
 """
 
 import logging
+try:
+    from config import CONFIG as APP_CONFIG
+except Exception:
+    APP_CONFIG = {}
 import threading
 import time
 try:
@@ -165,8 +169,15 @@ class NetworkMonitor:
         
         try:
             if _REQUESTS_AVAILABLE:
+                provider = APP_CONFIG.get('GEOIP', {}).get('PROVIDER', 'ip-api')
+                if provider == 'ip-api':
+                    url = f"https://ip-api.com/json/{ip}"
+                elif provider == 'ipinfo':
+                    url = f"https://ipinfo.io/{ip}/json"
+                else:
+                    url = f"https://ip-api.com/json/{ip}"
                 resp = requests.get(
-                    f"https://ip-api.com/json/{ip}",
+                    url,
                     timeout=3,
                     headers={"User-Agent": "Downpour-HealthCheck/29"}
                 )
@@ -247,11 +258,11 @@ class NetworkMonitor:
             return (False, "LOW", "")
     
     def scan_connections(self) -> None:
-        """
-        Scan all active network connections for suspicious activity.
+        """Scan all active network connections for suspicious activity.
         
         Checks connections from all processes and alerts on anything suspicious.
         """
+        logging.info("Starting network connections scan")
         try:
             # Get all network connections with process info
             connections = psutil.net_connections(kind='inet')
