@@ -152,8 +152,7 @@ class NetworkMonitor:
         """
         Get country code for an IP address.
         
-        In full implementation, would use GeoIP database
-        or API to look up country.
+        v29: Uses ip-api.com free API for country lookup.
         
         Parameters:
         - ip: IP address
@@ -161,10 +160,21 @@ class NetworkMonitor:
         Returns:
         - Two-letter country code (e.g., 'US', 'CN', 'RU')
         """
-        # In real implementation would use:
-        # - MaxMind GeoIP database
-        # - ip-api.com API
-        # - ipinfo.io API
+        if not ip or self.is_private_ip(ip):
+            return "LO"
+        
+        try:
+            if _REQUESTS_AVAILABLE:
+                resp = requests.get(
+                    f"http://ip-api.com/json/{ip}",
+                    timeout=3
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data.get('status') == 'success':
+                        return data.get('countryCode', '??')
+        except Exception:
+            pass
         
         return "??"  # Unknown
     
