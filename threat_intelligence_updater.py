@@ -230,7 +230,7 @@ class ThreatIntelligenceUpdater:
             time.sleep(wait)
 
         kwargs.setdefault('timeout', 30)
-        kwargs.setdefault('headers', {'User-Agent': 'Downpour-v28-ThreatIntel/1.0'})
+        kwargs.setdefault('headers', {'User-Agent': 'Downpour-v29-ThreatIntel/1.0'})
 
         for attempt in range(self.MAX_RETRIES):
             try:

@@ -1,5 +1,5 @@
 """
-kimwolf_botnet_detector.py  -  Downpour v28 Titanium
+kimwolf_botnet_detector.py  -  Downpour v29 Titanium
 =====================================================
 Dedicated Kimwolf / Aisuru / BadBox2 botnet detection and response module.
 Monitors for:
@@ -72,7 +72,7 @@ MIRAI_C2_PATTERNS: Set[str] = {
     "cnc.", "c2.", "bot.", "loader.", "update.down.",
 }
 
-# FIX-v28: Whitelist legitimate domains that match C2 patterns
+# FIX-v29: Whitelist legitimate domains that match C2 patterns
 MIRAI_C2_WHITELIST: Set[str] = {
     # fc2.com analytics (contains "c2.")
     "fc2.com", "counter1.fc2.com", "analysis.fc2.com",
@@ -275,7 +275,7 @@ class KimwolfBotnetDetector:
                     log.debug("Bandwidth anomaly scan error: %s", e)
             with self._lock:
                 self.stats["cycles"] += 1
-            self._stop.wait(max(300, self.scan_interval))  # FIX-v28p15: 5min minimum
+            self._stop.wait(max(300, self.scan_interval))  # FIX-v29p15: 5min minimum
 
     # -----------------------------------------------------------------------
     # Internal helpers
@@ -351,7 +351,7 @@ class KimwolfBotnetDetector:
             if domain in self._dns_alerted:
                 continue
             # Direct match against known botnet domains
-            # FIX-v28: Skip whitelisted domains before C2 alert
+            # FIX-v29: Skip whitelisted domains before C2 alert
             _dom_wl = any(domain == w or domain.endswith("." + w) for w in MIRAI_C2_WHITELIST)
             if not _dom_wl and domain in ALL_BOTNET_DOMAINS:
                 family = "Kimwolf" if domain in KIMWOLF_C2_DOMAINS else "Mozi"
@@ -379,7 +379,7 @@ class KimwolfBotnetDetector:
                     "CRITICAL"))
 
             # Mirai C2 pattern match
-            # FIX-v28: Skip whitelisted domains (ad networks, analytics, CDNs)
+            # FIX-v29: Skip whitelisted domains (ad networks, analytics, CDNs)
             _is_wl = any(domain == w or domain.endswith("." + w) for w in MIRAI_C2_WHITELIST)
             if not _is_wl:
                 for pat in MIRAI_C2_PATTERNS:
@@ -483,7 +483,7 @@ class KimwolfBotnetDetector:
                     # Only alert once per IP per run
                     key = f"oui_{ip}"
                     if key not in self._alerted or time.time() - self._alerted[key] > 3600:
-                        self._alerted[key] = time.time()  # FIX-v28: prevent re-alert within 1h
+                        self._alerted[key] = time.time()  # FIX-v29: prevent re-alert within 1h
                         self._alert(self._make_alert(
                             "HighRiskIoT", f"{ip} ({oui})",
                             f"High-risk IoT device at {ip}: {vendor}. "

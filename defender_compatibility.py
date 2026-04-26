@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Windows Defender Compatibility Module for Downpour v28 Titanium
+Windows Defender Compatibility Module for Downpour v29 Titanium
 Ensures long-term compatibility and prevents false positives
 """
 
@@ -23,7 +23,7 @@ class DefenderCompatibility:
     def create_digital_signature_info(self):
         """Create digital signature information"""
         signature_info = {
-            'application_name': 'Downpour v28 Titanium',
+            'application_name': 'Downpour v29 Titanium',
             'publisher': 'Titanium Security Suite',
             'version': '27.0.0',
             'description': 'Advanced Security Application',
@@ -195,7 +195,7 @@ def main():
     """Main execution function"""
     import logging
     _log = logging.getLogger(__name__)
-    _log.info("Downpour v28 Titanium - Windows Defender Compatibility Setup")
+    _log.info("Downpour v29 Titanium - Windows Defender Compatibility Setup")
     result = defender_compat.run_complete_setup()
     _log.info("Defender compatibility setup complete")
     return 0

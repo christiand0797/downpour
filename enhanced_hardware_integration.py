@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Enhanced Hardware Integration for Downpour v28 Titanium
+Enhanced Hardware Integration for Downpour v29 Titanium
 Advanced hardware monitoring with responsive gauges and real-time performance data
 """
 

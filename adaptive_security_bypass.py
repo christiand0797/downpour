@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-adaptive_security_bypass.py - Downpour v28 Titanium
+adaptive_security_bypass.py - Downpour v29 Titanium
 Adds a Windows Defender exclusion for Downpour's own directory so the
 scanner is not flagged as malicious.  Does NOT disable any Defender
 functionality — real-time protection, cloud protection, tamper

@@ -1,5 +1,5 @@
 """
-Downpour v28 Titanium — System Cleanup Tool
+Downpour v29 Titanium — System Cleanup Tool
 =============================================
 Restores falsely quarantined files, purges false-positive DB entries,
 removes stale firewall rules, and resets threat counters.
@@ -365,7 +365,7 @@ def generate_report(stats: dict, restored: int):
 
 def main():
     print()
-    print("  DOWNPOUR v28 TITANIUM — SYSTEM CLEANUP TOOL")
+    print("  DOWNPOUR v29 TITANIUM — SYSTEM CLEANUP TOOL")
     print("  ============================================")
     print()
 

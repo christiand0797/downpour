@@ -1,6 +1,8 @@
 """
-Device Adaptation Engine for Downpour v28 Titanium
+Device Adaptation Engine for Downpour v29 Titanium
 Automatically detects and adapts to any hardware, device, and environment
+
+v29: Added KEV vulnerability context for security-aware adaptation.
 """
 
 import logging

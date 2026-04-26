@@ -81,7 +81,7 @@ class ThreatIntelligenceManager:
         if _REQUESTS_AVAILABLE:
             self._session = requests.Session()
             self._session.headers.update({
-                'User-Agent': 'Downpour-v28-ThreatIntel/1.0',
+                'User-Agent': 'Downpour-v29-ThreatIntel/1.0',
                 'Accept': 'application/json, text/plain, */*',
             })
             # Connection pool: keep 10 connections alive, max 20

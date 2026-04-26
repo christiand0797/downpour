@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-downpour_cleanup_module.py - Downpour v28 Titanium
+downpour_cleanup_module.py - Downpour v29 Titanium
 Comprehensive system cleanup: temp files, logs, caches, registry remnants,
 quarantine management, and graceful application shutdown helpers.
 """
@@ -105,7 +105,7 @@ def _dir_size(path: Path) -> int:
 
 
 def _default_downpour_db_path() -> Path:
-    """Primary SQLite database used by the v28 application."""
+    """Primary SQLite database used by the v29 application."""
     return Path(__file__).parent / "downpour_data" / "titanium.db"
 
 
@@ -455,7 +455,7 @@ __all__ = [
 
 
 # ---------------------------------------------------------------------------
-# GUI-compatible classes expected by downpour_v28_titanium.py
+# GUI-compatible classes expected by downpour_v29_titanium.py
 # ---------------------------------------------------------------------------
 import hashlib as _hashlib
 from enum import Enum as _Enum
@@ -530,7 +530,7 @@ class DuplicateGroup:
 class CleanupReport:
     """
     Aggregated cleanup execution report — GUI-compatible version.
-    Fields match what downpour_v28_titanium.py reads after execute_cleanup().
+    Fields match what downpour_v29_titanium.py reads after execute_cleanup().
     """
     started_at:    str   = field(default_factory=lambda: datetime.now().isoformat())
     completed_at:  str   = ""
@@ -931,7 +931,7 @@ _DEFAULT_CATEGORIES: List[Dict] = [
 class CleanupEngine:
     """
     Main cleanup engine used by the Downpour GUI Cleanup tab.
-    Provides a keyed category system fully compatible with downpour_v28_titanium.py.
+    Provides a keyed category system fully compatible with downpour_v29_titanium.py.
     """
 
     def __init__(self, base_dir: Optional[Path] = None,

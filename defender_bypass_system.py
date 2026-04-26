@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-defender_bypass_system.py - Downpour v28 Titanium
+defender_bypass_system.py - Downpour v29 Titanium
 Adds Windows Defender folder/process exclusions for Downpour.
 
 Does NOT disable any Defender features.  Previous versions contained

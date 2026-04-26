@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-downpour_health_check.py - Downpour v28 Titanium
+downpour_health_check.py - Downpour v29 Titanium
 Validates every module, dependency, and fix applied in this consolidation pass.
 Run:  python downpour_health_check.py
 """
@@ -223,7 +223,7 @@ print(f"  Passed : {passed}/{total}")
 print(f"  Failed : {failed}")
 print(f"  Warned : {warned}")
 if failed == 0:
-    print("\n  \033[32mAll checks passed — Downpour v28 Titanium is healthy.\033[0m")
+    print("\n  \033[32mAll checks passed — Downpour v29 Titanium is healthy.\033[0m")
 else:
     print(f"\n  \033[31m{failed} check(s) failed — review items above.\033[0m")
 print()

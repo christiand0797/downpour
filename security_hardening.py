@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Security Hardening Module for Downpour v28 Titanium
+Security Hardening Module for Downpour v29 Titanium
 Prevents security vulnerabilities and ensures Windows Defender compatibility
 """
 
