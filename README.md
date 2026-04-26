@@ -10,12 +10,13 @@
   <img src="https://img.shields.io/badge/YARA-50%2B-red?style=for-the-badge" />
   <img src="https://img.shields.io/badge/feeds-300%2B-orange?style=for-the-badge" />
   <img src="https://img.shields.io/badge/MITRE-150%2B-purple?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/modules-45%2B-cyan?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/modules-50%2B-cyan?style=for-the-badge" />
   <img src="https://img.shields.io/badge/malware-750%2B-crimson?style=for-the-badge" />
   <img src="https://img.shields.io/badge/ports-500%2B-blue?style=for-the-badge" />
   <img src="https://img.shields.io/badge/24%20tabs%20with%2038%2B%20gauges-green?style=for-the-badge" />
   <img src="https://img.shields.io/badge/KEV/CEV-EPSS-brightgreen?style=for-the-badge" />
   <img src="https://img.shields.io/badge/AI-Engine%20v3.1-yellow?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/IOC-KEV-Correlation-blue?style=for-the-badge" />
 </p>
 
 ---
@@ -96,6 +97,13 @@ Downpour is a personal, all-in-one Windows security suite — written entirely i
 - Emerging stealer families (2023-2025)
 - Supply chain attack indicators
 - 4 new security gauges: THREAT ACTORS, THREAT FEEDS, INDICATORS, ACTIVE ALERTS
+
+### IOC-KEV Correlation
+- Threat intelligence IOCs correlated with KEV CVEs
+- CVE-based threat context enrichment
+- Real-time CVE exploitability scoring
+- IoT device KEV status checking
+- IOC to CVE correlation mapping
 
 ### Additional v29 Gauges (8 total now)
 - 4 KEV/CEV/EPSS gauges: KEV CVEs, KEV CRITICAL, KEV HIGH, CEV SCORE

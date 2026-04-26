@@ -1,10 +1,12 @@
 """
 ===============================================================================
 THREAT INTELLIGENCE MANAGER
-===============================================================================
+==============================================================================
 
 PURPOSE: Manages real-time threat intelligence feeds from multiple reputable sources
          to provide up-to-date malware signatures, IOCs, and threat indicators.
+
+v29: Added KEV/CEV enrichment for CVE-based threat correlation.
 
 SOURCES INTEGRATED:
 1. ThreatFox (abuse.ch) - Malware IOCs and malicious URLs
@@ -15,6 +17,7 @@ SOURCES INTEGRATED:
 6. URLhaus abuse.ch - Malicious URLs
 7. Emerging Threats - Network-based threats
 8. Microsoft Interflow - Windows-specific threats
+9. CISA KEV - Known Exploited Vulnerabilities
 
 WHAT IT PROVIDES:
 - Real-time malicious IP addresses
@@ -24,6 +27,7 @@ WHAT IT PROVIDES:
 - C&C server indicators
 - Latest malware campaign IOCs
 - Zero-day vulnerability indicators
+- CVE-exploited threat correlation
 
 UPDATE FREQUENCY:
 - High-priority feeds: Every 15 minutes
@@ -95,6 +99,9 @@ class ThreatIntelligenceManager:
         self.malicious_domains = set()
         self.malicious_urls = set()
         self.malware_hashes = set()
+        
+        # v29: KEV cache for CVE correlation
+        self.kev_cache = {}
         self.suspicious_emails = set()
         
         # API keys (would be loaded from config in production)
@@ -678,6 +685,111 @@ class ThreatIntelligenceManager:
         """Stop threat intelligence monitoring."""
         self.running = False
         logging.info("Threat intelligence monitoring stopped")
+    
+    # v29: KEV Enrichment Methods
+    def check_cve_known_exploited(self, cve_id: str) -> Optional[Dict]:
+        """Check if CVE is in CISA KEV catalog (known exploited).
+        
+        Args:
+            cve_id: CVE identifier (e.g., 'CVE-2024-1234')
+            
+        Returns:
+            Dict with KEV details or None if not found
+        """
+        if not self.kev_cache:
+            self._load_kev_cache()
+        
+        return self.kev_cache.get(cve_id.upper())
+    
+    def _load_kev_cache(self):
+        """Load KEV data from vulnerability_scanner if available."""
+        try:
+            from vulnerability_scanner import VulnerabilityScanner
+            scanner = VulnerabilityScanner()
+            kev_data = scanner.get_kev_catalog()
+            
+            self.kev_cache = {}
+            for item in kev_data:
+                cve = item.get('cve_id', '')
+                if cve:
+                    self.kev_cache[cve.upper()] = item
+            
+            logging.info(f"Loaded {len(self.kev_cache)} KEV entries")
+        except Exception as e:
+            logging.debug(f"KEV cache load: {e}")
+            self.kev_cache = {}
+    
+    def get_cve_threat_context(self, cve_id: str) -> Dict:
+        """Get comprehensive CVE threat context.
+        
+        Combines KEV status, EPSS score, and known IOC correlations.
+        
+        Args:
+            cve_id: CVE identifier
+            
+        Returns:
+            Dict with: kev_status, epss_score, risk_level, description
+        """
+        result = {
+            'cve_id': cve_id,
+            'kev_status': False,
+            'epss_score': 0.0,
+            'cvss_score': 0.0,
+            'risk_level': 'LOW',
+            'known_exploited': False,
+            'ransomware_associated': False
+        }
+        
+        kev_data = self.check_cve_known_exploited(cve_id)
+        if kev_data:
+            result['kev_status'] = True
+            result['known_exploited'] = True
+            result['ransomware_associated'] = kev_data.get('ransomware', 'No') == 'Yes'
+            result['cvss_score'] = kev_data.get('cvss_score', 0)
+            
+            if result['cvss_score'] >= 9.0:
+                result['risk_level'] = 'CRITICAL'
+            elif result['cvss_score'] >= 7.0:
+                result['risk_level'] = 'HIGH'
+            elif result['cvss_score'] >= 4.0:
+                result['risk_level'] = 'MEDIUM'
+        
+        try:
+            from vulnerability_scanner import VulnerabilityScanner
+            scanner = VulnerabilityScanner()
+            epss = scanner.get_epss_score(cve_id)
+            if epss:
+                result['epss_score'] = epss
+                if epss > 0.8:
+                    result['risk_level'] = 'CRITICAL'
+                elif epss > 0.5 and result['risk_level'] == 'LOW':
+                    result['risk_level'] = 'HIGH'
+        except Exception:
+            pass
+        
+        return result
+    
+    def correlate_ioc_with_cve(self, ioc_value: str, ioc_type: str = 'ip') -> List[Dict]:
+        """Correlate IOC with known CVEs.
+        
+        Args:
+            ioc_value: The IOC value to check
+            ioc_type: Type ('ip', 'domain', 'hash', 'url')
+            
+        Returns:
+            List of CVEs associated with this IOC
+        """
+        correlations = []
+        
+        if ioc_type == 'ip' and ioc_value in self.malicious_ips:
+            malicious_info = self.malicious_ips[ioc_value]
+            cve_refs = malicious_info.get('cve_references', [])
+            for cve in cve_refs:
+                ctx = self.get_cve_threat_context(cve)
+                if ctx.get('known_exploited'):
+                    correlations.append(ctx)
+        
+        return correlations
 
 # Global instance
 _ti_instance = None

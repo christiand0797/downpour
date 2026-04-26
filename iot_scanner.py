@@ -5,6 +5,8 @@ Scans the local subnet for all devices, fingerprints them to identify
 what physical device they are, detects botnet indicators, and provides
 one-click blocking and isolation.
 
+v29: Added KEV (Known Exploited Vulnerabilities) integration.
+
 Key capabilities:
 - Parallel subnet ping sweep (finds every device on your network)
 - Device fingerprinting via HTTP/Telnet/mDNS/banner grabbing
@@ -13,6 +15,7 @@ Key capabilities:
 - Windows Firewall blocking of specific devices
 - Router ACL command generation
 - Physical device identification hints ("This is probably a smart plug")
+- Real-time KEV CVE lookup for detected IoT devices
 """
 
 from __future__ import annotations
@@ -856,3 +859,78 @@ class IoTDeviceScanner:
             findings.append(f'No Mozi/botnet indicators found on {ip}')
 
         return findings
+
+    # -----------------------------------------------------------------------
+    # 17. v29: KEV CVE lookup for IoT-specific vulnerabilities
+    # -----------------------------------------------------------------------
+    def check_device_kev_status(self, device: IoTDevice) -> Dict:
+        """Check detected device against CISA KEV catalog.
+        
+        Returns KEV status, EPSS score, and recommended actions.
+        """
+        result = {
+            'ip': device.ip,
+            'vendor': device.vendor,
+            'kev_matches': [],
+            'epss_high': False,
+            'critical_cves': [],
+            'recommendation': 'MONITOR'
+        }
+        
+        try:
+            from vulnerability_scanner import VulnerabilityScanner
+            scanner = VulnerabilityScanner()
+            
+            iot_vendors = ['realtek', 'huawei', 'tp-link', 'netgear', 'd-link', 
+                       'zyxel', 'asus', 'trendnet', 'linksys', 'mi', 'xiaomi']
+            
+            for vendor in iot_vendors:
+                if vendor in device.vendor.lower():
+                    kev_data = scanner.search_kev_by_vendor(vendor)
+                    for kev in kev_data[:5]:
+                        epss = kev.get('epss_score', 0)
+                        cvss = kev.get('cvss_score', 0)
+                        
+                        if epss > 0.5 or cvss >= 7.0:
+                            result['kev_matches'].append({
+                                'cve': kev.get('cve_id', ''),
+                                'product': kev.get('product', ''),
+                                'epss': epss,
+                                'cvss': cvss,
+                                'ransomware': kev.get('ransomware', 'No')
+                            })
+                            
+                            if cvss >= 9.0:
+                                result['critical_cves'].append(kev.get('cve_id', ''))
+                            if epss > 0.5:
+                                result['epss_high'] = True
+            
+            if result['critical_cves']:
+                result['recommendation'] = 'ISOLATE'
+            elif result['epss_high']:
+                result['recommendation'] = 'BLOCK'
+            elif result['kev_matches']:
+                result['recommendation'] = 'WATCH'
+                
+        except Exception as e:
+            log.debug(f"KEV check skipped: {e}")
+        
+        return result
+    
+    def get_iot_threat_summary(self, device: IoTDevice) -> str:
+        """Get comprehensive threat summary including KEV status."""
+        summary_parts = []
+        
+        indicators = self.check_botnet_indicators(device)
+        if indicators:
+            summary_parts.extend(indicators)
+        
+        kev_info = self.check_device_kev_status(device)
+        if kev_info.get('kev_matches'):
+            summary_parts.append(f"\n--- KEV Analysis ---")
+            for match in kev_info['kev_matches'][:3]:
+                cve = match['cve']
+                epss = match['epss']
+                summary_parts.append(f"  {cve}: EPSS={epss:.1%}")
+        
+        return '\n'.join(summary_parts) if summary_parts else 'No threats detected'

@@ -9,6 +9,10 @@ This module downloads and maintains threat intelligence from multiple sources:
 - URLhaus (Malware URLs)
 - Malware Bazaar (Malware hashes)
 - PhishTank (Phishing URLs)
+- CISA KEV (Known Exploited Vulnerabilities)
+- EPSS (Exploit Prediction Scoring System)
+
+v29: Added KEV/CEV/EPSS integration for real-time exploit tracking.
 
 Continuously updates local database to improve detection capabilities.
 """
@@ -26,6 +30,11 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import hashlib
 import threading
+
+# v29: KEV/CISA constants
+CISA_KEV_URL = "https://www.cisa.gov/known-exploited-vulnerabilities-catalog.csv"
+EPSS_API_URL = "https://api.first.org/data/v1/epss"
+EPSS_API_KEY = ""  # Set your API key if available
 
 class ThreatIntelligenceUpdater:
     """Manages threat intelligence database with online updates.
@@ -130,10 +139,42 @@ class ThreatIntelligenceUpdater:
                     )
                 ''')
 
+                # v29: KEV vulnerabilities (CISA Known Exploited Vulnerabilities)
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS kev_vulnerabilities (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        cve_id TEXT NOT NULL UNIQUE,
+                        vendor_project TEXT,
+                        product TEXT,
+                        vulnerability_name TEXT,
+                        date_added DATE,
+                        due_date DATE,
+                        patch_available TEXT,
+                        severity TEXT,
+                        known_ransomware_campaign_use TEXT,
+                        epss_score REAL,
+                        cvss_score REAL,
+                        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+
+                # v29: CVE to IOC mapping
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS cve_ioc_mapping (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        cve_id TEXT NOT NULL,
+                        ioc_type TEXT NOT NULL,
+                        ioc_value TEXT NOT NULL,
+                        source TEXT,
+                        first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (cve_id) REFERENCES kev_vulnerabilities(cve_id)
+                    )
+                ''')
+
                 conn.commit()
             finally:
                 conn.close()
-            logging.info("Threat intelligence database initialized")
+            logging.info("Threat intelligence database initialized with KEV support")
             
         except Exception as e:
             logging.error(f"Failed to initialize threat database: {e}")
@@ -532,6 +573,9 @@ class ThreatIntelligenceUpdater:
             cursor.execute('SELECT COUNT(*) FROM malware_signatures')
             sig_count = cursor.fetchone()[0]
 
+            cursor.execute('SELECT COUNT(*) FROM kev_vulnerabilities')
+            kev_count = cursor.fetchone()[0]
+
             cursor.execute('''
                 SELECT source, MAX(update_time), status
                 FROM update_history
@@ -544,12 +588,191 @@ class ThreatIntelligenceUpdater:
                 'total_urls': url_count,
                 'total_ips': ip_count,
                 'total_signatures': sig_count,
+                'total_kev': kev_count,
                 'last_updates': last_updates
             }
 
         except Exception as e:
             logging.error(f"Statistics error: {e}")
             return {}
+        finally:
+            if conn:
+                conn.close()
+    
+    # v29: KEV Update Methods
+    def update_kev_catalog(self):
+        """Update CISA KEV catalog."""
+        added = 0
+        try:
+            logging.info("Updating CISA KEV catalog...")
+            
+            if not _REQUESTS_AVAILABLE:
+                logging.warning("requests not available, skipping KEV update")
+                return 0
+            
+            resp = self._fetch_with_backoff('cisa_kev', CISA_KEV_URL)
+            if not resp or resp.status_code != 200:
+                logging.warning(f"KEV update failed: {resp.status_code if resp else 'no response'}")
+                return 0
+            
+            lines = resp.text.strip().split('\n')
+            if len(lines) < 2:
+                return 0
+            
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            header = lines[0].lower().split(',')
+            for line in lines[1:]:
+                try:
+                    fields = line.split(',')
+                    if len(fields) < 6:
+                        continue
+                    
+                    record = dict(zip(header, fields))
+                    cve_id = record.get('cve id', record.get('cve_id', ''))
+                    if not cve_id:
+                        continue
+                    
+                    cursor.execute('''
+                        INSERT OR REPLACE INTO kev_vulnerabilities 
+                        (cve_id, vendor_project, product, vulnerability_name, date_added, 
+                         due_date, patch_available, severity, known_ransomware_campaign_use)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (
+                        cve_id,
+                        record.get('vendor project', record.get('vendor', '')),
+                        record.get('product', ''),
+                        record.get('vulnerability name', ''),
+                        record.get('date added', ''),
+                        record.get('due date', ''),
+                        record.get('patch available', ''),
+                        record.get('severity', ''),
+                        record.get('known ransomware campaign use', '')
+                    ))
+                    added += 1
+                except Exception as e:
+                    logging.debug(f"KEV record error: {e}")
+            
+            conn.commit()
+            conn.close()
+            logging.info(f"KEV catalog updated: {added} entries")
+            
+        except Exception as e:
+            logging.error(f"KEV update error: {e}")
+        
+        return added
+    
+    def update_epss_scores(self, cve_ids=None):
+        """Update EPSS scores for given CVEs."""
+        if not cve_ids:
+            return 0
+        
+        try:
+            logging.info(f"Updating EPSS scores for {len(cve_ids)} CVEs...")
+            
+            if not _REQUESTS_AVAILABLE:
+                return 0
+            
+            cve_list = ','.join(cve_ids[:100])  # Limit batch size
+            url = f"{EPSS_API_URL}?cve={cve_list}"
+            if EPSS_API_KEY:
+                url += f"&token={EPSS_API_KEY}"
+            
+            resp = self._fetch_with_backoff('epss', url)
+            if not resp or resp.status_code != 200:
+                return 0
+            
+            data = resp.json()
+            updated = 0
+            
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            for item in data.get('data', []):
+                try:
+                    cve = item.get('cve', '')
+                    epss = float(item.get('epss', 0))
+                    cvss = float(item.get('cvss', 0))
+                    
+                    cursor.execute('''
+                        UPDATE kev_vulnerabilities 
+                        SET epss_score = ?, cvss_score = ?, last_updated = CURRENT_TIMESTAMP
+                        WHERE cve_id = ?
+                    ''', (epss, cvss, cve))
+                    updated += 1
+                except Exception:
+                    pass
+            
+            conn.commit()
+            conn.close()
+            logging.info(f"EPSS scores updated: {updated}")
+            
+        except Exception as e:
+            logging.error(f"EPSS update error: {e}")
+        
+        return updated
+    
+    def get_kev_statistics(self):
+        """Get KEV vulnerability statistics."""
+        conn = None
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute('SELECT COUNT(*) FROM kev_vulnerabilities')
+            total = cursor.fetchone()[0]
+            
+            cursor.execute("SELECT COUNT(*) FROM kev_vulnerabilities WHERE severity = 'Critical'")
+            critical = cursor.fetchone()[0]
+            
+            cursor.execute("SELECT COUNT(*) FROM kev_vulnerabilities WHERE known_ransomware_campaign_use = 'Yes'")
+            ransomware = cursor.fetchone()[0]
+            
+            cursor.execute('SELECT AVG(epss_score) FROM kev_vulnerabilities WHERE epss_score > 0')
+            avg_epss = cursor.fetchone()[0] or 0
+            
+            return {
+                'total_kev': total,
+                'critical': critical,
+                'ransomware': ransomware,
+                'avg_epss': round(avg_epss, 3)
+            }
+            
+        except Exception as e:
+            logging.error(f"KEV stats error: {e}")
+            return {}
+        finally:
+            if conn:
+                conn.close()
+    
+    def check_cve_in_kev(self, cve_id):
+        """Check if CVE is in KEV catalog."""
+        conn = None
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT cve_id, vendor_project, product, severity, known_ransomware_campaign_use, epss_score
+                FROM kev_vulnerabilities WHERE cve_id = ?
+            ''', (cve_id,))
+            
+            result = cursor.fetchone()
+            if result:
+                return {
+                    'cve_id': result[0],
+                    'vendor': result[1],
+                    'product': result[2],
+                    'severity': result[3],
+                    'ransomware': result[4],
+                    'epss': result[5]
+                }
+            return None
+            
+        except Exception as e:
+            logging.error(f"KEV check error: {e}")
+            return None
         finally:
             if conn:
                 conn.close()
