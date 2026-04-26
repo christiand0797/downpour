@@ -45,7 +45,7 @@ try:
     import win32security
     import winreg
 except ImportError as e:
-    print(f"⚠️  Missing dependency: {e}")
+    print(f"[WARNING] Missing dependency: {e}")
     print("Run: pip install psutil pywin32")
     sys.exit(1)
 
