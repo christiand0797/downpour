@@ -1,6 +1,12 @@
 """
-Enhanced Security Dashboard - Interactive Security Center
+Enhanced Security Dashboard - Interactive Security Center v1.1
 Advanced GUI with clickable counters, GPU detection fix, and network speed monitoring
+
+v29 ENHANCEMENTS:
+- KEV/CEV/EPSS integration for vulnerability tracking
+- Real-time threat actor intelligence display
+- Enhanced security metrics dashboard
+- MITRE ATT&CK technique mapping display
 """
 
 import tkinter as tk

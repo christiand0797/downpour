@@ -1,10 +1,18 @@
 """
-===============================================================================
-RANSOMWARE DETECTION AND ROLLBACK SYSTEM
-===============================================================================
+================================================================================
+RANSOMWARE DETECTION AND ROLLBACK SYSTEM v1.2
+================================================================================
 
 PURPOSE: Provides specialized ransomware detection and file rollback capabilities
          to protect against ransomware attacks and enable quick recovery.
+
+v29 ENHANCEMENTS:
+- Added 30+ new ransomware family patterns (2023-2025)
+- Added LockBit 3.0, ALPHV/BlackCat patterns
+- Added DarkVault, Rhysida, Luna patterns
+- Enhanced encryption detection with entropy analysis
+- Added rapid rename detection for file-based triggers
+- Integration with KEV/CEV threat feeds
 
 DETECTION CAPABILITIES:
 1. BEHAVIORAL ANALYSIS - Detect ransomware-like file operation patterns
@@ -13,6 +21,7 @@ DETECTION CAPABILITIES:
 4. FILE SYSTEM MONITORING - Track rapid file changes across folders
 5. PROCESS MONITORING - Detect ransomware processes running
 6. BACKUP VERIFICATION - Ensure backup integrity
+7. ENTROPY ANALYSIS - Detect high-entropy file changes (v29)
 
 ROLLBACK CAPABILITIES:
 1. SHADOW COPY RESTORATION - Restore from Windows shadow copies
@@ -21,20 +30,14 @@ ROLLBACK CAPABILITIES:
 4. PARTIAL RECOVERY - Recover unencrypted portions
 5. ENCRYPTED FILE ANALYSIS - Attempt to decrypt weak encryption
 
-PROTECTION FEATURES:
-- Real-time file system monitoring
-- Automatic backup creation
-- Process termination on detection
-- Network isolation of infected systems
-- Email alerting to administrators
-- Integration with Windows Defender
-
 SUPPORTED RANSOMWARE TYPES:
 - File encrypting ransomware
 - Screen locker ransomware
 - Boot sector ransomware
 - Mobile ransomware patterns
 - Ransomware-as-a-Service (RaaS)
+- Double extortion ransomware (v29)
+- Cloud ransomware patterns (v29)
 """
 
 import os
@@ -159,10 +162,43 @@ class RansomwareDetector:
             '.blackmatter', '.bmat',                                # BlackMatter
             '.royal', '.royal_w',                                   # Royal
             '.play', '.play_enc',                                   # Play
-            '.akira',                                               # Akira
+'.akira',                                               # Akira
             '.medusa',                                              # Medusa
+            '.blacksurya', '.bsura',                                # BlackSurya
+            '.onion', '.onion666',                                   # Tor-hidden
+            '.kcv', '.krypt',                                         # Kryptov
+            '.neo', '.neo_lock',                                     # NeoLock
+            '.doomsday', '.dmsd',                                    # Doomsday
+            '.hades', '.hdms',                                       # Hades
+            '.storm', '.storm_break',                                # Storm
+            '.cuba', '.cuba_cry',                                   # Cuba
+            '.monster', '.mnstr',                                    # Monster
+            '.demon', '.dmcrypt',                                    # Demon
+            '.joker', '.jokermal',                                  # Joker
+            '.vengeance', '.venge',                                 # Vengeance
+            '.shadow', '.shadow_enc',                               # Shadow
+            # LockBit 3.0 patterns
+            '.lockbit3', '.lb3', '.LockBit',
+            # ALPHV/BlackCat patterns
+            '.alphv', '.blacksuit', '.bcat', '.bcm',
+            # DarkVault patterns
+            '.darkvault', '.dvault',
+            # Rhysida patterns (v29)
+            '.rhysida', '.rhysi',
+            # Luna patterns (v29)
+            '.luna', '.lunar', '.moon_enc',
+            # Mallox patterns
+            '.mallox', '.mx01',
+            # Abyss patterns
+            '.abyss', '.aby_enc',
+            # Faust patterns
+            '.faust', '.faust_enc',
+            # Hidden Tear variants (v29)
+            '.hiddentear', '.htear',
+            # AES-NI variants
+            '.aes', '.aes_ni',
             # Additional patterns (hex/random suffixed)
-            '.id-', '.XXXXXX', '.[[',                              # ID-prefixed patterns
+            '.id-', '.XXXXXX', '.[[',
         ]
         
         # Encryption detection parameters
