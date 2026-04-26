@@ -114,32 +114,32 @@ class SecurityDashboard:
         try:
             if GPU_DETECTOR_AVAILABLE:
                 self.gpu_detector = GPUDetector()
-                print("✅ GPU detector initialized")
+                print("[OK] GPU detector initialized")
             else:
                 self.gpu_detector = None
-                print("⚠️ GPU detector not available")
+                print("[WARNING] GPU detector not available")
         except Exception as e:
-            print(f"❌ GPU detector initialization failed: {e}")
+            print(f"[ERROR] GPU detector initialization failed: {e}")
             self.gpu_detector = None
         
         try:
             if ENHANCED_HW_AVAILABLE:
                 self.hw_monitor = EnhancedHardwareMonitor()
-                print("✅ Enhanced hardware monitor initialized")
+                print("[OK] Enhanced hardware monitor initialized")
             elif PSUTIL_AVAILABLE:
                 # Fallback hardware monitoring
                 self.hw_monitor = self
-                print("⚠️ Using fallback hardware monitoring")
+                print("[WARNING] Using fallback hardware monitoring")
         except Exception as e:
-            print(f"❌ Hardware monitor initialization failed: {e}")
+            print(f"[ERROR] Hardware monitor initialization failed: {e}")
             self.hw_monitor = None
         
         try:
             if AI_ENGINE_AVAILABLE:
                 self.ai_engine = AISecurityEngine()
-                print("✅ AI security engine initialized")
+                print("[OK] AI security engine initialized")
         except Exception as e:
-            print(f"❌ AI engine initialization failed: {e}")
+            print(f"[ERROR] AI engine initialization failed: {e}")
             self.ai_engine = None
     
     def _create_widgets(self):
@@ -264,7 +264,7 @@ class SecurityDashboard:
         # Panel title
         panel_title = tk.Label(
             parent,
-            text="🛡️ SECURITY COUNTERS",
+            text="[SECURITY] COUNTERS",
             font=('Arial', 14, 'bold'),
             fg='#00ffff',
             bg='#151528'
@@ -290,17 +290,17 @@ class SecurityDashboard:
         
         # Detailed counters
         detailed_counters = [
-            ("🎯 Real-time Threats", "active_threats", "#ff4444"),
-            ("🛡️ Threats Blocked Today", "threats_today", "#00ff9f"),
-            ("🔍 Scans Completed", "scans_completed", "#0099ff"),
-            ("📁 Files Protected", "files_protected", "#00ffff"),
-            ("⚠️ Suspicious Files", "suspicious_files", "#ffaa00"),
-            ("🚫 Blocked Processes", "blocked_processes", "#ff0044"),
-            ("🌊 Network Attacks Blocked", "network_attacks", "#ff6600"),
-            ("🔒 Quarantine Items", "quarantine_count", "#9d00ff"),
-            ("📊 Security Score", "security_score", "#00ff9f"),
-            ("⏰ Last Protection", "last_protection", "#8888aa"),
-            ("🔄 Update Status", "update_status", "#00ffff")
+            ("[GAUGE] Real-time Threats", "active_threats", "#ff4444"),
+            ("[GAUGE] Threats Blocked Today", "threats_today", "#00ff9f"),
+            ("[GAUGE] Scans Completed", "scans_completed", "#0099ff"),
+            ("[GAUGE] Files Protected", "files_protected", "#00ffff"),
+            ("[WARNING] Suspicious Files", "suspicious_files", "#ffaa00"),
+            ("[BLOCKED] Blocked Processes", "blocked_processes", "#ff0044"),
+            ("[NETWORK] Network Attacks Blocked", "network_attacks", "#ff6600"),
+            ("[QUARANTINE] Items", "quarantine_count", "#9d00ff"),
+            ("Security Score", "security_score", "#00ff9f"),
+            ("Last Protection", "last_protection", "#8888aa"),
+            ("[UPDATE] Status", "update_status", "#00ffff")
         ]
         
         self.detailed_counter_vars = {}
@@ -345,7 +345,7 @@ class SecurityDashboard:
         # Panel title
         panel_title = tk.Label(
             parent,
-            text="💻 HARDWARE MONITORING",
+            text="[HARDWARE] MONITORING",
             font=('Arial', 14, 'bold'),
             fg='#00ffff',
             bg='#151528'
@@ -354,12 +354,12 @@ class SecurityDashboard:
         
         # Hardware info sections
         hw_sections = [
-            ("🖥️ CPU", "cpu_info"),
-            ("🎮 GPU", "gpu_info"), 
-            ("💾 RAM", "ram_info"),
-            ("💿 DISK", "disk_info"),
-            ("🌡️ TEMPERATURE", "temp_info"),
-            ("⚡ PERFORMANCE", "perf_info")
+            ("[HW] CPU", "cpu_info"),
+            ("[HW] GPU", "gpu_info"), 
+            ("[HW] RAM", "ram_info"),
+            ("[HW] DISK", "disk_info"),
+            ("[HW] TEMPERATURE", "temp_info"),
+            ("[HW] PERFORMANCE", "perf_info")
         ]
         
         self.hardware_vars = {}
@@ -405,7 +405,7 @@ class SecurityDashboard:
         # Network section
         network_title = tk.Label(
             parent,
-            text="🌐 NETWORK STATUS",
+            text="[NETWORK] STATUS",
             font=('Arial', 14, 'bold'),
             fg='#00ffff',
             bg='#151528'
@@ -465,7 +465,7 @@ class SecurityDashboard:
         # Quarantine section
         quarantine_title = tk.Label(
             parent,
-            text="🔒 QUARANTINE",
+            text="[QUARANTINE]",
             font=('Arial', 14, 'bold'),
             fg='#00ffff',
             bg='#151528'
@@ -474,10 +474,10 @@ class SecurityDashboard:
         
         # Quarantine buttons
         quarantine_buttons = [
-            ("📋 View Quarantine", self._view_quarantine),
-            ("🔍 Scan Files", self._scan_files),
-            ("🗑️ Clean Threats", self._clean_threats),
-            ("⚙️ Settings", self._open_settings)
+            ("[VIEW] Quarantine", self._view_quarantine),
+            ("[SCAN] Scan Files", self._scan_files),
+            ("[CLEAN] Threats", self._clean_threats),
+            ("[SETTINGS]", self._open_settings)
         ]
         
         button_frame = tk.Frame(parent, bg='#151528')
@@ -507,7 +507,7 @@ class SecurityDashboard:
         
         # Status indicators
         self.status_var = tk.StringVar()
-        self.status_var.set("🛡️ Security Status: PROTECTED | AI Engine: ACTIVE | Hardware Monitor: RUNNING")
+        self.status_var.set("[SECURE] Security Status: PROTECTED | AI Engine: ACTIVE | Hardware Monitor: RUNNING")
         
         status_label = tk.Label(
             status_frame,
