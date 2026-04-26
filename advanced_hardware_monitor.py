@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+__version__ = "29.0.0"
 Advanced Hardware Performance Monitoring System
 Real-time responsive gauges with sophisticated performance readings
 """
