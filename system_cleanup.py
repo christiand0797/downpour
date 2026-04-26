@@ -62,10 +62,11 @@ SAFE_VIRTUAL_ADAPTERS = {
 }
 
 
-def banner(text: str):
-    print(f"\n{'='*60}")
-    print(f"  {text}")
-    print(f"{'='*60}\n")
+def banner(text: str) -> None:
+    import logging
+    logging.info(f"\n{'='*60}")
+    logging.info(f"  {text}")
+    logging.info(f"{'='*60}\n")
 
 
 # ---------------------------------------------------------------------------
