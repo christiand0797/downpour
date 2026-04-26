@@ -339,7 +339,7 @@ class MLDetector:
             return is_anomaly, abs(anomaly_score)
             
         except Exception as e:
-            logging.error(f"Error in anomaly detection: {e}")
+            logging.error(f"AnomalyDetectionError | Features: {features.shape if hasattr(features, 'shape') else 'N/A'} | Error: {e}")
             return False, 0.0
     
     def classify_behavior(self, features):

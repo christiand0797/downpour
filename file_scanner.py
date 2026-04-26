@@ -177,7 +177,7 @@ class FileScanner:
             
         except Exception as e:
             result['error'] = str(e)
-            logging.error(f"Scan error for {file_path}: {e}")
+            logging.error(f"SCAN_ERROR | Path: {file_path} | Error: {type(e).__name__}: {e}")
         
         self.scan_results.append(result)
         return result

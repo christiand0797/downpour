@@ -453,8 +453,8 @@ class BehavioralAnalyzer:
             else:
                 details += "Monitor: Watch this process for additional suspicious activity"
             
-            # Log the alert
-            logging.warning(f"[{severity}] {message}")
+            # Log the alert with context
+            logging.warning(f"[{severity}] {message} | PID: {proc_info.get('pid')} | Score: {score}")
             logging.warning(details)
             
             # In real implementation, would call alert_system.add_alert()
