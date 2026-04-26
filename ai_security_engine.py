@@ -18,6 +18,11 @@ v29 ENHANCEMENTS:
 import os
 import sys
 import time
+try:
+    from config import CONFIG as APP_CONFIG
+except Exception:
+    APP_CONFIG = {}
+LEARNING_CYCLE_SECONDS = APP_CONFIG.get('AI', {}).get('LEARNING_CYCLE_SECONDS', 300)
 import logging
 import pickle
 import json
@@ -610,8 +615,8 @@ class AISecurityEngine:
                 # Save models
                 self._save_models()
                 
-                # Sleep for 5 minutes
-                time.sleep(300)  # 5 minutes
+                # Sleep duration controlled via config (default 300s)
+                time.sleep(LEARNING_CYCLE_SECONDS)
                 
             except Exception as e:
                 self.logger.error(f"Learning loop error: {e}")

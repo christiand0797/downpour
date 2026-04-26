@@ -1,4 +1,5 @@
 """
+__version__ = "29.0.0"
 downpour  -  advanced security suite v29 TITANIUM
 ==================================================
 a comprehensive cybersecurity application featuring real-time threat detection, 

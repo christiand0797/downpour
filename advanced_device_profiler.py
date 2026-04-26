@@ -76,7 +76,7 @@ class AdvancedDeviceProfiler:
         
     def comprehensive_admin_analysis(self) -> Dict[str, Any]:
         """Perform comprehensive analysis for admin-level operations"""
-        print("🔬 Starting comprehensive admin-level device analysis...")
+        print("[ANALYSIS] Starting comprehensive admin-level device analysis...")
         
         analysis_result = {
             'timestamp': time.time(),
@@ -103,7 +103,7 @@ class AdvancedDeviceProfiler:
     
     def _assess_system_capabilities(self) -> SystemCapability:
         """Assess system capabilities for admin operations"""
-        print("    🔍 Assessing system capabilities...")
+        print("    [SEARCH] Assessing system capabilities...")
         
         capabilities = {
             'admin_access': False,
@@ -215,13 +215,13 @@ class AdvancedDeviceProfiler:
             capabilities['overall_capability'] = min(score, 100)
             
         except Exception as e:
-            print(f"        ⚠️ Capability assessment error: {e}")
+            print(f"        [WARNING] Capability assessment error: {e}")
         
         return SystemCapability(**capabilities)
     
     def _profile_hardware_comprehensive(self) -> HardwareProfile:
         """Comprehensive hardware profiling"""
-        print("    🔬 Profiling hardware capabilities...")
+        print("    [ANALYSIS] Profiling hardware capabilities...")
         
         profile = {
             'cpu_architecture': platform.machine(),
@@ -269,7 +269,7 @@ class AdvancedDeviceProfiler:
             profile['power_management'] = power_info
             
         except Exception as e:
-            print(f"        ⚠️ Hardware profiling error: {e}")
+            print(f"        [WARNING] Hardware profiling error: {e}")
         
         return HardwareProfile(**profile)
     
@@ -332,7 +332,7 @@ class AdvancedDeviceProfiler:
                 cpu_info['features'].append('standard_performance')
                 
         except Exception as e:
-            print(f"            ⚠️ CPU analysis error: {e}")
+            print(f"            [WARNING] CPU analysis error: {e}")
         
         return cpu_info
     
@@ -396,7 +396,7 @@ class AdvancedDeviceProfiler:
                 memory_info['performance_tier'] = 'budget'
                 
         except Exception as e:
-            print(f"            ⚠️ Memory analysis error: {e}")
+            print(f"            [WARNING] Memory analysis error: {e}")
         
         return memory_info
     
@@ -467,10 +467,10 @@ class AdvancedDeviceProfiler:
                     storage_devices.append(device_info)
                     
                 except Exception as e:
-                    print(f"                ⚠️ Storage analysis error for {partition.device}: {e}")
+                    print(f"                [WARNING] Storage analysis error for {partition.device}: {e}")
                     
         except Exception as e:
-            print(f"        ⚠️ Storage analysis error: {e}")
+            print(f"        [WARNING] Storage analysis error: {e}")
         
         return storage_devices
     
@@ -556,7 +556,7 @@ class AdvancedDeviceProfiler:
                 graphics_info['gaming_capability'] = 'integrated'
                 
         except Exception as e:
-            print(f"        ⚠️ Graphics analysis error: {e}")
+            print(f"        [WARNING] Graphics analysis error: {e}")
         
         return graphics_info
     
@@ -623,7 +623,7 @@ class AdvancedDeviceProfiler:
                 network_interfaces.append(interface_info)
                 
         except Exception as e:
-            print(f"        ⚠️ Network analysis error: {e}")
+            print(f"        [WARNING] Network analysis error: {e}")
         
         return network_interfaces
     
@@ -652,7 +652,7 @@ class AdvancedDeviceProfiler:
                                 }
                                 peripherals.append(monitor_info)
                 except Exception as e:
-                    print(f"                ⚠️ Monitor analysis error: {e}")
+                    print(f"                [WARNING] Monitor analysis error: {e}")
             
             # Keyboard analysis
             try:
@@ -671,7 +671,7 @@ class AdvancedDeviceProfiler:
                             }
                             peripherals.append(keyboard_info)
             except Exception as e:
-                print(f"                ⚠️ Keyboard analysis error: {e}")
+                print(f"                [WARNING] Keyboard analysis error: {e}")
             
             # Mouse analysis
             try:
@@ -690,7 +690,7 @@ class AdvancedDeviceProfiler:
                             }
                             peripherals.append(mouse_info)
             except Exception as e:
-                print(f"                ⚠️ Mouse analysis error: {e}")
+                print(f"                [WARNING] Mouse analysis error: {e}")
             
             # Printer analysis
             try:
@@ -709,10 +709,10 @@ class AdvancedDeviceProfiler:
                             }
                             peripherals.append(printer_info)
             except Exception as e:
-                print(f"                ⚠️ Printer analysis error: {e}")
+                print(f"                [WARNING] Printer analysis error: {e}")
                 
         except Exception as e:
-            print(f"        ⚠️ Peripheral analysis error: {e}")
+            print(f"        [WARNING] Peripheral analysis error: {e}")
         
         return peripherals
     
@@ -761,7 +761,7 @@ class AdvancedDeviceProfiler:
         except ImportError:
             pass
         except Exception as e:
-            print(f"        ⚠️ Thermal analysis error: {e}")
+            print(f"        [WARNING] Thermal analysis error: {e}")
         
         return thermal_info
     
@@ -822,13 +822,13 @@ class AdvancedDeviceProfiler:
         except ImportError:
             pass
         except Exception as e:
-            print(f"        ⚠️ Power management analysis error: {e}")
+            print(f"        [WARNING] Power management analysis error: {e}")
         
         return power_info
     
     def _analyze_security_context(self) -> SecurityContext:
         """Analyze security and privilege context"""
-        print("    🔍 Analyzing security context...")
+        print("    [SEARCH] Analyzing security context...")
         
         context = {
             'user_account': {},
@@ -875,7 +875,7 @@ class AdvancedDeviceProfiler:
             context['applocker_policies'] = self._analyze_applocker_policies()
             
         except Exception as e:
-            print(f"        ⚠️ Security context analysis error: {e}")
+            print(f"        [WARNING] Security context analysis error: {e}")
         
         return SecurityContext(**context)
     
@@ -1105,7 +1105,7 @@ class AdvancedDeviceProfiler:
                 network_analysis['firewall_bypass_potential'] = 'low'
                 
         except Exception as e:
-            print(f"        ⚠️ Network analysis error: {e}")
+            print(f"        [WARNING] Network analysis error: {e}")
         
         return network_analysis
     
@@ -1223,7 +1223,7 @@ class AdvancedDeviceProfiler:
             installation_analysis['overall_install_capability'] = min(score, 100)
             
         except Exception as e:
-            print(f"        ⚠️ Installation analysis error: {e}")
+            print(f"        [WARNING] Installation analysis error: {e}")
         
         return installation_analysis
     
@@ -1315,7 +1315,7 @@ class AdvancedDeviceProfiler:
                 bypass_analysis['recommended_bypass_strategy'] = 'minimal'
                 
         except Exception as e:
-            print(f"        ⚠️ Bypass analysis error: {e}")
+            print(f"        [WARNING] Bypass analysis error: {e}")
         
         return bypass_analysis
     
@@ -1464,7 +1464,7 @@ class AdvancedDeviceProfiler:
             ]
             
         except Exception as e:
-            print(f"        ⚠️ Strategy generation error: {e}")
+            print(f"        [WARNING] Strategy generation error: {e}")
         
         return strategies
     
@@ -1506,7 +1506,7 @@ class AdvancedDeviceProfiler:
             return min(score, 100.0)
             
         except Exception as e:
-            print(f"        ⚠️ Success probability calculation error: {e}")
+            print(f"        [WARNING] Success probability calculation error: {e}")
             return 50.0  # Default to 50%
     
     def _save_comprehensive_profile(self, analysis_result: Dict[str, Any]):
@@ -1517,7 +1517,7 @@ class AdvancedDeviceProfiler:
                 json.dump(analysis_result, f, indent=2, default=str)
             print(f"    ✅ Comprehensive profile saved to {profile_path}")
         except Exception as e:
-            print(f"    ⚠️ Could not save comprehensive profile: {e}")
+            print(f"    [WARNING] Could not save comprehensive profile: {e}")
 
 # Usage example
 if __name__ == "__main__":

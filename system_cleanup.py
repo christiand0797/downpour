@@ -1,4 +1,6 @@
 """
+__version__ = "29.0.0"
+System Cleanup Tool - v29
 Downpour v29 Titanium — System Cleanup Tool
 =============================================
 Restores falsely quarantined files, purges false-positive DB entries,

@@ -1,4 +1,6 @@
 """
+__version__ = "29.0.0"
+Threat Intelligence Updater - KEV/EPSS integration (v29)
 ===============================================================================
 THREAT INTELLIGENCE UPDATER - Real-Time Protection Database
 ===============================================================================

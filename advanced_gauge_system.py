@@ -651,7 +651,7 @@ class AdvancedGaugeSystem:
         # Title
         title_label = tk.Label(
             main_frame,
-            text="🖥️ Advanced Hardware Performance Monitor",
+            text="[MONITOR] Advanced Hardware Performance Monitor",
             bg="#0a0a0a", fg="#00ff00",
             font=("Arial", 16, "bold")
         )
@@ -759,7 +759,7 @@ class AdvancedGaugeSystem:
         # Export button
         export_button = tk.Button(
             control_frame,
-            text="📊 Export Data",
+            text="[STATS] Export Data",
             command=self.export_data,
             bg="#0088ff", fg="#ffffff",
             font=("Arial", 10),
@@ -786,7 +786,7 @@ class AdvancedGaugeSystem:
         else:
             self.hardware_monitor.start_monitoring()
             self.is_running = True
-            self.start_button.config(text="🛑 Stop Monitoring", bg="#ff0000")
+            self.start_button.config(text="[STOP] Stop Monitoring", bg="#ff0000")
             self.status_label.config(text="Status: Monitoring")
     
     def on_metrics_update(self, metrics: HardwareMetrics):
@@ -924,12 +924,12 @@ class AdvancedGaugeSystem:
 
 def main():
     """Main function"""
-    print("🖥️ Advanced Hardware Performance Monitor")
+    print("[MONITOR] Advanced Hardware Performance Monitor")
     print("=" * 50)
     print("Responsive gauges with real-time hardware monitoring")
-    print("🎨 Animated gauges with smooth transitions")
-    print("📊 Real-time performance data visualization")
-    print("🔥 Advanced monitoring with predictive analysis")
+    print("[ART] Animated gauges with smooth transitions")
+    print("[STATS] Real-time performance data visualization")
+    print("[FIRE] Advanced monitoring with predictive analysis")
     print("=" * 50)
     
     # Create hardware monitor
@@ -955,18 +955,18 @@ def main():
     gauge_system = AdvancedGaugeSystem(root, hardware_monitor)
     
     try:
-        print("\n🖥️ Starting advanced gauge system...")
+        print("\n[MONITOR] Starting advanced gauge system...")
         gauge_system.run()
         
     except KeyboardInterrupt:
-        print("\n🛑 Monitoring stopped by user")
+        print("\n[STOP] Monitoring stopped by user")
     except Exception as e:
-        print(f"\n❌ Error: {e}")
+        print(f"\n[ERROR] Error: {e}")
         import traceback
         traceback.print_exc()
     finally:
         hardware_monitor.stop_monitoring()
-        print("\n🏁 Advanced gauge system stopped")
+        print("\n[FLAG] Advanced gauge system stopped")
     
     input("\nPress Enter to exit...")
 

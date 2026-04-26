@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+__version__ = "29.0.0"
 Enhanced Hardware Integration for Downpour v29 Titanium
 Advanced hardware monitoring with responsive gauges and real-time performance data
 """
@@ -666,7 +667,7 @@ def main():
             print(f"   Uptime: {current.uptime_hours:.1f} hours")
         
         # Show gauge data
-        print(f"\n🎯 Responsive Gauge Data:")
+        print(f"\n[GAUGE] Responsive Gauge Data:")
         for metric in ["cpu", "memory", "disk", "network"]:
             gauge_data = hardware.get_responsive_gauge_data(metric)
             if gauge_data:
@@ -687,25 +688,25 @@ def main():
         
         # Test gauge system if GUI available
         if GUI_AVAILABLE:
-            print(f"\n🎨 Testing gauge system...")
+            print("\n[UI] Testing gauge system...")
             root = tk.Tk()
             gauge_system = hardware.create_gauge_system(root)
             if gauge_system:
-                print("✅ Gauge system created successfully")
+                print("[OK] Gauge system created successfully")
                 # Don't actually run the GUI in test mode
                 root.destroy()
             else:
-                print("❌ Failed to create gauge system")
+                print("[ERROR] Gauge system creation failed")
         
     except KeyboardInterrupt:
-        print("\n🛑 Monitoring stopped by user")
+        print("\n[WARNING] Monitoring stopped by user")
     except Exception as e:
-        print(f"\n❌ Error: {e}")
+        print(f"\n[ERROR] Error: {e}")
         import traceback
         traceback.print_exc()
     finally:
         hardware.cleanup()
-        print("\n🏁 Enhanced hardware integration test completed")
+        print("\n[DONE] Enhanced hardware integration test completed")
     
     input("\nPress Enter to exit...")
 

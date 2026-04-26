@@ -520,3 +520,8 @@ NETWORK_DETECTION_RULES = [
 
 
 print("[NetworkMonitor v1.2] Loaded - Enhanced with MITRE ATT&CK network mappings")
+try:
+    import requests
+    _REQUESTS_AVAILABLE = True
+except Exception:
+    _REQUESTS_AVAILABLE = False

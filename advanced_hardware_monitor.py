@@ -197,14 +197,14 @@ class AdvancedHardwareMonitor:
         self.is_monitoring = True
         self.monitor_thread = threading.Thread(target=self._monitoring_loop, daemon=True)
         self.monitor_thread.start()
-        self.logger.info("🖥️ Advanced hardware monitoring started")
+        self.logger.info("[MONITOR] Advanced hardware monitoring started")
     
     def stop_monitoring(self):
         """Stop hardware monitoring"""
         self.is_monitoring = False
         if self.monitor_thread:
             self.monitor_thread.join(timeout=2)
-        self.logger.info("🛑 Hardware monitoring stopped")
+        self.logger.info("[STOP] Hardware monitoring stopped")
     
     def _monitoring_loop(self):
         """Main monitoring loop with optimized performance"""
@@ -851,24 +851,24 @@ class AdvancedHardwareMonitor:
 
 def main():
     """Main function for testing"""
-    print("🖥️ Advanced Hardware Performance Monitor")
+    print("[MONITOR] Advanced Hardware Performance Monitor")
     print("=" * 50)
     print("Real-time responsive gauges with sophisticated performance readings")
     print("🔥 Advanced monitoring with predictive analysis")
-    print("📊 Responsive gauges with smooth animations")
-    print("🎯 Intelligent alerts and trend analysis")
+    print("[STATS] Responsive gauges with smooth animations")
+    print("[TARGET] Intelligent alerts and trend analysis")
     print("=" * 50)
     
     monitor = AdvancedHardwareMonitor()
     
     # Add example callback
     def metrics_callback(metrics):
-        print(f"📊 CPU: {metrics.cpu_percent:.1f}% | Memory: {metrics.memory_percent:.1f}% | Health: {metrics.health_score:.1f}")
+        print(f"[STATS] CPU: {metrics.cpu_percent:.1f}% | Memory: {metrics.memory_percent:.1f}% | Health: {metrics.health_score:.1f}")
     
     monitor.add_callback(metrics_callback)
     
     try:
-        print("\n🖥️ Starting hardware monitoring...")
+        print("\n[MONITOR] Starting hardware monitoring...")
         monitor.start_monitoring()
         
         # Monitor for 10 seconds
@@ -877,7 +877,7 @@ def main():
         # Show current metrics
         current = monitor.get_current_metrics()
         if current:
-            print(f"\n📊 Current Metrics:")
+            print(f"\n[STATS] Current Metrics:")
             print(f"   CPU: {current.cpu_percent:.1f}% @ {current.cpu_frequency:.0f}MHz")
             print(f"   Memory: {current.memory_percent:.1f}% ({current.memory_used_gb:.1f}GB / {current.memory_total_gb:.1f}GB)")
             print(f"   Disk: {current.disk_percent:.1f}% ({current.disk_used_gb:.1f}GB / {current.disk_total_gb:.1f}GB)")
@@ -889,7 +889,7 @@ def main():
             print(f"   Uptime: {current.uptime_hours:.1f} hours")
         
         # Show gauge data
-        print(f"\n🎯 Responsive Gauge Data:")
+        print(f"\n[TARGET] Responsive Gauge Data:")
         for metric in ["cpu", "memory", "disk", "gpu", "temperature", "health"]:
             gauge_data = monitor.get_responsive_gauge_data(metric)
             if gauge_data:
@@ -899,7 +899,7 @@ def main():
         summary = monitor.get_performance_summary()
         if summary and 'statistics' in summary:
             stats = summary['statistics']
-            print(f"\n📈 Performance Summary:")
+            print(f"\n[CHART] Performance Summary:")
             for metric in ['cpu', 'memory', 'disk', 'health']:
                 if metric in stats:
                     metric_stats = stats[metric]
@@ -909,14 +909,14 @@ def main():
         monitor.export_metrics("hardware_metrics.json")
         
     except KeyboardInterrupt:
-        print("\n🛑 Monitoring stopped by user")
+        print("\n[STOP] Monitoring stopped by user")
     except Exception as e:
-        print(f"\n❌ Error: {e}")
+        print(f"\n[ERROR] Error: {e}")
         import traceback
         traceback.print_exc()
     finally:
         monitor.stop_monitoring()
-        print("\n🏁 Hardware monitoring stopped")
+        print("\n[FLAG] Hardware monitoring stopped")
     
     input("\nPress Enter to exit...")
 

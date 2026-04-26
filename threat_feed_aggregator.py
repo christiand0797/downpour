@@ -1,5 +1,7 @@
 """
 __version__ = "29.0.0"
+Threat Feed Aggregator - enhanced v29
+__version__ = "29.0.0"
 
 Threat Feed Aggregator v1.2 - ENHANCED v29
 ==============================================================

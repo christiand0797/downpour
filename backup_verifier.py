@@ -33,6 +33,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 import zipfile
+__version__ = "29.0.0"
 
 
 class BackupIntegrityVerifier:
