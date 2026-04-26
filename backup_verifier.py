@@ -71,18 +71,18 @@ class BackupIntegrityVerifier:
                 with open(self.config_path, 'r') as f:
                     loaded_config = json.load(f)
                     self.config.update(loaded_config)
-                print(f"✅ Loaded backup config from {self.config_path}")
+                print(f"[OK] Loaded backup config from {self.config_path}")
             except Exception as e:
-                print(f"⚠️  Error loading config: {e}")
+                print(f"[WARNING] Error loading config: {e}")
     
     def save_config(self):
         """Save configuration to JSON file"""
         try:
             with open(self.config_path, 'w') as f:
                 json.dump(self.config, f, indent=4)
-            print(f"✅ Saved backup config")
+            print(f"[OK] Saved backup config")
         except Exception as e:
-            print(f"❌ Error saving config: {e}")
+            print(f"[ERROR] Error saving config: {e}")
     
     def init_database(self):
         """Initialize SQLite database for tracking backups"""
@@ -131,7 +131,7 @@ class BackupIntegrityVerifier:
             conn.commit()
         finally:
             conn.close()
-        print("✅ Backup integrity database initialized")
+        print("[OK] Backup integrity database initialized")
     
     def check_all_backups(self) -> Dict:
         """
@@ -161,7 +161,7 @@ class BackupIntegrityVerifier:
             
             if not os.path.exists(path):
                 warning = f"Backup location does not exist: {path}"
-                print(f"  ❌ {warning}")
+                print(f"  [ERROR] {warning}")
                 results["critical_issues"].append(warning)
                 continue
             
@@ -185,7 +185,7 @@ class BackupIntegrityVerifier:
                 results["critical_issues"].append(issue)
                 print(f"  🚨 {issue}")
             else:
-                print(f"  ✅ All {integrity['total_files']} backup files are valid")
+                print(f"  [OK] All {integrity['total_files']} backup files are valid")
         
         # Overall assessment
         print("\n" + "=" * 80)
@@ -208,7 +208,7 @@ class BackupIntegrityVerifier:
                 print(f"   • {warning}")
         
         if not results["critical_issues"] and not results["warnings"]:
-            print("\n✅ All backups are healthy!")
+            print("\n[OK] All backups are healthy!")
         
         print("=" * 80)
         print("")
@@ -324,7 +324,7 @@ class BackupIntegrityVerifier:
         Creates a test file, backs it up, deletes it, then restores it.
         """
         print("\n" + "=" * 80)
-        print("🧪 TESTING BACKUP RESTORE CAPABILITY")
+        print("[TEST] TESTING BACKUP RESTORE CAPABILITY")
         print("=" * 80)
         print("")
         
@@ -367,7 +367,7 @@ class BackupIntegrityVerifier:
             # Verify it's gone
             if os.path.exists(test_file):
                 raise Exception("Original file still exists after deletion")
-            print(f"   ✅ Original deleted successfully")
+            print(f"   [OK] Original deleted successfully")
             
             # Restore from backup
             print(f"4. Restoring from backup")
@@ -383,11 +383,11 @@ class BackupIntegrityVerifier:
             if restored_hash == test_hash:
                 result["success"] = True
                 result["message"] = "Backup restore test PASSED - backups are working!"
-                print(f"   ✅ Content matches original (hash verified)")
+                print(f"   [OK] Content matches original (hash verified)")
             else:
                 result["success"] = False
                 result["message"] = "Backup restore test FAILED - restored file is corrupted"
-                print(f"   ❌ Content does NOT match original")
+                print(f"   [ERROR] Content does NOT match original")
             
             # Cleanup
             print(f"6. Cleaning up test files")
@@ -399,7 +399,7 @@ class BackupIntegrityVerifier:
         except Exception as e:
             result["success"] = False
             result["message"] = f"Backup restore test FAILED: {str(e)}"
-            print(f"   ❌ Error: {e}")
+            print(f"   [ERROR] Error: {e}")
         
         result["duration"] = (datetime.now() - start_time).total_seconds()
         result["test_file"] = test_file
@@ -415,9 +415,9 @@ class BackupIntegrityVerifier:
         
         print("\n" + "=" * 80)
         if result["success"]:
-            print("✅ RESTORE TEST: PASSED")
+            print("[OK] RESTORE TEST: PASSED")
         else:
-            print("❌ RESTORE TEST: FAILED")
+            print("[ERROR] RESTORE TEST: FAILED")
         print(f"Message: {result['message']}")
         print("=" * 80)
         print("")
@@ -429,7 +429,7 @@ class BackupIntegrityVerifier:
         Continuous monitoring mode - checks backup health periodically.
         """
         print("\n" + "=" * 80)
-        print("📊 BACKUP HEALTH MONITORING")
+        print("[STATS] BACKUP HEALTH MONITORING")
         print("=" * 80)
         print("\nMonitoring backup locations... Press Ctrl+C to stop\n")
         
@@ -542,10 +542,10 @@ class BackupIntegrityVerifier:
 
             checks = cursor.fetchall()
             if checks:
-                report_lines.append("📊 Recent Integrity Checks:")
+                report_lines.append("[STATS] Recent Integrity Checks:")
                 for timestamp, location, total, valid, corrupted in checks:
                     date_str = timestamp.split('T')[0]
-                    status = "✅ PASS" if corrupted == 0 else f"❌ {corrupted} CORRUPTED"
+                    status = "[OK] PASS" if corrupted == 0 else f"[ERROR] {corrupted} CORRUPTED"
                     report_lines.append(f"   [{date_str}] {location}: {valid}/{total} valid {status}")
 
             report_lines.append("")
@@ -559,10 +559,10 @@ class BackupIntegrityVerifier:
 
             tests = cursor.fetchall()
             if tests:
-                report_lines.append("🧪 Recent Restore Tests:")
+                report_lines.append("[TEST] Recent Restore Tests:")
                 for timestamp, location, success in tests:
                     date_str = timestamp.split('T')[0]
-                    status = "✅ PASS" if success else "❌ FAIL"
+                    status = "[OK] PASS" if success else "[ERROR] FAIL"
                     report_lines.append(f"   [{date_str}] {location}: {status}")
         finally:
             conn.close()
