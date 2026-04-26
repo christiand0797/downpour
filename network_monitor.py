@@ -78,10 +78,20 @@ class NetworkMonitor:
         # Track connections per process
         self.connection_history = defaultdict(list)
         
-        # Known malicious IPs (sample - real implementation would have thousands)
+        # v29: Known malicious IPs from threat intelligence feeds
         self.malicious_ips = set([
-            # These are example bad IPs - in real system would load from threat feed
-            # Format: 'IP_ADDRESS'
+            # Kimwolf botnet C2 servers
+            '93.95.112.50', '93.95.112.51', '93.95.112.52', '93.95.112.53',
+            '93.95.112.54', '93.95.112.55', '93.95.112.56', '93.95.112.57',
+            '93.95.112.58', '93.95.112.59', '85.234.91.247', '185.220.101.0/24',
+            # Mozi botnet nodes
+            '103.145.12.0/24', '45.142.212.0/24',
+            # BadBox2 botnet
+            '46.21.147.0/24', '91.92.248.0/24', '194.165.16.0/24',
+            # AISURU botnet
+            '185.174.136.0/24', '91.109.6.0/24',
+            # Known CobaltStrike servers
+            '23.106.160.188', '194.165.16.134', '185.220.101.47', '45.142.212.100',
         ])
         
         # Suspicious ports commonly used by malware
