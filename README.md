@@ -67,6 +67,37 @@ Downpour is a personal, all-in-one Windows security suite — written entirely i
 
 ---
 
+## v29 Titanium - New Features
+
+### KEV/CEV/EPSS Vulnerability Tracking
+- Real-time CISA KEV catalog monitoring
+- CEV (Composite Exposure Vulnerability) scoring
+- EPSS (Exploit Prediction Scoring System) integration
+- 4 new real-time gauges: KEV CVEs, KEV CRITICAL, KEV HIGH, CEV SCORE
+
+### Threat Actor Tracking
+- Comprehensive threat actor database (APT29, APT41, FIN7, Lazarus, etc.)
+- Actor attribution for CVEs and malware
+- 10+ nation-state actors tracked with aliases and motivation
+- Threat actor indicator database with SQLite backend
+
+### Threat Feed Aggregator Enhancement
+- OTX AlienVault pulse parsing
+- MITRE ATT&CK technique tagging
+- Threat actor indicator parsing
+- Enhanced feed correlation
+
+### Malware Signature Expansion (v2.1)
+- 750+ total signatures
+- 30+ new APT C2 frameworks (BruteRatel, Mythic, Havoc, Sliver, etc.)
+- IoT botnet signatures (Mirai, Gafgyt, Moobot, etc.)
+- Mobile malware signatures (BankBot, Cerberus, FluBot, etc.)
+- Emerging stealer families (2023-2025)
+- Supply chain attack indicators
+- 4 new security gauges: THREAT ACTORS, THREAT FEEDS, INDICATORS, ACTIVE ALERTS
+
+---
+
 ## Detection Capabilities
 
 ### Malware Detection

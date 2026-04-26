@@ -16996,6 +16996,8 @@ class HardwareMonitor:
             'kev_count': 0, 'kev_critical': 0, 'kev_high': 0,
             'cev_score': 0.0, 'epss_avg': 0.0, 'epss_high_count': 0,
             'vuln_threat_level': 'UNKNOWN',
+            # Threat Actor & Feed Tracking (v29)
+            'actor_count': 0, 'feed_count': 0, 'indicator_count': 0, 'active_alerts': 0,
         }
         # Re-try psutil import every call until it succeeds (auto-install may have run)
         global PSUTIL_AVAILABLE, psutil
@@ -17115,6 +17117,21 @@ class HardwareMonitor:
                 stats['epss_avg'] = _KEV_STATS.get('epss_threshold', 0.5) * 100
                 stats['epss_high_count'] = 0
             except Exception: pass
+        except Exception: pass
+        
+        # Threat Actor & Feed Tracking Stats (v29)
+        try:
+            from threat_feed_aggregator import get_threat_actor_stats, get_actor_gauge_data
+            try:
+                actor_stats = get_threat_actor_stats()
+                stats['actor_count'] = actor_stats.get('total_actors', 0) + actor_stats.get('db_actors', 0)
+                stats['indicator_count'] = actor_stats.get('db_indicators', 0)
+            except Exception: pass
+            try:
+                from ultimate_threat_intel import ThreatFeedRegistry
+                stats['feed_count'] = len(ThreatFeedRegistry.get_enabled_feeds())
+            except Exception: pass
+            stats['active_alerts'] = 0
         except Exception: pass
         
         try:
@@ -26780,6 +26797,11 @@ Verification Status:
             ('KEV CRITICAL',    'kev_critical',      100, '',    'red'),
             ('KEV HIGH',        'kev_high',          500, '',    'orange'),
             ('CEV SCORE',       'cev_score',         100, '',    'orange'),
+            # Row 6  -  Threat Actor & Feed Tracking (v29)
+            ('THREAT ACTORS',   'actor_count',       50, '',    'red'),
+            ('THREAT FEEDS',    'feed_count',       300, '',    'blue'),
+            ('INDICATORS',      'indicator_count', 10000, '',   'cyan'),
+            ('ACTIVE ALERTS',   'active_alerts',     100, '',    'orange'),
         ]
 
         COLS = 4
