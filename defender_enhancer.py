@@ -288,12 +288,12 @@ class DefenderEnhancer:
                 logging.info(f"  Antivirus enabled: {status.get('AntivirusEnabled', 'Unknown')}")
                 
                 return status
-            except Exception:
-                logging.error("Could not parse Defender status")
-                return {}
+            except Exception as e:
+                logging.error(f"Could not parse Defender status: {e}")
+                return {"error": str(e), "status": "parse_failed"}
         else:
             logging.warning("Could not check Defender status")
-            return {}
+            return {"error": "PowerShell failed", "status": "query_failed"}
     
     def enable_all_protection(self):
         """

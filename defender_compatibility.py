@@ -253,7 +253,7 @@ class DefenderStatusChecker:
                 return _j.loads(result.stdout)
         except Exception as exc:
             _dc_logger.debug("DefenderStatusChecker.get_status: %s", exc)
-        return {}
+            return {"error": str(exc), "status": "query_failed"}
 
     def get_exclusion_paths(self) -> List[str]:
         """Return currently configured exclusion paths (read-only query)."""
@@ -268,7 +268,7 @@ class DefenderStatusChecker:
                 return [p for p in result.stdout.splitlines() if p.strip()]
         except Exception as exc:
             _dc_logger.debug("DefenderStatusChecker.get_exclusion_paths: %s", exc)
-        return []
+            return [{"error": str(exc), "query_failed": True}]
 
 
 class ExclusionManager:
