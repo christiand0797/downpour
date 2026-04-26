@@ -1,8 +1,10 @@
 """
 Threat Detection Engine v1.0
-============================
+==============================
 Real-time threat detection using comprehensive signature database.
 Provides detection, analysis, and protection recommendations.
+
+v29: Added KEV/CEV/EPSS integration for CVE-based threat enhancement.
 """
 
 import os
@@ -17,6 +19,9 @@ from typing import Dict, List, Set, Optional, Tuple, Any
 from dataclasses import dataclass, field
 from pathlib import Path
 from collections import defaultdict
+
+# v29: KEV constants
+CISA_KEV_URL = "https://www.cisa.gov/known-exploited-vulnerabilities-catalog.csv"
 
 # Import our modules — ultimate_threat_intel is optional (may not be present)
 try:
@@ -744,3 +749,68 @@ if __name__ == "__main__":
         print(f"  Suspicious Ports: {len(SUSPICIOUS_PORTS)}")
         print(f"  Process Patterns: {len(SUSPICIOUS_PROCESS_PATTERNS)}")
         print(f"  Command Patterns: {len(SUSPICIOUS_CMDLINE_PATTERNS)}")
+
+# ========================================================================
+# v29: KEV INTEGRATION
+# ========================================================================
+
+def correlate_cve_with_detection(cve_id: str) -> Dict:
+    """Correlate detected threat with KEV CVE data."""
+    result = {
+        'cve_id': cve_id,
+        'in_kev': False,
+        'epss_score': 0.0,
+        'cvss_score': 0.0,
+        'severity': 'LOW',
+        'ransomware_use': False,
+        'risk_boost': 0
+    }
+    
+    try:
+        from vulnerability_scanner import VulnerabilityScanner
+        scanner = VulnerabilityScanner()
+        
+        kev_data = scanner.search_kev(cve_id)
+        if kev_data:
+            result['in_kev'] = True
+            result['cvss_score'] = kev_data[0].get('cvss_score', 0)
+            result['ransomware_use'] = kev_data[0].get('ransomware', 'No') == 'Yes'
+            
+            epss = scanner.get_epss_score(cve_id)
+            if epss:
+                result['epss_score'] = epss
+                result['risk_boost'] = int(epss * 50)
+            
+            cvss = result['cvss_score']
+            if cvss >= 9.0:
+                result['severity'] = 'CRITICAL'
+            elif cvss >= 7.0:
+                result['severity'] = 'HIGH'
+            elif cvss >= 4.0:
+                result['severity'] = 'MEDIUM'
+                
+    except Exception as e:
+        logger.debug(f"CVE correlation skipped: {e}")
+    
+    return result
+
+
+def enhance_detection_with_kev(analysis: Any, cve_refs: List[str] = None) -> Dict:
+    """Enhance detection result with KEV CVE data."""
+    if not cve_refs:
+        return analysis
+    
+    kev_correlations = []
+    risk_boost = 0
+    
+    for cve in cve_refs[:5]:
+        kev_data = correlate_cve_with_detection(cve)
+        if kev_data['in_kev']:
+            kev_correlations.append(kev_data)
+            risk_boost += kev_data['risk_boost']
+    
+    if kev_correlations and hasattr(analysis, 'risk_score'):
+        analysis.risk_score = min(100, analysis.risk_score + risk_boost)
+        analysis.risk_factors.append(f"KEV CVEs: +{risk_boost} risk boost")
+    
+    return analysis
