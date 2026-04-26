@@ -1,8 +1,8 @@
-# Downpour v28 Titanium - Portable Deployment Guide
+# Downpour v29 Titanium - Portable Deployment Guide
 
 ## 🌍 Universal PC Compatibility
 
-This guide ensures Downpour v28 Titanium works on any PC with any user account.
+This guide ensures Downpour v29 Titanium works on any PC with any user account.
 
 ---
 
@@ -35,14 +35,14 @@ This guide ensures Downpour v28 Titanium works on any PC with any user account.
 ---
 
 ### 3. Original Ultimate Launcher (Admin Required)
-**File**: `Downpour v28 Titanium.bat`
+**File**: `Downpour v29 Titanium.bat`
 
 - 🛡️ Full administrator privileges required
 - 🔥 Maximum features and performance
 - 📊 Complete system monitoring
 - 🎯 Best for personal/admin PCs
 
-**Usage**: Double-click `Downpour v28 Titanium.bat`
+**Usage**: Double-click `Downpour v29 Titanium.bat`
 
 ---
 
@@ -66,7 +66,7 @@ This guide ensures Downpour v28 Titanium works on any PC with any user account.
 - ✅ All launchers work
 - ✅ Full system access
 - ✅ Maximum features
-- 🎯 Use: `SMART_LAUNCH.bat` or `Downpour v28 Titanium.bat`
+- 🎯 Use: `SMART_LAUNCH.bat` or `Downpour v29 Titanium.bat`
 
 ### Standard User Accounts
 - ✅ Smart Launcher works
@@ -108,11 +108,11 @@ This guide ensures Downpour v28 Titanium works on any PC with any user account.
 
 ### Network Folder Setup
 ```
-Network Share\\Downpour_v28_Titanium\
+Network Share\\Downpour_v29_Titanium\
 ├── SMART_LAUNCH.bat           # Auto-detect launcher
 ├── PORTABLE_LAUNCHER.bat      # No-admin launcher  
-├── Downpour v28 Titanium.bat  # Admin launcher
-├── downpour_v28_titanium.py   # Main application
+├── Downpour v29 Titanium.bat  # Admin launcher
+├── downpour_v29_titanium.py   # Main application
 └── [other application files]
 ```
 
@@ -153,7 +153,7 @@ python --version
 ### Guest/Restricted Issues
 ```batch
 # Use minimal mode
-python downpour_v28_titanium.py --minimal
+python downpour_v29_titanium.py --minimal
 
 # Or portable launcher
 PORTABLE_LAUNCHER.bat
@@ -217,13 +217,13 @@ SMART_LAUNCH.bat
 PORTABLE_LAUNCHER.bat
 
 # Ultimate mode (admin required)
-"Downpour v28 Titanium.bat"
+"Downpour v29 Titanium.bat"
 
 # Direct Python launch with options
-python downpour_v28_titanium.py                    # Auto-detect
-python downpour_v28_titanium.py --no-admin        # No admin
-python downpour_v28_titanium.py --portable        # Portable mode
-python downpour_v28_titanium.py --minimal         # Minimal mode
+python downpour_v29_titanium.py                    # Auto-detect
+python downpour_v29_titanium.py --no-admin        # No admin
+python downpour_v29_titanium.py --portable        # Portable mode
+python downpour_v29_titanium.py --minimal         # Minimal mode
 ```
 
 ### Feature Flags

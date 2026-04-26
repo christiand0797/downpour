@@ -1,4 +1,4 @@
-# Downpour v28 Titanium - Universal Installation Guide
+# Downpour v29 Titanium - Universal Installation Guide
 ## 📦 1000+ Packages System-Wide Installation
 
 ### **📅 Date**: 2026-03-11 20:35 UTC
@@ -201,7 +201,7 @@
 ### **✅ How to Use Universal Installation**
 
 **Method 1: Use Updated Launchers (Recommended)**
-1. Double-click `Downpour v28 Titanium.bat`
+1. Double-click `Downpour v29 Titanium.bat`
 2. Approve UAC prompt (appears automatically)
 3. Wait for comprehensive installation to complete
 4. Wait for universal package installation to complete

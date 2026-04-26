@@ -1,4 +1,4 @@
-# TODO LIST - Downpour v28 Titanium
+# TODO LIST - Downpour v29 Titanium
 # Updated: 2026-04-04 (after 42 patch phases, 550+ fixes)
 # Status: LAUNCH READY — Phase 42 bug fixes + progress bar + settings enhancement
 
@@ -18,8 +18,8 @@ See DONE.md for full list of completed items by phase.
 - [x] Hardware utilization (multiprocessing, removed forced sleeps, ABOVE_NORMAL)
 - [x] Feed management (13 dead feeds removed, per-feed logging, IOC expiration)
 - [x] Crash fixes (SmartServicesScanner, RemoteAccessController)
-- [x] Code quality (105->3 bare excepts, dead code archived, v27->v28)
-- [x] File organization (104+ files archived, renamed to v28)
+- [x] Code quality (105->3 bare excepts, dead code archived, v27->v29)
+- [x] File organization (104+ files archived, renamed to v29)
 - [x] Re-enabled features (MITRE tagging, alarm sounds via executor)
 - [x] Manual-only intel downloads (no more auto-download on startup)
 - [x] Multiprocessing for 12-core CPU utilization during parsing
@@ -90,4 +90,4 @@ See DONE.md for full list of completed items by phase.
    ~5ms per frame. Inherent to Tk's canvas implementation.
 
 ---
-*Updated 2026-03-18 after 41 v28 patch phases. 540+ total fixes. LAUNCH READY.*
+*Updated 2026-03-18 after 41 v29 patch phases. 540+ total fixes. LAUNCH READY.*

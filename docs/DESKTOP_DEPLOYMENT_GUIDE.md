@@ -1,4 +1,4 @@
-# Downpour v28 Titanium - Desktop Deployment Guide
+# Downpour v29 Titanium - Desktop Deployment Guide
 ## 🖥️ USB to Desktop Deployment Method
 
 ### **📅 Date**: 2026-03-11 21:17 UTC
@@ -28,14 +28,14 @@
 ### **✅ Step-by-Step Instructions**
 
 **Step 1: USB Transfer**
-1. **Insert USB stick** with Downpour v28 Titanium folder
+1. **Insert USB stick** with Downpour v29 Titanium folder
 2. **Copy entire folder** from USB to desktop
 3. **Wait for copy completion** - Ensure all files transfer
 4. **Verify folder integrity** - Check all files are present
 
 **Step 2: Desktop Launch**
 1. **Navigate to desktop folder** - Open copied folder
-2. **Run launcher** - Double-click `Downpour v28 Titanium.bat`
+2. **Run launcher** - Double-click `Downpour v29 Titanium.bat`
 3. **Approve UAC** - Grant administrator privileges
 4. **Wait for installation** - Comprehensive setup process
 5. **Launch application** - Enhanced GUI launcher opens
@@ -85,14 +85,14 @@ start "" "python.exe" "enhanced_launcher.py"  # Uses relative path
 
 **When copied to desktop, the folder structure is**:
 ```
-📁 Downpour v28 Titanium (on Desktop)
-├── 🚀 Downpour v28 Titanium.bat (Main launcher)
+📁 Downpour v29 Titanium (on Desktop)
+├── 🚀 Downpour v29 Titanium.bat (Main launcher)
 ├── 🐍 enhanced_launcher.py (Professional GUI)
-├── 🐍 downpour_v28_titanium.py (Main application)
+├── 🐍 downpour_v29_titanium.py (Main application)
 ├── 🐍 comprehensive_installer.py (Installation system)
 ├── 🐍 universal_package_installer.py (Package installer)
-├── 🐍 launch_downpour_v28_ultimate.py (Ultimate launcher)
-├── 🐍 launch_downpour_v28_error_free.py (Error-free launcher)
+├── 🐍 launch_downpour_v29_ultimate.py (Ultimate launcher)
+├── 🐍 launch_downpour_v29_error_free.py (Error-free launcher)
 ├── 📋 requirements.txt (Dependencies)
 ├── ⚙️ launcher_config.json (Configuration)
 ├── 🛡️ defender_bypass_config.json (Security config)
@@ -102,7 +102,7 @@ start "" "python.exe" "enhanced_launcher.py"  # Uses relative path
 │   ├── 📖 DESKTOP_DEPLOYMENT_GUIDE.md
 │   ├── 📖 ADVANCED_HARDWARE_MONITORING_GUIDE.md
 │   └── 📖 [14 other comprehensive guides]
-├── 📁 downpour_v28_data/ (Application data)
+├── 📁 downpour_v29_data/ (Application data)
 └── [20+ enhanced system files]
 ```
 
@@ -141,7 +141,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 {
     "config_file": "launcher_config.json",  # Relative path
     "log_file": "launcher.log",  # Relative path
-    "data_dir": "downpour_v28_data/"  # Relative path
+    "data_dir": "downpour_v29_data/"  # Relative path
 }
 ```
 
@@ -287,19 +287,19 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 ### **✅ Simple 3-Step Process**
 
 **Step 1: Copy from USB**
-1. Insert USB stick with Downpour v28 Titanium folder
+1. Insert USB stick with Downpour v29 Titanium folder
 2. Copy entire folder to desktop
 3. Wait for copy completion
 
 **Step 2: Run from Desktop**
 1. Navigate to desktop folder
-2. Double-click `Downpour v28 Titanium.bat`
+2. Double-click `Downpour v29 Titanium.bat`
 3. Approve UAC prompt for administrator privileges
 
 **Step 3: Use Application**
 1. Enhanced GUI launcher opens
 2. Select preferred launcher option
-3. Click Launch to start Downpour v28 Titanium
+3. Click Launch to start Downpour v29 Titanium
 
 **That's it! The system is perfectly designed for this exact workflow.** 🚀🎉
 

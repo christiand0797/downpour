@@ -1,17 +1,17 @@
-# DOWNPOUR v28 TITANIUM — CHANGELOG & STATUS
+# DOWNPOUR v29 TITANIUM — CHANGELOG & STATUS
 ## Patch Dates: 2026-03-17 — 2026-03-18
 
 ---
 
 ## OVERVIEW
 
-v28 is a major stability, performance, and coverage patch applied to v27 Titanium.
+v29 is a major stability, performance, and coverage patch applied to v27 Titanium.
 Key themes: GUI responsiveness, false positive reduction, feed deduplication,
 expanded threat intelligence (35+ new sources), hardware utilization boost,
 and **full codebase audit** (Phase 28: 45+ bugs across 25 files).
 
 **Files Modified (Phase 28 audit):**
-- `downpour_v28_titanium.py` (main app, ~45K lines) — 14 crash fixes
+- `downpour_v29_titanium.py` (main app, ~45K lines) — 14 crash fixes
 - `downpour_cleanup_module.py` — 4 new classes (~350 lines)
 - `revolutionary_enhancements.py` — numpy fallback + decode fix
 - `threat_feed_aggregator.py` — sqlite3 import order + requests guard
@@ -20,15 +20,15 @@ and **full codebase audit** (Phase 28: 45+ bugs across 25 files).
 - `enhanced_hardware_integration.py` — HardwareMetrics fallback
 - `usb_protection.py` — win32/wmi import guards
 - 15 additional modules — import guards for psutil/requests/win32*/magic/yara/pefile
-- `downpour_health_check.py`, `_syntax_check.py`, `requirements.txt` — v27→v28 refs
+- `downpour_health_check.py`, `_syntax_check.py`, `requirements.txt` — v27→v29 refs
 
 **Previously Modified (Phases 1-27):**
-- `downpour_v27_titanium.py` → renamed `downpour_v28_titanium.py` (main app)
+- `downpour_v27_titanium.py` → renamed `downpour_v29_titanium.py` (main app)
 - `kimwolf_botnet_detector.py` (botnet detection module)
 
 ---
 
-## DONE LIST (All completed in v28 patch)
+## DONE LIST (All completed in v29 patch)
 
 ### 1. GUI FREEZE FIX (Critical)
 
@@ -65,7 +65,7 @@ silently in background at reduced priority. Estimated 40+ fewer HTTP requests pe
 - [x] Added `someonewhocares.org` to HTTP-OK list (serves hosts file over HTTP)
 - [x] Added `pgl.yoyo.org` to `_CERT_EXEMPT` set in `_fetch_feed` fallback path
 
-**Content-Type Whitelist (new in v28):**
+**Content-Type Whitelist (new in v29):**
 The `_download_with_verification` method now whitelists known feeds that legitimately
 return `text/html` content-type. Only `javascript` and `executable` types are hard-blocked.
 `html` is only blocked for hosts NOT in the whitelist: `pgl.yoyo.org`, `spamhaus.org`,
@@ -159,7 +159,7 @@ and will continue to be detected and blocked as before.
 **MITRE (1 feed):**
 - [x] `mitre_attack` — MITRE ATT&CK enterprise framework data
 
-**Total Active Feeds After v28:** ~290 unique URLs (was ~95 unique + 55 duplicates)
+**Total Active Feeds After v29:** ~290 unique URLs (was ~95 unique + 55 duplicates)
 
 
 ### 5. HARDWARE OPTIMIZATION (Target 90%)
@@ -170,7 +170,7 @@ and will continue to be detected and blocked as before.
 | HIGH   | cpu/2 (6)   | cpu/4 (3) | cpu/3 (4) | cpu/2 (4) |
 | MEDIUM | cpu/3 (2)   | cpu/6 (1) | cpu/4 (2) | cpu/4 (2) |
 
-**After (v28):**
+**After (v29):**
 | Tier   | CPU Workers | Scan | IO   | GPU |
 |--------|-------------|------|------|-----|
 | HIGH   | cpu*3/4 (9) | cpu/2 (6) | cpu (12) | cpu/2 (6) |
@@ -205,7 +205,7 @@ and will continue to be detected and blocked as before.
       accumulated "verified" copies (e.g. `firehol_l1` + `firehol_l1_v`) that downloaded
       the exact same URL twice per refresh cycle. This wasted bandwidth and CPU time.
 
-- [x] **Version bump** — Updated all version strings from v27 to v28, including window title,
+- [x] **Version bump** — Updated all version strings from v27 to v29, including window title,
       startup banner, log messages, and User-Agent header.
 
 ---
@@ -257,7 +257,7 @@ and will continue to be detected and blocked as before.
 
 - [ ] **sklearn warning suppression** — The `dp_stderr.txt` is flooded with
       `sklearn.utils.parallel.delayed` warnings. Add a warning filter at import time.
-      (Attempted in v28 but the `import warnings` line wasn't in the expected location.)
+      (Attempted in v29 but the `import warnings` line wasn't in the expected location.)
 
 - [ ] **Fortran runtime abort** — `crash_fault.log` shows `forrtl: error (200): program
       aborting due to window-CLOSE event`. This is from a Fortran library (likely numpy/scipy
@@ -291,7 +291,7 @@ AegisIngestEngine.EXTRA_FEEDS dict (~20 feeds)
   └── fetch_extra_feed() — separate pipeline, runs through Aegis tab
 ```
 
-### Thread Architecture (v28)
+### Thread Architecture (v29)
 
 ```
 Main Thread (Tkinter mainloop)
@@ -322,7 +322,7 @@ intel-fetch ThreadPoolExecutor (9 workers, BELOW_NORMAL priority)
 ```
 
 
-### Startup Timeline (v28)
+### Startup Timeline (v29)
 
 ```
 T+0.0s   Window appears with loading screen
@@ -341,8 +341,8 @@ T+6.0s     ├── HW monitor loop (500ms)
 T+6.0s     ├── Process scan loop (2s)
 T+6.0s     ├── Network monitor (5s)
 T+6.0s     └── Service/ARP/WMI/FIM/USB/canary monitors
-T+20.0s  _feed_refresh_loop starts (deferred)    ← v28 change
-T+30.0s  _intel_auto_loop first check (deferred) ← v28 change
+T+20.0s  _feed_refresh_loop starts (deferred)    ← v29 change
+T+30.0s  _intel_auto_loop first check (deferred) ← v29 change
 T+30.0s    └── update_all() begins parallel downloads
 T+30-90s   Feeds downloading in background (BELOW_NORMAL priority)
 T+300s   First NSA security assessment
@@ -366,15 +366,15 @@ T+300s   First NSA security assessment
 ## PATCH SCRIPTS (for reference)
 
 All patch scripts are in the main directory and can be safely deleted after verification:
-- `apply_v28_patch.py` — Phase 1: GUI freeze, feed errors, new feeds, hw optimization
-- `apply_v28_phase2.py` — Phase 2: Dedup, DNS fix, COM fix, version bump
+- `apply_v29_patch.py` — Phase 1: GUI freeze, feed errors, new feeds, hw optimization
+- `apply_v29_phase2.py` — Phase 2: Dedup, DNS fix, COM fix, version bump
 - `_fix_kimwolf_wl.py` — Kimwolf whitelist fix for ALL_BOTNET_DOMAINS check
 - `_final_dedup.py` — Final dedup pass for remaining URL duplicates
 - `_syntax_check.py` — Syntax validation utility
 
 ---
 
-*Document generated 2026-03-17 by Claude (Anthropic) during Downpour v28 patch session.*
+*Document generated 2026-03-17 by Claude (Anthropic) during Downpour v29 patch session.*
 
 
 ### 7. PHASE 3 FIXES (Final)
@@ -422,14 +422,14 @@ All patch scripts are in the main directory and can be safely deleted after veri
 ## FINAL STATISTICS
 
 ```
-Version:             v28 Titanium
+Version:             v29 Titanium
 Syntax Check:        PASS (both files)
 Active Feed URLs:    289
 Unique Feed URLs:    286
 Deduplicated:        60 entries (same URL downloaded twice)
 Dead Feeds Removed:  7 entries (404/timeout/auth-required)
 Kimwolf Whitelist:   43 domains
-v28 Fix References:  96 across codebase
+v29 Fix References:  96 across codebase
 Total Lines:         44,989
 File Size:           2.06 MB
 ```
@@ -476,7 +476,7 @@ File Size:           2.06 MB
 ### LOW PRIORITY
 - [ ] Clean up ~40 legacy launcher/fix/audit scripts to _ARCHIVE/
 - [ ] Add feed source categories to UI (abuse.ch, phishing, C2, etc.)
-- [ ] Rename file from downpour_v27_titanium.py to downpour_v28_titanium.py
+- [ ] Rename file from downpour_v27_titanium.py to downpour_v29_titanium.py
 - [ ] Add auto-retry with exponential backoff for transient feed failures
 - [ ] Consider async I/O (aiohttp) instead of ThreadPoolExecutor for feeds
 
@@ -527,7 +527,7 @@ Total: ~11 seconds of GIL hold PER FEED, times 290 feeds = catastrophic freeze.
 **Expected Impact:** Per-feed validation drops from ~11s GIL hold to ~0.05s.
 Total pipeline for 290 feeds: ~3200s freeze -> ~15s (invisible in background).
 
-### Updated Startup Timeline (v28 Phase 5)
+### Updated Startup Timeline (v29 Phase 5)
 
 ```
 T+0.0s    Window appears with loading screen
@@ -859,10 +859,10 @@ overhead because it created and destroyed hundreds of Tk canvas items every fram
 
 ---
 
-## FINAL v28 STATISTICS (After All 17 Phases)
+## FINAL v29 STATISTICS (After All 17 Phases)
 
 ```
-Version:              v28 Titanium (17 phases applied)
+Version:              v29 Titanium (17 phases applied)
 Syntax Check:         PASS (main + kimwolf)
 Total Lines:          ~45,000
 File Size:            ~2.1 MB
@@ -882,7 +882,7 @@ Startup Grace Period: 60s (nothing runs except GUI + heartbeat)
 Full Feature Load:    ~10 minutes (staggered over T+2min to T+11min)
 ```
 
-### Complete Startup Timeline (v28 Final)
+### Complete Startup Timeline (v29 Final)
 
 ```
 T+0s       GUI window appears. Heartbeat timer only. Zero background work.
@@ -912,23 +912,23 @@ T+11min    Rogue DHCP scan.
 
 Located in `C:\Users\purpl\Desktop\downpour_consolidated\`:
 ```
-apply_v28_patch.py       — Phase 1: feeds, GUI, hw optimization
-apply_v28_phase2.py      — Phase 2: dedup, DNS, COM, version
-apply_v28_phase3.py      — Phase 3: spamhaus removal, sklearn, os._exit
-apply_v28_phase4.py      — Phase 4: remaining dead feeds
-apply_v28_phase5.py      — Phase 5: 50KB validation cap
-apply_v28_phase6.py      — Phase 6: download worker cap
-apply_v28_phase7.py      — Phase 7: stagger loops
-apply_v28_phase8.py      — Phase 8: freeze diagnostic
-apply_v28_phase9.py      — Phase 9: main-thread fixes
-apply_v28_phase10.py     — Phase 10: 120s grace period
-apply_v28_phase11.py     — Phase 11: hidden thread pools
-apply_v28_phase12.py     — Phase 12: thundering herd fix
-apply_v28_phase13.py     — Phase 13: crash fixes + cleanup stagger
-apply_v28_phase14.py     — Phase 14: (merged into 15/16)
-apply_v28_phase15.py     — Phase 15: alert flood fix
-apply_v28_phase16.py     — Phase 16: setswitchinterval + dedup 30s
-apply_v28_phase17.py     — Phase 17: rain canvas overhaul
+apply_v29_patch.py       — Phase 1: feeds, GUI, hw optimization
+apply_v29_phase2.py      — Phase 2: dedup, DNS, COM, version
+apply_v29_phase3.py      — Phase 3: spamhaus removal, sklearn, os._exit
+apply_v29_phase4.py      — Phase 4: remaining dead feeds
+apply_v29_phase5.py      — Phase 5: 50KB validation cap
+apply_v29_phase6.py      — Phase 6: download worker cap
+apply_v29_phase7.py      — Phase 7: stagger loops
+apply_v29_phase8.py      — Phase 8: freeze diagnostic
+apply_v29_phase9.py      — Phase 9: main-thread fixes
+apply_v29_phase10.py     — Phase 10: 120s grace period
+apply_v29_phase11.py     — Phase 11: hidden thread pools
+apply_v29_phase12.py     — Phase 12: thundering herd fix
+apply_v29_phase13.py     — Phase 13: crash fixes + cleanup stagger
+apply_v29_phase14.py     — Phase 14: (merged into 15/16)
+apply_v29_phase15.py     — Phase 15: alert flood fix
+apply_v29_phase16.py     — Phase 16: setswitchinterval + dedup 30s
+apply_v29_phase17.py     — Phase 17: rain canvas overhaul
 rain_new.py              — New rain class source (used by phase 17)
 _fix_kimwolf_wl.py       — Kimwolf whitelist
 _final_dedup.py          — Feed deduplication
@@ -1051,10 +1051,10 @@ gauges NEVER updated. This was the single biggest visible bug.
 
 ---
 
-## FINAL v28 STATISTICS (After All 20 Phases)
+## FINAL v29 STATISTICS (After All 20 Phases)
 
 ```
-Version:              v28 Titanium (20 phases applied)
+Version:              v29 Titanium (20 phases applied)
 Syntax Check:         PASS (main + kimwolf)
 Total Lines:          ~45,082
 File Size:            2.22 MB
@@ -1092,25 +1092,25 @@ DNS* | Remote | Services | Cleanup* | Firewall | WiFi* | Timeline* | USB*
 ### Patch Script Inventory
 
 ```
-apply_v28_patch.py       Phase 1:  feeds, GUI, hw optimization
-apply_v28_phase2.py      Phase 2:  dedup, DNS, COM, version
-apply_v28_phase3.py      Phase 3:  spamhaus, sklearn, os._exit
-apply_v28_phase4.py      Phase 4:  remaining dead feeds
-apply_v28_phase5.py      Phase 5:  50KB validation cap
-apply_v28_phase6.py      Phase 6:  download worker cap
-apply_v28_phase7.py      Phase 7:  stagger loops
-apply_v28_phase8.py      Phase 8:  freeze diagnostic
-apply_v28_phase9.py      Phase 9:  main-thread fixes
-apply_v28_phase10.py     Phase 10: 120s grace period
-apply_v28_phase11.py     Phase 11: hidden thread pools
-apply_v28_phase12.py     Phase 12: thundering herd fix
-apply_v28_phase13.py     Phase 13: crash fixes + cleanup stagger
-apply_v28_phase15.py     Phase 15: alert flood fix
-apply_v28_phase16.py     Phase 16: setswitchinterval + dedup
-apply_v28_phase17.py     Phase 17: rain canvas overhaul
-apply_v28_phase18.py     Phase 18: UI + HW overhaul
-apply_v28_phase19.py     Phase 19: emergency revert + comprehensive
-apply_v28_phase20.py     Phase 20: gauge fix + tab polish
+apply_v29_patch.py       Phase 1:  feeds, GUI, hw optimization
+apply_v29_phase2.py      Phase 2:  dedup, DNS, COM, version
+apply_v29_phase3.py      Phase 3:  spamhaus, sklearn, os._exit
+apply_v29_phase4.py      Phase 4:  remaining dead feeds
+apply_v29_phase5.py      Phase 5:  50KB validation cap
+apply_v29_phase6.py      Phase 6:  download worker cap
+apply_v29_phase7.py      Phase 7:  stagger loops
+apply_v29_phase8.py      Phase 8:  freeze diagnostic
+apply_v29_phase9.py      Phase 9:  main-thread fixes
+apply_v29_phase10.py     Phase 10: 120s grace period
+apply_v29_phase11.py     Phase 11: hidden thread pools
+apply_v29_phase12.py     Phase 12: thundering herd fix
+apply_v29_phase13.py     Phase 13: crash fixes + cleanup stagger
+apply_v29_phase15.py     Phase 15: alert flood fix
+apply_v29_phase16.py     Phase 16: setswitchinterval + dedup
+apply_v29_phase17.py     Phase 17: rain canvas overhaul
+apply_v29_phase18.py     Phase 18: UI + HW overhaul
+apply_v29_phase19.py     Phase 19: emergency revert + comprehensive
+apply_v29_phase20.py     Phase 20: gauge fix + tab polish
 rain_new.py              New rain class source (phase 17)
 _fix_kimwolf_wl.py       Kimwolf whitelist
 _final_dedup.py          Feed deduplication
@@ -1125,15 +1125,15 @@ _check_freeze.py         Freeze diagnostic checker
 - [x] Re-enabled `_play_alarm()` via `_io_executor.submit()` (non-blocking)
 - [x] Added IOC expiration: `_expire_old_iocs()` purges >30 day entries at T+5min
 - [x] Converted 12 bare `except:` -> `except Exception:`
-- [x] Renamed file: `downpour_v27_titanium.py` -> `downpour_v28_titanium.py`
-- [x] Updated `LAUNCH_DOWNPOUR.bat` to reference v28
+- [x] Renamed file: `downpour_v27_titanium.py` -> `downpour_v29_titanium.py`
+- [x] Updated `LAUNCH_DOWNPOUR.bat` to reference v29
 - [x] Archived 27 legacy patch scripts to `_ARCHIVE/`
 - [x] Deleted `rain_new.py`
 
 ### 23. PHASE 22 FIXES (Final Bare Except Cleanup)
 - [x] Converted ALL remaining 56 bare `except:` -> `except Exception:`
 - [x] Total bare except remaining: 3 (in third-party class code)
-- [x] Synced v27 with v28 content
+- [x] Synced v27 with v29 content
 
 ### 24. PHASE 23 FIXES (HW Bar Enhancement)
 - [x] Added PROCS gauge to HW bar (shows running process count)
@@ -1142,13 +1142,13 @@ _check_freeze.py         Freeze diagnostic checker
 
 ---
 
-## FINAL v28 STATISTICS (After All 23 Phases)
+## FINAL v29 STATISTICS (After All 23 Phases)
 
 ```
-Version:              v28 Titanium (23 phases, 145+ fixes)
-Primary File:         downpour_v28_titanium.py
+Version:              v29 Titanium (23 phases, 145+ fixes)
+Primary File:         downpour_v29_titanium.py
 Backup File:          downpour_v27_titanium.py (synced copy)
-Launcher:             LAUNCH_DOWNPOUR.bat (points to v28)
+Launcher:             LAUNCH_DOWNPOUR.bat (points to v29)
 Syntax Check:         PASS (both files + kimwolf)
 Total Lines:          ~45,110
 File Size:            2.22 MB
@@ -1225,8 +1225,8 @@ After downloads complete (~5-10 min), GUI returns to normal responsiveness.
       happen ONLY when user clicks "Update Intel" button on Dashboard.
 - [x] `auto_update` config default: `'true'` -> `'false'`
 - [x] Settings label updated: "Auto-update threat intel (disabled by default)"
-- [x] `APP_NAME`: "downpour Titanium v27" -> "downpour Titanium v28"
-- [x] All version strings updated: v27 -> v28 (startup log, quantum UI, module refs)
+- [x] `APP_NAME`: "downpour Titanium v27" -> "downpour Titanium v29"
+- [x] All version strings updated: v27 -> v29 (startup log, quantum UI, module refs)
 - [x] Removed dead `if False:` block (secure downloader bypass)
 - [x] Removed dead `if False:` block (aegis bypass)
 - [x] Removed `dan_tor_all` from exclusion filter list
@@ -1244,8 +1244,8 @@ After downloads complete (~5-10 min), GUI returns to normal responsiveness.
 - [x] `_adaptive_load_loop` started independently (was chained from `_intel_auto_loop`)
 - [x] `_intel_auto_loop` decoupled from `_adaptive_load_loop`
 - [x] Confirmed `auto_update` defaults to `false` in ConfigManager
-- [x] APP_NAME: v27 -> v28
-- [x] Startup log: v27 -> v28
+- [x] APP_NAME: v27 -> v29
+- [x] Startup log: v27 -> v29
 - [x] Removed duplicate "styles configured" log line
 - [x] Removed `dan_tor_all` from feed exclusion list
 
@@ -1260,7 +1260,7 @@ After downloads complete (~5-10 min), GUI returns to normal responsiveness.
 **Codebase audit results (all clean):**
 - 44 DB tables defined, 34 referenced, 0 missing
 - Only 3 bare `except:` remaining (all in third-party code)
-- All version strings v28
+- All version strings v29
 - All disabled features properly guarded
 - No thread-unsafe UI calls from background threads
 - Division-by-zero protected with `max(dt, 0.001)`
@@ -1276,7 +1276,7 @@ Analyzed error logs, module APIs vs UI call sites, scanned for crash-prone patte
 
 **Total: 45+ bugs fixed across 25 files.**
 
-### 28.1 Main UI Crash Fixes (downpour_v28_titanium.py)
+### 28.1 Main UI Crash Fixes (downpour_v29_titanium.py)
 
 **28.1.1 USB Monitor `__getattr__` Crash**
 - **Root cause:** Background thread's `while self._usb_monitor_active:` loop ran during
@@ -1390,7 +1390,7 @@ clear error message: `raise ImportError("module_name requires psutil: pip instal
 - `ml_optimization_engine.py`: Typo `optimimization_history` → `optimization_history`
 - `enhanced_hardware_integration.py`: Added fallback `HardwareMetrics` dataclass (27 fields)
   + `GaugeConfiguration = None` when `advanced_hardware_monitor` not installed
-- `downpour_v28_titanium.py` line 9127: Guarded redundant `import requests`
+- `downpour_v29_titanium.py` line 9127: Guarded redundant `import requests`
 
 ### 28.8 Bare Except Cleanup (75+ additional fixes)
 
@@ -1454,9 +1454,9 @@ All vectors showed as "unchecked" with "Scan error" status.
 
 ### 29.3 Documentation Refresh (60 stale references)
 
-Updated 13 docs/*.md files with 60 `v27` → `v28` references:
-- File paths: `launch_downpour_v27_*.py` → `v28`, `downpour_v27_data/` → `v28`
-- Product names: `Downpour_v27_Titanium` → `v28`
+Updated 13 docs/*.md files with 60 `v27` → `v29` references:
+- File paths: `launch_downpour_v27_*.py` → `v29`, `downpour_v27_data/` → `v29`
+- Product names: `Downpour_v27_Titanium` → `v29`
 - Historical references in DONE.md, CHANGELOG.md, TODO.md correctly preserved
 
 ### 29.4 Hardcoded Path Fix
@@ -1557,9 +1557,9 @@ used `float.bit_length()` which only exists on `int`. Every call to `calculate_e
 
 ### 31.3 Version References (3 files, 11 refs)
 
-- `enhanced_bypass_system.py` — 4 v27 → v28
-- `defender_bypass_system.py` — 4 v27 → v28
-- `downpour_remote_access.py` — 3 v27 → v28
+- `enhanced_bypass_system.py` — 4 v27 → v29
+- `defender_bypass_system.py` — 4 v27 → v29
+- `downpour_remote_access.py` — 3 v27 → v29
 
 ---
 
@@ -1659,11 +1659,11 @@ Complete rewrite of `ImmersiveRainCanvas` class (~400 lines):
 
 ### 35.3 Remaining Logic Fixes from Phase 31 (5 bugs)
 
-- `downpour_v28_titanium.py:38130`: Aegis refresh guard deadlock — flag permanently True
-- `downpour_v28_titanium.py:35120,35161`: RFC 1918 over-match on 172.x.x.x (2 sites)
-- `downpour_v28_titanium.py:43499`: Firewall copy-name used Treeview auto-ID
-- `downpour_v28_titanium.py:35810-35817`: Scan counter race — `+=` without lock (3 sites)
-- `downpour_v28_titanium.py:30449,30481`: Socket leaks in VPN port probe/connectivity test
+- `downpour_v29_titanium.py:38130`: Aegis refresh guard deadlock — flag permanently True
+- `downpour_v29_titanium.py:35120,35161`: RFC 1918 over-match on 172.x.x.x (2 sites)
+- `downpour_v29_titanium.py:43499`: Firewall copy-name used Treeview auto-ID
+- `downpour_v29_titanium.py:35810-35817`: Scan counter race — `+=` without lock (3 sites)
+- `downpour_v29_titanium.py:30449,30481`: Socket leaks in VPN port probe/connectivity test
 
 ---
 
@@ -1699,7 +1699,7 @@ Complete rewrite of `ImmersiveRainCanvas` class (~400 lines):
 ### 38.4 UI Polish (7 changes)
 
 - 25 tab icons upgraded to rich emoji glyphs (globe, magnifier, brain, shield, etc.)
-- Title bar: threat pulse dot + "v28 Titanium" version subtitle
+- Title bar: threat pulse dot + "v29 Titanium" version subtitle
 - Status bar: uptime counter (HH:MM:SS) between threat count and alert ticker
 - Threat pulse indicator: green → yellow → orange → blinking red based on health score
 
@@ -1718,7 +1718,7 @@ Complete rewrite of `ImmersiveRainCanvas` class (~400 lines):
 
 ### 39.2 Version Reference Updates (12 changes)
 
-Updated v27→v28 version strings in 12 module files:
+Updated v27→v29 version strings in 12 module files:
 adaptive_security_bypass, advanced_device_profiler, downpour_cleanup_module,
 downpour_vpn_module, defender_compatibility, enhanced_logging,
 device_adaptation_engine, enhanced_memory_manager, kimwolf_botnet_detector,
@@ -1742,7 +1742,7 @@ ml_optimization_engine, revolutionary_enhancements, security_hardening
 
 - **advanced_threat_analyzer.py** — `shell=True` with unsanitized `verdict.file_path` in PowerShell subprocess. Replaced with list-form subprocess + `-LiteralPath`.
 - **usb_protection.py** — `shell=True` with `drive_path` in Defender scan command. Replaced with `os.path.expandvars()` + list-form subprocess.
-- **downpour_v28_titanium.py** — 4 hardcoded DNS `netsh` commands used `shell=True` with string form. Converted to list-form subprocess.
+- **downpour_v29_titanium.py** — 4 hardcoded DNS `netsh` commands used `shell=True` with string form. Converted to list-form subprocess.
 
 ### 40.2 Database Connection Leak Fixes (29+ changes across 10 files)
 
@@ -1772,7 +1772,7 @@ Every `sqlite3.connect()` call without `try/finally` protection was wrapped to p
 
 ### 41.1 Dead Code Removal (~3400 lines)
 
-- **downpour_v28_titanium.py** — Removed ~3400 lines of unreachable CustomTkinter (CTk) UI code (lines 21976-25371). This code referenced `ctk.CTkFrame`, `ctk.CTkLabel`, `CTkFont` etc., but `customtkinter` was never imported. Included: `_create_performance_dashboard`, `_create_main_interface`, intruder detection UI, system monitor tab, registry editor tab, and related methods. The one live method (`_activate_gaming_mode`) was preserved and relocated above the removed block.
+- **downpour_v29_titanium.py** — Removed ~3400 lines of unreachable CustomTkinter (CTk) UI code (lines 21976-25371). This code referenced `ctk.CTkFrame`, `ctk.CTkLabel`, `CTkFont` etc., but `customtkinter` was never imported. Included: `_create_performance_dashboard`, `_create_main_interface`, intruder detection UI, system monitor tab, registry editor tab, and related methods. The one live method (`_activate_gaming_mode`) was preserved and relocated above the removed block.
 - **downpour_v27_titanium.py** — Archived legacy 45K-line v27 file to `_ARCHIVE/`. No active code imports it.
 - **Main file reduced from ~45,900 lines to ~42,600 lines** (7% reduction).
 

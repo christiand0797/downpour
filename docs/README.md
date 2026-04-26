@@ -1,8 +1,8 @@
-# Downpour v28 Titanium — Consolidated Package
+# Downpour v29 Titanium — Consolidated Package
 
 ## What It Is
 
-Downpour v28 Titanium is a Windows security monitoring suite with a Tkinter GUI.
+Downpour v29 Titanium is a Windows security monitoring suite with a Tkinter GUI.
 It provides real-time process monitoring, network threat detection, ransomware
 behavioural analysis, system hardening, memory forensics, parental controls,
 GPU-accelerated scanning, and the five-layer Project AEGIS defence framework.
@@ -18,7 +18,7 @@ LAUNCH.bat          # Recommended — run as Administrator
 Or directly:
 
 ```cmd
-python downpour_v28_titanium.py
+python downpour_v29_titanium.py
 ```
 
 ---
@@ -43,7 +43,7 @@ mode without them.
 
 | File | Purpose |
 |---|---|
-| `downpour_v28_titanium.py` | Main application (~44 k lines) |
+| `downpour_v29_titanium.py` | Main application (~44 k lines) |
 | `revolutionary_enhancements.py` | Performance helpers, neural threat scorer |
 | `enhanced_memory_manager.py` | GC tuning, memory pressure monitoring |
 | `security_hardening.py` | Input validation, path sanitisation, encryption |
@@ -92,7 +92,7 @@ Use `LAUNCH.bat` (run as Administrator). It:
 1. Detects your Python installation automatically
 2. Applies a Defender path exclusion for the project folder
 3. Installs `psutil` and `cryptography` if missing
-4. Launches `downpour_v28_titanium.py`
+4. Launches `downpour_v29_titanium.py`
 
 ---
 

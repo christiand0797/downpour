@@ -1,8 +1,8 @@
-# Downpour v28 Titanium — Windows Defender Compatibility Guide
+# Downpour v29 Titanium — Windows Defender Compatibility Guide
 
 ## Overview
 
-Downpour v28 Titanium is a security monitoring application that needs to coexist
+Downpour v29 Titanium is a security monitoring application that needs to coexist
 with Windows Defender. This guide explains how Defender exclusions are managed.
 
 ---

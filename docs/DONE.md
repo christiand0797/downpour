@@ -1,10 +1,10 @@
-# DONE LIST — Downpour v28 Titanium
+# DONE LIST — Downpour v29 Titanium
 # Updated: 2026-03-18 (after 41 patch phases)
 # Total fixes applied: 540+
 
 ---
 
-## v28 SESSION (2026-03-17 — 2026-03-18)
+## v29 SESSION (2026-03-17 — 2026-03-18)
 
 ### Phase 1-4: Feed & Error Fixes
 - [x] Removed 7 dead feeds (malwaredomainlist×3, spamhaus_dbl, cryptoscam, adguard_mobile, newlyregistered)
@@ -20,7 +20,7 @@
 - [x] COM/WMI CoInitialize for 2 background thread call sites
 - [x] sklearn warning filter added
 - [x] os._exit(0) on close (fixes Fortran runtime abort)
-- [x] Version bump to v28
+- [x] Version bump to v29
 - [x] LAUNCH_DOWNPOUR.bat updated
 
 ### Phase 5-6: Download Pipeline Optimization
@@ -185,8 +185,8 @@
 - [x] Re-enabled _play_alarm() via _io_executor (non-blocking)
 - [x] IOC expiration: _expire_old_iocs() purges >30 day entries at T+5min
 - [x] 12 bare 'except:' -> 'except Exception:'
-- [x] Renamed file: downpour_v27 -> downpour_v28
-- [x] Updated LAUNCH_DOWNPOUR.bat to reference v28
+- [x] Renamed file: downpour_v27 -> downpour_v29
+- [x] Updated LAUNCH_DOWNPOUR.bat to reference v29
 - [x] Archived 27 legacy scripts to _ARCHIVE/
 - [x] Deleted rain_new.py
 
@@ -229,7 +229,7 @@
 ### Phase 26: Manual Intel + Codebase Cleanup (12 fixes)
 - [x] DISABLED auto-download of threat intel (manual-only via Update Intel)
 - [x] auto_update config default: true -> false
-- [x] APP_NAME and all version strings: v27 -> v28
+- [x] APP_NAME and all version strings: v27 -> v29
 - [x] Removed 2 dead 'if False' code blocks
 - [x] Removed duplicate log line, dead feed references
 - [x] Decoupled _adaptive_load_loop from _intel_auto_loop
@@ -241,7 +241,7 @@
 scanned for crash-prone patterns (unguarded imports, NameError risks, division by zero,
 missing hasattr guards, Tkinter threading violations, attribute mismatches).
 
-#### Main File (downpour_v28_titanium.py) — 14 fixes
+#### Main File (downpour_v29_titanium.py) — 14 fixes
 - [x] **USB monitor `__getattr__` crash** (line ~44181): `while self._usb_monitor_active` →
       `while getattr(self, '_usb_monitor_active', False)`. Tkinter's `__getattr__` redirected
       to `self.tk` during window destruction, causing AttributeError in background thread.
@@ -334,11 +334,11 @@ All wrapped external package imports in try/except to prevent ImportError crashe
 - [x] `vulnerability_scanner.py` — guarded `requests`, `psutil`
 
 #### Health check & docs updates
-- [x] `downpour_health_check.py` — Updated all v27→v28 references, added symbol checks for
+- [x] `downpour_health_check.py` — Updated all v27→v29 references, added symbol checks for
       4 new classes (`DiskAnalyzer`, `LargeFileFinder`, `EmptyFolderFinder`, `StartupItemManager`,
       `size_fmt`, `_get_all_drives`), fixed stale requirements.txt checks
-- [x] `_syntax_check.py` — Updated `downpour_v27_titanium.py` → `downpour_v28_titanium.py`
-- [x] `requirements.txt` — Updated version header comment from v27 to v28
+- [x] `_syntax_check.py` — Updated `downpour_v27_titanium.py` → `downpour_v29_titanium.py`
+- [x] `requirements.txt` — Updated version header comment from v27 to v29
 - [x] Health check: **74/74 PASS**, 0 FAIL
 - [x] All 54 active `.py` files pass `py_compile` syntax validation
 
@@ -353,7 +353,7 @@ Bare excepts catch `SystemExit`, `KeyboardInterrupt`, and `MemoryError`, hiding 
 - [x] `advanced_gauge_system.py` — 2 bare excepts fixed
 - [x] `adaptive_security_bypass.py` — 2 bare excepts fixed
 - [x] Plus 21 additional files: `advanced_file_analyzer.py`, `backup_verifier.py`,
-      `behavioral_analyzer.py`, `defender_enhancer.py`, `downpour_v28_titanium.py` (3 remaining),
+      `behavioral_analyzer.py`, `defender_enhancer.py`, `downpour_v29_titanium.py` (3 remaining),
       `email_security.py`, `emergency_response.py`, `enhanced_ui_components.py`, `file_sandbox.py`,
       `hardware_monitor_enhanced.py`, `parental_controls.py`, `process_monitor.py`,
       `revolutionary_enhancements.py`, `system_hardening.py`, `threat_detection_engine.py`,
@@ -365,18 +365,18 @@ Bare excepts catch `SystemExit`, `KeyboardInterrupt`, and `MemoryError`, hiding 
 - [x] Removed unused mutable default argument `_cache={}` from `check_hash()` in main file
 
 ### Phase 28: Documentation Refresh — 60 stale v27 references across 13 docs
-- [x] Updated all `v27` → `v28` references in 13 docs/*.md files (CLEANUP_PLAN, CLEANUP_VERIFICATION_REPORT,
+- [x] Updated all `v27` → `v29` references in 13 docs/*.md files (CLEANUP_PLAN, CLEANUP_VERIFICATION_REPORT,
       CRASH_TROUBLESHOOTING_GUIDE, DESKTOP_DEPLOYMENT_GUIDE, ENHANCED_LAUNCHER_GUIDE, FINAL_CLEANUP_SUMMARY,
       LAUNCHER_GUIDE, ORGANIZATION_SUMMARY, PACKAGE_SUMMARY, PORTABLE_DEPLOYMENT_GUIDE,
       ULTIMATE_SOPHISTICATED_LAUNCHER_GUIDE, USB_DEPLOYMENT_GUIDE, USB_DEPLOYMENT_READINESS)
-- [x] Historical references in DONE.md, CHANGELOG.md, CHANGELOG_v28.md, TODO.md preserved correctly
+- [x] Historical references in DONE.md, CHANGELOG.md, CHANGELOG_v29.md, TODO.md preserved correctly
 
 ### Phase 29: Cross-Module Integration Audit — 5 crash-level bugs fixed
 
 **Methodology:** Verified every local `from X import Y` in the main file against actual module exports.
 Checked method names, parameter names, return types, and attribute names at each call site.
 
-#### DuplicateFileFinder API mismatch (3 bugs in downpour_v28_titanium.py + downpour_cleanup_module.py)
+#### DuplicateFileFinder API mismatch (3 bugs in downpour_v29_titanium.py + downpour_cleanup_module.py)
 - [x] **`DuplicateFileFinder.find()` does not exist** (line 41954): Main file called `.find(paths, min_size,
       extensions, progress_cb, include_hidden)` but the module has `.find_duplicates(paths, extensions,
       progress_callback)`. Fixed call site: corrected method name and parameter names.
@@ -459,7 +459,7 @@ and data flow errors. Every bug confirmed by reading actual code, not speculativ
 - [x] **threat_detection_engine.py:229** — `result.risk_score` set on `DetectionResult` dataclass
       that has no such field. Silently creates dynamic attribute. Fixed: `result.severity`.
 
-#### Main File (downpour_v28_titanium.py) — 5 bugs
+#### Main File (downpour_v29_titanium.py) — 5 bugs
 - [x] **Unreachable anomaly checks (line ~8610)**: PPID spoofing, thread count, memory anomaly
       checks were indented inside `except Exception: pass` block. Only ran on sklearn AI error.
       Fixed: dedented to run on all paths. Also fixes `risk_score` cap at 100.
@@ -480,7 +480,7 @@ and data flow errors. Every bug confirmed by reading actual code, not speculativ
 
 ### Phase 31: Deep Logic Bug Sweep — Main File + Module Fixes (19 bugs, 10 files)
 
-#### Main File (downpour_v28_titanium.py) — 7 bugs
+#### Main File (downpour_v29_titanium.py) — 7 bugs
 - [x] **`sc config` syntax (lines 36167, 40698)**: `['sc', 'config', sname, 'start=', 'disabled']`
       passes two args; Windows `sc.exe` needs `start=disabled` as one token. Service disabling silently
       failed. Fixed: merged into single `'start=disabled'` token.
@@ -507,12 +507,12 @@ and data flow errors. Every bug confirmed by reading actual code, not speculativ
 - [x] **enhanced_hardware_integration.py:311-312** — Fallback `HardwareMetrics` dataclass missing
       `performance_level` and `health_score` fields. `TypeError: unexpected keyword argument` when
       advanced monitoring unavailable. Fixed: added missing fields to fallback dataclass.
-- [x] **enhanced_hardware_integration.py:4** — v27 docstring ref. Updated to v28.
+- [x] **enhanced_hardware_integration.py:4** — v27 docstring ref. Updated to v29.
 
 #### Version References — 3 files
-- [x] **enhanced_bypass_system.py** — 4 v27 refs → v28 (docstring, data dirs, filenames)
-- [x] **defender_bypass_system.py** — 4 v27 refs → v28 (docstring, data dirs, filenames)
-- [x] **downpour_remote_access.py** — 3 v27 refs → v28 (docstring, db path, comment)
+- [x] **enhanced_bypass_system.py** — 4 v27 refs → v29 (docstring, data dirs, filenames)
+- [x] **defender_bypass_system.py** — 4 v27 refs → v29 (docstring, data dirs, filenames)
+- [x] **downpour_remote_access.py** — 3 v27 refs → v29 (docstring, db path, comment)
 
 #### Summary
 - [x] **Total Phase 31: 19 bugs fixed across 10 files**
@@ -662,7 +662,7 @@ and data flow errors. Every bug confirmed by reading actual code, not speculativ
 ---
 ### Phase 36: Intelligence & Detection Hardening (15 enhancements, 6 files)
 
-#### Keyboard Shortcuts (downpour_v28_titanium.py)
+#### Keyboard Shortcuts (downpour_v29_titanium.py)
 - [x] **F1-F9** — direct tab navigation (Dashboard, Processes, Network, Scanner, Intel, Aegis, Firewall, Hunt)
 - [x] **F5** — refresh current tab data (processes, network, services, firewall, aegis)
 - [x] **F12** — jump to Settings
@@ -725,7 +725,7 @@ and data flow errors. Every bug confirmed by reading actual code, not speculativ
 - [x] **True Levenshtein distance** — replaced naive positional comparison with actual
       edit distance algorithm for typosquat detection. Catches insertions/deletions.
 
-#### Monitoring Loop Safety (downpour_v28_titanium.py)
+#### Monitoring Loop Safety (downpour_v29_titanium.py)
 - [x] **ContinuousLearning loop** — replaced `while True` + `sleep(300)` with
       `_stop_event.wait(300)` for graceful shutdown
 - [x] **CISA KEV loop** — added stop event check with `wait()` instead of `sleep()`
@@ -797,7 +797,7 @@ and data flow errors. Every bug confirmed by reading actual code, not speculativ
 - [x] **advanced_device_profiler.py** — Duplicate elif condition (`media_type == 'fixed hard disk media'` on both lines 452-455) made SSD detection unreachable. Fixed second branch to check for 'ssd'/'solid' in media_type.
 
 #### Version Reference Updates
-- [x] **12 module files** — Updated v27→v28 version strings:
+- [x] **12 module files** — Updated v27→v29 version strings:
       adaptive_security_bypass, advanced_device_profiler, downpour_cleanup_module,
       downpour_vpn_module, defender_compatibility, enhanced_logging,
       device_adaptation_engine, enhanced_memory_manager, kimwolf_botnet_detector,
@@ -820,7 +820,7 @@ and data flow errors. Every bug confirmed by reading actual code, not speculativ
 #### Security Fixes
 - [x] **advanced_threat_analyzer.py** — Removed `shell=True` with unsanitized file path. Now uses list-form subprocess with PowerShell `-LiteralPath`.
 - [x] **usb_protection.py** — Removed `shell=True` with drive path. Now uses `os.path.expandvars()` + list-form subprocess.
-- [x] **downpour_v28_titanium.py** — Gaming DNS commands converted from shell strings to list-form subprocess (4 netsh commands).
+- [x] **downpour_v29_titanium.py** — Gaming DNS commands converted from shell strings to list-form subprocess (4 netsh commands).
 
 #### Database Connection Leak Fixes (29+ leaks across 10 files)
 - [x] **backup_verifier.py** — 1 leak: `init_database()` now uses `try/finally`.
@@ -837,7 +837,7 @@ and data flow errors. Every bug confirmed by reading actual code, not speculativ
 
 #### Code Quality
 - [x] **process_monitor.py** — Removed unused duplicate `import psutil as _psutil`.
-- [x] **downpour_v28_titanium.py** — Added logging to silent USB whitelist save failure (was `except: pass`).
+- [x] **downpour_v29_titanium.py** — Added logging to silent USB whitelist save failure (was `except: pass`).
 - [x] **Identified ~3000 lines dead CTk code** (lines 21975-25000) — methods defined but never called, using unavailable `customtkinter`. Marked for future cleanup.
 
 #### Verification
@@ -854,7 +854,7 @@ and data flow errors. Every bug confirmed by reading actual code, not speculativ
 ### Phase 41: Dead Code Removal & Security Hardening (2026-03-18)
 
 #### 41.1 Dead Code Removal
-- [x] Removed ~3400 lines of dead CustomTkinter code from downpour_v28_titanium.py (lines 21976-25371)
+- [x] Removed ~3400 lines of dead CustomTkinter code from downpour_v29_titanium.py (lines 21976-25371)
 - [x] Preserved `_activate_gaming_mode` (only live method in dead zone) — relocated above removed block
 - [x] Archived downpour_v27_titanium.py (45K lines) to _ARCHIVE/
 - [x] Main file reduced from ~45,900 to ~42,600 lines (7% reduction)
@@ -879,4 +879,4 @@ and data flow errors. Every bug confirmed by reading actual code, not speculativ
 - [x] Cumulative total: **540+ fixes across 41 patch phases**
 
 ---
-*Updated 2026-03-18 after 41 v28 patch phases. Total: 540+ fixes.*
+*Updated 2026-03-18 after 41 v29 patch phases. Total: 540+ fixes.*

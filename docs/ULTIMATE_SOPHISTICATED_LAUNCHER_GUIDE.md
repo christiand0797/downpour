@@ -1,4 +1,4 @@
-# Downpour v28 Titanium — Launcher Guide
+# Downpour v29 Titanium — Launcher Guide
 
 ## Available Launchers
 
@@ -14,20 +14,20 @@ What it does:
 1. Locates your Python installation automatically
 2. Applies a Defender path exclusion for the project folder
 3. Installs `psutil` and `cryptography` if missing
-4. Launches `downpour_v28_titanium.py`
+4. Launches `downpour_v29_titanium.py`
 
 ### Direct Python launch
 
 ```cmd
-python downpour_v28_titanium.py
+python downpour_v29_titanium.py
 ```
 
 ### Python launchers (legacy — use LAUNCH.bat instead)
 
 | File | Notes |
 |---|---|
-| `launch_downpour_v28_ultimate.py` | Installs deps then launches |
-| `launch_downpour_v28_error_free.py` | Conservative import guards |
+| `launch_downpour_v29_ultimate.py` | Installs deps then launches |
+| `launch_downpour_v29_error_free.py` | Conservative import guards |
 | `working_ultimate_launcher.py` | Minimal launcher |
 
 ---
@@ -56,6 +56,6 @@ Wait about 60 seconds for the exclusion to take effect, then relaunch.
 
 ## Verifying a Successful Launch
 
-The application opens a Tkinter window titled "Downpour v28 Titanium".
+The application opens a Tkinter window titled "Downpour v29 Titanium".
 The status bar at the bottom shows the active module count.
 Log output goes to `downpour.log` in the project folder.

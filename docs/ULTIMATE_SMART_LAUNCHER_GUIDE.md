@@ -1,4 +1,4 @@
-# Downpour v28 Titanium - Ultimate Smart Launcher Guide
+# Downpour v29 Titanium - Ultimate Smart Launcher Guide
 
 ## 🧠 Introduction to Ultimate Intelligence
 
@@ -9,7 +9,7 @@ The Ultimate Smart Launcher represents the pinnacle of intelligent application l
 ## 🚀 Launcher Hierarchy
 
 ### Level 1: Basic Launchers
-- **Downpour v28 Titanium.bat** - Standard admin launcher
+- **Downpour v29 Titanium.bat** - Standard admin launcher
 - **DIRECT_LAUNCH.bat** - Quick direct launch
 - **PORTABLE_LAUNCHER.bat** - No-admin portable launcher
 
@@ -240,13 +240,13 @@ if strategy_performance > threshold:
 ### Advanced Usage
 ```batch
 # Manual launch with specific intelligence level
-python downpour_v28_titanium.py --ultimate-smart --ml-optimized
+python downpour_v29_titanium.py --ultimate-smart --ml-optimized
 
 # Custom optimization flags
-python downpour_v28_titanium.py --device-adaptive --performance-mode
+python downpour_v29_titanium.py --device-adaptive --performance-mode
 
 # Learning mode
-python downpour_v28_titanium.py --learning-mode --feedback-enabled
+python downpour_v29_titanium.py --learning-mode --feedback-enabled
 ```
 
 ### Configuration Files
@@ -304,19 +304,19 @@ os.remove('optimization_history.pkl')
 #### Performance Issues
 ```batch
 # Use conservative mode
-python downpour_v28_titanium.py --conservative --minimal
+python downpour_v29_titanium.py --conservative --minimal
 
 # Disable ML optimization
-python downpour_v28_titanium.py --no-ml --baseline
+python downpour_v29_titanium.py --no-ml --baseline
 ```
 
 ### Debug Mode
 ```batch
 # Enable verbose logging
-python downpour_v28_titanium.py --debug --verbose --ml-debug
+python downpour_v29_titanium.py --debug --verbose --ml-debug
 
 # Save analysis logs
-python downpour_v28_titanium.py --save-logs --analysis-debug
+python downpour_v29_titanium.py --save-logs --analysis-debug
 ```
 
 ---

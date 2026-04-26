@@ -1,4 +1,4 @@
-# Downpour v28 Titanium - CHANGELOG
+# Downpour v29 Titanium - CHANGELOG
 ## 2026-03-18 - Phase 28: Full Codebase Bug Audit (45+ fixes across 25 files)
 
 ### COMPREHENSIVE AUDIT
@@ -12,7 +12,7 @@
   magic, yara, pefile, sklearn, numpy, pandas)
 - sqlite3 import order fix, UnicodeDecodeError fix, typo fix
 - Health check: 74/74 PASS, all 50 files compile clean
-- See docs/CHANGELOG_v28.md Phase 28 for full technical details
+- See docs/CHANGELOG_v29.md Phase 28 for full technical details
 
 ---
 

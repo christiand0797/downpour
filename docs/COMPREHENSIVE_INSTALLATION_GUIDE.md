@@ -1,4 +1,4 @@
-# Downpour v28 Titanium - Comprehensive Installation Guide
+# Downpour v29 Titanium - Comprehensive Installation Guide
 ## 📦 Complete Feature Installation for All Python Versions
 
 ### **📅 Date**: 2026-03-11 20:32 UTC
@@ -128,8 +128,8 @@
 ### **✅ All Launchers Now Include Comprehensive Installation**
 
 **Updated Launchers**:
-1. **Downpour v28 Titanium.bat** - Main launcher with comprehensive installation
-2. **Downpour v28 Titanium (Admin).bat** - Admin launcher with enhanced installation
+1. **Downpour v29 Titanium.bat** - Main launcher with comprehensive installation
+2. **Downpour v29 Titanium (Admin).bat** - Admin launcher with enhanced installation
 3. **LAUNCH_ADMIN.bat** - Quick admin launcher with installation
 
 **Installation Process in Launchers**:
@@ -208,7 +208,7 @@ python comprehensive_installer.py
 ### **✅ How to Use Comprehensive Installation**
 
 **Method 1: Use Updated Launchers (Recommended)**
-1. Double-click `Downpour v28 Titanium.bat`
+1. Double-click `Downpour v29 Titanium.bat`
 2. Approve UAC prompt (appears automatically)
 3. Wait for comprehensive installation to complete
 4. Launch application with all features
@@ -243,7 +243,7 @@ python test_launcher.py
 - Check that critical features (numpy, pandas, plotly) are present
 
 **Check Desktop Shortcuts**:
-- Look for "Downpour v28 Complete" desktop shortcut
+- Look for "Downpour v29 Complete" desktop shortcut
 - Verify shortcut launches with all features
 - Test functionality of installed features
 

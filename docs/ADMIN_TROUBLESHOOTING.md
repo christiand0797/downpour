@@ -1,4 +1,4 @@
-# Downpour v28 Titanium - Admin Troubleshooting Guide
+# Downpour v29 Titanium - Admin Troubleshooting Guide
 ## 🛡️ Administrator Access Issues & Solutions
 
 ### **📅 Date**: 2026-03-11 20:29 UTC
@@ -31,13 +31,13 @@
 
 ### **✅ Updated Admin Launchers**
 
-**1. Downpour v28 Titanium.bat** ⭐ **UPDATED - NOW REQUESTS ADMIN**
+**1. Downpour v29 Titanium.bat** ⭐ **UPDATED - NOW REQUESTS ADMIN**
 - **Status**: ✅ **FIXED** - Now requests admin privileges
 - **Features**: Professional interface with admin access
 - **UAC Prompt**: ✅ **Now appears automatically**
 - **Functionality**: Full admin access when approved
 
-**2. Downpour v28 Titanium (Admin).bat** 🛡️ **NEW - DEDICATED ADMIN**
+**2. Downpour v29 Titanium (Admin).bat** 🛡️ **NEW - DEDICATED ADMIN**
 - **Status**: ✅ **NEW** - Dedicated admin launcher
 - **Features**: Enhanced admin interface with full system access
 - **UAC Prompt**: ✅ **Appears automatically**
@@ -87,7 +87,7 @@
 ### **✅ How to Verify Admin Access Works**
 
 **Step 1: Test Updated Launcher**
-1. Double-click `Downpour v28 Titanium.bat`
+1. Double-click `Downpour v29 Titanium.bat`
 2. **UAC prompt should appear** asking for admin privileges
 3. Click "Yes" to approve
 4. Launcher should show "Admin Edition" interface
@@ -143,8 +143,8 @@
 3. Confirm Windows Defender allows execution
 
 **Step 2: Use Updated Launchers**
-1. Use `Downpour v28 Titanium.bat` (updated)
-2. Or use `Downpour v28 Titanium (Admin).bat` (dedicated)
+1. Use `Downpour v29 Titanium.bat` (updated)
+2. Or use `Downpour v29 Titanium (Admin).bat` (dedicated)
 3. Or use `LAUNCH_ADMIN.bat` (quick admin)
 
 **Step 3: Approve UAC Prompt**
@@ -227,8 +227,8 @@
 
 | Launcher | Admin Request | Interface | Features | Best For |
 |-----------|---------------|-----------|----------|----------|
-| Downpour v28 Titanium.bat | ✅ Automatic | Professional | Full admin | Daily users |
-| Downpour v28 Titanium (Admin).bat | ✅ Automatic | Enhanced admin | Maximum admin | Power users |
+| Downpour v29 Titanium.bat | ✅ Automatic | Professional | Full admin | Daily users |
+| Downpour v29 Titanium (Admin).bat | ✅ Automatic | Enhanced admin | Maximum admin | Power users |
 | LAUNCH_ADMIN.bat | ✅ Automatic | Minimal | Quick admin | Quick access |
 | LAUNCH.bat | ❌ No admin | Minimal | Limited | Non-admin |
 

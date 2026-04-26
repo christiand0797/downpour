@@ -1,4 +1,4 @@
-# Downpour v28 Titanium - Crash Troubleshooting Guide
+# Downpour v29 Titanium - Crash Troubleshooting Guide
 ## 🔧 Laptop Crash Analysis & Solutions
 
 ### **📅 Date**: 2026-03-11 21:35 UTC
@@ -188,7 +188,7 @@ python -c "
 import sys
 sys.path.insert(0, '.')
 try:
-    import downpour_v28_titanium
+    import downpour_v29_titanium
     print('✅ Main app: OK')
 except Exception as e:
     print('❌ Main app:', e)
@@ -213,12 +213,12 @@ except Exception as e:
 - **Use**: If diagnostic launcher fails
 
 **Method 3: Direct Python Launch**
-- **Command**: `python downpour_v28_titanium.py`
+- **Command**: `python downpour_v29_titanium.py`
 - **Purpose**: Bypass batch file issues
 - **Use**: If batch launchers fail
 
 **Method 4: Module Launch**
-- **Command**: `python -m downpour_v28_titanium`
+- **Command**: `python -m downpour_v29_titanium`
 - **Purpose**: Module-based launch
 - **Use**: Alternative launch method
 
@@ -255,12 +255,12 @@ except Exception as e:
 # Enable Python crash logging
 set PYTHONFAULTHANDLER=1
 set PYTHONTRACEMALLOC=1
-python downpour_v28_titanium.py
+python downpour_v29_titanium.py
 ```
 
 **Application Logs**:
 - **Location**: Same folder as application
-- **Files**: `downpour_v28_data/logs/`
+- **Files**: `downpour_v29_data/logs/`
 - **Check**: `error.log`, `crash.log`
 
 **System Information**:
@@ -385,12 +385,12 @@ python -c "
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-exec(open('downpour_v28_titanium.py').read())
+exec(open('downpour_v29_titanium.py').read())
 "
 ```
 
 **Alternative Launch Methods**:
-1. **PowerShell launch**: `python downpour_v28_titanium.py`
+1. **PowerShell launch**: `python downpour_v29_titanium.py`
 2. **Command prompt**: Navigate to folder, run directly
 3. **Python IDLE**: Open file in IDLE and run
 4. **Virtual environment**: Create clean Python environment
