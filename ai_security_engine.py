@@ -494,7 +494,7 @@ class AISecurityEngine:
         else:
             return "low"
     
-    def predict_threat(self, system_state):
+def predict_threat(self, system_state: dict) -> dict:
         """Predict potential threats based on system state"""
         if not SKLEARN_AVAILABLE:
             return {"prediction": "unknown", "confidence": 0.0}
@@ -513,7 +513,7 @@ class AISecurityEngine:
             self.logger.error(f"Threat prediction failed: {e}")
             return {"prediction": "unknown", "confidence": 0.0}
     
-    def _extract_system_features(self, system_state):
+def _extract_system_features(self, system_state: dict) -> dict:
         """Extract system-wide features"""
         if not NUMPY_AVAILABLE:
             return {}

@@ -120,7 +120,7 @@ class NetworkMonitor:
                 if custom_ports:
                     self.suspicious_ports.extend(custom_ports)
     
-    def is_private_ip(self, ip):
+    def is_private_ip(self, ip: str) -> bool:
         """
         Check if IP address is private/local (not on internet).
         
@@ -148,7 +148,7 @@ class NetworkMonitor:
             return True
         return False
     
-    def get_country_for_ip(self, ip):
+    def get_country_for_ip(self, ip: str) -> str:
         """
         Get country code for an IP address.
         
@@ -166,8 +166,9 @@ class NetworkMonitor:
         try:
             if _REQUESTS_AVAILABLE:
                 resp = requests.get(
-                    f"http://ip-api.com/json/{ip}",
-                    timeout=3
+                    f"https://ip-api.com/json/{ip}",
+                    timeout=3,
+                    headers={"User-Agent": "Downpour-HealthCheck/29"}
                 )
                 if resp.status_code == 200:
                     data = resp.json()
@@ -178,7 +179,7 @@ class NetworkMonitor:
         
         return "??"  # Unknown
     
-    def check_connection(self, conn, proc_name):
+    def check_connection(self, conn, proc_name: str):
         """
         Analyze a single network connection for suspicious activity.
         
@@ -245,7 +246,7 @@ class NetworkMonitor:
             logging.debug(f"Error checking connection: {e}")
             return (False, "LOW", "")
     
-    def scan_connections(self):
+    def scan_connections(self) -> None:
         """
         Scan all active network connections for suspicious activity.
         

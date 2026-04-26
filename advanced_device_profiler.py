@@ -1,4 +1,5 @@
 """
+__version__ = "29.0.0"
 Advanced Device Profiler for Downpour v29 Titanium
 Sophisticated device analysis for admin-level operations and security bypass
 """
@@ -76,7 +77,8 @@ class AdvancedDeviceProfiler:
         
     def comprehensive_admin_analysis(self) -> Dict[str, Any]:
         """Perform comprehensive analysis for admin-level operations"""
-        print("[ANALYSIS] Starting comprehensive admin-level device analysis...")
+        import logging
+        logging.info("[ANALYSIS] Starting comprehensive admin-level device analysis...")
         
         analysis_result = {
             'timestamp': time.time(),

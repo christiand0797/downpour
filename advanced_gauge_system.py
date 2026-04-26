@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """
+__version__ = "29.0.0"
+Advanced Gauge System v29
 Advanced Gauge System for Hardware Performance
 Responsive, animated gauges with real-time data visualization
 """
