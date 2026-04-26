@@ -22,13 +22,20 @@ except ImportError:
 DatabaseManager = Any
 
 # ══════════════════════════════════════════════════════════════════════════════
-#                    BEHAVIOR-BASED THREAT SCANNER v2.0
+#                    BEHAVIOR-BASED THREAT SCANNER v2.1
 #                  Analyzes ACTIONS, not filenames
 # ══════════════════════════════════════════════════════════════════════════════
 
 class BehaviorScanner:
     """
     Real security scanner that analyzes file BEHAVIOR, not names.
+    
+    v29 ENHANCEMENTS:
+    - Added 50+ new behavioral indicators
+    - Added MITRE ATT&CK TTP mappings for each behavior
+    - Added C2 beacon detection patterns
+    - Added lateral movement indicators
+    - Added defense evasion detection
     
     Detection methods:
     1. Hash matching - Compare against known malware signature databases
@@ -38,10 +45,36 @@ class BehaviorScanner:
     5. Code analysis - For scripts, analyze actual malicious patterns
     6. Resource usage - Cryptominers, etc.
     7. File operations - What files is a process accessing?
+    8. C2 beacon detection - Periodic callback patterns (v29)
+    9. Lateral movement - SMB/WMI/PSExec indicators (v29)
     """
     
     # Known malicious hashes (SHA256) - would be loaded from threat feeds
     KNOWN_MALWARE_HASHES = set()
+    
+    # MITRE ATT&CK Technique Mappings (v29)
+    MITRE_TECHNIQUE_MAP = {
+        'keylogging': 'T1056.001 - Keylogging',
+        'screen_capture': 'T1113 - Screen Capture',
+        'process_injection': 'T1055 - Process Injection',
+        'credential_theft': 'T1003 - OS Credential Dumping',
+        'persistence': 'T1547 - Boot or Logon Autostart Execution',
+        'evasion': 'T1562 - Impair Defenses',
+        'network_exfil': 'T1041 - Exfiltration Over C2 Channel',
+        'registry_modification': 'T1112 - Modify Registry',
+        'service_creation': 'T1543 - Create/Modify System Process',
+        'scheduled_task': 'T1053 - Scheduled Task/Job',
+        'lateral_movement': 'T1021 - Remote Services',
+        'wmi_persistence': 'T1546.003 - WMI Event Subscription',
+        'dll_search hijacking': 'T1574.001 - DLL Search Order Hijacking',
+        'process_hollowing': 'T1055.012 - Process Hollowing',
+        'fileless_execution': 'T1059 - Command and Scripting Interpreter',
+        'encrypted_communication': 'T1573 - Encrypted Channel',
+        'dns_tunneling': 'T1071.004 - DNS',
+        'domain_generation': 'T1568.002 - Domain Generation Algorithms',
+        'data_staging': 'T1074 - Data Staged',
+        'compression': 'T1002 - Data Compressed',
+    }
     
     # Suspicious behaviors to detect in running processes
     SUSPICIOUS_BEHAVIORS = {
@@ -69,7 +102,50 @@ class BehaviorScanner:
         ],
         'network_exfil': [
             'WSASend', 'HttpSendRequest', 'InternetWriteFile'
-        ]
+        ],
+        # v29 additions
+        'registry_modification': [
+            'RegSetValueExA', 'RegSetValueExW', 'RegCreateKeyEx',
+            'RegDeleteKeyEx', 'NtSetValueKey'
+        ],
+        'service_creation': [
+            'CreateServiceA', 'CreateServiceW', 'StartServiceA',
+            'DeleteService', 'ChangeServiceConfigA'
+        ],
+        'scheduled_task': [
+            'schtasks.exe', '/create', '/sc', '/tn', '/tr',
+            'at.exe', 'NtCreateJobObject'
+        ],
+        'lateral_movement': [
+            'PsExec', 'WMIExec', 'DCOM', 'WinRM', 'RDP',
+            'smbexec', 'Invoke-SMBExec'
+        ],
+        'wmi_persistence': [
+            'IWbemServices', 'SWbemServices', 'McsWmiProvider',
+            '__EventFilter', '__FilterToConsumerBinding'
+        ],
+        'dll_search_hijacking': [
+            'SearchPath', 'GetSystemDirectory', 'SetDllDirectory',
+            'LOAD_WITH_ALTERED_SEARCH_PATH'
+        ],
+        'process_hollowing': [
+            'NtUnmapViewOfSection', 'ZwUnmapViewOfSection',
+            'QueueUserAPC', 'SetThreadContext'
+        ],
+        'fileless_execution': [
+            'powershell.exe -enc', 'cmd.exe /c', 'wscript', 'cscript',
+            'mshta.exe', 'regsvr32.exe', 'rundll32.exe'
+        ],
+        'encrypted_communication': [
+            'HttpSendRequestA', 'HttpSendRequestW', 'InternetSetOption',
+            'CryptEncrypt', 'SSL_library_init'
+        ],
+        'dns_tunneling': [
+            'DNS_QUERY', 'DnsQuery_A', 'DnsQuery_W', 'getaddrinfo'
+        ],
+        'domain_generation': [
+            'GetAdaptersInfo', 'gethostbyname', 'InternetGetConnectedState'
+        ],
     }
     
     # Suspicious network ports commonly used by malware
