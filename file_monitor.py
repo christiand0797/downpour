@@ -6,6 +6,8 @@ FILE SYSTEM MONITORING MODULE
 PURPOSE: Watches important folders for suspicious file activity that could
          indicate malware, especially ransomware.
 
+v29: Added real-time file monitoring using Windows API (ReadDirectoryChangesW).
+
 WHAT IT MONITORS:
 - Documents, Desktop, Downloads, Pictures folders
 - Rapid file modifications (ransomware encrypting files)
@@ -66,6 +68,9 @@ class FileSystemMonitor:
         # Track file operations
         self.file_operations = defaultdict(list)
         self.operation_window = 60  # seconds
+        
+        # v29: Watch handles for real-time monitoring
+        self._watch_handles = {}
         
         # Default protected folders
         self.protected_folders = [
@@ -174,11 +179,9 @@ class FileSystemMonitor:
     
     def monitor_folder(self, folder_path):
         """
-        Monitor a single folder for changes.
+        Monitor a single folder for changes using Windows API.
         
-        This uses Windows API to watch for file system changes.
-        In a full implementation, this would use win32file.ReadDirectoryChangesW
-        to get real-time notifications.
+        v29: Uses win32file.ReadDirectoryChangesW for real-time notifications.
         
         Parameters:
         - folder_path: Path to folder to monitor
@@ -189,13 +192,39 @@ class FileSystemMonitor:
         
         logging.info(f"Monitoring folder: {folder_path}")
         
-        # In full implementation, would use:
-        # win32file.CreateFile() to open directory
-        # win32file.ReadDirectoryChangesW() to watch for changes
-        # This would run in its own thread
+        if not _WIN32_AVAILABLE:
+            logging.warning(f"win32file not available - folder monitoring passive")
+            return
         
-        # For now, we'll just log that monitoring is active
-        # Real implementation would receive actual file system events
+        try:
+            # Open directory for monitoring
+            folder_handle = win32file.CreateFile(
+                folder_path,
+                0x00000001,  # FILE_LIST_DIRECTORY
+                0x00000001 | 0x00000002 | 0x00000004,  # FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE
+                None,
+                0x00000002,  # OPEN_EXISTING
+                0x00000020,  # FILE_FLAG_OVERLAPPED
+                None
+            )
+            
+            # Start async monitoring
+            overlapped = 0
+            buffer_size = 65536
+            
+            # Start monitoring thread
+            monitor_thread = threading.Thread(
+                target=self._file_watch_loop,
+                args=(folder_handle, folder_path, buffer_size),
+                daemon=True
+            )
+            monitor_thread.start()
+            
+            self._watch_handles[folder_path] = folder_handle
+            logging.info(f"Started real-time monitoring: {folder_path}")
+            
+        except Exception as e:
+            logging.error(f"Failed to start folder monitoring: {e}")
     
     def monitoring_loop(self):
         """

@@ -499,9 +499,8 @@ class AISecurityEngine:
             if not features:
                 return {"prediction": "unknown", "confidence": 0.0}
             
-            # Simple rule-based prediction for now
-            # In a full implementation, this would use a trained model
-            prediction = self._rule_based_threat_prediction(features)
+            # v29: Use sklearn-based threat prediction with trained model
+            prediction = self._ml_threat_prediction(features)
             
             return prediction
             
