@@ -1,6 +1,6 @@
 @echo off
 setlocal EnableDelayedExpansion
-title Downpour v28 Titanium
+title Downpour v29 Titanium
 chcp 65001 >nul 2>&1
 color 0B
 
@@ -110,13 +110,13 @@ echo   Firewall : Kimwolf C2 blocked
 echo   Cache    : Cleaned
 echo  ================================================================
 echo.
-echo   Starting Downpour v28 Titanium...
+echo   Starting Downpour v29 Titanium...
 echo   Window appears in ~5 seconds. Full GUI in ~15 seconds.
 echo   DNS Security + Cleanup tabs load on first click.
 echo.
 
 :: ── 10. LAUNCH WITH STDERR CAPTURE ───────────────────────
-"!PY!" -X utf8 -X faulthandler -u -W ignore::FutureWarning "%APPDIR%downpour_v28_titanium.py" --no-admin --no-install 2>"%APPDIR%dp_stderr.txt"
+"!PY!" -X utf8 -X faulthandler -u -W ignore::FutureWarning "%APPDIR%downpour_v29_titanium.py" --no-admin --no-install 2>"%APPDIR%dp_stderr.txt"
 set "EXIT_CODE=%errorlevel%"
 
 :: ── 11. EXIT HANDLING ────────────────────────────────────
