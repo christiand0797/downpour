@@ -626,12 +626,12 @@ def get_enhanced_hardware() -> Optional[EnhancedHardwareIntegration]:
 
 def main():
     """Main function for testing"""
-    print("🖥️ Enhanced Hardware Integration Test")
+    print("Enhanced Hardware Integration Test")
     print("=" * 50)
     print("Advanced hardware monitoring with responsive gauges")
-    print("🔥 Real-time performance data visualization")
-    print("📊 Sophisticated metrics and alerting")
-    print("🎯 Integration-ready for main application")
+    print("Real-time performance data visualization")
+    print("Sophisticated metrics and alerting")
+    print("Integration-ready for main application")
     print("=" * 50)
     
     # Initialize enhanced hardware
@@ -648,7 +648,7 @@ def main():
     hardware = initialize_enhanced_hardware(config)
     
     try:
-        print("\n🖥️ Starting enhanced hardware monitoring...")
+        print("\nStarting enhanced hardware monitoring...")
         hardware.start_monitoring()
         
         # Monitor for 10 seconds
@@ -657,7 +657,7 @@ def main():
         # Show current metrics
         current = hardware.get_current_metrics()
         if current:
-            print(f"\n📊 Current Metrics:")
+            print(f"\nCurrent Metrics:")
             print(f"   CPU: {current.cpu_percent:.1f}% @ {current.cpu_frequency:.0f}MHz")
             print(f"   Memory: {current.memory_percent:.1f}% ({current.memory_used_gb:.1f}GB)")
             print(f"   Disk: {current.disk_percent:.1f}% ({current.disk_used_gb:.1f}GB)")
