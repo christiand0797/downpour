@@ -19,13 +19,19 @@ color 0A
 :: ║  • Targets downpour_v29_titanium.py                            ║
 :: ║  • nvidia-ml-py verification                                    ║
 :: ║                                                                  ║
-:: ║  DETECTION CAPABILITIES:                                         ║
-:: ║  • 45+ YARA rules                                               ║
-:: ║  • 289+ threat feeds                                            ║
-:: ║  • 85+ MITRE techniques                                        ║
-:: ║  • 500+ malware families                                       ║
-:: ║  • 40+ security modules                                        ║
-:: ║  • 24-tab security GUI                                        ║
+:: ║  v29 ENHANCED DETECTION CAPABILITIES:                           ║
+:: ║  • 750+ malware family signatures (v2.1)                        ║
+:: ║  • 150+ MITRE ATT&CK technique mappings                        ║
+:: ║  • KEV/CEV/EPSS vulnerability tracking                          ║
+:: ║  • Threat actor attribution database                             ║
+:: ║  • 38+ real-time security gauges                                ║
+:: ║  • AI Security Engine v3.1 with KEV correlation                  ║
+:: ║  • Deep file analysis (entropy, PE, imports, strings)           ║
+:: ║  • 60+ network MITRE TTP mappings                               ║
+:: ║  • 30+ new ransomware families                                 ║
+:: ║  • 50+ new APT C2 frameworks                                    ║
+:: ║  • IoT botnet signatures (Mirai, Gafgyt, Moobot)               ║
+:: ║  • Mobile malware signatures (BankBot, Cerberus, FluBot)        ║
 :: ╚══════════════════════════════════════════════════════════════════╝
 
 :: ── 1. UAC ELEVATION ──────────────────────────────────────────────
@@ -67,8 +73,9 @@ echo.
 echo  ╔═══════════════════════════════════════════════════════════════╗
 echo  ║              ⛈  DOWNPOUR v29 TITANIUM  ⛈                    ║
 echo  ║         Advanced Threat Defense — 289+ Feeds                  ║
-echo  ║         45+ YARA Rules  │  85+ MITRE Techniques               ║
-echo  ║         Remediate All  │  Auto-COM Init  │  FIM 35 Files      ║
+echo  ║         750+ Malware Sigs  │  150+ MITRE Techniques           ║
+echo  ║         KEV/CEV/EPSS Tracking  │  AI Engine v3.1               ║
+echo  ║         38+ Real-Time Gauges  │  Threat Actor DB               ║
 echo  ╚═══════════════════════════════════════════════════════════════╝
 echo.
 
