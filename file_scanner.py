@@ -185,7 +185,9 @@ class FileScanner:
         return result
     
     def scan_folder(self, folder_path, recursive=True):
-        """Scan all files in a folder."""
+        """Scan all files in a folder. Uses logging for visibility."""
+        import logging as _logging
+        _logging.info(f"Starting file scan in folder: {folder_path}")
         results = {
             'folder_path': str(folder_path),
             'scan_time': datetime.now().isoformat(),
