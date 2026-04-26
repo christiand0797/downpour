@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/feeds-300%2B-orange?style=for-the-badge" />
   <img src="https://img.shields.io/badge/MITRE-90%2B-purple?style=for-the-badge" />
   <img src="https://img.shields.io/badge/modules-45%2B-cyan?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/malware-670%2B-crimson?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/malware-750%2B-crimson?style=for-the-badge" />
   <img src="https://img.shields.io/badge/ports-500%2B-blue?style=for-the-badge" />
   <img src="https://img.shields.io/badge/24%20tabs%20with%2034%2B%20gauges-green?style=for-the-badge" />
   <img src="https://img.shields.io/badge/KEV/CEV-EPSS-brightgreen?style=for-the-badge" />
@@ -95,6 +95,10 @@ Downpour is a personal, all-in-one Windows security suite — written entirely i
 - Emerging stealer families (2023-2025)
 - Supply chain attack indicators
 - 4 new security gauges: THREAT ACTORS, THREAT FEEDS, INDICATORS, ACTIVE ALERTS
+
+### Additional v29 Gauges (8 total now)
+- 4 KEV/CEV/EPSS gauges: KEV CVEs, KEV CRITICAL, KEV HIGH, CEV SCORE
+- 4 Threat Intel gauges: THREAT ACTORS, THREAT FEEDS, INDICATORS, ACTIVE ALERTS
 
 ---
 
