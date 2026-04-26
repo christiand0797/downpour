@@ -9,12 +9,13 @@
   <img src="https://img.shields.io/badge/status-active-brightgreen?style=for-the-badge" />
   <img src="https://img.shields.io/badge/YARA-50%2B-red?style=for-the-badge" />
   <img src="https://img.shields.io/badge/feeds-300%2B-orange?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/MITRE-90%2B-purple?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/MITRE-150%2B-purple?style=for-the-badge" />
   <img src="https://img.shields.io/badge/modules-45%2B-cyan?style=for-the-badge" />
   <img src="https://img.shields.io/badge/malware-750%2B-crimson?style=for-the-badge" />
   <img src="https://img.shields.io/badge/ports-500%2B-blue?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/24%20tabs%20with%2034%2B%20gauges-green?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/24%20tabs%20with%2038%2B%20gauges-green?style=for-the-badge" />
   <img src="https://img.shields.io/badge/KEV/CEV-EPSS-brightgreen?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/AI-Engine%20v3.1-yellow?style=for-the-badge" />
 </p>
 
 ---
@@ -106,10 +107,12 @@ Downpour is a personal, all-in-one Windows security suite — written entirely i
 
 ### Malware Detection
 - 50+ YARA rules for known malware
-- 670+ malware family signatures (RATs, stealers, bankers, ransomware, loaders, miners, APT tools)
+- 750+ malware family signatures (v2.1)
 - 500+ suspicious port signatures (RAT defaults, C2 ports, botnet ports)
 - Behavioral heuristics (40+ cmdline patterns)
-- Entropy-based packer detection
+- **NEW: Entropy-based packer detection (v29)**
+- **NEW: PE section analysis for packer identification (v29)**
+- **NEW: Import table analysis for suspicious DLL/functions (v29)**
 - SHA-256 hash IOC lookup
 
 ### Threat Intelligence
@@ -117,10 +120,13 @@ Downpour is a personal, all-in-one Windows security suite — written entirely i
 - Kimwolf/Botnet detection (ADB port 5555 monitoring)
 - Real-time C2 domain matching
 - DNS canary monitoring
+- **NEW: KEV/CEV/EPSS vulnerability tracking (v29)**
+- **NEW: Threat actor attribution database (v29)**
 
 ### MITRE ATT&CK
-- 90+ technique mappings
+- **150+ technique mappings (v29 enhanced)**
 - Multi-keyword confidence scoring
+- **NEW: Network-based TTP mappings (v29)**
 - Automatic threat categorization
 
 ---
