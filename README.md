@@ -105,6 +105,11 @@ Downpour is a personal, all-in-one Windows security suite — written entirely i
 - IoT device KEV status checking
 - IOC to CVE correlation mapping
 
+### Version Tracking
+- __version__ stamps in all security modules
+- CVE enhanced detection engines with version tracking
+- Bare except statement fixes for Python best practices
+
 ### Additional v29 Gauges (8 total now)
 - 4 KEV/CEV/EPSS gauges: KEV CVEs, KEV CRITICAL, KEV HIGH, CEV SCORE
 - 4 Threat Intel gauges: THREAT ACTORS, THREAT FEEDS, INDICATORS, ACTIVE ALERTS
