@@ -13,7 +13,8 @@
   <img src="https://img.shields.io/badge/modules-45%2B-cyan?style=for-the-badge" />
   <img src="https://img.shields.io/badge/malware-670%2B-crimson?style=for-the-badge" />
   <img src="https://img.shields.io/badge/ports-500%2B-blue?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/24%20tabs%20with%2030%2B%20gauges-green?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/24%20tabs%20with%2034%2B%20gauges-green?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/KEV/CEV-EPSS-brightgreen?style=for-the-badge" />
 </p>
 
 ---
@@ -49,6 +50,8 @@ Downpour is a personal, all-in-one Windows security suite — written entirely i
 | 🚨 **AEGIS 5-Layer Defense** | Physical, TCP, Ingest, NLP, Memory — concurrent threat correlation |
 | 📊 **IR Report** | One-click full HTML Incident Response report |
 | 🌧️ **Rain Overlay** | Animated rain that intensifies with threat level |
+| 🔴 **KEV/CEV Tracking** | Real-time CISA KEV catalog monitoring, CVSS scoring, threat level assessment |
+| 📈 **EPSS Integration** | Exploit Prediction Scoring System for likelihood-based prioritization |
 
 ---
 

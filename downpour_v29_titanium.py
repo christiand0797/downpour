@@ -16992,6 +16992,10 @@ class HardwareMonitor:
             'nic_stats': [],         # [{name, bytes_sent_rate, bytes_recv_rate, speed_mbps}]
             'cpu_freq_max': 0, 'cpu_freq_min': 0,
             'open_files': 0, 'ctx_switches': 0,
+            # KEV/CEV/EPSS Vulnerability Tracking
+            'kev_count': 0, 'kev_critical': 0, 'kev_high': 0,
+            'cev_score': 0.0, 'epss_avg': 0.0, 'epss_high_count': 0,
+            'vuln_threat_level': 'UNKNOWN',
         }
         # Re-try psutil import every call until it succeeds (auto-install may have run)
         global PSUTIL_AVAILABLE, psutil
@@ -17091,6 +17095,28 @@ class HardwareMonitor:
             if freq:
                 stats['cpu_freq_mhz'] = int(freq.current)
         except Exception: pass
+        
+        # KEV/CEV/EPSS Vulnerability Stats Collection
+        try:
+            from vulnerability_scanner import get_cev_gauge_data, get_kev_gauge_data
+            try:
+                cev_data = get_cev_gauge_data()
+                stats['cev_score'] = cev_data.get('cev_score', 0)
+                stats['vuln_threat_level'] = cev_data.get('threat_level', 'UNKNOWN')
+            except Exception: pass
+            try:
+                kev_data = get_kev_gauge_data()
+                stats['kev_count'] = kev_data.get('total_kev', 0)
+                stats['kev_critical'] = kev_data.get('critical', 0)
+                stats['kev_high'] = kev_data.get('high', 0)
+            except Exception: pass
+            try:
+                from vulnerability_scanner import _KEV_STATS
+                stats['epss_avg'] = _KEV_STATS.get('epss_threshold', 0.5) * 100
+                stats['epss_high_count'] = 0
+            except Exception: pass
+        except Exception: pass
+        
         try:
             mem = psutil.virtual_memory()
             stats['ram_percent']  = mem.percent
@@ -21334,6 +21360,17 @@ class downpour(tk.Tk):
                 self.cleanup_engine = None
                 self.dup_finder     = None
             self.vuln_scanner = VulnerabilityScanner(self.db)
+            try:
+                self.vuln_scanner.refresh_kev()
+            except Exception: pass
+            
+            # Initialize standalone vulnerability scanner for gauge data (v29)
+            try:
+                from vulnerability_scanner import get_vulnerability_scanner
+                self._vuln_scanner_gauges = get_vulnerability_scanner()
+                self._vuln_scanner_gauges.start()
+            except Exception: pass
+            
             self.controller = XInputController()
             
             # Project AEGIS V2  -  All 5 layers
@@ -26738,6 +26775,11 @@ Verification Status:
             ('THREADS',         'thread_count',   5000, '',    'blue'),
             ('DISK USED',       'disk_used_percent', 100, '%', 'heat'),
             ('BATTERY',         'battery_percent',  100, '%',  'green'),
+            # Row 5  -  KEV/CEV/EPSS Vulnerability Tracking (v29)
+            ('KEV CVEs',        'kev_count',        2000, '',    'red'),
+            ('KEV CRITICAL',    'kev_critical',      100, '',    'red'),
+            ('KEV HIGH',        'kev_high',          500, '',    'orange'),
+            ('CEV SCORE',       'cev_score',         100, '',    'orange'),
         ]
 
         COLS = 4
