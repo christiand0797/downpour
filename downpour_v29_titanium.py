@@ -254,7 +254,7 @@ _NO_WIN = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000)  # suppress consol
 # Windows COM (WMI, shell objects) requires CoInitialize() on each thread that
 # uses it. 0x800401f0 = CO_E_NOTINITIALIZED — seen flooding crash_fault.log.
 # Wrap any callable with this to guarantee COM init/uninit around it.
-def _com_wrap(fn):
+def _com_wrap(fn: "Callable[..., Any]") -> "Any":
     """Run fn() with COM initialized. Returns fn's return value."""
     try:
         import pythoncom as _pc
@@ -741,7 +741,7 @@ class HardwareProfile:
         )
 
 # -- Adaptive Font Helper ------------------------------------------------
-def get_adaptive_font(base_size, font_family='Consolas', bold=False):
+def get_adaptive_font(base_size: int, font_family: str = 'Consolas', bold: bool = False) -> "tuple[str, int, str]":
     """Get font size scaled for hardware profile with sci-fi styling"""
     # This will be called from within the app after hardware profile is set
     # For now, return base font - will be overridden in app init
