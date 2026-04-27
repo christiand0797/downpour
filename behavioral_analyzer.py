@@ -1,9 +1,11 @@
+#!/usr/bin/env python3
 """
 ================================================================================
 BEHAVIORAL ANALYSIS MODULE
 ================================================================================
+"""
 
-PURPOSE: Detects malware by watching HOW programs behave, not just what they are.
+__version__ = "29.0.0"
          This catches new threats that don't match known virus signatures.
 
 WHAT IT DETECTS:

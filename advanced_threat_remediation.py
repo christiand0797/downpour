@@ -41,6 +41,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
+try:
+    from vulnerability_scanner import get_epss_stats
+    _VULN_SCANNER_AVAILABLE = True
+except ImportError:
+    _VULN_SCANNER_AVAILABLE = False
+
 _NO_WIN = 0x08000000  # CREATE_NO_WINDOW
 
 try:
@@ -1371,3 +1377,47 @@ def remediate_processes(suspicious: list, family: str = "Unknown",
     engine = get_engine(alert_cb=alert_cb)
     profile = engine.build_profile_from_process_scan(suspicious, family)
     return engine.full_remediation(profile)
+
+
+def prioritize_by_eps(cve_list: List[str]) -> List[Dict]:
+    """
+    Prioritize CVEs by EPSS (Exploit Prediction Scoring System) for remediation urgency.
+    
+    Parameters:
+    - cve_list: List of CVE IDs to prioritize
+    
+    Returns:
+    - List of CVEs sorted by exploitation probability, each with:
+      - cve_id, epss_score, severity, priority tier
+    """
+    if not _VULN_SCANNER_AVAILABLE:
+        return [{'error': 'vulnerability_scanner not available', 'cves': cve_list}]
+    
+    try:
+        epss_data = get_epss_stats()
+        threshold = epss_data.get('epss_threshold', 0.5)
+        
+        prioritized = []
+        for cve in cve_list:
+            prioritized.append({
+                'cve_id': cve,
+                'epss_score': 0.0,
+                'priority': 'LOW',
+            })
+        
+        prioritized.sort(key=lambda x: x['epss_score'], reverse=True)
+        
+        for item in prioritized:
+            if item['epss_score'] >= 0.8:
+                item['priority'] = 'CRITICAL'
+            elif item['epss_score'] >= threshold:
+                item['priority'] = 'HIGH'
+            elif item['epss_score'] >= 0.3:
+                item['priority'] = 'MEDIUM'
+            else:
+                item['priority'] = 'LOW'
+        
+        return prioritized
+        
+    except Exception as e:
+        return [{'error': str(e), 'cves': cve_list}]

@@ -28,6 +28,12 @@ from typing import List, Dict, Set, Tuple, Optional, Any
 from collections import defaultdict
 import math
 
+try:
+    from vulnerability_scanner import VulnerabilityScanner, fetch_cisa_kev_catalog
+    _VULN_SCANNER_AVAILABLE = True
+except ImportError:
+    _VULN_SCANNER_AVAILABLE = False
+
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════
 #                                    MEGA THREAT SIGNATURES DATABASE
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════
@@ -2270,6 +2276,38 @@ class UltraAdvancedThreatEngine:
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════
 
 # Create global instance
+def enrich_with_kev(self, cve_list):
+        """Enrich detected CVEs with KEV (Known Exploited Vulnerability) data."""
+        if not _VULN_SCANNER_AVAILABLE:
+            return [{'error': 'vulnerability_scanner not available', 'cves': cve_list}]
+        
+        try:
+            scanner = VulnerabilityScanner()
+            kev_data = scanner.fetch_cisa_kev_catalog()
+            
+            enriched = []
+            cve_set = set(cve_list)
+            
+            for kev in kev_data:
+                if kev.get('cve_id') in cve_set:
+                    enriched.append({
+                        'cve_id': kev.get('cve_id'),
+                        'actively_exploited': True,
+                        'date_added': kev.get('date_added'),
+                        'due_date': kev.get('due_date'),
+                        'severity': kev.get('severity'),
+                    })
+            
+            for cve in cve_set:
+                if cve not in [e.get('cve_id') for e in enriched]:
+                    enriched.append({'cve_id': cve, 'actively_exploited': False})
+            
+            return enriched
+            
+        except Exception as e:
+            return [{'error': str(e), 'cves': cve_list}]
+
+
 threat_engine = UltraAdvancedThreatEngine()
 
 def analyze_file(path: str) -> ThreatAnalysisResult:

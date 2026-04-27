@@ -4,6 +4,8 @@ Security Hardening Module for Downpour v29 Titanium
 Prevents security vulnerabilities and ensures Windows Defender compatibility
 """
 
+__version__ = "29.0.0"
+
 import os
 import re
 import hashlib
