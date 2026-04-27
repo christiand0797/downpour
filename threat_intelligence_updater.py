@@ -1,4 +1,6 @@
 """
+import logging
+logging.getLogger(__name__).info("Threat Intelligence Updater loaded (v29)")
 __version__ = "29.0.0"
 Threat Intelligence Updater - KEV/EPSS integration (v29)
 ===============================================================================

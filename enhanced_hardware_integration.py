@@ -477,7 +477,7 @@ class EnhancedHardwareIntegration:
             "memory": "%",
             "disk": "%",
             "gpu": "%",
-            "temperature": "°C",
+            "temperature": "C",
             "network": "MB/s",
             "battery": "%"
         }
@@ -677,7 +677,7 @@ def main():
         summary = hardware.get_performance_summary()
         if summary and 'statistics' in summary:
             stats = summary['statistics']
-            print(f"\n📈 Performance Summary:")
+            print(f"\n[*] Performance Summary:")
             for metric in ['cpu', 'memory', 'disk']:
                 if metric in stats:
                     metric_stats = stats[metric]

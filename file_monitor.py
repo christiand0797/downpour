@@ -1,9 +1,11 @@
+#!/usr/bin/env python3
 """
 ================================================================================
 FILE SYSTEM MONITORING MODULE
 ================================================================================
+"""
 
-PURPOSE: Watches important folders for suspicious file activity that could
+__version__ = "29.0.0"
          indicate malware, especially ransomware.
 
 v29: Added real-time file monitoring using Windows API (ReadDirectoryChangesW).

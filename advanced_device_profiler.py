@@ -97,6 +97,14 @@ class AdvancedDeviceProfiler:
         
         # Calculate success probability
         analysis_result['success_probability'] = self._calculate_success_probability(analysis_result)
+        # Observability: log a quick summary of phase progress
+        import logging
+        try:
+            log = logging.getLogger(__name__)
+            log.info("Admin analysis progress: adaptation_strategies=%d, success_probability=%.2f",
+                     len(analysis_result.get('adaptation_strategies', {})), analysis_result.get('success_probability', 0.0))
+        except Exception:
+            pass
         
         # Save comprehensive profile
         self._save_comprehensive_profile(analysis_result)
@@ -105,7 +113,7 @@ class AdvancedDeviceProfiler:
     
     def _assess_system_capabilities(self) -> SystemCapability:
         """Assess system capabilities for admin operations"""
-        print("    [SEARCH] Assessing system capabilities...")
+        logging.info("[ANALYSIS] Assessing system capabilities...")
         
         capabilities = {
             'admin_access': False,
@@ -216,14 +224,14 @@ class AdvancedDeviceProfiler:
             
             capabilities['overall_capability'] = min(score, 100)
             
-        except Exception as e:
-            print(f"        [WARNING] Capability assessment error: {e}")
+            except Exception as e:
+                logging.getLogger(__name__).warning(f"Capability assessment error: {e}")
         
         return SystemCapability(**capabilities)
     
     def _profile_hardware_comprehensive(self) -> HardwareProfile:
         """Comprehensive hardware profiling"""
-        print("    [ANALYSIS] Profiling hardware capabilities...")
+        logging.info("[ANALYSIS] Profiling hardware capabilities...")
         
         profile = {
             'cpu_architecture': platform.machine(),
@@ -271,7 +279,8 @@ class AdvancedDeviceProfiler:
             profile['power_management'] = power_info
             
         except Exception as e:
-            print(f"        [WARNING] Hardware profiling error: {e}")
+            import logging
+            logging.getLogger(__name__).warning(f"Hardware profiling error: {e}")
         
         return HardwareProfile(**profile)
     
@@ -1323,7 +1332,7 @@ class AdvancedDeviceProfiler:
     
     def _generate_adaptation_strategies(self, analysis_result: Dict[str, Any]) -> Dict[str, Any]:
         """Generate sophisticated adaptation strategies"""
-        print("    🧠 Generating adaptation strategies...")
+        print("    [*] Generating adaptation strategies...")
         
         strategies = {
             'installation_strategy': {},
@@ -1517,7 +1526,7 @@ class AdvancedDeviceProfiler:
             profile_path = os.path.join(os.path.dirname(__file__), 'comprehensive_device_profile.json')
             with open(profile_path, 'w') as f:
                 json.dump(analysis_result, f, indent=2, default=str)
-            print(f"    ✅ Comprehensive profile saved to {profile_path}")
+            print(f"    [*] Comprehensive profile saved to {profile_path}")
         except Exception as e:
             print(f"    [WARNING] Could not save comprehensive profile: {e}")
 
@@ -1526,7 +1535,7 @@ if __name__ == "__main__":
     profiler = AdvancedDeviceProfiler()
     profile = profiler.comprehensive_admin_analysis()
     
-    print("\n🎯 COMPREHENSIVE ADMIN ANALYSIS COMPLETE")
+    print("\n[*] COMPREHENSIVE ADMIN ANALYSIS COMPLETE")
     print("=" * 60)
     print(f"System Capability: {profile['system_capability'].overall_capability:.1f}%")
     print(f"Success Probability: {profile['success_probability']:.1f}%")
@@ -1534,7 +1543,7 @@ if __name__ == "__main__":
     print(f"Bypass Capability: {profile['bypass_analysis']['overall_bypass_capability']:.1f}%")
     
     strategies = profile['adaptation_strategies']
-    print(f"\n🧠 ADAPTATION STRATEGIES:")
+    print(f"\n[*] ADAPTATION STRATEGIES:")
     print(f"Installation: {strategies['installation_strategy'].get('method', 'unknown')}")
     print(f"Bypass: {strategies['bypass_strategy'].get('primary_method', 'unknown')}")
     print(f"Security: {strategies['security_strategy'].get('privilege_escalation', 'unknown')}")

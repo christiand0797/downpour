@@ -42,6 +42,8 @@ try:
 except ImportError:
     raise ImportError("memory_forensics requires psutil: pip install psutil")
 import logging
+log = logging.getLogger(__name__)
+log.info("Memory Forensics module loaded (v29)")
 import threading
 import time
 from datetime import datetime

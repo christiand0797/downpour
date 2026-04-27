@@ -27,6 +27,7 @@ import os
 import sys
 import hashlib
 import json
+import logging
 import sqlite3
 import shutil
 from datetime import datetime, timedelta
@@ -72,18 +73,18 @@ class BackupIntegrityVerifier:
                 with open(self.config_path, 'r') as f:
                     loaded_config = json.load(f)
                     self.config.update(loaded_config)
-                print(f"[OK] Loaded backup config from {self.config_path}")
+                logging.info(f"[OK] Loaded backup config from {self.config_path}")
             except Exception as e:
-                print(f"[WARNING] Error loading config: {e}")
+                logging.warning(f"[WARNING] Error loading config: {e}")
     
     def save_config(self):
         """Save configuration to JSON file"""
         try:
             with open(self.config_path, 'w') as f:
                 json.dump(self.config, f, indent=4)
-            print(f"[OK] Saved backup config")
+            logging.info(f"[OK] Saved backup config")
         except Exception as e:
-            print(f"[ERROR] Error saving config: {e}")
+            logging.error(f"[ERROR] Error saving config: {e}")
     
     def init_database(self):
         """Initialize SQLite database for tracking backups"""
@@ -132,16 +133,16 @@ class BackupIntegrityVerifier:
             conn.commit()
         finally:
             conn.close()
-        print("[OK] Backup integrity database initialized")
+        logging.info("[OK] Backup integrity database initialized")
     
     def check_all_backups(self) -> Dict:
         """
         Comprehensive check of all backup locations.
         """
-        print("\n" + "=" * 80)
-        print("🔍 CHECKING ALL BACKUP LOCATIONS")
-        print("=" * 80)
-        print("")
+        logging.info("\n" + "=" * 80)
+        logging.info("CHECKING ALL BACKUP LOCATIONS")
+        logging.info("=" * 80)
+        logging.info("")
         
         results = {
             "timestamp": datetime.now().isoformat(),
@@ -158,11 +159,11 @@ class BackupIntegrityVerifier:
             path = location["path"]
             loc_type = location["type"]
             
-            print(f"Checking {loc_type} backup: {path}")
+            logging.info(f"Checking {loc_type} backup: {path}")
             
             if not os.path.exists(path):
                 warning = f"Backup location does not exist: {path}"
-                print(f"  [ERROR] {warning}")
+                logging.warning(warning)
                 results["critical_issues"].append(warning)
                 continue
             
@@ -173,7 +174,7 @@ class BackupIntegrityVerifier:
             if not age_check["is_fresh"]:
                 results["old_backups"] += 1
                 results["warnings"].append(age_check["message"])
-                print(f"  ⚠️  {age_check['message']}")
+                logging.warning(age_check["message"])
             
             # Check backup integrity
             integrity = self.verify_backup_integrity(path)
@@ -184,35 +185,35 @@ class BackupIntegrityVerifier:
             if integrity["corrupted_files"] > 0:
                 issue = f"Found {integrity['corrupted_files']} corrupted files in {path}"
                 results["critical_issues"].append(issue)
-                print(f"  🚨 {issue}")
+                logging.error(issue)
             else:
-                print(f"  [OK] All {integrity['total_files']} backup files are valid")
+                logging.info(f"All {integrity['total_files']} backup files are valid")
         
         # Overall assessment
-        print("\n" + "=" * 80)
-        print("BACKUP HEALTH SUMMARY")
-        print("=" * 80)
-        print(f"Locations Checked: {results['locations_checked']}")
-        print(f"Total Backup Files: {results['total_backups']}")
-        print(f"Valid Backups: {results['valid_backups']}")
-        print(f"Corrupted Backups: {results['corrupted_backups']}")
-        print(f"Old Backups: {results['old_backups']}")
+        logging.info("\n" + "=" * 80)
+        logging.info("BACKUP HEALTH SUMMARY")
+        logging.info("=" * 80)
+        logging.info(f"Locations Checked: {results['locations_checked']}")
+        logging.info(f"Total Backup Files: {results['total_backups']}")
+        logging.info(f"Valid Backups: {results['valid_backups']}")
+        logging.info(f"Corrupted Backups: {results['corrupted_backups']}")
+        logging.info(f"Old Backups: {results['old_backups']}")
         
         if results["critical_issues"]:
-            print("\n🚨 CRITICAL ISSUES:")
+            logging.error("\nCRITICAL ISSUES:")
             for issue in results["critical_issues"]:
-                print(f"   • {issue}")
+                logging.error(f"   - {issue}")
         
         if results["warnings"]:
-            print("\n⚠️  WARNINGS:")
+            logging.warning("\nWARNINGS:")
             for warning in results["warnings"]:
-                print(f"   • {warning}")
+                logging.warning(f"   - {warning}")
         
         if not results["critical_issues"] and not results["warnings"]:
-            print("\n[OK] All backups are healthy!")
+            logging.info("\n[OK] All backups are healthy!")
         
-        print("=" * 80)
-        print("")
+        logging.info("=" * 80)
+        logging.info("")
         
         return results
     

@@ -22,8 +22,10 @@ MODULES = [
     'threat_intelligence',
     'enhanced_security_dashboard',
     'enhanced_hardware_integration',
-    'parential_controls',
-    'par ват'
+    'parental_controls',
+    'backup_verifier',
+    'file_scanner',
+    'system_cleanup'
 ]
 
 def main():

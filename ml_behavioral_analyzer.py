@@ -1,9 +1,11 @@
+#!/usr/bin/env python3
 """
-===============================================================================
+================================================================================
 ADVANCED BEHAVIORAL ANALYSIS WITH MACHINE LEARNING
-===============================================================================
+================================================================================
+"""
 
-PURPOSE: Enhances behavioral detection using machine learning algorithms
+__version__ = "29.0.0"
          to identify novel and zero-day threats that signature-based detection
          might miss.
 

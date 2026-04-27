@@ -5,6 +5,8 @@ Advanced quantum-neural architecture with real ML, parallel execution,
 cryptographic security, fractal caching, and autonomous optimization.
 """
 
+__version__ = "29.0.0"
+
 import asyncio
 import hashlib
 import json

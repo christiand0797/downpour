@@ -1,8 +1,11 @@
+#!/usr/bin/env python3
 """
-===============================================================================
+=================================================================================
 SYSTEM HARDENING AUTOMATION MODULE
-===============================================================================
-Purpose: Automatically configure Windows security settings for maximum protection
+=================================================================================
+"""
+
+__version__ = "29.0.0"
 Created: January 2026 - Claude's Enhancement
 
 FEATURES:
@@ -29,6 +32,9 @@ import sys
 import subprocess
 import winreg
 import json
+import logging
+logger = logging.getLogger(__name__)
+
 from datetime import datetime
 from typing import Dict, List, Tuple
 import ctypes
@@ -148,8 +154,9 @@ class SystemHardening:
         """
         Analyze current security configuration without making changes.
         """
+        logger.info("Analyzing system security configuration")
         print("\n" + "=" * 80)
-        print("🔍 ANALYZING SYSTEM SECURITY CONFIGURATION")
+        print("[*] ANALYZING SYSTEM SECURITY CONFIGURATION")
         print("=" * 80)
         print("")
         
@@ -166,14 +173,14 @@ class SystemHardening:
                 is_secure, details = task["check"]()
                 
                 if is_secure:
-                    print(f"✅ PASS")
+                    print(f"[+] PASS")
                     current_score += task["points"]
                 else:
                     severity_icon = {
-                        "CRITICAL": "🚨",
-                        "HIGH": "⚠️ ",
-                        "MEDIUM": "⚡",
-                        "LOW": "ℹ️ "
+                        "CRITICAL": "[!]",
+                        "HIGH": "[!]",
+                        "MEDIUM": "[*]",
+                        "LOW": "[i]"
                     }[task["severity"]]
                     
                     print(f"{severity_icon} FAIL - {details}")
@@ -185,7 +192,7 @@ class SystemHardening:
                     })
             
             except Exception as e:
-                print(f"❌ ERROR - {str(e)}")
+                print(f"[!] ERROR - {str(e)}")
                 self.results["warnings"].append({
                     "task": task["name"],
                     "severity": "ERROR",
@@ -203,13 +210,13 @@ class SystemHardening:
         print("=" * 80)
         
         if percentage >= 90:
-            print("🛡️  EXCELLENT - Your system is well-protected")
+            print("[+] EXCELLENT - Your system is well-protected")
         elif percentage >= 70:
-            print("✅ GOOD - Minor improvements recommended")
+            print("[+] GOOD - Minor improvements recommended")
         elif percentage >= 50:
-            print("⚠️  FAIR - Several security issues need attention")
+            print("[!] FAIR - Several security issues need attention")
         else:
-            print("🚨 POOR - Critical security vulnerabilities detected!")
+            print("[!] POOR - Critical security vulnerabilities detected!")
         
         print("")
         
@@ -220,12 +227,14 @@ class SystemHardening:
         Apply all security hardening measures (requires admin rights).
         """
         if not is_admin():
-            print("❌ ERROR: Administrator privileges required for system hardening")
+            logger.warning("Administrator privileges required")
+            print("[!] ERROR: Administrator privileges required for system hardening")
             print("   Right-click and select 'Run as Administrator'")
             return self.results
-        
+
+        logger.info("Applying system hardening")
         print("\n" + "=" * 80)
-        print("🔧 APPLYING SYSTEM HARDENING")
+        print("[*] APPLYING SYSTEM HARDENING")
         print("=" * 80)
         print("")
         
@@ -236,17 +245,17 @@ class SystemHardening:
                 is_secure, details = task["check"]()
                 
                 if is_secure:
-                    print("✅ Already secure")
+                    print("[+] Already secure")
                 else:
                     # Apply fix
                     success, message = task["fix"]()
                     
                     if success:
-                        print(f"✅ APPLIED - {message}")
+                        print(f"[+] APPLIED - {message}")
                         self.results["applied_fixes"].append(task["name"])
                         self.results["security_score"] += task["points"]
                     else:
-                        print(f"❌ FAILED - {message}")
+                        print(f"[!] FAILED - {message}")
                         self.results["warnings"].append({
                             "task": task["name"],
                             "severity": task["severity"],
@@ -254,7 +263,7 @@ class SystemHardening:
                         })
             
             except Exception as e:
-                print(f"❌ ERROR - {str(e)}")
+                print(f"[!] ERROR - {str(e)}")
                 self.results["warnings"].append({
                     "task": task["name"],
                     "severity": "ERROR",
@@ -262,14 +271,14 @@ class SystemHardening:
                 })
         
         print("\n" + "=" * 80)
-        print(f"✅ HARDENING COMPLETE")
+        print("[*] HARDENING COMPLETE")
         print(f"Applied {len(self.results['applied_fixes'])} security improvements")
         print("=" * 80)
         print("")
         
         # Recommend reboot if significant changes were made
         if len(self.results['applied_fixes']) > 0:
-            print("⚠️  IMPORTANT: Restart your computer for all changes to take effect")
+            print("[!]  IMPORTANT: Restart your computer for all changes to take effect")
             print("")
         
         return self.results
@@ -591,9 +600,11 @@ class SystemHardening:
         try:
             with open(filename, 'w') as f:
                 json.dump(self.results, f, indent=4)
-            print(f"✅ Report saved to {filename}")
+            logger.info(f"Report saved to {filename}")
+            print(f"[+] Report saved to {filename}")
         except Exception as e:
-            print(f"❌ Error saving report: {e}")
+            logger.warning(f"Error saving report: {e}")
+            print(f"[!] Error saving report: {e}")
 
 
 if __name__ == "__main__":

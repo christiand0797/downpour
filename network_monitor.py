@@ -208,6 +208,7 @@ class NetworkMonitor:
             
             remote_ip = conn.raddr.ip
             remote_port = conn.raddr.port
+            logging.debug(f"Evaluating {remote_ip}:{remote_port} for {proc_name}")
             
             # Skip private/local IPs
             if self.is_private_ip(remote_ip):
@@ -273,6 +274,8 @@ class NetworkMonitor:
             for conn in connections:
                 if conn.pid:
                     process_connections[conn.pid].append(conn)
+            total_conns = sum(len(v) for v in process_connections.values())
+            logging.info(f"Network scan prepared: total connections across processes = {total_conns}")
             
             # Analyze each process's connections
             for pid, conns in process_connections.items():
@@ -307,6 +310,7 @@ class NetworkMonitor:
                     
         except Exception as e:
             logging.error(f"Error scanning network connections: {e}")
+        logging.info("Network scan cycle complete")
     
     def update_threat_database(self):
         """

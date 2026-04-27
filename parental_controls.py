@@ -138,9 +138,9 @@ class ParentalControls:
                     loaded_config = json.load(f)
                     # Merge with defaults
                     self.config.update(loaded_config)
-                print(f"✅ Loaded parental controls config from {self.config_path}")
+                print(f"[+] Loaded parental controls config from {self.config_path}")
             except Exception as e:
-                print(f"⚠️  Error loading config: {e}")
+                print(f"[!]  Error loading config: {e}")
                 print("Using default configuration")
     
     def save_config(self):
@@ -148,9 +148,9 @@ class ParentalControls:
         try:
             with open(self.config_path, 'w') as f:
                 json.dump(self.config, f, indent=4)
-            print(f"✅ Saved parental controls config to {self.config_path}")
+            print(f"[+] Saved parental controls config to {self.config_path}")
         except Exception as e:
-            print(f"❌ Error saving config: {e}")
+            print(f"[!] Error saving config: {e}")
     
     def init_database(self):
         """Initialize SQLite database for activity logging"""
@@ -212,7 +212,7 @@ class ParentalControls:
             conn.commit()
         finally:
             conn.close()
-        print("✅ Parental controls database initialized")
+        print("[+] Parental controls database initialized")
     
     def setup_web_filtering(self):
         """
@@ -220,14 +220,14 @@ class ParentalControls:
         Blocks inappropriate websites at DNS level.
         """
         if not self.config["web_filtering"]["enabled"]:
-            print("ℹ️  Web filtering is disabled in config")
+            print("[i]  Web filtering is disabled in config")
             return
         
-        print("\n🌐 Setting up web filtering...")
+        print("\n[*] Setting up web filtering...")
         
         # Check if we have admin rights (required to modify hosts file)
         if not self.is_admin():
-            print("❌ Administrator rights required to modify hosts file!")
+            print("[!] Administrator rights required to modify hosts file!")
             print("   Right-click and 'Run as Administrator'")
             return False
         
@@ -236,9 +236,9 @@ class ParentalControls:
             if not os.path.exists(self.backup_hosts):
                 import shutil
                 shutil.copy2(self.hosts_file, self.backup_hosts)
-                print(f"✅ Backed up hosts file to {self.backup_hosts}")
+                print(f"[+] Backed up hosts file to {self.backup_hosts}")
         except Exception as e:
-            print(f"⚠️  Warning: Could not backup hosts file: {e}")
+            print(f"[!]  Warning: Could not backup hosts file: {e}")
         
         # Build list of all domains to block
         domains_to_block = set()
@@ -256,7 +256,7 @@ class ParentalControls:
             with open(self.hosts_file, 'r') as f:
                 hosts_content = f.read()
         except Exception as e:
-            print(f"❌ Error reading hosts file: {e}")
+            print(f"[!] Error reading hosts file: {e}")
             return False
         
         # Add our blocking entries
@@ -289,14 +289,14 @@ class ParentalControls:
                 f.write('\n')
                 f.writelines(blocking_entries)
             
-            print(f"✅ Web filtering enabled - {len(domains_to_block)} domains blocked")
+            print(f"[+] Web filtering enabled - {len(domains_to_block)} domains blocked")
             
             # Flush DNS cache
             self.flush_dns_cache()
             return True
             
         except Exception as e:
-            print(f"❌ Error writing hosts file: {e}")
+            print(f"[!] Error writing hosts file: {e}")
             return False
     
     def flush_dns_cache(self):
@@ -304,9 +304,9 @@ class ParentalControls:
         try:
             subprocess.run(['ipconfig', '/flushdns'], 
                          capture_output=True, check=True)
-            print("✅ DNS cache flushed - blocks active immediately")
+            print("[+] DNS cache flushed - blocks active immediately")
         except Exception as e:
-            print(f"⚠️  Could not flush DNS cache: {e}")
+            print(f"[!]  Could not flush DNS cache: {e}")
     
     def monitor_applications(self):
         """
@@ -345,7 +345,7 @@ class ParentalControls:
                     block_reason = f"App '{proc_name}' is not on the allowed list"
                 
                 if should_block:
-                    print(f"🚫 Blocking app: {proc_name} (PID: {proc_info['pid']})")
+                    print(f"[!] Blocking app: {proc_name} (PID: {proc_info['pid']})")
                     print(f"   Reason: {block_reason}")
                     
                     # Terminate the process
@@ -414,7 +414,7 @@ class ParentalControls:
         # Check if getting close to limit (warn at 80%)
         if current_minutes >= limit_minutes * 0.8:
             remaining = limit_minutes - current_minutes
-            return False, f"⚠️  Warning: Only {remaining} minutes remaining today!"
+            return False, f"[*] Warning: Only {remaining} minutes remaining today!"
         
         return False, ""
     
@@ -489,7 +489,7 @@ class ParentalControls:
             conn.close()
         
         # Also print to console for real-time monitoring
-        print(f"\n🚨 [{severity}] PARENTAL ALERT: {alert_type}")
+        print(f"\n[!] [{severity}] PARENTAL ALERT: {alert_type}")
         print(f"   User: {username}")
         print(f"   {description}")
         print(f"   Action: {action_taken}\n")
@@ -539,7 +539,7 @@ class ParentalControls:
             ''', (today, username))
             result = cursor.fetchone()
             total_minutes = result[0] if result else 0
-            report_lines.append(f"📊 SCREEN TIME: {total_minutes} minutes ({total_minutes/60:.1f} hours)")
+            report_lines.append(f"[*] SCREEN TIME: {total_minutes} minutes ({total_minutes/60:.1f} hours)")
             report_lines.append("")
 
             # Blocked websites
@@ -553,9 +553,9 @@ class ParentalControls:
             blocked_sites = cursor.fetchall()
 
             if blocked_sites:
-                report_lines.append(f"🚫 BLOCKED WEBSITES: {len(blocked_sites)} different sites")
+                report_lines.append(f"[*] BLOCKED WEBSITES: {len(blocked_sites)} different sites")
                 for count, domain in blocked_sites:
-                    report_lines.append(f"   • {domain}: {count} attempt(s)")
+                    report_lines.append(f"   - {domain}: {count} attempt(s)")
                 report_lines.append("")
 
             # Blocked applications
@@ -567,9 +567,9 @@ class ParentalControls:
             blocked_apps = cursor.fetchall()
 
             if blocked_apps:
-                report_lines.append(f"🚫 BLOCKED APPLICATIONS:")
+                report_lines.append(f"[*] BLOCKED APPLICATIONS:")
                 for count, app_name in blocked_apps:
-                    report_lines.append(f"   • {app_name}: {count} attempt(s)")
+                    report_lines.append(f"   - {app_name}: {count} attempt(s)")
                 report_lines.append("")
 
             # Alerts
@@ -582,7 +582,7 @@ class ParentalControls:
             alerts = cursor.fetchall()
 
             if alerts:
-                report_lines.append(f"⚠️  ALERTS: {len(alerts)} total")
+                report_lines.append(f"[*] ALERTS: {len(alerts)} total")
                 for timestamp, alert_type, severity, description in alerts[:10]:
                     time_str = timestamp.split('T')[1][:5]  # HH:MM
                     report_lines.append(f"   [{severity}] {time_str} - {alert_type}: {description}")
@@ -602,7 +602,7 @@ class ParentalControls:
         Continuously monitors applications, screen time, etc.
         """
         print("\n" + "=" * 80)
-        print("🛡️  PARENTAL CONTROLS - MONITORING ACTIVE")
+        print("[!] PARENTAL CONTROLS - MONITORING ACTIVE")
         print("=" * 80)
         print(f"Child User: {self.config.get('child_username', 'NOT SET')}")
         print(f"Web Filtering: {'ENABLED' if self.config['web_filtering']['enabled'] else 'DISABLED'}")
@@ -619,7 +619,7 @@ class ParentalControls:
                 # Check screen time limits
                 exceeded, message = self.check_screen_time()
                 if exceeded:
-                    print(f"⏰ {message}")
+                    print(f"[*] {message}")
                     self.show_educational_message("Screen Time Limit", message)
                     # In real implementation, could log out user or block input
                 elif message:  # Warning message
@@ -637,7 +637,7 @@ class ParentalControls:
                 time.sleep(check_interval)
                 
         except KeyboardInterrupt:
-            print("\n\n🛑 Parental controls monitoring stopped")
+            print("\n\n[*] Parental controls monitoring stopped")
             print("\nGenerating daily report...")
             print(self.generate_daily_report())
 
@@ -645,7 +645,7 @@ class ParentalControls:
 def setup_wizard():
     """Interactive setup wizard for parental controls"""
     print("\n" + "=" * 80)
-    print("🧙 PARENTAL CONTROLS SETUP WIZARD")
+    print("[*] PARENTAL CONTROLS SETUP WIZARD")
     print("=" * 80)
     print("\nThis wizard will help you configure parental controls to protect your son.\n")
     
@@ -665,7 +665,7 @@ def setup_wizard():
     if pc.config["web_filtering"]["enabled"]:
         print("\n   Blocked categories:")
         for category in pc.config["web_filtering"]["block_categories"]:
-            print(f"   ✅ {category}")
+            print(f"   [*] {category}")
         
         custom = input("\n   Add custom blocked sites? (y/N): ").strip().lower()
         if custom == 'y':
@@ -701,9 +701,9 @@ def setup_wizard():
     
     if pc.config["app_restrictions"]["enabled"]:
         print("   Common apps to consider blocking:")
-        print("   • torrent clients (utorrent.exe, bittorrent.exe)")
-        print("   • remote access tools (teamviewer.exe, anydesk.exe)")
-        print("   • hacking tools")
+        print("   [*] torrent clients (utorrent.exe, bittorrent.exe)")
+        print("   [*] remote access tools (teamviewer.exe, anydesk.exe)")
+        print("   [*] hacking tools")
         
         custom = input("\n   Add blocked apps? (y/N): ").strip().lower()
         if custom == 'y':
@@ -718,12 +718,12 @@ def setup_wizard():
     pc.save_config()
     
     print("\n" + "=" * 80)
-    print("✅ SETUP COMPLETE")
+    print("   [*] SETUP COMPLETE")
     print("=" * 80)
     print("\nConfiguration saved to", pc.config_path)
     print("\nNext steps:")
     print("1. Run with administrator rights to enable web filtering:")
-    print("   Right-click Command Prompt → 'Run as Administrator'")
+    print("   Right-click Command Prompt -> 'Run as Administrator'")
     print("   python parental_controls.py --apply-filters")
     print("\n2. Start monitoring:")
     print("   python parental_controls.py --monitor")

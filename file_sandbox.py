@@ -1,9 +1,11 @@
+#!/usr/bin/env python3
 """
 ================================================================================
 FAMILY SECURITY SUITE - FILE SANDBOXING SYSTEM
 ================================================================================
+"""
 
-PURPOSE: Provides a safe, isolated environment to test suspicious files
+__version__ = "29.0.0"
          without risking your actual computer.
 
 WHAT IT DOES:
@@ -55,6 +57,9 @@ from pathlib import Path
 from datetime import datetime
 import json
 import hashlib
+
+import logging
+logger = logging.getLogger(__name__)
 
 class FileSandbox:
     """
@@ -128,9 +133,9 @@ class FileSandbox:
             return None
         
         self.logger.info(f"Starting sandbox analysis of: {file_path.name}")
-        print(f"\n🔬 SANDBOX ANALYSIS STARTING: {file_path.name}")
-        print(f"⏱️ Timeout: {timeout_seconds} seconds")
-        print(f"📁 Sandbox location: {self.sandbox_dir}")
+        logger.info(f"Sandbox analysis starting: {file_path.name}")
+        logger.info(f"Timeout: {timeout_seconds} seconds")
+        logger.info(f"Sandbox location: {self.sandbox_dir}")
         
         # Reset observations
         self.observations = {
@@ -312,33 +317,44 @@ class FileSandbox:
         except Exception:
             return "unknown"
     
-    def display_report(self, report):
+def display_report(self, report):
         """Display analysis report to user."""
+        logger.info("Generating sandbox analysis report")
         print("\n" + "="*70)
         print("SANDBOX ANALYSIS REPORT")
         print("="*70)
         print(f"File: {Path(report['file_analyzed']).name}")
         print(f"MD5 Hash: {report['file_hash_md5']}")
         print(f"Analysis Time: {report['analysis_time']}")
-        print(f"\n🎯 THREAT LEVEL: {report['threat_level']}")
+        print(f"\nTHREAT LEVEL: {report['threat_level']}")
         print("\nReasons:")
         for reason in report['threat_reasons']:
-            print(f"  • {reason}")
-        
-        print("\n📊 Observations:")
+            print(f"  - {reason}")
+
+        print("\nObservations:")
         print(f"  Files Created: {len(report['observations']['files_created'])}")
         print(f"  Network Connections: {len(report['observations']['network_connections'])}")
         print(f"  Child Processes: {len(report['observations']['child_processes'])}")
-        
+
         if report['threat_level'] == "HIGH":
-            print("\n⚠️  WARNING: This file exhibits HIGH RISK behavior!")
+            logger.warning("HIGH RISK behavior detected")
+            print("\nWARNING: This file exhibits HIGH RISK behavior!")
             print("   RECOMMEND: Do NOT run this file outside the sandbox.")
         elif report['threat_level'] == "MEDIUM":
-            print("\n⚠️  CAUTION: This file shows suspicious behavior.")
+            logger.warning("MEDIUM RISK behavior detected")
+            print("\nCAUTION: This file shows suspicious behavior.")
             print("   RECOMMEND: Research this file before using.")
         else:
-            print("\n✅ This file appears relatively safe based on sandbox analysis.")
-        
+            logger.info("File appears relatively safe")
+            print("\nThis file appears relatively safe based on sandbox analysis.")
+
+        print("="*70 + "\n")
+            print("\nCAUTION: This file shows suspicious behavior.")
+            print("   RECOMMEND: Research this file before using.")
+        else:
+            logger.info("File appears relatively safe")
+            print("\nThis file appears relatively safe based on sandbox analysis.")
+
         print("="*70 + "\n")
     
     def cleanup_sandbox(self):
@@ -357,6 +373,7 @@ if __name__ == "__main__":
     import sys
     
     if len(sys.argv) < 2:
+        logger.info("Usage: python file_sandbox.py <file_to_analyze>")
         print("Usage: python file_sandbox.py <file_to_analyze>")
         sys.exit(1)
     

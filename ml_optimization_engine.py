@@ -1,7 +1,10 @@
+#!/usr/bin/env python3
 """
 Machine Learning Optimization Engine for Downpour v29 Titanium
 Learns from device characteristics and optimizes performance
 """
+
+__version__ = "29.0.0"
 
 import logging
 import os
@@ -15,7 +18,7 @@ import io
 
 _ml_logger = logging.getLogger(__name__)
 
-# FIX-v28p41: Restricted unpickler — prevents arbitrary code execution from
+# FIX-v28p41: Restricted unpickler - prevents arbitrary code execution from
 # tampered .pkl files.  Only allows builtins and dataclass types used by this
 # module.
 _SAFE_MODULES = {'builtins', 'collections', 'datetime', 'dataclasses',
@@ -27,7 +30,7 @@ class _RestrictedUnpickler(pickle.Unpickler):
         if module.split('.')[0] in _SAFE_MODULES:
             return super().find_class(module, name)
         raise pickle.UnpicklingError(
-            f"Blocked unpickling of {module}.{name} — not in allowlist")
+            f"Blocked unpickling of {module}.{name} - not in allowlist")
 
 @dataclass
 class DeviceProfile:
@@ -642,7 +645,7 @@ if __name__ == "__main__":
     
     strategy = engine.generate_optimization_strategy(example_profile)
     
-    print("🧠 ML OPTIMIZATION STRATEGY GENERATED")
+    print("[*] ML OPTIMIZATION STRATEGY GENERATED")
     print("=" * 50)
     print(f"Strategy Type: {strategy['strategy_type']}")
     print(f"Performance Mode: {strategy['settings'].get('performance_mode', 'unknown')}")
@@ -650,7 +653,7 @@ if __name__ == "__main__":
     print(f"Feature Set: {strategy['settings'].get('feature_set', 'unknown')}")
     
     summary = engine.get_optimization_summary()
-    print(f"\n📊 LEARNING SUMMARY:")
+    print(f"\n[*] LEARNING SUMMARY:")
     print(f"Devices Learned: {summary['total_devices_learned']}")
     print(f"Optimizations: {summary['total_optimizations']}")
     print(f"Average Satisfaction: {summary['average_satisfaction']:.2f}")

@@ -31,6 +31,8 @@ TECHNICAL NOTES:
 ================================================================================
 """
 
+__version__ = "29.0.0"
+
 import subprocess
 import logging
 import time

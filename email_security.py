@@ -1,8 +1,11 @@
+#!/usr/bin/env python3
 """
-===============================================================================
+=================================================================================
 EMAIL SECURITY SCANNER MODULE
-===============================================================================
-Purpose: Protect against phishing attacks and malicious email attachments
+=================================================================================
+"""
+
+__version__ = "29.0.0"
 Created: January 2026 - Claude's Enhancement
 
 FEATURES:
@@ -42,8 +45,8 @@ try:
     HAS_WIN32 = True
 except ImportError:
     HAS_WIN32 = False
-    print("⚠️  win32com not available - Outlook integration disabled")
-    print("   Install with: pip install pywin32")
+    logger.warning("win32com not available - Outlook integration disabled")
+    logger.info("Install with: pip install pywin32")
 
 
 class EmailSecurityScanner:
@@ -133,18 +136,18 @@ class EmailSecurityScanner:
                 with open(self.config_path, 'r') as f:
                     loaded_config = json.load(f)
                     self.config.update(loaded_config)
-                print(f"✅ Loaded email security config from {self.config_path}")
+                logger.info(f"Loaded email security config from {self.config_path}")
             except Exception as e:
-                print(f"⚠️  Error loading config: {e}")
+                logger.warning(f"Error loading config: {e}")
     
     def save_config(self):
         """Save configuration to JSON file"""
         try:
             with open(self.config_path, 'w') as f:
                 json.dump(self.config, f, indent=4)
-            print(f"✅ Saved email security config")
+            logger.info(f"Saved email security config")
         except Exception as e:
-            print(f"❌ Error saving config: {e}")
+            logger.warning(f"Error saving config: {e}")
     
     def init_database(self):
         """Initialize SQLite database for tracking scanned emails"""
@@ -194,7 +197,7 @@ class EmailSecurityScanner:
             conn.commit()
         finally:
             conn.close()
-        print("✅ Email security database initialized")
+        logger.info("Email security database initialized")
     
     def analyze_email(self, email_message: email.message.Message) -> Dict:
         """
@@ -481,7 +484,10 @@ class EmailSecurityScanner:
             for part in email_message.walk():
                 content_type = part.get_content_type()
                 if content_type == "text/plain":
-                    try:
+import logging
+logger = logging.getLogger(__name__)
+
+try:
                         body += part.get_payload(decode=True).decode('utf-8', errors='ignore')
                     except Exception:
                         pass
@@ -586,28 +592,31 @@ class EmailSecurityScanner:
     def scan_outlook_inbox(self) -> List[Dict]:
         """Scan Outlook inbox for suspicious emails"""
         if not HAS_WIN32:
-            print("❌ Outlook integration requires pywin32")
+            logger.warning("Outlook integration requires pywin32")
+            print("Outlook integration requires pywin32")
             return []
-        
-        print("\n📧 Scanning Outlook inbox...")
+
+        logger.info("Scanning Outlook inbox...")
+        print("\nScanning Outlook inbox...")
         results = []
-        
+
         try:
             outlook = win32com.client.Dispatch("Outlook.Application")
             namespace = outlook.GetNamespace("MAPI")
             inbox = namespace.GetDefaultFolder(6)  # 6 = Inbox
             messages = inbox.Items
-            
+
             # Scan most recent 50 emails
             messages.Sort("[ReceivedTime]", True)
             count = min(50, messages.Count)
-            
+
+            logger.info(f"Analyzing {count} most recent emails...")
             print(f"Analyzing {count} most recent emails...")
-            
+
             for i in range(1, count + 1):
                 try:
                     message = messages.Item(i)
-                    
+
                     # Convert Outlook message to email.message
                     email_msg = email.message_from_string(
                         f"From: {message.SenderEmailAddress}\n"
@@ -615,31 +624,35 @@ class EmailSecurityScanner:
                         f"Date: {message.ReceivedTime}\n\n"
                         f"{message.Body}"
                     )
-                    
+
                     # Analyze
                     analysis = self.analyze_email(email_msg)
-                    
+
                     if analysis["risk_score"] >= self.config["alert_threshold"]:
-                        print(f"\n⚠️  Suspicious email #{i}:")
+                        logger.warning(f"Suspicious email #{i}: {analysis['sender']}")
+                        print(f"\nSuspicious email #{i}:")
                         print(f"   From: {analysis['sender']}")
                         print(f"   Subject: {analysis['subject']}")
                         print(f"   Risk Score: {analysis['risk_score']}")
                         print(f"   Indicators: {len(analysis['indicators'])}")
-                        
+
                         results.append(analysis)
-                        
+
                         # Log to database
                         self.log_scanned_email(analysis)
-                
+
                 except Exception as e:
+                    logger.warning(f"Error scanning message {i}: {e}")
                     print(f"Error scanning message {i}: {e}")
                     continue
-            
-            print(f"\n✅ Scan complete - found {len(results)} suspicious emails")
-            
+
+            logger.info(f"Scan complete - found {len(results)} suspicious emails")
+            print(f"\nScan complete - found {len(results)} suspicious emails")
+
         except Exception as e:
-            print(f"❌ Error accessing Outlook: {e}")
-        
+            logger.error(f"Error accessing Outlook: {e}")
+            print(f"Error accessing Outlook: {e}")
+
         return results
     
     def log_scanned_email(self, analysis: Dict):
@@ -745,10 +758,13 @@ if __name__ == "__main__":
         with open(args.scan_file, 'r') as f:
             email_msg = email.message_from_file(f)
         analysis = scanner.analyze_email(email_msg)
+        logger.info("Email analysis complete")
         print(json.dumps(analysis, indent=2))
     elif args.report:
+        logger.info("Generating email security report")
         print(scanner.generate_report())
     else:
+        logger.info("Email Security Scanner - usage info displayed")
         print("Email Security Scanner")
         print("\nUsage:")
         print("  python email_security.py --scan-outlook  # Scan Outlook inbox")

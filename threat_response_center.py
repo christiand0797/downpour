@@ -3,6 +3,8 @@
 #       Investigate and remediate security threats with actionable options
 # ══════════════════════════════════════════════════════════════════════════════
 
+__version__ = "29.0.0"
+
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import subprocess

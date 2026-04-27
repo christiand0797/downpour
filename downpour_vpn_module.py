@@ -4,6 +4,7 @@ downpour_vpn_module.py - Downpour v29 Titanium
 VPN / proxy detection, DNS-leak checking, kill-switch enforcement,
 and threat-feed integration for VPN egress nodes.
 """
+__version__ = "29.0.0"
 from __future__ import annotations
 
 import ipaddress

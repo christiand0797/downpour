@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
-__version__ = "29.0.0"
 Advanced Gauge System v29
 Advanced Gauge System for Hardware Performance
 Responsive, animated gauges with real-time data visualization
 """
+__version__ = "29.0.0"
+import logging
+_log = logging.getLogger(__name__)
+_log.info("Advanced Gauge System loaded (v29)")
 
 import tkinter as tk
 from tkinter import ttk, Canvas
@@ -926,7 +929,8 @@ class AdvancedGaugeSystem:
 
 def main():
     """Main function"""
-    print("[MONITOR] Advanced Hardware Performance Monitor")
+    import logging
+    logging.info("[GAUGE] Advanced Gauge System starting")
     print("=" * 50)
     print("Responsive gauges with real-time hardware monitoring")
     print("[ART] Animated gauges with smooth transitions")

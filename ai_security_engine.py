@@ -99,6 +99,15 @@ class AISecurityEngine:
         self.learning_active = True
         self.learning_thread = threading.Thread(target=self._learning_loop, daemon=True)
         self.learning_thread.start()
+        try:
+            import logging as _logging
+            lvl_name = (APP_CONFIG.get('LOGGING', {}).get('LEVEL', 'INFO') if isinstance(APP_CONFIG, dict) else 'INFO')
+            lvl = getattr(_logging, str(lvl_name).upper(), _logging.INFO)
+            _logging.getLogger().setLevel(lvl)
+            self.logger.info(f"Logging level set to {lvl_name.upper()} via config")
+        except Exception:
+            pass
+        self.logger.info("AI learning thread started")
     
     def _setup_logger(self):
         """Setup logging for AI engine"""

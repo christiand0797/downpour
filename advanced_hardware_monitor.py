@@ -4,6 +4,8 @@ __version__ = "29.0.0"
 Advanced Hardware Performance Monitoring System
 Real-time responsive gauges with sophisticated performance readings
 """
+import logging
+logging.getLogger(__name__).info("Advanced Hardware Monitor loaded (v29)")
 
 import os
 import sys
@@ -546,7 +548,7 @@ class AdvancedHardwareMonitor:
         if metrics.cpu_temperature > self.config.alert_threshold_temp:
             new_alerts.append({
                 'type': 'temperature_high',
-                'message': f"CPU temperature high: {metrics.cpu_temperature:.1f}°C",
+                'message': f"CPU temperature high: {metrics.cpu_temperature:.1f}C",
                 'timestamp': metrics.timestamp,
                 'severity': 'warning' if metrics.cpu_temperature < 85 else 'critical'
             })
@@ -784,7 +786,7 @@ class AdvancedHardwareMonitor:
             "memory": "%",
             "disk": "%",
             "gpu": "%",
-            "temperature": "°C",
+            "temperature": "C",
             "health": "%"
         }
         return units.get(metric_type, "")
@@ -855,7 +857,7 @@ def main():
     print("[MONITOR] Advanced Hardware Performance Monitor")
     print("=" * 50)
     print("Real-time responsive gauges with sophisticated performance readings")
-    print("🔥 Advanced monitoring with predictive analysis")
+    print("[*] Advanced monitoring with predictive analysis")
     print("[STATS] Responsive gauges with smooth animations")
     print("[TARGET] Intelligent alerts and trend analysis")
     print("=" * 50)
@@ -883,7 +885,7 @@ def main():
             print(f"   Memory: {current.memory_percent:.1f}% ({current.memory_used_gb:.1f}GB / {current.memory_total_gb:.1f}GB)")
             print(f"   Disk: {current.disk_percent:.1f}% ({current.disk_used_gb:.1f}GB / {current.disk_total_gb:.1f}GB)")
             print(f"   GPU: {current.gpu_percent:.1f}% ({current.gpu_memory_percent:.1f}% memory)")
-            print(f"   Temperature: {current.cpu_temperature:.1f}°C")
+            print(f"   Temperature: {current.cpu_temperature:.1f}C")
             print(f"   Battery: {current.battery_percent:.1f}% ({'Plugged' if current.battery_plugged else 'On Battery'})")
             print(f"   Health Score: {current.health_score:.1f}/100")
             print(f"   Performance Level: {current.performance_level.value}")

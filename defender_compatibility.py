@@ -3,6 +3,7 @@
 Windows Defender Compatibility Module for Downpour v29 Titanium
 Ensures long-term compatibility and prevents false positives
 """
+__version__ = "29.0.0"
 
 import os
 import sys

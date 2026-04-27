@@ -1,9 +1,11 @@
+#!/usr/bin/env python3
 """
 ================================================================================
 PROCESS MONITORING MODULE
 ================================================================================
+"""
 
-PURPOSE: Watches all running programs for suspicious behavior patterns
+__version__ = "29.0.0"
          that indicate malware, especially hidden or disguised threats.
 
 WHAT IT MONITORS:
@@ -33,6 +35,8 @@ THREAT DETECTION:
 """
 
 import logging
+logger = logging.getLogger(__name__)
+
 import threading
 import time
 try:
@@ -459,16 +463,18 @@ if __name__ == "__main__":
         level=logging.INFO,
         format='[%(asctime)s] [%(levelname)s] %(message)s'
     )
-    
+    logger.info("Process monitoring test starting")
+
     print("\n" + "="*80)
     print("          PROCESS MONITORING TEST")
     print("="*80)
     print("\nScanning all running processes...")
     print("This may take a moment...\n")
-    
+
     monitor = ProcessMonitor()
     monitor.scan_all_processes()
-    
+
+    logger.info("Scan complete")
     print("\nScan complete. Check output above for any suspicious processes.")
     print("Press Enter to exit...")
     input()

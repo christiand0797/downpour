@@ -5,6 +5,8 @@ Automatically detects and adapts to any hardware, device, and environment
 v29: Added KEV vulnerability context for security-aware adaptation.
 """
 
+__version__ = "29.0.0"
+
 import logging
 import os
 import sys

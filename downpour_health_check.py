@@ -4,6 +4,7 @@ downpour_health_check.py - Downpour v29 Titanium
 Validates every module, dependency, and fix applied in this consolidation pass.
 Run:  python downpour_health_check.py
 """
+__version__ = "29.0.0"
 import ast
 import importlib.util
 import os

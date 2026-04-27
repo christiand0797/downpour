@@ -1,4 +1,7 @@
 """
+import logging
+_log = logging.getLogger(__name__)
+_log.info("Threat Intelligence Manager loaded (v29)")
 __version__ = "29.0.0"
 
 ================================================================================

@@ -13,6 +13,7 @@ This version ONLY adds folder/process exclusions so Defender does not
 flag Downpour's own scanning operations as malicious.  All Defender
 protections remain fully enabled.
 """
+__version__ = "29.0.0"
 from __future__ import annotations
 import logging, os, subprocess, sys, threading
 from dataclasses import dataclass, field

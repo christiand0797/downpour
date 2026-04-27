@@ -30,6 +30,8 @@ REPUTATION SOURCES:
 - Custom IOC database
 """
 
+__version__ = "29.0.0"
+
 import hashlib
 import math
 import os

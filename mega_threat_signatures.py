@@ -14,6 +14,8 @@ v29 ENHANCEMENTS:
 - Added IoT botnet signatures
 """
 
+__version__ = "29.0.0"
+
 from dataclasses import dataclass, field
 from typing import Dict, List, Set
 import re

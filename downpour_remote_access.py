@@ -5,6 +5,7 @@ Remote-access threat detection, monitoring, and blocking.
 Detects RATs, reverse shells, C2 beacons, and unauthorised remote-desktop
 sessions; integrates with the main threat database and AEGIS framework.
 """
+__version__ = "29.0.0"
 from __future__ import annotations
 
 import hashlib

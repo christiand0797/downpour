@@ -3,6 +3,8 @@ Enhanced Hardware Monitor v2.0
 Advanced system monitoring with improved GPU detection, temperature monitoring, and performance tracking
 """
 
+__version__ = "29.0.0"
+
 import os
 import sys
 import time

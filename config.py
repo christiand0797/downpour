@@ -23,6 +23,15 @@ CONFIG = {
   "GEOIP": {
     "PROVIDER": "ip-api",
     "ENABLED": True
+  },
+  "LOGGING": {
+    "LEVEL": "INFO"
+  },
+  "FEEDS": {
+    "threatfox": {"enabled": True, "update_interval": 900},
+    "urlhaus": {"enabled": True, "update_interval": 900},
+    "phishtank": {"enabled": True, "update_interval": 3600},
+    "emerging_threats": {"enabled": True, "update_interval": 3600}
   }
 }
 

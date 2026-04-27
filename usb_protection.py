@@ -1,9 +1,11 @@
+#!/usr/bin/env python3
 """
 ================================================================================
 FAMILY SECURITY SUITE - USB & EXTERNAL DRIVE PROTECTION
 ================================================================================
+"""
 
-PURPOSE: Protects against BadUSB attacks, autorun malware, and malicious
+__version__ = "29.0.0"
          files on removable media. USB drives are a common infection vector!
 
 WHAT IT PROTECTS AGAINST:
@@ -55,6 +57,8 @@ except Exception:
 import threading
 import time
 import logging
+logger = logging.getLogger(__name__)
+
 from pathlib import Path
 from datetime import datetime
 import os
@@ -223,11 +227,11 @@ class USBProtection:
         is_trusted = device_id in self.trusted_devices
         
         if not is_trusted and self.config['alert_on_new_device']:
-            alert_msg = f"⚠️ USB ALERT: New device connected\nDrive: {drive_path}\nDevice ID: {device_id}\n"
+            alert_msg = f"USB ALERT: New device connected\nDrive: {drive_path}\nDevice ID: {device_id}\n"
             alert_msg += f"Vendor: {device_info.get('vendor', 'Unknown')}\n"
             alert_msg += f"Product: {device_info.get('product', 'Unknown')}\n"
+            logger.warning(alert_msg)
             print(alert_msg)
-            self.logger.warning(alert_msg)
         
         # Block autorun files
         if self.config['block_autorun']:
@@ -286,8 +290,9 @@ class USBProtection:
                     # Rename to neutralize
                     blocked_path = file_path.parent / f"BLOCKED_{filename}"
                     file_path.rename(blocked_path)
-                    self.logger.critical(f"🚨 BLOCKED AUTORUN FILE: {file_path}")
-                    print(f"⛔ CRITICAL: Blocked autorun file at {file_path}")
+                    self.logger.critical(f"BLOCKED AUTORUN FILE: {file_path}")
+                    logger.warning(f"Blocked autorun file at {file_path}")
+                    print(f"CRITICAL: Blocked autorun file at {file_path}")
                 except Exception as e:
                     self.logger.error(f"Failed to block autorun file: {e}")
     
@@ -337,9 +342,10 @@ class USBProtection:
                     self.logger.warning(f"Suspicious file found: {file}")
             
             if suspicious_found:
-                alert = f"⚠️ Found {len(suspicious_found)} suspicious files on {drive_path}:\n"
+                alert = f"Found {len(suspicious_found)} suspicious files on {drive_path}:\n"
                 for f in suspicious_found[:10]:  # Show first 10
                     alert += f"  - {f}\n"
+                logger.warning(alert)
                 print(alert)
                 
         except Exception as e:
@@ -349,11 +355,13 @@ if __name__ == "__main__":
     # Test USB protection
     protection = USBProtection()
     protection.start()
-    
+
+    logger.info("USB Protection is running. Press Ctrl+C to stop.")
     print("USB Protection is running. Press Ctrl+C to stop.")
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
         protection.stop()
+        logger.info("USB Protection stopped.")
         print("USB Protection stopped.")

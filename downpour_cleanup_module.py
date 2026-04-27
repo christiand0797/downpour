@@ -4,6 +4,7 @@ downpour_cleanup_module.py - Downpour v29 Titanium
 Comprehensive system cleanup: temp files, logs, caches, registry remnants,
 quarantine management, and graceful application shutdown helpers.
 """
+__version__ = "29.0.0"
 from __future__ import annotations
 import gc
 import glob

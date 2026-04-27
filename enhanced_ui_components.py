@@ -3,6 +3,8 @@ Enhanced UI Components for Family Security Suite
 Advanced widgets and visual elements for improved user experience
 """
 
+__version__ = "29.0.0"
+
 import tkinter as tk
 from tkinter import ttk
 import math

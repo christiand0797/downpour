@@ -1,9 +1,11 @@
+#!/usr/bin/env python3
 """
 ================================================================================
 FAMILY SECURITY SUITE - BROWSER PROTECTION
 ================================================================================
+"""
 
-PURPOSE: Monitors and protects against browser-based threats including
+__version__ = "29.0.0"
          malicious extensions, hijacking, and dangerous web activity.
 
 WHAT IT PROTECTS AGAINST:
@@ -48,6 +50,7 @@ import sqlite3
 import threading
 import time
 import logging
+logger = logging.getLogger(__name__)
 from pathlib import Path
 from datetime import datetime
 import hashlib
@@ -195,13 +198,13 @@ class BrowserProtection:
             # Check if this is a new extension
             if ext_key not in self.known_extensions:
                 self.logger.warning(f"NEW EXTENSION DETECTED: {ext_name} in {browser_name}")
-                print(f"⚠️ New browser extension installed: {ext_name}")
+                logger.info(f"New browser extension installed: {ext_name}")
                 
                 # Analyze risk level
                 risk_score, risk_reasons = self.calculate_extension_risk(manifest)
                 
                 if risk_score >= 7:
-                    alert = f"🚨 HIGH RISK EXTENSION DETECTED!\n"
+                    alert = f"HIGH RISK EXTENSION DETECTED!\n"
                     alert += f"Browser: {browser_name}\n"
                     alert += f"Name: {ext_name}\n"
                     alert += f"ID: {ext_id}\n"
@@ -209,9 +212,9 @@ class BrowserProtection:
                     alert += f"Reasons:\n"
                     for reason in risk_reasons:
                         alert += f"  - {reason}\n"
-                    alert += f"\n⚠️ RECOMMEND REMOVING THIS EXTENSION!"
+                    alert += f"\nRECOMMEND REMOVING THIS EXTENSION!"
+                    logger.warning(alert)
                     print(alert)
-                    self.logger.critical(alert)
                 
                 elif risk_score >= 4:
                     self.logger.warning(f"MEDIUM RISK: {ext_name} (Score: {risk_score}/10)")
@@ -266,11 +269,13 @@ if __name__ == "__main__":
     # Test browser protection
     protection = BrowserProtection()
     protection.start()
-    
+
+    logger.info("Browser Protection is running. Press Ctrl+C to stop.")
     print("Browser Protection is running. Press Ctrl+C to stop.")
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
         protection.stop()
+        logger.info("Browser Protection stopped.")
         print("Browser Protection stopped.")
