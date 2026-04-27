@@ -440,7 +440,7 @@ JSONValue: TypeAlias = Union[str, int, float, bool, None, list['JSONValue'], dic
 ConfigDict: TypeAlias = Mapping[str, JSONValue]
 
 # Constants
-__version__: Final = "27.0.0-titanium"
+__version__: Final = "29.0.0-titanium"
 __author__: Final = "downpour Security Team"
 __license__: Final = "Proprietary"
 

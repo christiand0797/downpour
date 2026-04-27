@@ -26,7 +26,7 @@ class DefenderCompatibility:
         signature_info = {
             'application_name': 'Downpour v29 Titanium',
             'publisher': 'Titanium Security Suite',
-            'version': '27.0.0',
+            'version': '29.0.0',
             'description': 'Advanced Security Application',
             'file_hashes': {},
             'trusted_paths': []
