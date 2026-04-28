@@ -55,6 +55,12 @@ from pathlib import Path
 from datetime import datetime
 import hashlib
 
+try:
+    from vulnerability_scanner import VulnerabilityScanner
+    _KEV_AVAILABLE = True
+except ImportError:
+    _KEV_AVAILABLE = False
+
 class BrowserProtection:
     """
     Monitor browsers for malicious extensions and suspicious activity.
@@ -264,6 +270,37 @@ class BrowserProtection:
             risk_reasons.append("Can inject code into websites")
         
         return min(risk_score, 10), risk_reasons  # Cap at 10
+
+    def check_browser_cve(self, browser_name):
+        """Check KEV catalog for known CVEs related to the specified browser."""
+        if not _KEV_AVAILABLE:
+            self.logger.warning("KEV integration not available - vulnerability_scanner module not found")
+            return []
+        try:
+            scanner = VulnerabilityScanner()
+            conn = sqlite3.connect(scanner.db_path)
+            try:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT cve_id, description, cvss_score, severity, date_added, remediation
+                    FROM kev_catalog
+                    WHERE LOWER(description) LIKE ?
+                    ORDER BY cvss_score DESC
+                ''', (f'%{browser_name.lower()}%',))
+                results = cursor.fetchall()
+                return [{
+                    'cve_id': r[0],
+                    'description': r[1],
+                    'cvss_score': r[2],
+                    'severity': r[3],
+                    'date_added': r[4],
+                    'remediation': r[5]
+                } for r in results]
+            finally:
+                conn.close()
+        except Exception as e:
+            self.logger.error(f"Error checking browser CVEs: {e}")
+            return []
 
 if __name__ == "__main__":
     # Test browser protection

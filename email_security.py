@@ -39,6 +39,12 @@ from typing import Dict, List, Tuple, Optional
 from urllib.parse import urlparse
 import json
 
+try:
+    from vulnerability_scanner import VulnerabilityScanner
+    _KEV_AVAILABLE = True
+except ImportError:
+    _KEV_AVAILABLE = False
+
 # Try importing required modules
 try:
     import win32com.client
@@ -736,6 +742,36 @@ try:
         
         return "\n".join(report_lines)
 
+    def check_email_cve(self, product):
+        """Check KEV catalog for known CVEs related to the specified email client/product."""
+        if not _KEV_AVAILABLE:
+            self.logger.warning("KEV integration not available - vulnerability_scanner module not found")
+            return []
+        try:
+            scanner = VulnerabilityScanner()
+            conn = sqlite3.connect(scanner.db_path)
+            try:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT cve_id, description, cvss_score, severity, date_added, remediation
+                    FROM kev_catalog
+                    WHERE LOWER(description) LIKE ?
+                    ORDER BY cvss_score DESC
+                ''', (f'%{product.lower()}%',))
+                results = cursor.fetchall()
+                return [{
+                    'cve_id': r[0],
+                    'description': r[1],
+                    'cvss_score': r[2],
+                    'severity': r[3],
+                    'date_added': r[4],
+                    'remediation': r[5]
+                } for r in results]
+            finally:
+                conn.close()
+        except Exception as e:
+            self.logger.error(f"Error checking email CVEs: {e}")
+            return []
 
 if __name__ == "__main__":
     import argparse

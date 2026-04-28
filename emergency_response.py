@@ -42,6 +42,51 @@ from pathlib import Path
 from typing import Dict, List
 import hashlib
 
+try:
+    from vulnerability_scanner import VulnerabilityScanner
+    _KEV_AVAILABLE = True
+except ImportError:
+    _KEV_AVAILABLE = False
+
+
+def check_cve_threat_priority(cve_id: str) -> Dict:
+    """
+    Check CVE-related threat priority using KEV catalog.
+    
+    Args:
+        cve_id: The CVE identifier (e.g., 'CVE-2024-1234')
+    
+    Returns:
+        Dict with priority level, KEV status, and recommendation
+    """
+    result = {
+        "cve_id": cve_id,
+        "priority": "UNKNOWN",
+        "in_kev": False,
+        "recommendation": "Manual review required"
+    }
+    
+    if not _KEV_AVAILABLE:
+        result["recommendation"] = "KEV data unavailable - install vulnerability_scanner"
+        return result
+    
+    try:
+        scanner = VulnerabilityScanner()
+        kev_entry = scanner.check_kev(cve_id)
+        
+        if kev_entry:
+            result["in_kev"] = True
+            result["priority"] = "CRITICAL"
+            result["recommendation"] = "IMMEDIATE patch required - exploit known in the wild"
+            result["kev_details"] = kev_entry
+        else:
+            result["priority"] = "HIGH"
+            result["recommendation"] = "Monitor and patch during next maintenance window"
+    except Exception as e:
+        result["recommendation"] = f"KEV check failed: {str(e)}"
+    
+    return result
+
 
 class EmergencyResponse:
     """
