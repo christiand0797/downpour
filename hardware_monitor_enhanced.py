@@ -5,7 +5,11 @@ Advanced system monitoring with improved GPU detection, temperature monitoring, 
 
 __version__ = "29.0.0"
 
-import os
+try:
+    from vulnerability_scanner import VulnerabilityScanner
+    _KEV_AVAILABLE = True
+except ImportError:
+    _KEV_AVAILABLE = False
 import sys
 import time
 import threading

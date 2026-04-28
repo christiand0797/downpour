@@ -5,7 +5,11 @@ Advanced widgets and visual elements for improved user experience
 
 __version__ = "29.0.0"
 
-import tkinter as tk
+try:
+    from vulnerability_scanner import VulnerabilityScanner
+    _KEV_AVAILABLE = True
+except ImportError:
+    _KEV_AVAILABLE = False
 from tkinter import ttk
 import math
 import time

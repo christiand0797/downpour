@@ -2,8 +2,15 @@
 ================================================================================
 WINDOWS DEFENDER ENHANCEMENT MODULE
 ================================================================================
+"""
 
-PURPOSE: Makes Windows Defender as strong as possible by enabling all
+__version__ = "29.0.0"
+
+try:
+    from vulnerability_scanner import VulnerabilityScanner
+    _KEV_AVAILABLE = True
+except ImportError:
+    _KEV_AVAILABLE = False
          protection features and keeping them enabled.
 
 WHAT IT DOES:
