@@ -1399,10 +1399,24 @@ def prioritize_by_eps(cve_list: List[str]) -> List[Dict]:
         
         prioritized = []
         for cve in cve_list:
+            epss_score = 0.0
+            if epss_data and 'scores' in epss_data:
+                for score_entry in epss_data.get('scores', []):
+                    if score_entry.get('cve') == cve:
+                        epss_score = score_entry.get('epss', 0.0)
+                        break
+            
+            if epss_score >= threshold:
+                priority = 'CRITICAL' if epss_score >= 0.8 else 'HIGH'
+            elif epss_score >= 0.3:
+                priority = 'MEDIUM'
+            else:
+                priority = 'LOW'
+            
             prioritized.append({
                 'cve_id': cve,
-                'epss_score': 0.0,
-                'priority': 'LOW',
+                'epss_score': epss_score,
+                'priority': priority,
             })
         
         prioritized.sort(key=lambda x: x['epss_score'], reverse=True)

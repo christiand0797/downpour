@@ -18,10 +18,11 @@ import threading
 import json
 import os
 import platform
+import logging
 from datetime import datetime
 from pathlib import Path
 
-# Safe imports
+_log = logging.getLogger(__name__)
 try:
     import psutil
     PSUTIL_AVAILABLE = True
@@ -114,24 +115,24 @@ class SecurityDashboard:
         try:
             if GPU_DETECTOR_AVAILABLE:
                 self.gpu_detector = GPUDetector()
-                print("[OK] GPU detector initialized")
+                _log.info("[OK] GPU detector initialized")
             else:
                 self.gpu_detector = None
-                print("[WARNING] GPU detector not available")
+                _log.warning("[WARNING] GPU detector not available")
         except Exception as e:
-            print(f"[ERROR] GPU detector initialization failed: {e}")
+            _log.error(f"[ERROR] GPU detector initialization failed: {e}")
             self.gpu_detector = None
         
         try:
             if ENHANCED_HW_AVAILABLE:
                 self.hw_monitor = EnhancedHardwareMonitor()
-                print("[OK] Enhanced hardware monitor initialized")
+                _log.info("[OK] Enhanced hardware monitor initialized")
             elif PSUTIL_AVAILABLE:
                 # Fallback hardware monitoring
                 self.hw_monitor = self
-                print("[WARNING] Using fallback hardware monitoring")
+                _log.warning("[WARNING] Using fallback hardware monitoring")
         except Exception as e:
-            print(f"[ERROR] Hardware monitor initialization failed: {e}")
+            _log.error(f"[ERROR] Hardware monitor initialization failed: {e}")
             self.hw_monitor = None
         
         try:
