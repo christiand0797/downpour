@@ -433,7 +433,7 @@ class AdvancedGauge:
                 time.sleep(0.05)
                 
             except Exception as e:
-                print(f"Animation error: {e}")
+                _log.warning(f"Animation error: {e}")
                 break
         
         self.animation_progress = 0.0
@@ -882,7 +882,7 @@ class AdvancedGaugeSystem:
                 )
             
         except Exception as e:
-            print(f"Error updating gauges: {e}")
+            _log.warning(f"Error updating gauges: {e}")
     
     def get_gauge_color(self, value: float, threshold: float, metric_type: str) -> str:
         """Get gauge color based on value and threshold"""

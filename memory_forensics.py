@@ -55,6 +55,13 @@ from typing import Dict, List, Tuple, Optional
 import sqlite3
 import json
 
+# KEV/CVE correlation for injected code and memory exploits
+try:
+    from vulnerability_scanner import fetch_cisa_kev_catalog
+    _KEV_AVAILABLE = True
+except ImportError:
+    _KEV_AVAILABLE = False
+
 # Windows API definitions
 kernel32 = ctypes.windll.kernel32
 psapi = ctypes.windll.psapi
@@ -765,7 +772,62 @@ class MemoryForensicsAnalyzer:
         except Exception as e:
             logging.error(f"Error saving memory analysis: {e}")
     
-    def monitor_process_injection(self):
+    def check_injection_cve(self, process_name: str, injection_type: str) -> Dict:
+        """
+        Check if detected injection matches KEV-listed exploit CVEs.
+
+        Parameters:
+        - process_name: Name of the target process
+        - injection_type: Type of injection detected (e.g., 'code_injection', 'dll_injection')
+
+        Returns:
+        - Dict with matched_cves (list) and epss_score (float)
+        """
+        result = {'matched_cves': [], 'epss_score': 0.0}
+
+        if not _KEV_AVAILABLE:
+            log.debug("KEV catalog not available (vulnerability_scanner not found)")
+            return result
+
+        try:
+            kev_catalog = fetch_cisa_kev_catalog()
+            if not kev_catalog:
+                return result
+
+            # Normalize process name for matching
+            proc_lower = process_name.lower().replace('.exe', '')
+
+            # Check each KEV entry for matching process/injection technique
+            for cve_entry in kev_catalog:
+                cve_id = cve_entry.get('cveID', cve_entry.get('id', ''))
+                vuln_name = cve_entry.get('vulnerabilityName', '').lower()
+                vendor = cve_entry.get('vendorProject', '').lower()
+                product = cve_entry.get('product', '').lower()
+
+                # Match against process name, vendor, or product
+                match_process = any(term in proc_lower for term in [proc_lower, vendor, product])
+                match_injection = any(term in vuln_name or term in injection_type.lower()
+                                       for term in ['inject', 'code execution', 'remote code', 'rce'])
+
+                if match_process and match_injection:
+                    result['matched_cves'].append(cve_id)
+
+            # Simple EPSS-like heuristic: higher score if multiple CVEs matched
+            if result['matched_cves']:
+                result['epss_score'] = min(0.9, 0.3 + 0.15 * len(result['matched_cves']))
+
+            if result['matched_cves']:
+                log.warning(
+                    f"KEV match: process={process_name}, injection={injection_type}, "
+                    f"CVEs={result['matched_cves']}, EPSS={result['epss_score']}"
+                )
+
+        except Exception as e:
+            log.error(f"Error checking injection CVE: {e}")
+
+        return result
+
+    def monitor_process_injection(self) -> None:
         """
         Monitor for active process injection attempts.
         
@@ -794,13 +856,20 @@ class MemoryForensicsAnalyzer:
                 
                 if 'error' not in result:
                     risk_score = result.get('risk_score', {})
-                    
+
                     if risk_score.get('score', 0) >= 60:  # HIGH or CRITICAL
                         self.stats['injections_detected'] += 1
-                        
+
+                        # Check KEV/CVE correlation for the detected injection
+                        injection_type = result.get('injection_type', 'code_injection')
+                        cve_result = self.check_injection_cve(proc_info['name'], injection_type)
+                        if cve_result['matched_cves']:
+                            result['matched_cves'] = cve_result['matched_cves']
+                            result['epss_score'] = cve_result['epss_score']
+
                         # Log injection event
                         self.log_injection_event(proc_info, result)
-                        
+
                         if risk_score.get('severity') in ['CRITICAL', 'HIGH']:
                             logging.warning(
                                 f"[INJECTION DETECTED] {proc_info['name']} (PID {pid}) "
@@ -866,7 +935,7 @@ class MemoryForensicsAnalyzer:
         monitor_thread.start()
         logging.info("[✓] Memory Forensics Analyzer active")
     
-    def stop(self):
+    def stop(self) -> None:
         """Stop memory forensics monitoring."""
         self.running = False
         logging.info("Memory forensics monitoring stopped")

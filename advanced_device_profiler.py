@@ -26,6 +26,12 @@ from typing import Dict, List, Any, Tuple, Optional
 from dataclasses import dataclass, asdict
 import re
 
+try:
+    from vulnerability_scanner import VulnerabilityScanner, get_epss_stats
+    _KEV_AVAILABLE = True
+except ImportError:
+    _KEV_AVAILABLE = False
+
 @dataclass
 class SystemCapability:
     """System capability assessment"""
@@ -63,6 +69,87 @@ class SecurityContext:
     firewall_rules: Dict[str, Any]
     uac_settings: Dict[str, Any]
     applocker_policies: Dict[str, Any]
+
+
+def check_device_cves(device_vendor: str, device_product: str) -> Dict:
+    """
+    Check detected hardware against CISA KEV catalog for known CVEs.
+    Returns dict with matched_cves, count, and severity breakdown.
+    """
+    result = {
+        'matched_cves': [],
+        'count': 0,
+        'severity_breakdown': {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'LOW': 0},
+        'kev_available': _KEV_AVAILABLE
+    }
+
+    if not _KEV_AVAILABLE:
+        return result
+
+    try:
+        scanner = VulnerabilityScanner()
+        kev_catalog = scanner.fetch_cisa_kev_catalog()
+
+        if not kev_catalog or (isinstance(kev_catalog, list) and kev_catalog and 
+kev_catalog[0].get('fetch_failed')):
+            return result
+
+        search_terms = []
+        if device_vendor:
+            search_terms.append(device_vendor.lower())
+        if device_product:
+            search_terms.append(device_product.lower())
+
+        for vuln in kev_catalog:
+            affected = vuln.get('affected_software', '').lower()
+            description = vuln.get('description', '').lower()
+
+            for term in search_terms:
+                if term in affected or term in description:
+                    result['matched_cves'].append(vuln)
+                    result['count'] += 1
+                    severity = vuln.get('severity', 'MEDIUM').upper()
+                    if severity in result['severity_breakdown']:
+                        result['severity_breakdown'][severity] += 1
+                    break
+
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"KEV CVE check error: {e}")
+
+    return result
+
+    try:
+        kev_catalog = fetch_cisa_kev_catalog()
+
+        if not kev_catalog or (isinstance(kev_catalog, list) and kev_catalog and kev_catalog[0].get('fetch_failed')):
+            return result
+
+        search_terms = []
+        if device_vendor:
+            search_terms.append(device_vendor.lower())
+        if device_product:
+            search_terms.append(device_product.lower())
+
+        for vuln in kev_catalog:
+            affected = vuln.get('affected_software', '').lower()
+            description = vuln.get('description', '').lower()
+
+            for term in search_terms:
+                if term in affected or term in description:
+                    result['matched_cves'].append(vuln)
+                    result['count'] += 1
+                    severity = vuln.get('severity', 'MEDIUM').upper()
+                    if severity in result['severity_breakdown']:
+                        result['severity_breakdown'][severity] += 1
+                    break
+
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"KEV CVE check error: {e}")
+
+    return result
+
 
 class AdvancedDeviceProfiler:
     """Sophisticated device profiling for admin operations"""
@@ -223,10 +310,10 @@ class AdvancedDeviceProfiler:
                 score += 10
             
             capabilities['overall_capability'] = min(score, 100)
-            
-            except Exception as e:
-                logging.getLogger(__name__).warning(f"Capability assessment error: {e}")
-        
+             
+        except Exception as e:
+            logging.getLogger(__name__).warning(f"Capability assessment error: {e}")
+         
         return SystemCapability(**capabilities)
     
     def _profile_hardware_comprehensive(self) -> HardwareProfile:
@@ -344,6 +431,12 @@ class AdvancedDeviceProfiler:
                 
         except Exception as e:
             print(f"            [WARNING] CPU analysis error: {e}")
+        
+        # Check CPU against KEV catalog
+        if _KEV_AVAILABLE and cpu_info['name'] != 'Unknown':
+            cpu_cve = check_device_cves(cpu_info['name'], '')
+            if cpu_cve['count'] > 0:
+                cpu_info['cve_check'] = cpu_cve
         
         return cpu_info
     
@@ -569,6 +662,14 @@ class AdvancedDeviceProfiler:
         except Exception as e:
             print(f"        [WARNING] Graphics analysis error: {e}")
         
+        # Check GPUs against KEV catalog
+        if _KEV_AVAILABLE:
+            for gpu in graphics_info.get('gpus', []):
+                vendor = gpu.get('name', '')
+                cve_info = check_device_cves(vendor, '')
+                if cve_info['count'] > 0:
+                    gpu['cve_check'] = cve_info
+        
         return graphics_info
     
     def _analyze_network_advanced(self) -> List[Dict[str, Any]]:
@@ -635,6 +736,14 @@ class AdvancedDeviceProfiler:
                 
         except Exception as e:
             print(f"        [WARNING] Network analysis error: {e}")
+        
+        # Check network interfaces against KEV catalog
+        if _KEV_AVAILABLE:
+            for iface in network_interfaces:
+                vendor = iface.get('name', '')
+                cve_info = check_device_cves(vendor, '')
+                if cve_info['count'] > 0:
+                    iface['cve_check'] = cve_info
         
         return network_interfaces
     
@@ -721,6 +830,15 @@ class AdvancedDeviceProfiler:
                             peripherals.append(printer_info)
             except Exception as e:
                 print(f"                [WARNING] Printer analysis error: {e}")
+                
+            # Check detected peripherals against KEV catalog
+            if _KEV_AVAILABLE:
+                for peripheral in peripherals:
+                    vendor = peripheral.get('manufacturer', '') or peripheral.get('description', '') or peripheral.get('name', '')
+                    product = peripheral.get('name', '') or peripheral.get('driver', '')
+                    cve_info = check_device_cves(vendor, product)
+                    if cve_info['count'] > 0:
+                        peripheral['cve_check'] = cve_info
                 
         except Exception as e:
             print(f"        [WARNING] Peripheral analysis error: {e}")

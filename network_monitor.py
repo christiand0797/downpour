@@ -61,6 +61,12 @@ try:
 except ImportError:
     _REQUESTS_AVAILABLE = False
 
+try:
+    from vulnerability_scanner import fetch_cisa_kev_catalog, get_epss_stats
+    _KEV_AVAILABLE = True
+except ImportError:
+    _KEV_AVAILABLE = False
+
 class NetworkMonitor:
     """
     Monitors network activity for suspicious connections.
@@ -189,7 +195,77 @@ class NetworkMonitor:
             pass
         
         return "??"  # Unknown
-    
+
+    def check_ip_cve(self, ip: str) -> dict:
+        """
+        Check if an IP is associated with any KEV CVEs.
+
+        Some malware families have known C2 IPs tied to specific CVEs.
+        This function correlates malicious IPs with known vulnerabilities.
+
+        Parameters:
+        - ip: IP address string
+
+        Returns:
+        - dict with keys: matched_cves (list), epss_score (float or None),
+                kev_available (bool)
+        """
+        result = {
+            'matched_cves': [],
+            'epss_score': None,
+            'kev_available': _KEV_AVAILABLE
+        }
+
+        if not _KEV_AVAILABLE:
+            return result
+
+        try:
+            kev_catalog = fetch_cisa_kev_catalog()
+            if not kev_catalog or 'vulnerabilities' not in kev_catalog:
+                return result
+
+            # Known mappings of C2 IPs to CVEs (would be expanded with threat intel)
+            # For now, check if the IP appears in any KEV vulnerability notes
+            for vuln in kev_catalog.get('vulnerabilities', []):
+                # Check if IP is mentioned in vulnerability notes or references
+                notes = vuln.get('notes', '') or ''
+                references = vuln.get('references', []) or []
+                cve_id = vuln.get('cveID', '')
+
+                ip_found = False
+                if ip in notes:
+                    ip_found = True
+                else:
+                    for ref in references:
+                        if ip in str(ref):
+                            ip_found = True
+                            break
+
+                if ip_found and cve_id:
+                    result['matched_cves'].append({
+                        'cve_id': cve_id,
+                        'vulnerability_name': vuln.get('vulnerabilityName', ''),
+                        'date_added': vuln.get('dateAdded', ''),
+                        'known_ransomware': vuln.get('knownRansomwareCampaignUse', 'Unknown')
+                    })
+
+            # Get EPSS score for matched CVEs if available
+            if result['matched_cves'] and _KEV_AVAILABLE:
+                try:
+                    epss_data = get_epss_stats([c['cve_id'] for c in result['matched_cves']])
+                    if epss_data:
+                        # Use highest EPSS score among matched CVEs
+                        epss_scores = [d.get('epss', 0) for d in epss_data if d.get('epss')]
+                        if epss_scores:
+                            result['epss_score'] = max(epss_scores)
+                except Exception:
+                    pass
+
+        except Exception as e:
+            logging.debug(f"Error checking IP {ip} against KEV: {e}")
+
+        return result
+
     def check_connection(self, conn, proc_name: str):
         """
         Analyze a single network connection for suspicious activity.
@@ -216,10 +292,19 @@ class NetworkMonitor:
             
             # Check against known malicious IPs
             if remote_ip in self.malicious_ips:
+                # Check if this IP is associated with any known CVEs
+                cve_info = self.check_ip_cve(remote_ip)
+                reason = f"Connection to known malicious IP: {remote_ip}"
+                if cve_info['matched_cves']:
+                    cve_list = ', '.join([c['cve_id'] for c in cve_info['matched_cves']])
+                    reason += f" (Associated CVEs: {cve_list}"
+                    if cve_info['epss_score']:
+                        reason += f", EPSS: {cve_info['epss_score']:.3f}"
+                    reason += ")"
                 return (
                     True,
                     "CRITICAL",
-                    f"Connection to known malicious IP: {remote_ip}"
+                    reason
                 )
             
             # Check for suspicious ports
@@ -338,7 +423,7 @@ class NetworkMonitor:
             logging.warning(f"Could not update threat database: {e}")
             return False
     
-    def monitoring_loop(self):
+    def monitoring_loop(self) -> None:
         """
         Continuous monitoring loop.
         
@@ -380,7 +465,7 @@ class NetworkMonitor:
         logging.info("[✓] Network Monitoring active")
         logging.info(f"Monitoring {len(self.suspicious_ports)} suspicious ports")
     
-    def stop(self):
+    def stop(self) -> None:
         """Stop network monitoring."""
         self.running = False
         logging.info("Network monitoring stopped")

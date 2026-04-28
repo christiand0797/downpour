@@ -203,8 +203,8 @@ class BehaviorScanner:
         self.threats_found = []
         self.files_scanned = 0
         self.current_activity = ""
-    
-    def log(self, msg, level="INFO"):
+
+    def log(self, msg, level="INFO") -> None:
         if self.callback:
             self.callback(msg, level)
     
@@ -911,7 +911,7 @@ class BehaviorScanner:
         
         return results
     
-    def cancel_scan(self):
+    def cancel_scan(self) -> None:
         self.scan_cancelled = True
 
 

@@ -591,7 +591,7 @@ class RansomwareDetector:
         except Exception as e:
             logging.error(f"Error monitoring file changes: {e}")
     
-    def monitor_processes(self):
+    def monitor_processes(self) -> None:
         """Monitor running processes for ransomware activity."""
         try:
             for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_info']):
