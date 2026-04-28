@@ -45,6 +45,45 @@ try:
 except ImportError:
     _PSUTIL_AVAILABLE = False
     raise ImportError("process_monitor requires psutil: pip install psutil")
+
+try:
+    from vulnerability_scanner import VulnerabilityScanner
+    _KEV_AVAILABLE = True
+except ImportError:
+    _KEV_AVAILABLE = False
+
+
+def check_process_kev(process_name: str) -> dict:
+    """Check process against CISA KEV catalog for known vulnerabilities."""
+    if not _KEV_AVAILABLE:
+        return {'matched_cves': [], 'kev_available': False}
+    try:
+        scanner = VulnerabilityScanner()
+        kev_data = scanner.get_kev_catalog()
+        if not kev_data:
+            return {'matched_cves': [], 'kev_available': False}
+        
+        matches = []
+        proc_lower = process_name.lower()
+        for entry in kev_data:
+            prod = entry.get('product', '').lower()
+            if proc_lower in prod or prod in proc_lower:
+                matches.append({
+                    'cve': entry.get('cveID'),
+                    'vendor': entry.get('vendorProject'),
+                    'product': entry.get('product'),
+                    'date_added': entry.get('dateAdded')
+                })
+        
+        return {
+            'matched_cves': matches[:5],
+            'kev_available': True,
+            'count': len(matches)
+        }
+    except Exception:
+        return {'matched_cves': [], 'kev_available': False}
+
+
 from datetime import datetime, timedelta
 from collections import defaultdict
 import os

@@ -50,6 +50,12 @@ except ImportError as e:
     print("Run: pip install psutil pywin32")
     sys.exit(1)
 
+try:
+    from vulnerability_scanner import VulnerabilityScanner
+    _KEV_AVAILABLE = True
+except ImportError:
+    _KEV_AVAILABLE = False
+
 
 class ParentalControls:
     """
