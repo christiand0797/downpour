@@ -57,6 +57,18 @@ except ImportError as e:
         boot_time: float = 0.0
         uptime_hours: float = 0.0
         system_load_avg: list = field(default_factory=lambda: [0.0, 0.0, 0.0])
+
+# KEV (Known Exploited Vulnerabilities) integration
+try:
+    from kev_checker import KEVChecker, get_kev_catalog
+    KEV_AVAILABLE = True
+except ImportError:
+    try:
+        from cisa_kev import CISAKEVClient, check_kev_status
+        KEV_AVAILABLE = True
+    except ImportError:
+        KEV_AVAILABLE = False
+        logging.getLogger(__name__).warning("KEV integration not available")
         performance_level: Optional[str] = None
         health_score: float = 0.0
     GaugeConfiguration = None
@@ -709,6 +721,54 @@ def main():
         print("\n[DONE] Enhanced hardware integration test completed")
     
     input("\nPress Enter to exit...")
+
+
+def check_hardware_kev():
+    """
+    Check hardware-related software/firmware against Known Exploited Vulnerabilities (KEV) catalog.
+    Identifies vulnerable drivers, firmware, or hardware management software.
+    """
+    logger = logging.getLogger(__name__)
+    
+    if not KEV_AVAILABLE:
+        logger.warning("KEV integration not available - skipping hardware KEV check")
+        return {"status": "unavailable", "message": "KEV integration not available"}
+    
+    try:
+        from kev_checker import KEVChecker
+        checker = KEVChecker()
+        
+        # Check hardware-related processes and drivers
+        vulnerabilities = []
+        
+        if _PSUTIL_AVAILABLE:
+            import psutil
+            # Check hardware-related processes
+            hw_keywords = ['driver', 'firmware', 'bios', 'uefi', 'hardware', 'monitor']
+            for proc in psutil.process_iter(['name', 'exe']):
+                try:
+                    proc_name = proc.info['name'].lower() if proc.info['name'] else ''
+                    if any(kw in proc_name for kw in hw_keywords):
+                        result = checker.check_software(proc.info['name'])
+                        if result.get("is_vulnerable"):
+                            vulnerabilities.append({
+                                "process": proc.info['name'],
+                                "cve": result.get("cve_id"),
+                                "severity": result.get("severity")
+                            })
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+        
+        return {
+            "status": "completed",
+            "vulnerabilities_found": len(vulnerabilities),
+            "vulnerabilities": vulnerabilities
+        }
+        
+    except Exception as e:
+        logger.error("Hardware KEV check failed: %s", e)
+        return {"status": "error", "message": str(e)}
+
 
 if __name__ == "__main__":
     main()

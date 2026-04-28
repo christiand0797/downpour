@@ -36,6 +36,18 @@ from typing import Dict, List, Tuple, Optional
 import zipfile
 __version__ = "29.0.0"
 
+# KEV (Known Exploited Vulnerabilities) integration
+try:
+    from kev_checker import KEVChecker, get_kev_catalog
+    KEV_AVAILABLE = True
+except ImportError:
+    try:
+        from cisa_kev import CISAKEVClient, check_kev_status
+        KEV_AVAILABLE = True
+    except ImportError:
+        KEV_AVAILABLE = False
+        logging.getLogger(__name__).warning("KEV integration not available")
+
 
 class BackupIntegrityVerifier:
     """
@@ -607,3 +619,59 @@ if __name__ == "__main__":
         print("  python backup_verifier.py --test-restore   # Test restore capability")
         print("  python backup_verifier.py --monitor        # Continuous monitoring")
         print("  python backup_verifier.py --report         # Generate report")
+
+
+def check_backup_kev():
+    """
+    Check backups against Known Exploited Vulnerabilities (KEV) catalog.
+    Identifies if any backed up software versions contain known CVEs.
+    """
+    logger = logging.getLogger(__name__)
+    
+    if not KEV_AVAILABLE:
+        logger.warning("KEV integration not available - skipping KEV check")
+        return {"status": "unavailable", "message": "KEV integration not available"}
+    
+    try:
+        from kev_checker import KEVChecker
+        checker = KEVChecker()
+        
+        # Get backup inventory (software versions from backups)
+        backup_inventory = []
+        backup_locations = [
+            os.path.join(os.path.expanduser("~"), "Documents", "Backups"),
+            "D:\\Backups"
+        ]
+        
+        for location in backup_locations:
+            if os.path.exists(location):
+                for root, dirs, files in os.walk(location):
+                    for f in files:
+                        if f.endswith(('.exe', '.msi', '.dll')):
+                            backup_inventory.append({
+                                "file": f,
+                                "path": os.path.join(root, f)
+                            })
+        
+        # Check against KEV catalog
+        vulnerabilities = []
+        for item in backup_inventory:
+            result = checker.check_file(item["file"])
+            if result.get("is_vulnerable"):
+                vulnerabilities.append({
+                    "file": item["file"],
+                    "path": item["path"],
+                    "cve": result.get("cve_id"),
+                    "severity": result.get("severity")
+                })
+        
+        return {
+            "status": "completed",
+            "files_checked": len(backup_inventory),
+            "vulnerabilities_found": len(vulnerabilities),
+            "vulnerabilities": vulnerabilities
+        }
+        
+    except Exception as e:
+        logger.error("KEV backup check failed: %s", e)
+        return {"status": "error", "message": str(e)}

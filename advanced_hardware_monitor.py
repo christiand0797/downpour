@@ -29,6 +29,17 @@ import math
 import statistics
 import gc
 
+# KEV (Known Exploited Vulnerabilities) integration
+try:
+    from kev_checker import KEVChecker, get_kev_catalog
+    KEV_AVAILABLE = True
+except ImportError:
+    try:
+        from cisa_kev import CISAKEVClient, check_kev_status
+        KEV_AVAILABLE = True
+    except ImportError:
+        KEV_AVAILABLE = False
+
 class PerformanceLevel(Enum):
     """Performance level classification"""
     EXCELLENT = "excellent"
@@ -922,6 +933,70 @@ def main():
         print("\n[FLAG] Hardware monitoring stopped")
     
     input("\nPress Enter to exit...")
+
+
+def check_hardware_cve():
+    """
+    Check hardware components against Known Exploited Vulnerabilities (KEV) catalog.
+    Focuses on CPU microcode, GPU drivers, and system firmware CVEs.
+    """
+    logger = logging.getLogger(__name__)
+    
+    if not KEV_AVAILABLE:
+        logger.warning("KEV integration not available - skipping hardware CVE check")
+        return {"status": "unavailable", "message": "KEV integration not available"}
+    
+    try:
+        from kev_checker import KEVChecker
+        checker = KEVChecker()
+        
+        vulnerabilities = []
+        
+        # Check CPU information
+        try:
+            import cpuinfo
+            cpu_info = cpuinfo.get_cpu_info()
+            cpu_name = cpu_info.get('brand_raw', '')
+            if cpu_name:
+                result = checker.check_hardware("cpu", cpu_name)
+                if result.get("is_vulnerable"):
+                    vulnerabilities.append({
+                        "component": "CPU",
+                        "name": cpu_name,
+                        "cve": result.get("cve_id"),
+                        "severity": result.get("severity")
+                    })
+        except ImportError:
+            pass
+        
+        # Check GPU information
+        if _PSUTIL_AVAILABLE:
+            try:
+                import GPUtil
+                gpus = GPUtil.getGPUs()
+                for gpu in gpus:
+                    result = checker.check_hardware("gpu", gpu.name)
+                    if result.get("is_vulnerable"):
+                        vulnerabilities.append({
+                            "component": "GPU",
+                            "name": gpu.name,
+                            "cve": result.get("cve_id"),
+                            "severity": result.get("severity")
+                        })
+            except ImportError:
+                pass
+        
+        return {
+            "status": "completed",
+            "components_checked": len(vulnerabilities),
+            "vulnerabilities_found": len(vulnerabilities),
+            "vulnerabilities": vulnerabilities
+        }
+        
+    except Exception as e:
+        logger.error("Hardware CVE check failed: %s", e)
+        return {"status": "error", "message": str(e)}
+
 
 if __name__ == "__main__":
     main()

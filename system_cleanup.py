@@ -24,6 +24,17 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+# KEV (Known Exploited Vulnerabilities) integration
+try:
+    from kev_checker import KEVChecker, get_kev_catalog
+    KEV_AVAILABLE = True
+except ImportError:
+    try:
+        from cisa_kev import CISAKEVClient, check_kev_status
+        KEV_AVAILABLE = True
+    except ImportError:
+        KEV_AVAILABLE = False
+
 DB_PATH = Path(__file__).parent / "downpour_data" / "titanium.db"
 QUARANTINE_DIR = Path(__file__).parent / "downpour_data" / "quarantine" / "locked"
 
@@ -426,6 +437,54 @@ def main():
     generate_report(stats, restored)
 
     db.close()
+
+
+def check_cleanup_kev():
+    """
+    Check system against Known Exploited Vulnerabilities (KEV) catalog.
+    Identifies vulnerable system components that need cleanup or patching.
+    """
+    try:
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        if not KEV_AVAILABLE:
+            logger.warning("KEV integration not available - skipping KEV check")
+            return {"status": "unavailable", "message": "KEV integration not available"}
+        
+        from kev_checker import KEVChecker
+        checker = KEVChecker()
+        
+        # Get installed software list from system
+        vulnerable_items = []
+        
+        # Check running processes for vulnerable versions
+        import psutil
+        for proc in psutil.process_iter(['name', 'exe', 'version']):
+            try:
+                proc_info = proc.info
+                if proc_info['name']:
+                    result = checker.check_software(proc_info['name'], proc_info.get('version', ''))
+                    if result.get("is_vulnerable"):
+                        vulnerable_items.append({
+                            "process": proc_info['name'],
+                            "version": proc_info.get('version', 'unknown'),
+                            "cve": result.get("cve_id"),
+                            "severity": result.get("severity")
+                        })
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+        
+        return {
+            "status": "completed",
+            "items_checked": len(vulnerable_items),
+            "vulnerabilities_found": len(vulnerable_items),
+            "vulnerable_items": vulnerable_items
+        }
+        
+    except Exception as e:
+        logger.error("KEV cleanup check failed: %s", e)
+        return {"status": "error", "message": str(e)}
 
 
 if __name__ == '__main__':
