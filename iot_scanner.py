@@ -632,6 +632,15 @@ class IoTDeviceScanner:
         # Botnet check
         device.botnet_indicators = self.check_botnet_indicators(device)
         device.risk_level = self.assign_risk(device)
+        
+        # KEV vulnerability check
+        if _KEV_AVAILABLE:
+            kev_result = self.check_device_kev_status(device)
+            if kev_result.get('vulnerabilities_found', 0) > 0:
+                device.risk_level = 'HIGH'
+                device.botnet_indicators.extend([
+                    f"KEV: {cve['cveID']}" for cve in kev_result.get('matched_cves', [])[:3]
+                ])
 
         with self._lock:
             self.devices[ip] = device

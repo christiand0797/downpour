@@ -514,7 +514,7 @@ def predict_threat(self, system_state: dict) -> dict:
                 return {"prediction": "unknown", "confidence": 0.0}
             
             # v29: Use sklearn-based threat prediction with trained model
-            prediction = self._ml_threat_prediction(features)
+            prediction = self._rule_based_threat_prediction(features)
             
             return prediction
             
