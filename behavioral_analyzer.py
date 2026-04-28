@@ -54,6 +54,12 @@ try:
 except ImportError:
     _WIN32_AVAILABLE = False
 
+try:
+    from vulnerability_scanner import VulnerabilityScanner
+    _KEV_AVAILABLE = True
+except ImportError:
+    _KEV_AVAILABLE = False
+
 class BehavioralAnalyzer:
     """
     Main class for behavioral analysis of running processes.

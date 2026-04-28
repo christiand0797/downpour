@@ -5,6 +5,12 @@
 
 __version__ = "29.0.0"
 
+try:
+    from vulnerability_scanner import VulnerabilityScanner
+    _KEV_AVAILABLE = True
+except ImportError:
+    _KEV_AVAILABLE = False
+
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import subprocess
