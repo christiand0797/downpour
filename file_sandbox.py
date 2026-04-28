@@ -58,6 +58,12 @@ from datetime import datetime
 import json
 import hashlib
 
+try:
+    from vulnerability_scanner import VulnerabilityScanner
+    _KEV_AVAILABLE = True
+except ImportError:
+    _KEV_AVAILABLE = False
+
 import logging
 logger = logging.getLogger(__name__)
 
@@ -379,3 +385,14 @@ if __name__ == "__main__":
     
     sandbox = FileSandbox()
     sandbox.analyze_file(sys.argv[1])
+
+def check_sandbox_kev():
+    """Query KEV catalog for sandbox related vulnerabilities."""
+    if not _KEV_AVAILABLE:
+        return {"error": "VulnerabilityScanner not available"}
+    try:
+        scanner = VulnerabilityScanner()
+        results = scanner.check_kev_catalog("sandbox")
+        return results
+    except Exception as e:
+        return {"error": str(e)}

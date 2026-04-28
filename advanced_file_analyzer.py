@@ -68,6 +68,12 @@ from typing import Dict, List, Tuple, Optional
 import configparser
 from collections import defaultdict
 
+try:
+    from vulnerability_scanner import VulnerabilityScanner
+    _KEV_AVAILABLE = True
+except ImportError:
+    _KEV_AVAILABLE = False
+
 class FileAnalyzer:
     """
     Advanced file analysis and reputation checking system.
@@ -926,6 +932,17 @@ if __name__ == "__main__":
         print(f"  Reasons: {', '.join(result['risk_score']['reasons'])}")
     
     stats = analyzer.get_statistics()
+
+def check_file_kev():
+    """Query KEV catalog for file analysis related vulnerabilities."""
+    if not _KEV_AVAILABLE:
+        return {"error": "VulnerabilityScanner not available"}
+    try:
+        scanner = VulnerabilityScanner()
+        results = scanner.check_kev_catalog("file_analysis")
+        return results
+    except Exception as e:
+        return {"error": str(e)}
     print(f"\nStatistics:")
     print(f"  Files Analyzed: {stats['files_analyzed']}")
     print(f"  Malicious Found: {stats['malicious_found']}")

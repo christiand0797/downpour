@@ -82,6 +82,12 @@ except ImportError:
 import hashlib
 import json
 
+try:
+    from vulnerability_scanner import VulnerabilityScanner
+    _KEV_AVAILABLE = True
+except ImportError:
+    _KEV_AVAILABLE = False
+
 class MLDetector:
     """
     Machine learning-based anomaly detector for advanced threat detection.
@@ -647,3 +653,14 @@ if __name__ == "__main__":
     
     print("\nPress Enter to exit...")
     input()
+
+def check_ml_kev():
+    """Query KEV catalog for ML behavioral analyzer related vulnerabilities."""
+    if not _KEV_AVAILABLE:
+        return {"error": "VulnerabilityScanner not available"}
+    try:
+        scanner = VulnerabilityScanner()
+        results = scanner.check_kev_catalog("ml_behavioral")
+        return results
+    except Exception as e:
+        return {"error": str(e)}

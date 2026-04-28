@@ -49,6 +49,12 @@ try:
 except ImportError:
     _WIN32_AVAILABLE = False
 
+try:
+    from vulnerability_scanner import VulnerabilityScanner
+    _KEV_AVAILABLE = True
+except ImportError:
+    _KEV_AVAILABLE = False
+
 class FileSystemMonitor:
     """
     Monitors file system for suspicious activity.
@@ -314,3 +320,14 @@ if __name__ == "__main__":
     input()
     
     monitor.stop()
+
+def check_file_monitor_kev():
+    """Query KEV catalog for file monitor related vulnerabilities."""
+    if not _KEV_AVAILABLE:
+        return {"error": "VulnerabilityScanner not available"}
+    try:
+        scanner = VulnerabilityScanner()
+        results = scanner.check_kev_catalog("file_monitor")
+        return results
+    except Exception as e:
+        return {"error": str(e)}

@@ -39,6 +39,12 @@ from datetime import datetime
 from typing import Dict, List, Tuple
 import ctypes
 
+try:
+    from vulnerability_scanner import VulnerabilityScanner
+    _KEV_AVAILABLE = True
+except ImportError:
+    _KEV_AVAILABLE = False
+
 # Check if running as administrator
 def is_admin():
     try:
@@ -632,3 +638,14 @@ if __name__ == "__main__":
     else:
         # Save with default name
         hardener.save_report()
+
+def check_hardening_kev():
+    """Query KEV catalog for system hardening related vulnerabilities."""
+    if not _KEV_AVAILABLE:
+        return {"error": "VulnerabilityScanner not available"}
+    try:
+        scanner = VulnerabilityScanner()
+        results = scanner.check_kev_catalog("system_hardening")
+        return results
+    except Exception as e:
+        return {"error": str(e)}

@@ -66,6 +66,12 @@ import subprocess
 import hashlib
 import json
 
+try:
+    from vulnerability_scanner import VulnerabilityScanner
+    _KEV_AVAILABLE = True
+except ImportError:
+    _KEV_AVAILABLE = False
+
 class USBProtection:
     """
     Monitor and protect against malicious USB/external drive threats.
@@ -365,3 +371,14 @@ if __name__ == "__main__":
         protection.stop()
         logger.info("USB Protection stopped.")
         print("USB Protection stopped.")
+
+def check_usb_kev():
+    """Query KEV catalog for USB protection related vulnerabilities."""
+    if not _KEV_AVAILABLE:
+        return {"error": "VulnerabilityScanner not available"}
+    try:
+        scanner = VulnerabilityScanner()
+        results = scanner.check_kev_catalog("usb_protection")
+        return results
+    except Exception as e:
+        return {"error": str(e)}
