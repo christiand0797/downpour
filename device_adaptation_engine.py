@@ -1027,7 +1027,7 @@ if __name__ == "__main__":
     engine = DeviceAdaptationEngine()
     profile = engine.comprehensive_device_analysis()
     
-    print("\n🎯 DEVICE ANALYSIS COMPLETE")
+    print("\n[*] DEVICE ANALYSIS COMPLETE")
     print("=" * 50)
     print(f"Device Type: {profile['device_type']}")
     print(f"Performance Tier: {profile['performance_profile']['performance_tier']}")
