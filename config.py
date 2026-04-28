@@ -32,6 +32,26 @@ CONFIG = {
     "urlhaus": {"enabled": True, "update_interval": 900},
     "phishtank": {"enabled": True, "update_interval": 3600},
     "emerging_threats": {"enabled": True, "update_interval": 3600}
+  },
+  "KEV": {
+    "ENABLED": True,
+    "UPDATE_INTERVAL_HOURS": 24,
+    "CRITICAL_THRESHOLD": 9.0
+  },
+  "EPSS": {
+    "ENABLED": True,
+    "UPDATE_INTERVAL_HOURS": 12,
+    "EXPLOIT_THRESHOLD": 0.5
+  },
+  "YARA": {
+    "ENABLED": True,
+    "RULES_PATH": "yara_rules",
+    "SCAN_TIMEOUT_SECONDS": 30
+  },
+  "VULNERABILITY": {
+    "SCAN_ON_STARTUP": True,
+    "SCAN_INTERVAL_HOURS": 24,
+    "ALERT_ON_CRITICAL": True
   }
 }
 
