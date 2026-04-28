@@ -41,6 +41,44 @@ try:
 except ImportError:
     MAGIC_AVAILABLE = False
 
+try:
+    from vulnerability_scanner import VulnerabilityScanner
+    VULN_SCANNER_AVAILABLE = True
+except ImportError:
+    VULN_SCANNER_AVAILABLE = False
+
+
+def check_file_kev(file_hash: str, file_name: str) -> dict:
+    """Check file hash/name against CISA KEV catalog."""
+    if not VULN_SCANNER_AVAILABLE:
+        return {'matched_cves': [], 'kev_available': False}
+    try:
+        scanner = VulnerabilityScanner()
+        kev_data = scanner.get_kev_catalog()
+        if not kev_data:
+            return {'matched_cves': [], 'kev_available': False}
+        
+        matches = []
+        file_name_lower = file_name.lower()
+        hash_lower = file_hash.lower() if file_hash else ''
+        
+        for entry in kev_data:
+            entry_hashes = entry.get('fileHashes', [])
+            for fh in entry_hashes:
+                if fh.lower() == hash_lower:
+                    matches.append(entry)
+                    break
+            if file_name_lower in entry.get('product', '').lower():
+                matches.append(entry)
+        
+        return {
+            'matched_cves': matches[:5],
+            'kev_available': True,
+            'count': len(matches)
+        }
+    except Exception:
+        return {'matched_cves': [], 'kev_available': False}
+
 
 class FileScanner:
     """Comprehensive file and folder scanner with threat detection."""
