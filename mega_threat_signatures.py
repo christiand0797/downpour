@@ -16,9 +16,48 @@ v29 ENHANCEMENTS:
 
 __version__ = "29.0.0"
 
+try:
+    from vulnerability_scanner import VulnerabilityScanner
+    _KEV_AVAILABLE = True
+except ImportError:
+    _KEV_AVAILABLE = False
+
 from dataclasses import dataclass, field
 from typing import Dict, List, Set
 import re
+
+
+def check_malware_kev(malware_family: str) -> dict:
+    """Check malware family against CISA KEV catalog."""
+    if not _KEV_AVAILABLE:
+        return {'matched_cves': [], 'kev_available': False}
+    try:
+        scanner = VulnerabilityScanner()
+        kev_data = scanner.get_kev_catalog()
+        if not kev_data:
+            return {'matched_cves': [], 'kev_available': False}
+        
+        matches = []
+        family_lower = malware_family.lower()
+        for entry in kev_data:
+            vendor = entry.get('vendorProject', '').lower()
+            product = entry.get('product', '').lower()
+            if family_lower in vendor or family_lower in product:
+                matches.append({
+                    'cve': entry.get('cveID'),
+                    'vendor': entry.get('vendorProject'),
+                    'product': entry.get('product'),
+                    'date_added': entry.get('dateAdded')
+                })
+        
+        return {
+            'matched_cves': matches[:5],
+            'kev_available': True,
+            'count': len(matches)
+        }
+    except Exception:
+        return {'matched_cves': [], 'kev_available': False}
+
 
 # ============================================================================
 # MALWARE FAMILY DATABASE - 500+ Families

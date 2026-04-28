@@ -34,7 +34,47 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Callable, Dict, List, Optional, Set
 
+try:
+    from vulnerability_scanner import VulnerabilityScanner
+    _KEV_AVAILABLE = True
+except ImportError:
+    _KEV_AVAILABLE = False
+
 _NO_WIN = 0x08000000  # CREATE_NO_WINDOW
+
+
+def check_botnet_kev(botnet_name: str) -> dict:
+    """Check botnet family against CISA KEV catalog."""
+    if not _KEV_AVAILABLE:
+        return {'matched_cves': [], 'kev_available': False}
+    try:
+        scanner = VulnerabilityScanner()
+        kev_data = scanner.get_kev_catalog()
+        if not kev_data:
+            return {'matched_cves': [], 'kev_available': False}
+        
+        matches = []
+        botnet_lower = botnet_name.lower()
+        iot_keywords = ['iot', 'router', 'camera', 'nvr', 'dvr', 'botnet', 'mirai', 'mozai', 'gafgyt']
+        
+        for entry in kev_data:
+            vendor = entry.get('vendorProject', '').lower()
+            product = entry.get('product', '').lower()
+            notes = entry.get('notes', '').lower()
+            
+            if botnet_lower in vendor or botnet_lower in product:
+                matches.append(entry)
+            elif any(kw in product for kw in iot_keywords) and any(kw in notes for kw in ['bot', 'ddos', 'c2', 'command']):
+                matches.append(entry)
+        
+        return {
+            'matched_cves': matches[:5],
+            'kev_available': True,
+            'count': len(matches)
+        }
+    except Exception:
+        return {'matched_cves': [], 'kev_available': False}
+
 
 log = logging.getLogger("KimwolfDetector")
 

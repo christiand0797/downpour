@@ -744,6 +744,18 @@ class AdvancedGaugeSystem:
             self.canvas, 500, 450, 150, 150,
             GaugeType.CIRCULAR, gauge_style, "Battery"
         )
+        
+        # KEV Vulnerability Gauge (Progress)
+        self.gauges['kev_count'] = AdvancedGauge(
+            self.canvas, 50, 620, 300, 80,
+            GaugeType.LINEAR, gauge_style, "KEV CVEs"
+        )
+        
+        # Threat Level Gauge (Meter)
+        self.gauges['threat_level'] = AdvancedGauge(
+            self.canvas, 400, 620, 300, 80,
+            GaugeType.METER, gauge_style, "Threat Level"
+        )
     
     def create_control_panel(self, parent):
         """Create control panel"""
