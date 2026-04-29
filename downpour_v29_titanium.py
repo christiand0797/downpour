@@ -2313,8 +2313,8 @@ _SELF_TRUSTED_FRAGS = (
     'downpour_v20',
     # Script name without version suffix  -  covers all versions
     'downpour_v',
-    'downpour_v28_titanium',
-    'downpour_v28',
+    'downpour_v29_titanium',
+    'downpour_v29',
     'downpour_v27_titanium',
     'downpour_v27',
 )
@@ -2846,7 +2846,7 @@ except ImportError:
 #                                    PATHS & DIRS (PORTABLE)
 # [ascii art removed]
 VERSION = "28.42.0"
-APP_NAME = "downpour Titanium v28"
+APP_NAME = "downpour Titanium v29"
 
 # All data stored next to the script - works from USB drive
 BASE_DIR = Path(__file__).parent
@@ -21284,7 +21284,7 @@ class downpour(tk.Tk):
         """Configure basic window properties and styling."""
         # FIX: bg must match loading screen (#0a0a1a) so no colour bleeds through
         self.configure(bg="#0a0a1a")
-        self.title("🛡️  Downpour v28 Titanium | Loading...")
+        self.title("Downpour v29 Titanium | Loading...")
         self.configure(bg=Colors.BG_STORM)
         # Keep topmost True during init so window stays visible
         try:
@@ -21983,7 +21983,7 @@ class downpour(tk.Tk):
         tk.Label(_title_row, text="\u26c8 downpour",
                  font=self.get_adaptive_font(13, 'Cascadia Code', bold=True), fg=Colors.GAUGE_TEAL,
                  bg=Colors.GLASS_DARK).pack(side='left')
-        tk.Label(_title_col, text="v28 Titanium  \u2502  Advanced Security Suite",
+        tk.Label(_title_col, text="v29 Titanium  \u2502  Advanced Security Suite",
                  font=self.get_adaptive_font(7, 'JetBrains Mono'), fg=Colors.TEXT_INACTIVE,
                  bg=Colors.GLASS_DARK, padx=4).pack(anchor='w')
 
@@ -22295,7 +22295,7 @@ class downpour(tk.Tk):
         status_bar = tk.Frame(self, bg=Colors.GLASS_DARK, height=26)
         status_bar.grid(row=5, column=0, sticky='ew')
         status_bar.grid_columnconfigure(0, weight=1)
-        self._status_var = tk.StringVar(value="\u26c8 Downpour v28 Titanium  \u2502  Systems Online  \u2502  All Clear")
+        self._status_var = tk.StringVar(value="\u26c8 Downpour v29 Titanium  \u2502  Systems Online  \u2502  All Clear")
         tk.Label(status_bar, textvariable=self._status_var, font=('Consolas', 8),
                  fg=Colors.TEXT_DIM, bg=Colors.GLASS_DARK, anchor='w'
                  ).grid(row=0, column=0, padx=8, sticky='w')
@@ -27221,13 +27221,13 @@ Verification Status:
         revert_frame.pack(fill='x', padx=8, pady=8)
         tk.Label(revert_frame, text="System Recovery", font=('Consolas', 10, 'bold'),
                  fg=Colors.GAUGE_RED, bg=Colors.GLASS_CARD).pack(anchor='w', padx=8, pady=4)
-        tk.Label(revert_frame, text="Revert all changes made by Downpour v28 Titanium",
+        tk.Label(revert_frame, text="Revert all changes made by Downpour v29 Titanium",
                  font=('Consolas', 9), fg=Colors.TEXT_DIM, bg=Colors.GLASS_CARD).pack(anchor='w', padx=8)
         
         def _revert_all_changes():
-            """Revert all changes made by Downpour v28 Titanium."""
+            """Revert all changes made by Downpour v29 Titanium."""
             if messagebox.askyesno('Revert Changes', 
-                'This will revert ALL changes made by Downpour v28 Titanium to system settings.\n\n'
+                'This will revert ALL changes made by Downpour v29 Titanium to system settings.\n\n'
                 'This includes:\n'
                 '- Windows Defender exclusions\n'
                 '- Registry modifications\n'
@@ -32520,7 +32520,7 @@ Verification Status:
 
         # Welcome message
         self._queue_alert(
-            '[READY] Downpour v28 Titanium loaded. '
+            '[READY] Downpour v29 Titanium loaded. '
             'Use the Engine Control Panel on the Dashboard to start engines.',
             Colors.GAUGE_TEAL)
 
@@ -38642,7 +38642,7 @@ Verification Status:
         def _scan():
             if not _REMOTE_ACCESS_MODULE_AVAILABLE:
                 messagebox.showerror('Module Missing',
-                    'downpour_remote_access.py not found.\nPlace it in the same folder as downpour_v28_titanium.py')
+                    'downpour_remote_access.py not found.\n'Place it in the same folder as downpour_v29_titanium.py')
                 return
             self._remote_status_lbl.config(text='\U0001f504 Scanning...', fg=Colors.GAUGE_YELLOW)
             # FIX: removed p.update_idletasks() — calling update_idletasks() from a
@@ -38981,9 +38981,9 @@ Verification Status:
                     return
 
         def _revert_changes():
-            """Revert all changes made by Downpour v28 Titanium."""
+            """Revert all changes made by Downpour v29 Titanium."""
             if messagebox.askyesno('Revert Changes', 
-                'This will revert ALL changes made by Downpour v28 Titanium to system settings.\n\n'
+                'This will revert ALL changes made by Downpour v29 Titanium to system settings.\n\n'
                 'This includes:\n'
                 '- Windows Defender exclusions\n'
                 '- Registry modifications\n'
@@ -45565,7 +45565,7 @@ def main() -> None:
                 logger.info("Running with administrative privileges")
         
         # Log startup
-        logger.info("Starting Downpour v28 Titanium...")
+        logger.info("Starting Downpour v29 Titanium...")
         logger.info(f"Python version: {sys.version}")
         logger.info(f"Platform: {platform.platform()}")
         

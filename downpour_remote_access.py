@@ -403,7 +403,7 @@ __all__ = [
 
 
 # ---------------------------------------------------------------------------
-# Classes expected by downpour_v28_titanium.py
+# Classes expected by downpour_v29_titanium.py
 # ---------------------------------------------------------------------------
 
 import winreg as _winreg
