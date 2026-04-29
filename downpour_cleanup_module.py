@@ -5,6 +5,7 @@ Comprehensive system cleanup: temp files, logs, caches, registry remnants,
 quarantine management, and graceful application shutdown helpers.
 """
 from __future__ import annotations
+__version__ = "29.0.0"
 import gc
 import glob
 import logging

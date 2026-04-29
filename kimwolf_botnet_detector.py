@@ -17,6 +17,7 @@ References:
   - CISA IoT threat advisories
 """
 from __future__ import annotations
+__version__ = "29.0.0"
 import ipaddress
 import logging
 import math

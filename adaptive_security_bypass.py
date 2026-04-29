@@ -11,6 +11,7 @@ disabled Defender monitoring.  Those commands triggered
 Trojan:Win32/MpTamperSrvDisableAV.H and have been permanently removed.
 """
 from __future__ import annotations
+__version__ = "29.0.0"
 import logging, os, subprocess, sys
 from dataclasses import dataclass, field
 from typing import Any, Dict, List

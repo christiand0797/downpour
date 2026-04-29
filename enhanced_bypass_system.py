@@ -14,6 +14,7 @@ flag Downpour's own scanning operations as malicious.  All Defender
 protections remain fully enabled.
 """
 from __future__ import annotations
+__version__ = "29.0.0"
 import logging, os, subprocess, sys, threading
 from dataclasses import dataclass, field
 from enum import Enum

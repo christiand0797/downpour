@@ -9,6 +9,7 @@ protections — those triggered MpTamperSrvDisableAV and have been
 permanently removed.
 """
 from __future__ import annotations
+__version__ = "29.0.0"
 import logging, os, subprocess, sys
 from pathlib import Path
 from typing import List

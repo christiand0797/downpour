@@ -5,7 +5,7 @@ VPN / proxy detection, DNS-leak checking, kill-switch enforcement,
 and threat-feed integration for VPN egress nodes.
 """
 from __future__ import annotations
-
+__version__ = "29.0.0"
 import ipaddress
 import json
 import logging

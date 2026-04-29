@@ -5,7 +5,7 @@ Remote-access threat detection: RDP, VNC, SSH, TeamViewer, AnyDesk,
 and other RAT-toolkit monitoring and blocking.
 """
 from __future__ import annotations
-
+__version__ = "29.0.0"
 import hashlib
 import ipaddress
 import logging
