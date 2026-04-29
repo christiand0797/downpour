@@ -895,7 +895,7 @@ class FileAnalyzer:
 # Global instance
 _file_analyzer_instance = None
 
-def get_file_analyzer(config=None):
+def get_file_analyzer(config=None) -> 'FileAnalyzer':
     """Get global file analyzer instance."""
     global _file_analyzer_instance
     if _file_analyzer_instance is None:

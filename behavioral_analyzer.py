@@ -519,7 +519,7 @@ class BehavioralAnalyzer:
 # Global instance
 _analyzer_instance = None
 
-def get_analyzer(config=None):
+def get_analyzer(config=None) -> 'BehavioralAnalyzer':
     """Get global behavioral analyzer instance."""
     global _analyzer_instance
     if _analyzer_instance is None:

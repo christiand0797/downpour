@@ -799,7 +799,7 @@ class ThreatIntelligenceManager:
 # Global instance
 _ti_instance = None
 
-def get_ti_manager(config=None):
+def get_ti_manager(config=None) -> 'ThreatIntelligenceManager':
     """Get global threat intelligence manager instance."""
     global _ti_instance
     if _ti_instance is None:

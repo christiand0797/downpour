@@ -489,7 +489,7 @@ class ProcessMonitor:
 # Global instance
 _monitor_instance = None
 
-def get_monitor(config=None):
+def get_monitor(config=None) -> 'ProcessMonitor':
     """Get global process monitor instance."""
     global _monitor_instance
     if _monitor_instance is None:

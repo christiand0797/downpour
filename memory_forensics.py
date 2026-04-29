@@ -943,7 +943,7 @@ class MemoryForensicsAnalyzer:
 # Global instance
 _memory_analyzer_instance = None
 
-def get_memory_analyzer(config=None):
+def get_memory_analyzer(config=None) -> 'MemoryForensics':
     """Get global memory analyzer instance."""
     global _memory_analyzer_instance
     if _memory_analyzer_instance is None:

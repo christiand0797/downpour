@@ -410,7 +410,7 @@ class DefenderEnhancer:
 # Global instance
 _enhancer_instance = None
 
-def get_enhancer():
+def get_enhancer() -> 'DefenderEnhancer':
     """Get global Defender enhancer instance."""
     global _enhancer_instance
     if _enhancer_instance is None:

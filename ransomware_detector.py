@@ -1018,7 +1018,7 @@ class RansomwareDetector:
 # Global instance
 _ransomware_detector_instance = None
 
-def get_ransomware_detector(config=None):
+def get_ransomware_detector(config=None) -> 'RansomwareDetector':
     """Get global ransomware detector instance."""
     global _ransomware_detector_instance
     if _ransomware_detector_instance is None:
