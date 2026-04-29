@@ -66,6 +66,10 @@ Downpour is a personal, all-in-one Windows security suite — written entirely i
 - **FIX**: sklearn warnings silenced
 - **FIX**: COM init on ThreadPoolExecutor threads
 - **FIX**: Fixed syntax error in mega_threat_signatures.py
+- **FIX**: Syntax errors in 19 modules (unclosed docstrings, bare except, indentation)
+- **FIX**: __version__ stamps added to remaining 7 modules (from __future__ imports)
+- **FIX**: v28 reference strings updated in main v29 application
+- **FIX**: Module compatibility comments updated (v28 → v29)
 
 ---
 
