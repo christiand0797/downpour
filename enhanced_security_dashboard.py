@@ -138,9 +138,9 @@ class SecurityDashboard:
         try:
             if AI_ENGINE_AVAILABLE:
                 self.ai_engine = AISecurityEngine()
-                print("[OK] AI security engine initialized")
+                _log.info("[OK] AI security engine initialized")
         except Exception as e:
-            print(f"[ERROR] AI engine initialization failed: {e}")
+            _log.error(f"[ERROR] AI engine initialization failed: {e}")
             self.ai_engine = None
     
     def _create_widgets(self):
@@ -882,7 +882,7 @@ class SecurityDashboard:
                 
                 time.sleep(1)
             except Exception as e:
-                print(f"Network monitor error: {e}")
+                _log.error(f"Network monitor error: {e}")
                 time.sleep(5)
     
     def _hardware_monitor_loop(self):
@@ -955,7 +955,7 @@ class SecurityDashboard:
                 
                 time.sleep(2)
             except Exception as e:
-                print(f"Hardware monitor error: {e}")
+                _log.error(f"Hardware monitor error: {e}")
                 time.sleep(5)
     
     def _time_update_loop(self):
@@ -1047,7 +1047,7 @@ class SecurityDashboard:
             
             return cpu_info
         except Exception as e:
-            print(f"Fallback CPU monitoring error: {e}")
+            _log.error(f"Fallback CPU monitoring error: {e}")
             return {'name': 'CPU', 'usage': 0, 'core_count': 'Unknown', 'temperature': 0}
     
     def _get_fallback_ram_info(self):
@@ -1064,7 +1064,7 @@ class SecurityDashboard:
                 'available': mem.available
             }
         except Exception as e:
-            print(f"Fallback RAM monitoring error: {e}")
+            _log.error(f"Fallback RAM monitoring error: {e}")
             return {'total': 0, 'used': 0, 'percent': 0, 'available': 0}
 
 
