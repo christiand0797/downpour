@@ -1,42 +1,9 @@
 #!/usr/bin/env python3
 """
-================================================================================
-FAMILY SECURITY SUITE - USB & EXTERNAL DRIVE PROTECTION
-================================================================================
+USB & EXTERNAL DRIVE PROTECTION v29
 """
-
 __version__ = "29.0.0"
-         files on removable media. USB drives are a common infection vector!
-
-WHAT IT PROTECTS AGAINST:
-- BadUSB attacks (devices pretending to be keyboards)
-- Autorun malware (programs that start automatically)
-- Infected files on USB drives
-- Hidden malware in USB partitions
-- Malicious firmware on USB devices
-- Data theft via USB (unauthorized copying)
-- Rubber Ducky attacks (keystroke injection)
-
-HOW IT WORKS:
-1. Monitors for new USB device insertions
-2. Scans all files before allowing access
-3. Blocks autorun.inf files automatically
-4. Checks device firmware signatures
-5. Alerts on suspicious device behavior
-6. Maintains whitelist of trusted devices
-7. Logs all USB activity for review
-
-FEATURES:
-- Real-time USB insertion detection
-- Automatic scanning with Windows Defender
-- Autorun prevention
-- Device fingerprinting
-- Read-only mode option for untrusted devices
-- Parental controls (can block USB for your son's account)
-
-================================================================================
-"""
-
+import os
 try:
     import win32api
     import win32con

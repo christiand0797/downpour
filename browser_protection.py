@@ -1,49 +1,8 @@
 #!/usr/bin/env python3
 """
-================================================================================
 FAMILY SECURITY SUITE - BROWSER PROTECTION
-================================================================================
 """
-
 __version__ = "29.0.0"
-         malicious extensions, hijacking, and dangerous web activity.
-
-WHAT IT PROTECTS AGAINST:
-- Malicious browser extensions stealing data
-- Browser hijackers changing homepage/search
-- Cryptojacking extensions (hidden cryptocurrency mining)
-- Password-stealing extensions
-- Ad-injection malware
-- Browser redirect attacks
-- Session hijacking attempts
-- Fingerprinting and tracking scripts
-
-HOW IT WORKS:
-1. Monitors installed browser extensions
-2. Checks extension permissions (red flags)
-3. Detects suspicious browser behavior
-4. Monitors browser data folders for changes
-5. Alerts on dangerous extension installations
-6. Tracks homepage/search engine changes
-7. Monitors for credential theft attempts
-
-SUPPORTED BROWSERS:
-- Google Chrome
-- Microsoft Edge (Chromium)
-- Firefox
-- Brave
-- Opera
-
-FEATURES FOR YOUR SON'S PROTECTION:
-- Alerts on new extension installations
-- Monitors for inappropriate content access
-- Detects social media monitoring extensions
-- Parental control extension protection
-- Gaming site monitoring
-
-================================================================================
-"""
-
 import os
 import json
 import sqlite3

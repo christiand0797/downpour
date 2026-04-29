@@ -10,7 +10,6 @@ Previous versions of this file contained Set-MpPreference commands that
 disabled Defender monitoring.  Those commands triggered
 Trojan:Win32/MpTamperSrvDisableAV.H and have been permanently removed.
 """
-__version__ = "29.0.0"
 from __future__ import annotations
 import logging, os, subprocess, sys
 from dataclasses import dataclass, field

@@ -1,50 +1,18 @@
 #!/usr/bin/env python3
 """
-================================================================================
-BEHAVIORAL ANALYSIS MODULE
-================================================================================
+BEHAVIORAL ANALYSIS MODULE v29
 """
-
 __version__ = "29.0.0"
-         This catches new threats that don't match known virus signatures.
-
-WHAT IT DETECTS:
-1. KEYLOGGERS - Programs recording your keystrokes
-2. SCREEN RECORDERS - Spyware taking screenshots
-3. CLIPBOARD THIEVES - Stealing copied passwords/data
-4. WEBCAM/MIC ACCESS - Unauthorized camera/microphone use
-5. CREDENTIAL THEFT - Programs trying to steal passwords
-6. CRYPTOMINERS - Unauthorized cryptocurrency mining
-7. RANSOMWARE - File encryption patterns
-8. DATA EXFILTRATION - Large data transfers to external servers
-
-HOW IT WORKS:
-- Monitors Windows API calls made by programs
-- Tracks resource usage patterns
-- Analyzes file access patterns
-- Watches network connections
-- Assigns "suspicion scores" to processes
-- Alerts when score exceeds threshold
-
-BEHAVIORAL PATTERNS:
-- Keylogger: Hooks keyboard, logs to file, hidden window
-- Ransomware: Rapid file modifications, file extensions changing
-- Spyware: Accesses webcam, sends data over network
-- Cryptominer: High CPU usage, connects to mining pools
-- Password stealer: Accesses browser data, credential stores
-
-================================================================================
-"""
-
-try:
-    import psutil
-except ImportError:
-    raise ImportError("behavioral_analyzer requires psutil: pip install psutil")
+import os
 import logging
 import threading
 import time
 from datetime import datetime, timedelta
 from collections import defaultdict
+try:
+    import psutil
+except ImportError:
+    raise ImportError("behavioral_analyzer requires psutil")
 try:
     import win32api
     import win32con
@@ -527,7 +495,6 @@ def get_analyzer(config=None) -> 'BehavioralAnalyzer':
     return _analyzer_instance
 
 if __name__ == "__main__":
-    """Test the behavioral analyzer standalone."""
     logging.basicConfig(
         level=logging.INFO,
         format='[%(asctime)s] [%(levelname)s] %(message)s'

@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """
 downpour_remote_access.py - Downpour v29 Titanium
-Remote-access threat detection, monitoring, and blocking.
-Detects RATs, reverse shells, C2 beacons, and unauthorised remote-desktop
-sessions; integrates with the main threat database and AEGIS framework.
+Remote-access threat detection: RDP, VNC, SSH, TeamViewer, AnyDesk,
+and other RAT-toolkit monitoring and blocking.
 """
-__version__ = "29.0.0"
 from __future__ import annotations
 
 import hashlib

@@ -1,35 +1,10 @@
 #!/usr/bin/env python3
 """
-================================================================================
-EMERGENCY RESPONSE SYSTEM
-================================================================================
+EMERGENCY RESPONSE SYSTEM v29
 """
-
 __version__ = "29.0.0"
-
 import logging
 logger = logging.getLogger(__name__)
-Created: January 2026 - Claude's Enhancement
-
-FEATURES:
-- ONE-CLICK PANIC BUTTON (instant lockdown)
-- Immediate network isolation (disconnect internet)
-- Process termination (kill suspicious programs)
-- System snapshot (save current state)
-- Emergency file backup (protect critical files)
-- Forensics collection (gather evidence)
-- Recovery mode (safe system restore)
-
-USAGE:
-    python emergency_response.py --panic          # INSTANT LOCKDOWN
-    python emergency_response.py --isolate        # Disconnect network
-    python emergency_response.py --snapshot       # Save system state
-    python emergency_response.py --recover        # Enter recovery mode
-
-Use this when you suspect ACTIVE attack happening RIGHT NOW!
-===============================================================================
-"""
-
 import os
 import sys
 import subprocess
@@ -111,7 +86,7 @@ class EmergencyResponse:
         """
         EMERGENCY PANIC BUTTON - Execute all emergency procedures immediately!
         
-        This is the "OH NO!" button when you realize you're being hacked RIGHT NOW.
+        This is the panic button when you realize you are being hacked.
         """
         logger.info("=" * 80)
         logger.info("[!] EMERGENCY PANIC BUTTON ACTIVATED [!]")
@@ -148,7 +123,7 @@ class EmergencyResponse:
         # Step 3: Kill suspicious processes
         logger.info("STEP 3: Terminating suspicious processes...")
         killed = self.kill_suspicious_processes()
-            logger.info(f"  [OK] Terminated {len(killed)} suspicious processes")
+        logger.info(f"  [OK] Terminated {len(killed)} suspicious processes")
         steps_completed.append(f"Killed {len(killed)} processes")
         
         # Step 4: Emergency backup of critical files

@@ -3,16 +3,6 @@ Threat Feed Aggregator - enhanced v29
 ==============================================================
 Fetches and processes threat intelligence from 50+ sources.
 Handles rate limiting, error recovery, and incremental updates.
-"""
-import logging
-_log = logging.getLogger(__name__)
-_log.info("Threat Feed Aggregator loaded (v29)")
-__version__ = "29.0.0"
-
-Threat Feed Aggregator v1.2 - ENHANCED v29
-==============================================================
-Fetches and processes threat intelligence from 50+ sources.
-Handles rate limiting, error recovery, and incremental updates.
 
 v29 ENHANCEMENTS:
 - Added OTX AlienVault pulse parsing
@@ -23,6 +13,10 @@ v29 ENHANCEMENTS:
 - Enhanced EPSS correlation for prioritization
 - Added MITRE ATT&CK technique tagging
 """
+import logging
+_log = logging.getLogger(__name__)
+_log.info("Threat Feed Aggregator loaded (v29)")
+__version__ = "29.0.0"
 
 import os
 import re
@@ -1221,9 +1215,3 @@ def search_actor_by_indicator(indicator: str) -> List[Dict]:
     except Exception as e:
         logger.error(f"Search actor error: {e}")
         return []
-
-
-print("[ThreatFeedAggregator v1.2] Loaded - Enhanced with threat actor tracking")
-
-    else:
-        parser.print_help()

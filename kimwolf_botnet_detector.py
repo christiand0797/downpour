@@ -16,9 +16,6 @@ References:
   - Synthient / Krebs on Security (2026-01)
   - CISA IoT threat advisories
 """
-
-__version__ = "29.0.0"
-
 from __future__ import annotations
 import ipaddress
 import logging

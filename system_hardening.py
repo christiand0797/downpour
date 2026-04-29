@@ -1,32 +1,8 @@
 #!/usr/bin/env python3
 """
-=================================================================================
-SYSTEM HARDENING AUTOMATION MODULE
-=================================================================================
+SYSTEM HARDENING AUTOMATION MODULE v29
 """
-
 __version__ = "29.0.0"
-Created: January 2026 - Claude's Enhancement
-
-FEATURES:
-- Auto-configure Windows Defender to maximum settings
-- Enable all Windows security features
-- Harden UAC and firewall settings
-- Disable risky Windows features
-- Configure secure network settings
-- Apply privacy-preserving tweaks
-- Regular security policy enforcement
-
-USAGE:
-    python system_hardening.py --analyze     # Check current security state
-    python system_hardening.py --harden      # Apply all hardening (requires admin)
-    python system_hardening.py --schedule    # Auto-run weekly
-
-This module ensures your system is configured securely, closing common
-security gaps that hackers exploit.
-===============================================================================
-"""
-
 import os
 import sys
 import subprocess
@@ -636,16 +612,4 @@ if __name__ == "__main__":
     if args.report:
         hardener.save_report(args.report)
     else:
-        # Save with default name
         hardener.save_report()
-
-def check_hardening_kev():
-    """Query KEV catalog for system hardening related vulnerabilities."""
-    if not _KEV_AVAILABLE:
-        return {"error": "VulnerabilityScanner not available"}
-    try:
-        scanner = VulnerabilityScanner()
-        results = scanner.check_kev_catalog("system_hardening")
-        return results
-    except Exception as e:
-        return {"error": str(e)}

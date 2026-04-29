@@ -1,34 +1,13 @@
 #!/usr/bin/env python3
 """
-=================================================================================
-EMAIL SECURITY SCANNER MODULE
-=================================================================================
+EMAIL SECURITY SCANNER MODULE v29
 """
-
 __version__ = "29.0.0"
-Created: January 2026 - Claude's Enhancement
-
-FEATURES:
-- Phishing detection using multiple heuristics
-- Malicious attachment scanning
-- Suspicious link analysis
-- Email header analysis for spoofing
-- Integration with threat intelligence feeds
-- Real-time Outlook/Thunderbird monitoring
-
-USAGE:
-    python email_security.py --scan-outlook
-    python email_security.py --scan-file email.eml
-    python email_security.py --monitor
-
-This module protects you and your son from email-based threats, which are
-the #1 way hackers compromise home computers.
-===============================================================================
-"""
-
 import os
 import sys
 import re
+import logging
+logger = logging.getLogger(__name__)
 import email
 import hashlib
 import sqlite3
@@ -490,10 +469,7 @@ class EmailSecurityScanner:
             for part in email_message.walk():
                 content_type = part.get_content_type()
                 if content_type == "text/plain":
-import logging
-logger = logging.getLogger(__name__)
-
-try:
+                    try:
                         body += part.get_payload(decode=True).decode('utf-8', errors='ignore')
                     except Exception:
                         pass

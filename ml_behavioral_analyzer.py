@@ -1,44 +1,10 @@
 #!/usr/bin/env python3
 """
-================================================================================
-ADVANCED BEHAVIORAL ANALYSIS WITH MACHINE LEARNING
-================================================================================
+ADVANCED BEHAVIORAL ANALYSIS WITH MACHINE LEARNING v29
 """
-
 __version__ = "29.0.0"
-         to identify novel and zero-day threats that signature-based detection
-         might miss.
-
-MACHINE LEARNING MODELS:
-1. Isolation Forest - Anomaly detection in process behavior
-2. LSTM Network - Temporal pattern recognition for command sequences
-3. Random Forest - Classification of suspicious process behaviors
-4. Clustering - Grouping similar malicious behaviors
-
-FEATURES ANALYZED:
-- Process creation patterns
-- Network connection behavior
-- File system access patterns
-- API call sequences
-- Resource usage patterns
-- Registry modifications
-- DLL injection attempts
-- Privilege escalation attempts
-
-ADVANCED DETECTION CAPABILITIES:
-- Living off the Land (LOLBAS) detection
-- Fileless malware identification
-- Process hollowing detection
-- Memory injection detection
-- Scheduled task abuse
-- WMI persistence detection
-
-LEARNING CAPABILITIES:
-- Adapts to system-specific normal behavior
-- Reduces false positives over time
-- Identifies emerging attack patterns
-- Learns from user feedback on alerts
-"""
+import os
+import logging
 
 try:
     import numpy as np
@@ -609,7 +575,6 @@ def get_ml_detector(config=None) -> 'MLBehavioralDetector':
     return _ml_detector_instance
 
 if __name__ == "__main__":
-    """Test ML detector."""
     logging.basicConfig(
         level=logging.INFO,
         format='[%(asctime)s] [%(levelname)s] %(message)s'
@@ -653,14 +618,3 @@ if __name__ == "__main__":
     
     print("\nPress Enter to exit...")
     input()
-
-def check_ml_kev():
-    """Query KEV catalog for ML behavioral analyzer related vulnerabilities."""
-    if not _KEV_AVAILABLE:
-        return {"error": "VulnerabilityScanner not available"}
-    try:
-        scanner = VulnerabilityScanner()
-        results = scanner.check_kev_catalog("ml_behavioral")
-        return results
-    except Exception as e:
-        return {"error": str(e)}

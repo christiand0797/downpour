@@ -1,42 +1,11 @@
 #!/usr/bin/env python3
 """
-================================================================================
-PROCESS MONITORING MODULE
-================================================================================
+PROCESS MONITORING MODULE v29
 """
-
 __version__ = "29.0.0"
-         that indicate malware, especially hidden or disguised threats.
-
-WHAT IT MONITORS:
-- New processes starting
-- Hidden processes
-- Processes with suspicious names
-- Code injection attempts
-- Privilege escalation
-- Suspicious command line arguments
-- Parent-child process relationships
-
-HOW IT WORKS:
-- Continuously scans running process list
-- Checks each process against known patterns
-- Monitors process creation/termination
-- Tracks process relationships
-- Detects unusual system behavior
-
-THREAT DETECTION:
-- Hidden malware (no visible window)
-- Process injection (malware hiding inside legitimate programs)
-- Privilege escalation (malware gaining admin rights)
-- Suspicious parent processes (malware spawning other programs)
-- Misspelled system process names (malware disguising itself)
-
-================================================================================
-"""
-
+import os
 import logging
 logger = logging.getLogger(__name__)
-
 import threading
 import time
 try:
@@ -497,7 +466,6 @@ def get_monitor(config=None) -> 'ProcessMonitor':
     return _monitor_instance
 
 if __name__ == "__main__":
-    """Test process monitoring."""
     logging.basicConfig(
         level=logging.INFO,
         format='[%(asctime)s] [%(levelname)s] %(message)s'

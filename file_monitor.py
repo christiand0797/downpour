@@ -1,44 +1,14 @@
 #!/usr/bin/env python3
 """
-================================================================================
-FILE SYSTEM MONITORING MODULE
-================================================================================
+FILE SYSTEM MONITORING MODULE v29
 """
-
 __version__ = "29.0.0"
-         indicate malware, especially ransomware.
-
-v29: Added real-time file monitoring using Windows API (ReadDirectoryChangesW).
-
-WHAT IT MONITORS:
-- Documents, Desktop, Downloads, Pictures folders
-- Rapid file modifications (ransomware encrypting files)
-- Suspicious file creations
-- File extension changes
-- Hidden file creation
-- System file modifications
-
-HOW IT WORKS:
-- Uses Windows file system change notifications
-- Tracks file operations per minute
-- Alerts when activity exceeds normal patterns
-- Logs all file operations for review
-
-RANSOMWARE DETECTION:
-Ransomware typically encrypts many files very quickly.
-This module watches for:
-- 50+ files modified in one minute
-- File extensions changing to unusual types
-- Encrypted file signatures
-- Ransom note files appearing (README.txt, HELP.txt, etc.)
-
-================================================================================
-"""
-
+import os
 import logging
 import threading
 import time
-import os
+from datetime import datetime
+from collections import deque
 from pathlib import Path
 from datetime import datetime, timedelta
 from collections import defaultdict
@@ -320,14 +290,3 @@ if __name__ == "__main__":
     input()
     
     monitor.stop()
-
-def check_file_monitor_kev():
-    """Query KEV catalog for file monitor related vulnerabilities."""
-    if not _KEV_AVAILABLE:
-        return {"error": "VulnerabilityScanner not available"}
-    try:
-        scanner = VulnerabilityScanner()
-        results = scanner.check_kev_catalog("file_monitor")
-        return results
-    except Exception as e:
-        return {"error": str(e)}

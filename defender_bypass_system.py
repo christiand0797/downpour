@@ -8,7 +8,6 @@ commands that disabled real-time monitoring, SmartScreen, and other
 protections — those triggered MpTamperSrvDisableAV and have been
 permanently removed.
 """
-__version__ = "29.0.0"
 from __future__ import annotations
 import logging, os, subprocess, sys
 from pathlib import Path

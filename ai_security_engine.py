@@ -502,8 +502,8 @@ class AISecurityEngine:
             return "medium"
         else:
             return "low"
-    
-def predict_threat(self, system_state: dict) -> dict:
+
+    def predict_threat(self, system_state: dict) -> dict:
         """Predict potential threats based on system state"""
         if not SKLEARN_AVAILABLE:
             return {"prediction": "unknown", "confidence": 0.0}
@@ -512,17 +512,13 @@ def predict_threat(self, system_state: dict) -> dict:
             features = self._extract_system_features(system_state)
             if not features:
                 return {"prediction": "unknown", "confidence": 0.0}
-            
-            # v29: Use sklearn-based threat prediction with trained model
             prediction = self._rule_based_threat_prediction(features)
-            
             return prediction
-            
         except Exception as e:
             self.logger.error(f"Threat prediction failed: {e}")
             return {"prediction": "unknown", "confidence": 0.0}
-    
-def _extract_system_features(self, system_state: dict) -> dict:
+
+    def _extract_system_features(self, system_state: dict) -> dict:
         """Extract system-wide features"""
         if not NUMPY_AVAILABLE:
             return {}
