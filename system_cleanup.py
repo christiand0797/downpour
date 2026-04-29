@@ -21,6 +21,8 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+import logging
+logger = logging.getLogger(__name__)
 from datetime import datetime
 from pathlib import Path
 
