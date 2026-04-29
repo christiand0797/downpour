@@ -4,6 +4,9 @@ Enhanced Memory Manager for Downpour v29 Titanium
 Real adaptive GC, tracemalloc leak detection, process memory tracking,
 predictive cleanup, and quantum-optimized allocation strategies.
 """
+
+__version__ = "29.0.0"
+
 import gc, logging, os, threading, time, tracemalloc, weakref
 from collections import deque
 from dataclasses import dataclass, field

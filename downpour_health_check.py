@@ -40,7 +40,7 @@ def section(title):
 # ── 1. Syntax checks ──────────────────────────────────────────────────────────
 section("1 · Syntax Validation")
 CORE_FILES = [
-    "downpour_v28_titanium.py",
+    "downpour_v29_titanium.py",
     "revolutionary_enhancements.py",
     "enhanced_memory_manager.py",
     "security_hardening.py",
@@ -93,7 +93,7 @@ for fname, symbols in REQUIRED_SYMBOLS.items():
 
 # ── 3. Bug-fix verification ───────────────────────────────────────────────────
 section("3 · Bug-fix Verification")
-main_src = (BASE / "downpour_v28_titanium.py").read_text(encoding="utf-8", errors="replace")
+main_src = (BASE / "downpour_v29_titanium.py").read_text(encoding="utf-8", errors="replace")
 
 check("lambda capture fix (t=task)",
       "lambda t=task: t" in main_src and "lambda x=x: x, task" not in main_src)
@@ -185,7 +185,7 @@ for pkg, required in PACKAGES:
 # ── 5. File existence ─────────────────────────────────────────────────────────
 section("5 · File Existence")
 REQUIRED_FILES = [
-    "downpour_v28_titanium.py",
+    "downpour_v29_titanium.py",
     "revolutionary_enhancements.py",
     "enhanced_memory_manager.py",
     "security_hardening.py",

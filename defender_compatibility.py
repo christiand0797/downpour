@@ -34,7 +34,7 @@ class DefenderCompatibility:
         
         # Generate hashes for key files
         key_files = [
-            'downpour_v28_titanium.py',
+            'downpour_v29_titanium.py',
             'enhanced_memory_manager.py',
             'security_hardening.py',
             'enhanced_logging.py'
@@ -66,7 +66,7 @@ class DefenderCompatibility:
             'process_exclusions': [
                 'python.exe',
                 'pythonw.exe',
-                'downpour_v28_titanium.py'
+'downpour_v29_titanium.py'
             ],
             'file_extension_exclusions': [
                 '.py',
@@ -412,6 +412,6 @@ class ExtendedDefenderCompatibility:
         }
 
 
-# Module-level singleton used by downpour_v28_titanium.py
+# Module-level singleton used by downpour_v29_titanium.py
 # NOTE: start_monitoring() is deferred — call it explicitly when ready
 sophisticated_compatibility = ExtendedDefenderCompatibility(CompatibilityMode.STANDARD)

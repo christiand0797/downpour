@@ -1,4 +1,7 @@
 """Syntax check all active .py files in the Downpour project."""
+
+__version__ = "29.0.0"
+
 import py_compile, os, sys
 from pathlib import Path
 

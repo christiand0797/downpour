@@ -4,6 +4,9 @@ Enhanced Logging System for Downpour v29 Titanium
 Structured JSON logging, rotating file handlers, async queue,
 real-time alerting, performance profiling, and session analytics.
 """
+
+__version__ = "29.0.0"
+
 import asyncio, hashlib, json, logging, logging.handlers, os
 import queue, sys, threading, time, traceback
 from collections import Counter, deque

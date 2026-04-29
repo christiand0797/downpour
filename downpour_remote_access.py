@@ -104,7 +104,7 @@ class RemoteAccessDetector:
     """
 
     def __init__(self, db_path: Optional[Path] = None):
-        self.db_path = db_path or (Path(__file__).parent / "downpour_v28_data" / "threats.db")
+        self.db_path = db_path or (Path(__file__).parent / "downpour_v29_data" / "threats.db")
         self._lock  = threading.Lock()
         self._connection_history: Dict[str, List[float]] = {}  # ip -> [timestamps]
         self._blocked_ips: Set[str] = set()

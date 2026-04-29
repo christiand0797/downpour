@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Centralized runtime configuration for Downpour v29 Titanium."""
 
+__version__ = "29.0.0"
+
 CONFIG = {
   "AI": {
     "LEARNING_CYCLE_SECONDS": 300
