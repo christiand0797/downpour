@@ -37,6 +37,8 @@ import re
 from urllib.parse import urlparse
 import ctypes
 from typing import Dict, List, Optional, Tuple
+import logging
+logger = logging.getLogger(__name__)
 
 # Try importing required modules
 try:
@@ -144,19 +146,19 @@ class ParentalControls:
                     loaded_config = json.load(f)
                     # Merge with defaults
                     self.config.update(loaded_config)
-                print(f"[+] Loaded parental controls config from {self.config_path}")
+                logger.info(f"Loaded parental controls config from {self.config_path}")
             except Exception as e:
-                print(f"[!]  Error loading config: {e}")
-                print("Using default configuration")
+                logger.warning(f"[!]  Error loading config: {e}")
+                logger.warning("Using default configuration")
     
     def save_config(self):
         """Save configuration to JSON file"""
         try:
             with open(self.config_path, 'w') as f:
                 json.dump(self.config, f, indent=4)
-            print(f"[+] Saved parental controls config to {self.config_path}")
+            logger.info(f"Saved parental controls config to {self.config_path}")
         except Exception as e:
-            print(f"[!] Error saving config: {e}")
+            logger.warning(f"[!] Error saving config: {e}")
     
     def init_database(self):
         """Initialize SQLite database for activity logging"""
@@ -218,7 +220,7 @@ class ParentalControls:
             conn.commit()
         finally:
             conn.close()
-        print("[+] Parental controls database initialized")
+        logger.info("[+] Parental controls database initialized")
     
     def setup_web_filtering(self):
         """
@@ -226,15 +228,15 @@ class ParentalControls:
         Blocks inappropriate websites at DNS level.
         """
         if not self.config["web_filtering"]["enabled"]:
-            print("[i]  Web filtering is disabled in config")
+            logger.info("[i]  Web filtering is disabled in config")
             return
         
-        print("\n[*] Setting up web filtering...")
+        logger.info("[*] Setting up web filtering...")
         
         # Check if we have admin rights (required to modify hosts file)
         if not self.is_admin():
-            print("[!] Administrator rights required to modify hosts file!")
-            print("   Right-click and 'Run as Administrator'")
+            logger.warning("[!] Administrator rights required to modify hosts file!")
+            logger.warning("   Right-click and 'Run as Administrator'")
             return False
         
         # Backup original hosts file
@@ -242,9 +244,9 @@ class ParentalControls:
             if not os.path.exists(self.backup_hosts):
                 import shutil
                 shutil.copy2(self.hosts_file, self.backup_hosts)
-                print(f"[+] Backed up hosts file to {self.backup_hosts}")
+                logger.info(f"[+] Backed up hosts file to {self.backup_hosts}")
         except Exception as e:
-            print(f"[!]  Warning: Could not backup hosts file: {e}")
+            logger.warning(f"Warning: Could not backup hosts file: {e}")
         
         # Build list of all domains to block
         domains_to_block = set()
@@ -262,7 +264,7 @@ class ParentalControls:
             with open(self.hosts_file, 'r') as f:
                 hosts_content = f.read()
         except Exception as e:
-            print(f"[!] Error reading hosts file: {e}")
+            logger.warning(f"[!] Error reading hosts file: {e}")
             return False
         
         # Add our blocking entries
@@ -295,14 +297,14 @@ class ParentalControls:
                 f.write('\n')
                 f.writelines(blocking_entries)
             
-            print(f"[+] Web filtering enabled - {len(domains_to_block)} domains blocked")
+            logger.info(f"[+] Web filtering enabled - {len(domains_to_block)} domains blocked")
             
             # Flush DNS cache
             self.flush_dns_cache()
             return True
             
         except Exception as e:
-            print(f"[!] Error writing hosts file: {e}")
+            logger.warning(f"Error writing hosts file: {e}")
             return False
     
     def flush_dns_cache(self):
@@ -310,9 +312,9 @@ class ParentalControls:
         try:
             subprocess.run(['ipconfig', '/flushdns'], 
                          capture_output=True, check=True)
-            print("[+] DNS cache flushed - blocks active immediately")
+            logger.info("[+] DNS cache flushed - blocks active immediately")
         except Exception as e:
-            print(f"[!]  Could not flush DNS cache: {e}")
+            logger.warning(f"[!]  Could not flush DNS cache: {e}")
     
     def monitor_applications(self):
         """
@@ -351,8 +353,8 @@ class ParentalControls:
                     block_reason = f"App '{proc_name}' is not on the allowed list"
                 
                 if should_block:
-                    print(f"[!] Blocking app: {proc_name} (PID: {proc_info['pid']})")
-                    print(f"   Reason: {block_reason}")
+                    logger.warning(f"[!] Blocking app: {proc_name} (PID: {proc_info['pid']})")
+                    logger.warning(f"   Reason: {block_reason}")
                     
                     # Terminate the process
                     proc.terminate()
@@ -495,10 +497,10 @@ class ParentalControls:
             conn.close()
         
         # Also print to console for real-time monitoring
-        print(f"\n[!] [{severity}] PARENTAL ALERT: {alert_type}")
-        print(f"   User: {username}")
+        logger.warning(f"\n[!] [{severity}] PARENTAL ALERT: {alert_type}")
+        logger.info(f"   User: {username}")
         print(f"   {description}")
-        print(f"   Action: {action_taken}\n")
+        logger.info(f"   Action: {action_taken}")
     
     def show_educational_message(self, title: str, message: str):
         """
@@ -514,7 +516,7 @@ class ParentalControls:
                 0x40 | 0x0  # MB_ICONINFORMATION | MB_OK
             )
         except Exception as e:
-            print(f"Could not show message box: {e}")
+            logger.warning("Could not show message box: {e}")
     
     def is_admin(self) -> bool:
         """Check if running with administrator privileges"""
@@ -608,9 +610,9 @@ class ParentalControls:
         Continuously monitors applications, screen time, etc.
         """
         print("\n" + "=" * 80)
-        print("[!] PARENTAL CONTROLS - MONITORING ACTIVE")
+        logger.info("[!] PARENTAL CONTROLS - MONITORING ACTIVE")
         print("=" * 80)
-        print(f"Child User: {self.config.get('child_username', 'NOT SET')}")
+        logger.info(f"Child User: {self.config.get('child_username', 'NOT SET')}")
         print(f"Web Filtering: {'ENABLED' if self.config['web_filtering']['enabled'] else 'DISABLED'}")
         print(f"App Restrictions: {'ENABLED' if self.config['app_restrictions']['enabled'] else 'DISABLED'}")
         print(f"Screen Time Limits: {'ENABLED' if self.config['screen_time']['enabled'] else 'DISABLED'}")
