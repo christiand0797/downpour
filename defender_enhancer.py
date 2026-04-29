@@ -2,7 +2,6 @@
 ================================================================================
 WINDOWS DEFENDER ENHANCEMENT MODULE
 ================================================================================
-"""
 
 __version__ = "29.0.0"
 
@@ -11,7 +10,6 @@ try:
     _KEV_AVAILABLE = True
 except ImportError:
     _KEV_AVAILABLE = False
-         protection features and keeping them enabled.
 
 WHAT IT DOES:
 - Enables real-time protection (if disabled)

@@ -1,7 +1,6 @@
 """
 __version__ = "29.0.0"
 File Scanner - v29
-__version__ = "29.0.0"
 
 ================================================================================
 FILE & FOLDER SCANNER - On-Demand Security Analysis
