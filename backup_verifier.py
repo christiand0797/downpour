@@ -36,6 +36,8 @@ from typing import Dict, List, Tuple, Optional
 import zipfile
 __version__ = "29.0.0"
 
+logger = logging.getLogger(__name__)
+
 # KEV (Known Exploited Vulnerabilities) integration
 try:
     from kev_checker import KEVChecker, get_kev_catalog
@@ -46,7 +48,7 @@ except ImportError:
         KEV_AVAILABLE = True
     except ImportError:
         KEV_AVAILABLE = False
-        logging.getLogger(__name__).warning("KEV integration not available")
+        logger.warning("KEV integration not available")
 
 
 class BackupIntegrityVerifier:
@@ -85,18 +87,18 @@ class BackupIntegrityVerifier:
                 with open(self.config_path, 'r') as f:
                     loaded_config = json.load(f)
                     self.config.update(loaded_config)
-                logging.info(f"[OK] Loaded backup config from {self.config_path}")
+                logger.info(f"[OK] Loaded backup config from {self.config_path}")
             except Exception as e:
-                logging.warning(f"[WARNING] Error loading config: {e}")
+                logger.warning(f"[WARNING] Error loading config: {e}")
     
     def save_config(self):
         """Save configuration to JSON file"""
         try:
             with open(self.config_path, 'w') as f:
                 json.dump(self.config, f, indent=4)
-            logging.info(f"[OK] Saved backup config")
+            logger.info(f"[OK] Saved backup config")
         except Exception as e:
-            logging.error(f"[ERROR] Error saving config: {e}")
+            logger.error(f"[ERROR] Error saving config: {e}")
     
     def init_database(self):
         """Initialize SQLite database for tracking backups"""
@@ -145,16 +147,16 @@ class BackupIntegrityVerifier:
             conn.commit()
         finally:
             conn.close()
-        logging.info("[OK] Backup integrity database initialized")
+        logger.info("[OK] Backup integrity database initialized")
     
     def check_all_backups(self) -> Dict:
         """
         Comprehensive check of all backup locations.
         """
-        logging.info("\n" + "=" * 80)
-        logging.info("CHECKING ALL BACKUP LOCATIONS")
-        logging.info("=" * 80)
-        logging.info("")
+        logger.info("\n" + "=" * 80)
+        logger.info("CHECKING ALL BACKUP LOCATIONS")
+        logger.info("=" * 80)
+        logger.info("")
         
         results = {
             "timestamp": datetime.now().isoformat(),
@@ -171,11 +173,11 @@ class BackupIntegrityVerifier:
             path = location["path"]
             loc_type = location["type"]
             
-            logging.info(f"Checking {loc_type} backup: {path}")
+            logger.info(f"Checking {loc_type} backup: {path}")
             
             if not os.path.exists(path):
                 warning = f"Backup location does not exist: {path}"
-                logging.warning(warning)
+                logger.warning(warning)
                 results["critical_issues"].append(warning)
                 continue
             
@@ -186,7 +188,7 @@ class BackupIntegrityVerifier:
             if not age_check["is_fresh"]:
                 results["old_backups"] += 1
                 results["warnings"].append(age_check["message"])
-                logging.warning(age_check["message"])
+                logger.warning(age_check["message"])
             
             # Check backup integrity
             integrity = self.verify_backup_integrity(path)
@@ -197,35 +199,35 @@ class BackupIntegrityVerifier:
             if integrity["corrupted_files"] > 0:
                 issue = f"Found {integrity['corrupted_files']} corrupted files in {path}"
                 results["critical_issues"].append(issue)
-                logging.error(issue)
+                logger.error(issue)
             else:
-                logging.info(f"All {integrity['total_files']} backup files are valid")
+                logger.info(f"All {integrity['total_files']} backup files are valid")
         
         # Overall assessment
-        logging.info("\n" + "=" * 80)
-        logging.info("BACKUP HEALTH SUMMARY")
-        logging.info("=" * 80)
-        logging.info(f"Locations Checked: {results['locations_checked']}")
-        logging.info(f"Total Backup Files: {results['total_backups']}")
-        logging.info(f"Valid Backups: {results['valid_backups']}")
-        logging.info(f"Corrupted Backups: {results['corrupted_backups']}")
-        logging.info(f"Old Backups: {results['old_backups']}")
+        logger.info("\n" + "=" * 80)
+        logger.info("BACKUP HEALTH SUMMARY")
+        logger.info("=" * 80)
+        logger.info(f"Locations Checked: {results['locations_checked']}")
+        logger.info(f"Total Backup Files: {results['total_backups']}")
+        logger.info(f"Valid Backups: {results['valid_backups']}")
+        logger.info(f"Corrupted Backups: {results['corrupted_backups']}")
+        logger.info(f"Old Backups: {results['old_backups']}")
         
         if results["critical_issues"]:
-            logging.error("\nCRITICAL ISSUES:")
+            logger.error("\nCRITICAL ISSUES:")
             for issue in results["critical_issues"]:
-                logging.error(f"   - {issue}")
+                logger.error(f"   - {issue}")
         
         if results["warnings"]:
-            logging.warning("\nWARNINGS:")
+            logger.warning("\nWARNINGS:")
             for warning in results["warnings"]:
-                logging.warning(f"   - {warning}")
+                logger.warning(f"   - {warning}")
         
         if not results["critical_issues"] and not results["warnings"]:
-            logging.info("\n[OK] All backups are healthy!")
+            logger.info("\n[OK] All backups are healthy!")
         
-        logging.info("=" * 80)
-        logging.info("")
+        logger.info("=" * 80)
+        logger.info("")
         
         return results
     
@@ -307,8 +309,8 @@ class BackupIntegrityVerifier:
             )
         
         except Exception as e:
-            print(f"Error verifying backup integrity: {e}")
-        
+            logger.error(f"Error verifying backup integrity: {e}")
+
         return result
     
     def verify_file(self, file_path: str) -> bool:
@@ -337,10 +339,10 @@ class BackupIntegrityVerifier:
         Test that we can actually restore from backups.
         Creates a test file, backs it up, deletes it, then restores it.
         """
-        print("\n" + "=" * 80)
-        print("[TEST] TESTING BACKUP RESTORE CAPABILITY")
-        print("=" * 80)
-        print("")
+        logger.info("\n" + "=" * 80)
+        logger.info("[TEST] TESTING BACKUP RESTORE CAPABILITY")
+        logger.info("=" * 80)
+        logger.info("")
         
         if backup_location is None:
             # Use first backup location
@@ -365,30 +367,30 @@ class BackupIntegrityVerifier:
             test_content = f"Backup restore test - {datetime.now().isoformat()}"
             test_hash = hashlib.sha256(test_content.encode()).hexdigest()
             
-            print(f"1. Creating test file: {test_file}")
+            logger.info(f"1. Creating test file: {test_file}")
             with open(test_file, 'w') as f:
                 f.write(test_content)
-            
+
             # Simulate backup (copy to backup location)
             backup_file = os.path.join(test_dir, "test_file_backup.txt")
-            print(f"2. Backing up test file to: {backup_file}")
+            logger.info(f"2. Backing up test file to: {backup_file}")
             shutil.copy2(test_file, backup_file)
-            
+
             # Delete original
-            print(f"3. Deleting original file")
+            logger.info(f"3. Deleting original file")
             os.remove(test_file)
             
             # Verify it's gone
             if os.path.exists(test_file):
                 raise Exception("Original file still exists after deletion")
-            print(f"   [OK] Original deleted successfully")
-            
+            logger.info(f"   [OK] Original deleted successfully")
+
             # Restore from backup
-            print(f"4. Restoring from backup")
+            logger.info(f"4. Restoring from backup")
             shutil.copy2(backup_file, test_file)
-            
+
             # Verify restored file
-            print(f"5. Verifying restored file")
+            logger.info(f"5. Verifying restored file")
             with open(test_file, 'r') as f:
                 restored_content = f.read()
             
@@ -397,14 +399,14 @@ class BackupIntegrityVerifier:
             if restored_hash == test_hash:
                 result["success"] = True
                 result["message"] = "Backup restore test PASSED - backups are working!"
-                print(f"   [OK] Content matches original (hash verified)")
+                logger.info(f"   [OK] Content matches original (hash verified)")
             else:
                 result["success"] = False
                 result["message"] = "Backup restore test FAILED - restored file is corrupted"
-                print(f"   [ERROR] Content does NOT match original")
-            
+                logger.error(f"   [ERROR] Content does NOT match original")
+
             # Cleanup
-            print(f"6. Cleaning up test files")
+            logger.info(f"6. Cleaning up test files")
             try:
                 shutil.rmtree(test_dir)
             except Exception:
@@ -413,7 +415,7 @@ class BackupIntegrityVerifier:
         except Exception as e:
             result["success"] = False
             result["message"] = f"Backup restore test FAILED: {str(e)}"
-            print(f"   [ERROR] Error: {e}")
+            logger.error(f"   [ERROR] Error: {e}")
         
         result["duration"] = (datetime.now() - start_time).total_seconds()
         result["test_file"] = test_file
@@ -427,14 +429,14 @@ class BackupIntegrityVerifier:
             result["duration"]
         )
         
-        print("\n" + "=" * 80)
+        logger.info("\n" + "=" * 80)
         if result["success"]:
-            print("[OK] RESTORE TEST: PASSED")
+            logger.info("[OK] RESTORE TEST: PASSED")
         else:
-            print("[ERROR] RESTORE TEST: FAILED")
-        print(f"Message: {result['message']}")
-        print("=" * 80)
-        print("")
+            logger.error("[ERROR] RESTORE TEST: FAILED")
+        logger.info(f"Message: {result['message']}")
+        logger.info("=" * 80)
+        logger.info("")
         
         return result
     
@@ -442,44 +444,44 @@ class BackupIntegrityVerifier:
         """
         Continuous monitoring mode - checks backup health periodically.
         """
-        print("\n" + "=" * 80)
-        print("[STATS] BACKUP HEALTH MONITORING")
-        print("=" * 80)
-        print("\nMonitoring backup locations... Press Ctrl+C to stop\n")
+        logger.info("\n" + "=" * 80)
+        logger.info("[STATS] BACKUP HEALTH MONITORING")
+        logger.info("=" * 80)
+        logger.info("\nMonitoring backup locations... Press Ctrl+C to stop\n")
         
         try:
             while True:
-                print(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Running backup health check...")
-                
+                logger.info(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Running backup health check...")
+
                 results = self.check_all_backups()
-                
+
                 # Alert on critical issues
                 if results["critical_issues"]:
-                    print("\n🚨 CRITICAL BACKUP ISSUES DETECTED!")
-                    print("   Immediate action required:")
+                    logger.error("\n🚨 CRITICAL BACKUP ISSUES DETECTED!")
+                    logger.error("   Immediate action required:")
                     for issue in results["critical_issues"]:
-                        print(f"   • {issue}")
+                        logger.error(f"   • {issue}")
                 
                 # Check if restore test is due
                 last_test = self.get_last_restore_test_date()
                 if last_test:
                     days_since = (datetime.now() - last_test).days
                     test_freq = self.config["test_restore_frequency_days"]
-                    
+
                     if days_since >= test_freq:
-                        print(f"\n⏰ Restore test is due (last test: {days_since} days ago)")
-                        print("   Running automated restore test...")
+                        logger.warning(f"\n⏰ Restore test is due (last test: {days_since} days ago)")
+                        logger.info("   Running automated restore test...")
                         self.test_restore()
                 
-                print(f"\nNext check in {self.config['integrity_check_frequency_days']} days...")
-                print("Press Ctrl+C to stop monitoring")
+                logger.info(f"\nNext check in {self.config['integrity_check_frequency_days']} days...")
+                logger.info("Press Ctrl+C to stop monitoring")
                 
                 # Sleep until next check
                 import time
                 time.sleep(self.config["integrity_check_frequency_days"] * 24 * 60 * 60)
         
         except KeyboardInterrupt:
-            print("\n\n🛑 Backup monitoring stopped")
+            logger.info("\n\n🛑 Backup monitoring stopped")
     
     def log_integrity_check(self, backup_location: str, total: int, 
                            valid: int, corrupted: int, duration: float):
