@@ -38642,7 +38642,7 @@ Verification Status:
         def _scan():
             if not _REMOTE_ACCESS_MODULE_AVAILABLE:
                 messagebox.showerror('Module Missing',
-                    'downpour_remote_access.py not found.\n'Place it in the same folder as downpour_v29_titanium.py')
+                    'downpour_remote_access.py not found. Place it in the same folder as downpour_v29_titanium.py')
                 return
             self._remote_status_lbl.config(text='\U0001f504 Scanning...', fg=Colors.GAUGE_YELLOW)
             # FIX: removed p.update_idletasks() — calling update_idletasks() from a
