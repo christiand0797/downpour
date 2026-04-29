@@ -6,6 +6,9 @@ EMERGENCY RESPONSE SYSTEM
 """
 
 __version__ = "29.0.0"
+
+import logging
+logger = logging.getLogger(__name__)
 Created: January 2026 - Claude's Enhancement
 
 FEATURES:
@@ -110,12 +113,12 @@ class EmergencyResponse:
         
         This is the "OH NO!" button when you realize you're being hacked RIGHT NOW.
         """
-        print("\n" + "=" * 80)
-        print("🚨 EMERGENCY PANIC BUTTON ACTIVATED 🚨")
-        print("=" * 80)
-        print("")
-        print("Executing emergency lockdown procedures...")
-        print("")
+        logger.info("=" * 80)
+        logger.info("[!] EMERGENCY PANIC BUTTON ACTIVATED [!]")
+        logger.info("=" * 80)
+        logger.info("")
+        logger.info("Executing emergency lockdown procedures...")
+        logger.info("")
         
         timestamp = datetime.now().isoformat()
         response_id = hashlib.md5(timestamp.encode()).hexdigest()[:8]
@@ -124,79 +127,79 @@ class EmergencyResponse:
         steps_failed = []
         
         # Step 1: Isolate network
-        print("STEP 1: Isolating system from network...")
+        logger.info("STEP 1: Isolating system from network...")
         if self.isolate_network():
-            print("  ✅ Network isolated successfully")
+            logger.info("  [OK] Network isolated successfully")
             steps_completed.append("Network isolation")
         else:
-            print("  ❌ Network isolation failed")
+            logger.warning("  [FAIL] Network isolation failed")
             steps_failed.append("Network isolation")
         
         # Step 2: Take system snapshot
-        print("\nSTEP 2: Taking system snapshot for forensics...")
+        logger.info("STEP 2: Taking system snapshot for forensics...")
         snapshot_path = self.take_system_snapshot(response_id)
         if snapshot_path:
-            print(f"  ✅ Snapshot saved: {snapshot_path}")
+            logger.info(f"  [OK] Snapshot saved: {snapshot_path}")
             steps_completed.append("System snapshot")
         else:
-            print("  ❌ Snapshot failed")
+            logger.warning("  [FAIL] Snapshot failed")
             steps_failed.append("System snapshot")
         
         # Step 3: Kill suspicious processes
-        print("\nSTEP 3: Terminating suspicious processes...")
+        logger.info("STEP 3: Terminating suspicious processes...")
         killed = self.kill_suspicious_processes()
-        print(f"  ✅ Terminated {len(killed)} suspicious processes")
+            logger.info(f"  [OK] Terminated {len(killed)} suspicious processes")
         steps_completed.append(f"Killed {len(killed)} processes")
         
         # Step 4: Emergency backup of critical files
-        print("\nSTEP 4: Emergency backup of critical files...")
+        logger.info("STEP 4: Emergency backup of critical files...")
         backup_path = self.emergency_backup(response_id)
         if backup_path:
-            print(f"  ✅ Emergency backup created: {backup_path}")
+            logger.info(f"  [OK] Emergency backup created: {backup_path}")
             steps_completed.append("Emergency backup")
         else:
-            print("  ⚠️  Emergency backup failed (non-critical)")
+            logger.warning("  [!]  Emergency backup failed (non-critical)")
             steps_failed.append("Emergency backup")
         
         # Step 5: Lock workstation
-        print("\nSTEP 5: Locking workstation...")
+        logger.info("\nSTEP 5: Locking workstation...")
         if self.lock_workstation():
-            print("  ✅ Workstation locked")
+            logger.info("  [OK] Workstation locked")
             steps_completed.append("Workstation lock")
         else:
-            print("  ⚠️  Could not lock workstation")
+            logger.warning("  [!]  Could not lock workstation")
             steps_failed.append("Workstation lock")
         
         # Step 6: Log the emergency response
-        print("\nSTEP 6: Logging emergency response...")
+        logger.info("STEP 6: Logging emergency response...")
         self.log_emergency_response(response_id, steps_completed, steps_failed)
-        print("  ✅ Response logged")
+        logger.info("  [OK] Response logged")
         
         # Final report
-        print("\n" + "=" * 80)
-        print("🛡️  EMERGENCY LOCKDOWN COMPLETE")
-        print("=" * 80)
-        print(f"\nResponse ID: {response_id}")
-        print(f"Timestamp: {timestamp}")
-        print(f"\nSteps Completed: {len(steps_completed)}")
+        logger.info("=" * 80)
+        logger.info("[SHIELD]  EMERGENCY LOCKDOWN COMPLETE")
+        logger.info("=" * 80)
+        logger.info(f"\nResponse ID: {response_id}")
+        logger.info(f"Timestamp: {timestamp}")
+        logger.info(f"\nSteps Completed: {len(steps_completed)}")
         for step in steps_completed:
-            print(f"  ✅ {step}")
+            logger.info(f"  [OK] {step}")
         
         if steps_failed:
-            print(f"\nSteps Failed: {len(steps_failed)}")
+            logger.warning(f"\nSteps Failed: {len(steps_failed)}")
             for step in steps_failed:
-                print(f"  ❌ {step}")
+                logger.warning(f"  [FAIL] {step}")
         
-        print("\n" + "=" * 80)
-        print("NEXT STEPS:")
-        print("  1. Your computer is now isolated and locked")
-        print("  2. Do NOT unlock until you're sure the threat is gone")
-        print("  3. Run a full system scan with Windows Defender")
-        print("  4. Review the emergency snapshot for forensic evidence")
-        print(f"  5. Check emergency logs in: {self.response_log_path}")
-        print("  6. Consider professional help if threat persists")
-        print("=" * 80)
-        print("")
+        logger.info("=" * 80)
+        logger.info("NEXT STEPS:")
+        logger.info("  1. Your computer is now isolated and locked")
+        logger.info("  2. Do NOT unlock until you're sure the threat is gone")
+        logger.info("  3. Run a full system scan with Windows Defender")
+        logger.info("  4. Review the emergency snapshot for forensic evidence")
+        logger.info(f"  5. Check emergency logs in: {self.response_log_path}")
+        logger.info("  6. Consider professional help if threat persists")
+        logger.info("=" * 80)
+        logger.info("")
         
         return {
             "response_id": response_id,
@@ -210,7 +213,7 @@ class EmergencyResponse:
         Immediately disconnect from all networks.
         Disables WiFi and Ethernet adapters.
         """
-        print("  Disabling network adapters...")
+        logger.info("  Disabling network adapters...")
         
         try:
             # Disable all network adapters
@@ -225,15 +228,15 @@ class EmergencyResponse:
                 # Try to connect to Google DNS (8.8.8.8)
                 socket.create_connection(("8.8.8.8", 53), timeout=2)
                 # If we get here, network is still up
-                print("  ⚠️  Network still appears to be active")
+                logger.warning("  [!]  Network still appears to be active")
                 return False
             except Exception:
                 # Connection failed = network is down = success
-                print("  ✅ Network successfully isolated")
+                logger.info("  [OK] Network successfully isolated")
                 return True
         
         except Exception as e:
-            print(f"  ❌ Error isolating network: {e}")
+            logger.warning(f"  [FAIL] Error isolating network: {e}")
             return False
     
     def take_system_snapshot(self, response_id: str) -> str:
@@ -252,7 +255,7 @@ class EmergencyResponse:
         
         try:
             # Capture all running processes
-            print("  Capturing running processes...")
+            logger.info("  Capturing running processes...")
             for proc in psutil.process_iter(['pid', 'name', 'exe', 'cmdline', 'username', 'create_time']):
                 try:
                     snapshot["processes"].append({
@@ -267,7 +270,7 @@ class EmergencyResponse:
                     pass
             
             # Capture network connections
-            print("  Capturing network connections...")
+            logger.info("  Capturing network connections...")
             for conn in psutil.net_connections():
                 try:
                     snapshot["network_connections"].append({
@@ -288,13 +291,13 @@ class EmergencyResponse:
             with open(snapshot_file, 'w') as f:
                 json.dump(snapshot, f, indent=4)
             
-            print(f"  ✅ Captured {len(snapshot['processes'])} processes, "
-                  f"{len(snapshot['network_connections'])} connections")
+            logger.info(f"  [OK] Captured {len(snapshot['processes'])} processes, "
+                   f"{len(snapshot['network_connections'])} connections")
             
             return snapshot_file
         
         except Exception as e:
-            print(f"  ❌ Error taking snapshot: {e}")
+            logger.warning(f"  [FAIL] Error taking snapshot: {e}")
             return ""
     
     def kill_suspicious_processes(self) -> List[Dict]:
@@ -318,7 +321,7 @@ class EmergencyResponse:
             "no_description": True  # Processes without file description
         }
         
-        print("  Scanning for suspicious processes...")
+        logger.info("  Scanning for suspicious processes...")
         
         for proc in psutil.process_iter(['pid', 'name', 'exe']):
             try:
@@ -340,7 +343,7 @@ class EmergencyResponse:
                 
                 # If suspicious, terminate
                 if is_suspicious:
-                    print(f"  🚫 Terminating: PID {proc_info['pid']} - {reason}")
+                    logger.info(f"  [BLOCK] Terminating: PID {proc_info['pid']} - {reason}")
                     proc.kill()
                     killed_processes.append({
                         "pid": proc_info['pid'],
@@ -358,7 +361,7 @@ class EmergencyResponse:
         """
         Create emergency backup of critical files.
         """
-        print("  Identifying critical files...")
+        logger.info("  Identifying critical files...")
         
         backup_dir = os.path.join(self.snapshot_dir, f"emergency_backup_{response_id}")
         os.makedirs(backup_dir, exist_ok=True)
@@ -407,11 +410,11 @@ class EmergencyResponse:
                     except Exception:
                         pass
             
-            print(f"  ✅ Backed up {backed_up_count} critical files")
+            logger.info(f"  [OK] Backed up {backed_up_count} critical files")
             return backup_dir
         
         except Exception as e:
-            print(f"  ❌ Error during emergency backup: {e}")
+            logger.warning(f"  [FAIL] Error during emergency backup: {e}")
             return ""
     
     def lock_workstation(self) -> bool:
@@ -421,7 +424,7 @@ class EmergencyResponse:
             subprocess.run(['rundll32.exe', 'user32.dll,LockWorkStation'], check=True)
             return True
         except Exception as e:
-            print(f"  Error locking workstation: {e}")
+            logger.warning(f"  [FAIL] Error locking workstation: {e}")
             return False
     
     def log_emergency_response(self, response_id: str, 
@@ -456,19 +459,19 @@ class EmergencyResponse:
         """
         Enter recovery mode - provides options to restore normal operation.
         """
-        print("\n" + "=" * 80)
-        print("🔧 EMERGENCY RECOVERY MODE")
-        print("=" * 80)
-        print("\nThis mode helps you recover from emergency lockdown.\n")
+        logger.info("=" * 80)
+        logger.info("[RECOVERY] EMERGENCY RECOVERY MODE")
+        logger.info("=" * 80)
+        logger.info("\nThis mode helps you recover from emergency lockdown.\n")
         
         while True:
-            print("\nRecovery Options:")
-            print("  1. Re-enable network connections")
-            print("  2. Review emergency snapshots")
-            print("  3. Restore from emergency backup")
-            print("  4. View emergency response log")
-            print("  5. Run system scan (Windows Defender)")
-            print("  6. Exit recovery mode")
+            logger.info("\nRecovery Options:")
+            logger.info("  1. Re-enable network connections")
+            logger.info("  2. Review emergency snapshots")
+            logger.info("  3. Restore from emergency backup")
+            logger.info("  4. View emergency response log")
+            logger.info("  5. Run system scan (Windows Defender)")
+            logger.info("  6. Exit recovery mode")
             
             choice = input("\nSelect option (1-6): ").strip()
             
@@ -483,18 +486,18 @@ class EmergencyResponse:
             elif choice == '5':
                 self.run_system_scan()
             elif choice == '6':
-                print("\nExiting recovery mode...")
+                logger.info("\nExiting recovery mode...")
                 break
             else:
-                print("Invalid option. Please try again.")
+                logger.warning("Invalid option. Please try again.")
     
     def restore_network(self):
         """Re-enable network adapters"""
-        print("\n🌐 Restoring network connections...")
+        logger.info("\n[GLOBE] Restoring network connections...")
         
         confirm = input("Are you SURE the threat is gone? (yes/no): ").strip().lower()
         if confirm != 'yes':
-            print("Network restoration cancelled.")
+            logger.info("Network restoration cancelled.")
             return
         
         try:
@@ -503,22 +506,22 @@ class EmergencyResponse:
                  'Get-NetAdapter | Where-Object {$_.Status -eq "Disabled"} | Enable-NetAdapter -Confirm:$false'],
                 check=True
             )
-            print("✅ Network adapters re-enabled")
+            logger.info("  [OK] Network adapters re-enabled")
         except Exception as e:
-            print(f"❌ Error restoring network: {e}")
+            logger.warning(f"[FAIL] Error restoring network: {e}")
     
     def review_snapshots(self):
         """Review emergency snapshots"""
-        print("\n📸 Emergency Snapshots:")
+        logger.info("\n[CAMERA] Emergency Snapshots:")
         
         snapshots = list(Path(self.snapshot_dir).glob("emergency_snapshot_*.json"))
         
         if not snapshots:
-            print("  No emergency snapshots found.")
+            logger.info("  No emergency snapshots found.")
             return
         
         for i, snapshot in enumerate(snapshots, 1):
-            print(f"  {i}. {snapshot.name}")
+            logger.info(f"  {i}. {snapshot.name}")
         
         choice = input("\nSelect snapshot to review (number) or 0 to cancel: ").strip()
         
@@ -527,60 +530,60 @@ class EmergencyResponse:
             with open(snapshot_file, 'r') as f:
                 data = json.load(f)
             
-            print(f"\nSnapshot: {snapshot_file.name}")
-            print(f"Timestamp: {data['timestamp']}")
-            print(f"Processes captured: {len(data['processes'])}")
-            print(f"Network connections: {len(data['network_connections'])}")
+            logger.info(f"\nSnapshot: {snapshot_file.name}")
+            logger.info(f"Timestamp: {data['timestamp']}")
+            logger.info(f"Processes captured: {len(data['processes'])}")
+            logger.info(f"Network connections: {len(data['network_connections'])}")
     
     def restore_backup(self):
         """Restore from emergency backup"""
-        print("\n💾 Emergency Backups:")
+        logger.info("\n[DISK] Emergency Backups:")
         
         backups = list(Path(self.snapshot_dir).glob("emergency_backup_*"))
         
         if not backups:
-            print("  No emergency backups found.")
+            logger.info("  No emergency backups found.")
             return
         
         for i, backup in enumerate(backups, 1):
-            print(f"  {i}. {backup.name}")
+            logger.info(f"  {i}. {backup.name}")
         
-        print("\n⚠️  NOTE: Restore functionality requires manual review of backup contents.")
-        print(f"   Backup location: {self.snapshot_dir}")
+        logger.warning("\n[!]  NOTE: Restore functionality requires manual review of backup contents.")
+        logger.info(f"   Backup location: {self.snapshot_dir}")
     
     def view_response_log(self):
         """View emergency response log"""
-        print("\n📝 Emergency Response Log:")
+        logger.info("\n[CLIPBOARD] Emergency Response Log:")
         
         if not os.path.exists(self.response_log_path):
-            print("  No emergency responses recorded.")
+            logger.info("  No emergency responses recorded.")
             return
         
         with open(self.response_log_path, 'r') as f:
             log = json.load(f)
         
         for entry in log:
-            print(f"\n{'='*60}")
-            print(f"Response ID: {entry['response_id']}")
-            print(f"Timestamp: {entry['timestamp']}")
-            print(f"Type: {entry['type']}")
-            print(f"Steps Completed: {', '.join(entry['steps_completed'])}")
+            logger.info(f"\n{'='*60}")
+            logger.info(f"Response ID: {entry['response_id']}")
+            logger.info(f"Timestamp: {entry['timestamp']}")
+            logger.info(f"Type: {entry['type']}")
+            logger.info(f"Steps Completed: {', '.join(entry['steps_completed'])}")
             if entry['steps_failed']:
-                print(f"Steps Failed: {', '.join(entry['steps_failed'])}")
+                logger.warning(f"Steps Failed: {', '.join(entry['steps_failed'])}")
     
     def run_system_scan(self):
         """Run Windows Defender full system scan"""
-        print("\n🔍 Starting Windows Defender full system scan...")
-        print("   This may take 1-2 hours to complete.")
+        logger.info("\n[MAGNIFYING] Starting Windows Defender full system scan...")
+        logger.info("   This may take 1-2 hours to complete.")
         
         try:
             subprocess.Popen(
                 ['powershell', '-Command', 'Start-MpScan -ScanType FullScan'],
                 creationflags=subprocess.CREATE_NEW_CONSOLE
             )
-            print("✅ System scan started in new window")
+            logger.info("[OK] System scan started in new window")
         except Exception as e:
-            print(f"❌ Error starting scan: {e}")
+            logger.warning(f"[FAIL] Error starting scan: {e}")
 
 
 if __name__ == "__main__":
