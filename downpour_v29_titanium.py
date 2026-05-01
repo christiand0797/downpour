@@ -2886,7 +2886,7 @@ class CisaKevEngine:
     """Downloads and caches the CISA Known Exploited Vulnerabilities catalog.
     Refreshes every 6 hours. Thread-safe. Used by CveDashboard tab."""
 
-    KEV_URL    = "https://www.cisa.gov/known-exploited-vulnerabilities-catalog/json"
+    KEV_URL    = "https://raw.githubusercontent.com/cisagov/kev-data/develop/known_exploited_vulnerabilities.json"
     _DATA_DIR  = _os.path.join(_os.path.dirname(__file__), "downpour_data")
     CACHE_PATH = _os.path.join(_DATA_DIR, "cisa_kev.json")
     REFRESH_HRS = 6
@@ -20330,7 +20330,7 @@ class VulnerabilityScanner:
     """
 
     # NVD / CISA feed URLs (refreshed in background  -  gracefully handled offline)
-    CVE_FEED_URL  = "https://www.cisa.gov/known-exploited-vulnerabilities-catalog/json"
+    CVE_FEED_URL  = "https://raw.githubusercontent.com/cisagov/kev-data/develop/known_exploited_vulnerabilities.json"
     NVD_RECENT    = "https://services.nvd.nist.gov/rest/json/cves/2.0/?resultsPerPage=100&pubStartDate={start}&pubEndDate={end}"
 
     # Heuristic exploit behavioural patterns observed in running processes / their CLI
