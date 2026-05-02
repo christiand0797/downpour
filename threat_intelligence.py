@@ -180,6 +180,13 @@ class ThreatIntelligenceManager:
                 'priority': 'medium',
                 'update_interval': 86400,  # 24 hours
                 'last_update': 0
+            },
+            'blocklist_de': {
+                'url': 'https://lists.blocklist.de/lists/all.txt',
+                'enabled': True,
+                'priority': 'high',
+                'update_interval': 3600,  # 1 hour
+                'last_update': 0
             }
         }
         
@@ -909,6 +916,38 @@ class ThreatIntelligenceManager:
             self.stats['update_failures'] += 1
             return 0
     
+    def update_blocklist_de_feed(self):
+        """Update malicious IPs from BlockList.de (public IP blocklist)."""
+        try:
+            logging.info("Updating BlockList.de feed...")
+            
+            _get = self._session.get if self._session else requests.get
+            response = _get(self.feeds['blocklist_de']['url'], timeout=30)
+            response.raise_for_status()
+            
+            lines = response.text.strip().split('\n')
+            iocs_added = 0
+            
+            for line in lines:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                
+                # Validate IP (basic check)
+                parts = line.split('.')
+                if len(parts) == 4 and all(0 <= int(p) <= 255 for p in parts):
+                    self.add_malicious_ip(line, 'blocklist_de', 'blocklist_de', [])
+                    iocs_added += 1
+                    
+            self.feeds['blocklist_de']['last_update'] = time.time()
+            logging.info(f"[OK] BlockList.de updated: {iocs_added} IPs added")
+            return iocs_added
+            
+        except Exception as e:
+            logging.error(f"Failed to update BlockList.de: {e}")
+            self.stats['update_failures'] += 1
+            return 0
+    
     def cleanup_old_iocs(self):
         """Remove old and stale IOCs from database."""
         conn = sqlite3.connect(self.db_path)
@@ -964,6 +1003,8 @@ class ThreatIntelligenceManager:
                     iocs = self.update_emerging_threats_feed()
                 elif feed_name == 'cisa_ics':
                     iocs = self.update_cisa_ics_feed()
+                elif feed_name == 'blocklist_de':
+                    iocs = self.update_blocklist_de_feed()
                 else:
                     logging.warning(f"Unknown feed: {feed_name}")
                     continue
