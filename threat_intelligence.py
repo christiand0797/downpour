@@ -173,6 +173,13 @@ class ThreatIntelligenceManager:
                 'priority': 'high',
                 'update_interval': 3600,  # 1 hour
                 'last_update': 0
+            },
+            'cisa_ics': {
+                'url': 'https://raw.githubusercontent.com/icsadvprj/ICS-Advisory-Project/main/ICS-CERT_ADV/CISA_ICS_ADV_Master.csv',
+                'enabled': True,
+                'priority': 'medium',
+                'update_interval': 86400,  # 24 hours
+                'last_update': 0
             }
         }
         
@@ -847,6 +854,61 @@ class ThreatIntelligenceManager:
             self.stats['update_failures'] += 1
             return 0
     
+    def update_cisa_ics_feed(self):
+        """Update CISA ICS-CERT advisories from ICS Advisory Project CSV."""
+        try:
+            logging.info("Updating CISA ICS-CERT feed...")
+            
+            _get = self._session.get if self._session else requests.get
+            response = _get(self.feeds['cisa_ics']['url'], timeout=60)
+            response.raise_for_status()
+            
+            lines = response.text.strip().split('\n')
+            iocs_added = 0
+            
+            # Skip header line
+            for line in lines[1:]:
+                try:
+                    if not line or line.startswith('#'):
+                        continue
+                    
+                    # CSV columns: icsadv_ID,Original_Release_Date,...,CVE_Number,...
+                    parts = line.split(',')
+                    if len(parts) < 9:
+                        continue
+                    
+                    cve_numbers = parts[8].strip('"')  # CVE_Number column
+                    if not cve_numbers:
+                        continue
+                    
+                    # Split multiple CVEs (separated by commas)
+                    for cve in cve_numbers.split(','):
+                        cve = cve.strip()
+                        if cve.startswith('CVE-'):
+                            # Add to KEV cache
+                            if cve not in self.kev_cache:
+                                self.kev_cache[cve] = {
+                                    'source': 'cisa_ics',
+                                    'vendor': parts[5].strip('"') if len(parts) > 5 else '',
+                                    'product': parts[6].strip('"') if len(parts) > 6 else '',
+                                    'title': parts[4].strip('"') if len(parts) > 4 else '',
+                                    'date_added': datetime.now().isoformat()
+                                }
+                            iocs_added += 1
+                            
+                except Exception as e:
+                    logging.debug(f"Error processing CISA ICS line: {e}")
+                    continue
+            
+            self.feeds['cisa_ics']['last_update'] = time.time()
+            logging.info(f"[OK] CISA ICS-CERT updated: {iocs_added} CVEs added")
+            return iocs_added
+            
+        except Exception as e:
+            logging.error(f"Failed to update CISA ICS-CERT: {e}")
+            self.stats['update_failures'] += 1
+            return 0
+    
     def cleanup_old_iocs(self):
         """Remove old and stale IOCs from database."""
         conn = sqlite3.connect(self.db_path)
@@ -900,6 +962,8 @@ class ThreatIntelligenceManager:
                     iocs = self.update_spamhaus_dbl_feed()
                 elif feed_name == 'emerging_threats':
                     iocs = self.update_emerging_threats_feed()
+                elif feed_name == 'cisa_ics':
+                    iocs = self.update_cisa_ics_feed()
                 else:
                     logging.warning(f"Unknown feed: {feed_name}")
                     continue
