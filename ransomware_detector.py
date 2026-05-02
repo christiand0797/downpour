@@ -284,7 +284,7 @@ class RansomwareDetector:
             finally:
                 conn.close()
             
-            logging.info("[✓] Ransomware protection database initialized")
+            logging.info("[OK] Ransomware protection database initialized")
             
         except Exception as e:
             logging.error(f"Failed to initialize database: {e}")
@@ -995,7 +995,7 @@ class RansomwareDetector:
             finally:
                 conn.close()
             
-            logging.debug("[✓] Cleaned up old ransomware monitoring data")
+            logging.debug("[OK] Cleaned up old ransomware monitoring data")
             
         except Exception as e:
             logging.error(f"Error cleaning up old data: {e}")
@@ -1008,7 +1008,7 @@ class RansomwareDetector:
         """Start ransomware detection in background thread."""
         monitor_thread = threading.Thread(target=self.monitoring_loop, daemon=True)
         monitor_thread.start()
-        logging.info("[✓] Ransomware Detector active")
+        logging.info("[OK] Ransomware Detector active")
     
     def stop(self):
         """Stop ransomware detection."""

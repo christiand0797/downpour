@@ -206,7 +206,7 @@ class FileAnalyzer:
             finally:
                 conn.close()
 
-            logging.info("[✓] File analysis database initialized")
+            logging.info("[OK] File analysis database initialized")
 
         except Exception as e:
             logging.error(f"Failed to initialize database: {e}")
@@ -255,7 +255,7 @@ class FileAnalyzer:
             
             try:
                 self.yara_rules_compiled = yara.compile(source=self.yara_rules)
-                logging.info("[✓] YARA rules compiled successfully")
+                logging.info("[OK] YARA rules compiled successfully")
             except yara.Error as e:
                 logging.warning(f"YARA not available: {e}")
                 self.yara_rules_compiled = None

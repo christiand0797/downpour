@@ -415,7 +415,7 @@ class NetworkMonitor:
             # - VirusTotal
             
             # For now, just log that update would happen
-            logging.info("[✓] Network threat database updated")
+            logging.info("[OK] Network threat database updated")
             
             return True
             
@@ -462,7 +462,7 @@ class NetworkMonitor:
         """Start network monitoring in background thread."""
         monitor_thread = threading.Thread(target=self.monitoring_loop, daemon=True)
         monitor_thread.start()
-        logging.info("[✓] Network Monitoring active")
+        logging.info("[OK] Network Monitoring active")
         logging.info(f"Monitoring {len(self.suspicious_ports)} suspicious ports")
     
     def stop(self) -> None:

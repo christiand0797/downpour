@@ -247,7 +247,7 @@ class FileSystemMonitor:
         """Start file system monitoring in background thread."""
         monitor_thread = threading.Thread(target=self.monitoring_loop, daemon=True)
         monitor_thread.start()
-        logging.info("[✓] File System Monitoring active")
+        logging.info("[OK] File System Monitoring active")
         
         # Log protected folders
         logging.info(f"Protected folders ({len(self.protected_folders)}):")

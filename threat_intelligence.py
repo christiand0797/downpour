@@ -241,7 +241,7 @@ class ThreatIntelligenceManager:
 
             conn.commit()
 
-            logging.info("[✓] Threat intelligence database initialized")
+            logging.info("[OK] Threat intelligence database initialized")
 
         except Exception as e:
             logging.error(f"Failed to initialize database: {e}")
@@ -268,7 +268,7 @@ class ThreatIntelligenceManager:
             cursor.execute("SELECT hash FROM malware_hashes")
             self.malware_hashes = {row[0] for row in cursor.fetchall()}
 
-            logging.info(f"[✓] Loaded {len(self.malicious_ips)} IPs, {len(self.malicious_domains)} domains, {len(self.malware_hashes)} hashes from database")
+            logging.info(f"[OK] Loaded {len(self.malicious_ips)} IPs, {len(self.malicious_domains)} domains, {len(self.malware_hashes)} hashes from database")
 
         except Exception as e:
             logging.error(f"Error loading from database: {e}")
@@ -314,7 +314,7 @@ class ThreatIntelligenceManager:
                     continue
             
             self.feeds['threatfox']['last_update'] = time.time()
-            logging.info(f"[✓] ThreatFox updated: {iocs_added} IOCs added")
+            logging.info(f"[OK] ThreatFox updated: {iocs_added} IOCs added")
             return iocs_added
             
         except Exception as e:
@@ -359,7 +359,7 @@ class ThreatIntelligenceManager:
                     continue
             
             self.feeds['urlhaus']['last_update'] = time.time()
-            logging.info(f"[✓] URLhaus updated: {iocs_added} URLs added")
+            logging.info(f"[OK] URLhaus updated: {iocs_added} URLs added")
             return iocs_added
             
         except Exception as e:
@@ -407,7 +407,7 @@ class ThreatIntelligenceManager:
                     continue
             
             self.feeds['phishtank']['last_update'] = time.time()
-            logging.info(f"[✓] PhishTank updated: {iocs_added} URLs added")
+            logging.info(f"[OK] PhishTank updated: {iocs_added} URLs added")
             return iocs_added
             
         except Exception as e:
@@ -863,7 +863,7 @@ class ThreatIntelligenceManager:
 
             conn.commit()
 
-            logging.info("[✓] Cleaned up old IOCs from database")
+            logging.info("[OK] Cleaned up old IOCs from database")
 
         except Exception as e:
             logging.error(f"Error cleaning up IOCs: {e}")
@@ -966,7 +966,7 @@ class ThreatIntelligenceManager:
         """Start threat intelligence monitoring in background thread."""
         monitor_thread = threading.Thread(target=self.monitoring_loop, daemon=True)
         monitor_thread.start()
-        logging.info("[✓] Threat Intelligence Manager active")
+        logging.info("[OK] Threat Intelligence Manager active")
     
     def stop(self):
         """Stop threat intelligence monitoring."""

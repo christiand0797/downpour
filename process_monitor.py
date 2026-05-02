@@ -447,7 +447,7 @@ class ProcessMonitor:
         """Start process monitoring in background thread."""
         monitor_thread = threading.Thread(target=self.monitoring_loop, daemon=True)
         monitor_thread.start()
-        logging.info("[✓] Process Monitoring active")
+        logging.info("[OK] Process Monitoring active")
         logging.info(f"Monitoring for {len(self.suspicious_names)} disguise patterns")
     
     def stop(self):

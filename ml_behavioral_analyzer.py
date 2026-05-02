@@ -120,7 +120,7 @@ class MLDetector:
                 'sequences': []
             }
             
-            logging.info("[✓] ML models initialized")
+            logging.info("[OK] ML models initialized")
             
         except Exception as e:
             logging.error(f"Failed to initialize ML models: {e}")
@@ -431,7 +431,7 @@ class MLDetector:
             self.training_data = self.training_data[-50:]
             self.training_labels = self.training_labels[-50:]
             
-            logging.info("[✓] Models retrained successfully")
+            logging.info("[OK] Models retrained successfully")
             
         except Exception as e:
             logging.error(f"Error retraining models: {e}")
@@ -451,7 +451,7 @@ class MLDetector:
             with open(self.models_dir / "feature_scaler.pkl", 'wb') as f:
                 pickle.dump(self.scaler, f)
             
-            logging.info("[✓] ML models saved")
+            logging.info("[OK] ML models saved")
             
         except Exception as e:
             logging.error(f"Error saving models: {e}")
@@ -478,7 +478,7 @@ class MLDetector:
                     self.scaler = _RestrictedUnpickler(f).load()
             
             if self.anomaly_detector or self.behavior_classifier:
-                logging.info("[✓] ML models loaded from disk")
+                logging.info("[OK] ML models loaded from disk")
             
         except Exception as e:
             logging.error(f"Error loading models: {e}")

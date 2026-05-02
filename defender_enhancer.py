@@ -102,7 +102,7 @@ class DefenderEnhancer:
         success, output, error = self.run_powershell_command(command)
         
         if success:
-            logging.info("[✓] Real-time protection enabled")
+            logging.info("[OK] Real-time protection enabled")
             return True
         else:
             logging.warning(f"[!] Could not enable real-time protection: {error}")
@@ -123,7 +123,7 @@ class DefenderEnhancer:
         success, output, error = self.run_powershell_command(command)
         
         if success:
-            logging.info("[✓] Cloud protection enabled")
+            logging.info("[OK] Cloud protection enabled")
             return True
         else:
             logging.warning(f"[!] Could not enable cloud protection: {error}")
@@ -144,7 +144,7 @@ class DefenderEnhancer:
         success, output, error = self.run_powershell_command(command)
         
         if success:
-            logging.info("[✓] Sample submission enabled")
+            logging.info("[OK] Sample submission enabled")
             return True
         else:
             logging.warning(f"[!] Could not enable sample submission: {error}")
@@ -167,7 +167,7 @@ class DefenderEnhancer:
         success, output, error = self.run_powershell_command(command)
         
         if success:
-            logging.info("[✓] PUA protection enabled")
+            logging.info("[OK] PUA protection enabled")
             return True
         else:
             logging.warning(f"[!] Could not enable PUA protection: {error}")
@@ -191,7 +191,7 @@ class DefenderEnhancer:
         success, output, error = self.run_powershell_command(command)
         
         if success:
-            logging.info("[✓] Behavior monitoring enabled")
+            logging.info("[OK] Behavior monitoring enabled")
             return True
         else:
             logging.warning(f"[!] Could not enable behavior monitoring: {error}")
@@ -215,7 +215,7 @@ class DefenderEnhancer:
         success, output, error = self.run_powershell_command(command)
         
         if success:
-            logging.info("[✓] Network protection enabled")
+            logging.info("[OK] Network protection enabled")
             return True
         else:
             logging.warning(f"[!] Could not enable network protection: {error}")
@@ -240,7 +240,7 @@ class DefenderEnhancer:
         success, output, error = self.run_powershell_command(command)
         
         if success:
-            logging.info("[✓] Controlled folder access enabled (ransomware protection)")
+            logging.info("[OK] Controlled folder access enabled (ransomware protection)")
             logging.info("NOTE: You may need to allow trusted programs in Windows Security")
             return True
         else:
@@ -260,7 +260,7 @@ class DefenderEnhancer:
         success, output, error = self.run_powershell_command(command)
         
         if success:
-            logging.info("[✓] Virus definitions updated")
+            logging.info("[OK] Virus definitions updated")
             return True
         else:
             logging.warning(f"[!] Could not update definitions: {error}")
@@ -338,7 +338,7 @@ class DefenderEnhancer:
         logging.info("="*80)
         
         if success_count == total_count:
-            logging.info("[✓] All protection features successfully enabled!")
+            logging.info("[OK] All protection features successfully enabled!")
             logging.info("Your Windows Defender is now optimally configured.")
         else:
             logging.warning("[!] Some features could not be enabled automatically.")
@@ -399,7 +399,7 @@ class DefenderEnhancer:
         monitor_thread = threading.Thread(target=self.monitor_loop, daemon=True)
         monitor_thread.start()
         
-        logging.info("[✓] Windows Defender Enhancement System active")
+        logging.info("[OK] Windows Defender Enhancement System active")
         logging.info("Defender will be monitored and kept optimally configured")
     
     def stop(self):

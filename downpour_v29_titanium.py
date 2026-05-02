@@ -16376,7 +16376,7 @@ class AdvancedPersistentThreatDetector:
             ))
             
             # Send notification
-            severity_icon = "🚨" if risk_score >= 90 else "⚠️" if risk_score >= 70 else "⚡"
+            severity_icon = "[ALERT]" if risk_score >= 90 else "[WARN]" if risk_score >= 70 else "[HIGH]"
             self._notify(f"{severity_icon} APT DETECTED: {apt_name} (Risk: {risk_score})")
             for indicator in indicators:
                 self._notify(f"  → {indicator}")
@@ -20920,7 +20920,7 @@ class downpour(tk.Tk):
                 print("⚛️ Quantum systems initialized")
                 print("🧠 Neural security activated")
                 print("♾️ Infinite scalability enabled")
-                print("⚡ Hyper-optimization active")
+                print("[HIGH] Hyper-optimization active")
                 
             except Exception as e:
                 print(f"Revolutionary enhancements initialization failed: {e}")
@@ -22296,7 +22296,7 @@ class downpour(tk.Tk):
                              relief='flat', bd=3)
         _gh_entry.grid(row=0, column=1, sticky='ew', padx=4, pady=5, ipadx=4)
         _gh_entry.bind('<Return>', self._global_hunt_go)
-        tk.Button(search_bar, text="⚡ HUNT",
+        tk.Button(search_bar, text="[HIGH] HUNT",
                   font=('Consolas', 9, 'bold'), bg=Colors.GAUGE_RED, fg='white',
                   relief='flat', padx=10,
                   command=self._global_hunt_go
@@ -22320,7 +22320,7 @@ class downpour(tk.Tk):
         self._ctrl_label.grid(row=0, column=1, padx=8, sticky='e')
         # -- Security indicator pills ------------------------------------------
         _av_color = Colors.GAUGE_TEAL if _DEFENDER_EXCLUSION_ADDED else Colors.GAUGE_ORANGE
-        _av_text  = "AV-Safe ✅" if _DEFENDER_EXCLUSION_ADDED else "No AV Excl [!]"
+        _av_text  = "AV-Safe [OK]" if _DEFENDER_EXCLUSION_ADDED else "No AV Excl [!]"
         self._sb_defender = tk.Label(status_bar, text=_av_text,
                                       font=('Consolas', 8), fg=_av_color,
                                       bg=Colors.GLASS_DARK)
@@ -22690,9 +22690,9 @@ class downpour(tk.Tk):
             ("🔬 Scan Now",       self._scan_processes_now,    Colors.GAUGE_BLUE),
             ("🌐 Update Intel",   self._update_intel_now,      Colors.GAUGE_TEAL),
             ("📂 Quick Scan",     self._quick_file_scan,       Colors.GAUGE_PURPLE),
-            ("🛡️ Harden",         lambda: self._select_tab(self._tab_hardening), Colors.GAUGE_GREEN),
+            ("[SHIELD] Harden",         lambda: self._select_tab(self._tab_hardening), Colors.GAUGE_GREEN),
             ("🔒 Ransomware",     lambda: self._select_tab(self._tab_ransomware), Colors.GAUGE_ORANGE),
-            ("🚨 PANIC",          self._panic_button,          Colors.GAUGE_RED),
+            ("[ALERT] PANIC",          self._panic_button,          Colors.GAUGE_RED),
         ]
         for i, (txt, cmd, col) in enumerate(buttons):
             tk.Button(btn_row, text=txt, font=('Consolas', 9, 'bold'),
@@ -22704,7 +22704,7 @@ class downpour(tk.Tk):
         tk.Frame(btn_row, bg=Colors.TEXT_DIM, width=1, height=26).pack(
             side='left', padx=6, pady=3)
         for txt, cmd, col, tip in [
-            ("🔴 REMEDIATE ALL",     self._threats_remediate_all,
+            ("[CRITICAL] REMEDIATE ALL",     self._threats_remediate_all,
              Colors.GAUGE_RED,    "One click: remediate every active CRITICAL/HIGH threat"),
             ("☠️ Kill Suspicious",   self._procs_kill_all_suspicious,
              Colors.GAUGE_ORANGE, "Kill all processes flagged as suspicious"),
@@ -22712,7 +22712,7 @@ class downpour(tk.Tk):
              Colors.GAUGE_TEAL,   "Generate full Incident Response HTML report"),
             ("🔒 Isolate Host",      self._threats_isolate_host,
              Colors.GAUGE_RED,    "Emergency network isolation (block all traffic)"),
-            ("⚡ Fix ALL Hardening", self._harden_fix_all,
+            ("[HIGH] Fix ALL Hardening", self._harden_fix_all,
              Colors.GAUGE_GREEN,  "Apply all available hardening fixes automatically"),
         ]:
             b = tk.Button(btn_row, text=txt, font=('Consolas', 9, 'bold'),
@@ -22730,7 +22730,7 @@ class downpour(tk.Tk):
 
         hdr = tk.Frame(feed_frame, bg=Colors.GLASS_DARK)
         hdr.grid(row=0, column=0, columnspan=2, sticky='ew', padx=4, pady=(4,0))
-        tk.Label(hdr, text="⚡ LIVE THREAT FEED",
+        tk.Label(hdr, text="[HIGH] LIVE THREAT FEED",
                  font=('Consolas', 10, 'bold'), fg=Colors.GAUGE_TEAL,
                  bg=Colors.GLASS_DARK).pack(side='left')
         tk.Label(hdr, text="Right-click an entry for actions",
@@ -22753,7 +22753,7 @@ class downpour(tk.Tk):
                                     fg=Colors.TEXT_LIGHT, activebackground=Colors.GLASS_LIGHT,
                                     activeforeground=Colors.GAUGE_TEAL,
                                     font=('Consolas', 9))
-        self._alert_menu.add_command(label="⚡ Open Threat Response Panel",
+        self._alert_menu.add_command(label="[HIGH] Open Threat Response Panel",
                                       command=lambda: self._show_threat_action_panel(
                                           self._get_selected_alert_text()))
         self._alert_menu.add_separator()
@@ -22763,7 +22763,7 @@ class downpour(tk.Tk):
                                     command=lambda: self._alert_action_geoip())
         self._alert_menu.add_command(label="📡 Reverse DNS",
                                     command=lambda: self._alert_action_rdns())
-        self._alert_menu.add_command(label="⚡ VirusTotal Lookup",
+        self._alert_menu.add_command(label="[HIGH] VirusTotal Lookup",
                                     command=lambda: self._alert_action_vt())
         self._alert_menu.add_command(label="📋 Copy IOC to Clipboard",
                                     command=lambda: self._alert_action_copy_ioc())
@@ -22956,7 +22956,7 @@ class downpour(tk.Tk):
         _pb.grid(row=3, column=0, columnspan=2, sticky='ew', padx=6, pady=(0,6))
         _pb.grid_columnconfigure(0, weight=1)
         _pb.grid_columnconfigure(1, weight=1)
-        tk.Button(_pb, text="⚡ Privacy Mode",
+        tk.Button(_pb, text="[HIGH] Privacy Mode",
                   font=('Consolas', 8, 'bold'), fg=Colors.GAUGE_GREEN,
                   bg='#0a1a0a', activebackground='#0d220d',
                   activeforeground=Colors.GAUGE_GREEN,
@@ -23339,7 +23339,7 @@ class downpour(tk.Tk):
         # v29 — separator then bulk-action power buttons
         tk.Frame(top, bg=Colors.TEXT_DIM, width=1, height=22).pack(side='left', padx=6, pady=4)
         for txt, cmd, col, tip in [
-            ("🔴 Kill ALL Suspicious", self._procs_kill_all_suspicious,
+            ("[CRITICAL] Kill ALL Suspicious", self._procs_kill_all_suspicious,
              Colors.GAUGE_RED,    "Kill every process flagged as suspicious (score ≥ 50)"),
             ("📦 Quarantine ALL",      self._procs_quarantine_all_suspicious,
              Colors.GAUGE_ORANGE, "Quarantine EXEs of all suspicious processes"),
@@ -23400,7 +23400,7 @@ class downpour(tk.Tk):
         self._proc_menu.add_command(label="🚫 Network Isolate",       command=lambda: self._mitigate_selected('network_isolate'))
         self._proc_menu.add_command(label="🚫 Block All IPs",          command=lambda: self._mitigate_selected('firewall_block'))
         self._proc_menu.add_command(label="🧹 Clean Persistence",     command=lambda: self._mitigate_selected('clean_persistence'))
-        self._proc_menu.add_command(label="🛡️ FULL REMEDIATION",       command=lambda: self._mitigate_selected('full_remediation'))
+        self._proc_menu.add_command(label="[SHIELD] FULL REMEDIATION",       command=lambda: self._mitigate_selected('full_remediation'))
         self._proc_menu.add_separator()
         self._proc_menu.add_command(label="🔬 Root Cause Analysis",    command=lambda: self._mitigate_selected('root_cause'))
         self._proc_menu.add_command(label="📍 Dump Memory",            command=lambda: self._mitigate_selected('dump_memory'))
@@ -23408,7 +23408,7 @@ class downpour(tk.Tk):
         self._proc_menu.add_command(label="📋 Copy Process Info",    command=self._proc_copy_info)
         self._proc_menu.add_command(label="📂 Open File Location",   command=self._proc_open_location)
         self._proc_menu.add_separator()
-        self._proc_menu.add_command(label="🔴 Add to Watchlist",     command=self._proc_add_watchlist)
+        self._proc_menu.add_command(label="[CRITICAL] Add to Watchlist",     command=self._proc_add_watchlist)
 
         # Detail panel
         detail_frame = tk.Frame(pane, bg=Colors.GLASS_CARD)
@@ -23528,11 +23528,11 @@ class downpour(tk.Tk):
         # v29 — power action separator
         tk.Frame(top, bg=Colors.TEXT_DIM, width=1, height=22).pack(side='left', padx=6, pady=4)
         for txt, cmd, col, tip in [
-            ("🔴 Block ALL C2",      self._net_block_all_c2,
+            ("[CRITICAL] Block ALL C2",      self._net_block_all_c2,
              Colors.GAUGE_RED,    "Block every IP flagged as C2/malicious in firewall"),
             ("☠️ Kill C2 Procs",     self._net_kill_c2_procs,
              Colors.GAUGE_ORANGE, "Kill all processes with active C2 connections"),
-            ("✅ Whitelist IP",       self._net_whitelist_selected,
+            ("[OK] Whitelist IP",       self._net_whitelist_selected,
              Colors.GAUGE_GREEN,  "Add selected IP to local whitelist (suppress future alerts)"),
             ("📊 Export Conns",       self._net_export_csv,
              Colors.GAUGE_TEAL,   "Export all connections to CSV"),
@@ -23584,7 +23584,7 @@ class downpour(tk.Tk):
         right_f = tk.Frame(pane, bg=Colors.GLASS_CARD)
         right_f.grid_rowconfigure(1, weight=1)
         right_f.grid_columnconfigure(0, weight=1)
-        tk.Label(right_f, text="⚠️ NETWORK ALERTS", font=('Consolas', 9, 'bold'),
+        tk.Label(right_f, text="[WARN] NETWORK ALERTS", font=('Consolas', 9, 'bold'),
                  fg=Colors.GAUGE_RED, bg=Colors.GLASS_CARD).grid(row=0, column=0, pady=4)
         # Network alerts with scrollbar
         net_alert_frame = tk.Frame(right_f, bg=Colors.GLASS_DARK)
@@ -23652,10 +23652,10 @@ class downpour(tk.Tk):
             ("🔬 Re-Analyze Threats", self._reanalyze_scan_threats, '#c084fc'),
             ("🔒 Quarantine",self._quarantine_scan_result, Colors.GAUGE_ORANGE),
             ("Delete",     self._delete_scan_result,    Colors.GAUGE_RED),
-            ("✅ Whitelist",  self._whitelist_scan_result, Colors.GAUGE_TEAL),
+            ("[OK] Whitelist",  self._whitelist_scan_result, Colors.GAUGE_TEAL),
             ("Investigate", self._view_scan_detail, Colors.TEXT_BRIGHT),
-            ("⚡ Safe Batch Removal", self._batch_remove_threats, Colors.GAUGE_ORANGE),
-            ("🛡️ Zero-Day Scan", self._run_full_zeroday_scan, Colors.GAUGE_RED),
+            ("[HIGH] Safe Batch Removal", self._batch_remove_threats, Colors.GAUGE_ORANGE),
+            ("[SHIELD] Zero-Day Scan", self._run_full_zeroday_scan, Colors.GAUGE_RED),
         ]:
             tk.Button(top, text=txt, font=('Consolas', 8, 'bold'), fg=col,
                       bg=Colors.GLASS_CARD, relief='flat', padx=5,
@@ -23816,7 +23816,7 @@ class downpour(tk.Tk):
             ("📡 Reverse DNS",          lambda: self._intel_rdns()),
             ("GeoIP Lookup",         lambda: self._intel_geoip()),
             ("Export Report",        lambda: self._intel_export_report()),
-            ("⚡ Submit to VirusTotal", lambda: self._intel_submit_vt()),
+            ("[HIGH] Submit to VirusTotal", lambda: self._intel_submit_vt()),
         ]:
             tk.Button(resp_row, text=btn_txt, font=('Consolas', 8),
                       fg=Colors.GAUGE_ORANGE, bg=Colors.GLASS_CARD, relief='flat',
@@ -24308,13 +24308,13 @@ class downpour(tk.Tk):
 
     def _build_emergency_tab(self):
         p = self._tab_emergency
-        tk.Label(p, text="🚨 EMERGENCY RESPONSE CENTER", font=('Consolas', 13, 'bold'),
+        tk.Label(p, text="[ALERT] EMERGENCY RESPONSE CENTER", font=('Consolas', 13, 'bold'),
                  fg=Colors.GAUGE_RED, bg=Colors.BG_VOID).pack(pady=16)
         tk.Label(p, text="ONE-CLICK RESPONSE TO ACTIVE THREATS",
                  font=('Consolas', 9), fg=Colors.TEXT_DIM, bg=Colors.BG_VOID).pack()
 
         # Big panic button
-        big_panic = tk.Button(p, text="🚨  FULL EMERGENCY LOCKDOWN  🚨",
+        big_panic = tk.Button(p, text="[ALERT]  FULL EMERGENCY LOCKDOWN  [ALERT]",
                               font=('Consolas', 14, 'bold'), fg='#ff0000',
                               bg='#180000', activebackground='#280000',
                               relief='flat', padx=20, pady=12,
@@ -24859,8 +24859,8 @@ class downpour(tk.Tk):
             ("📋 Run Full Audit",           lambda: self._run_full_compliance_audit()),
             ("Export PDF Report",         lambda: self._export_compliance_pdf()),
             ("Compare vs Baseline",       lambda: self._compare_compliance_baseline()),
-            ("✅ NIST 800-171 Check",        lambda: self._run_nist_check()),
-            ("🛡️ CIS Benchmarks",            lambda: self._run_cis_benchmarks()),
+            ("[OK] NIST 800-171 Check",        lambda: self._run_nist_check()),
+            ("[SHIELD] CIS Benchmarks",            lambda: self._run_cis_benchmarks()),
         ]:
             tk.Button(btn_row, text=lbl, font=('Consolas', 8),
                       fg=Colors.GAUGE_TEAL, bg=Colors.GLASS_CARD, relief='flat',
@@ -25004,7 +25004,7 @@ class downpour(tk.Tk):
 
     def _build_hardening_tab(self):
         p = self._tab_hardening
-        tk.Label(p, text="🛡️ SYSTEM HARDENING ANALYZER",
+        tk.Label(p, text="[SHIELD] SYSTEM HARDENING ANALYZER",
                  font=('Consolas', 12, 'bold'), fg=Colors.GAUGE_GREEN,
                  bg=Colors.BG_VOID).pack(anchor='w', padx=10, pady=10)
 
@@ -25023,7 +25023,7 @@ class downpour(tk.Tk):
         btn_row.pack(fill='x', padx=10, pady=4)
         for text, cmd, color in [
             ("🔍 Analyze Security",    self._harden_analyze, Colors.GAUGE_BLUE),
-            ("⚡ Fix All Issues",       self._harden_fix_all, Colors.GAUGE_GREEN),
+            ("[HIGH] Fix All Issues",       self._harden_fix_all, Colors.GAUGE_GREEN),
             ("🔧 Fix Selected",         self._harden_fix_selected, Colors.GAUGE_ORANGE),
             ("Full Assessment",  self._run_nsa_security_report, Colors.GAUGE_RED),
             ("\U0001fa9f Win11 Bypass Shield", self._apply_win11_bypass_hardening, '#7b2d8b'),
@@ -27334,7 +27334,7 @@ Verification Status:
         # -- Hardware security bypass ---------------------------------------
         hw_f = tk.Frame(p, bg=Colors.GLASS_CARD)
         hw_f.pack(fill='x', padx=10, pady=4)
-        tk.Label(hw_f, text="🛡️ Hardware Security",
+        tk.Label(hw_f, text="[SHIELD] Hardware Security",
                  font=('Consolas', 10, 'bold'),
                  fg=Colors.GAUGE_ORANGE, bg=Colors.GLASS_CARD).pack(anchor='w', padx=8, pady=4)
         hw_row = tk.Frame(hw_f, bg=Colors.GLASS_CARD)
@@ -27485,13 +27485,13 @@ Verification Status:
         # -- Zero Trust Posture Score ---------------------------------------
         ztf = tk.Frame(p, bg=Colors.GLASS_CARD)
         ztf.pack(fill='x', padx=10, pady=4)
-        self._zt_score_lbl = tk.Label(ztf, text="🛡️ Zero Trust Posture: --",
+        self._zt_score_lbl = tk.Label(ztf, text="[SHIELD] Zero Trust Posture: --",
                                        font=('Consolas', 11, 'bold'),
                                        fg=Colors.GAUGE_TEAL, bg=Colors.GLASS_CARD)
         self._zt_score_lbl.pack(anchor='w', padx=8, pady=6)
         btn_row = tk.Frame(ztf, bg=Colors.GLASS_CARD)
         btn_row.pack(anchor='w', padx=8, pady=(0,6))
-        tk.Button(btn_row, text="⚡ Compute Zero Trust Score",
+        tk.Button(btn_row, text="[HIGH] Compute Zero Trust Score",
                   font=('Consolas', 9, 'bold'), bg=Colors.GAUGE_TEAL, fg=Colors.GAUGE_TEXT,
                   relief='flat', padx=10, command=self._compute_zero_trust_score
                   ).pack(side='left', padx=4)
@@ -29294,7 +29294,7 @@ Verification Status:
                                 selectcolor=Colors.GLASS_DARK)
             cb.pack(side='left', padx=4)
 
-        self._hunt_btn = tk.Button(bar, text="⚡ HUNT",
+        self._hunt_btn = tk.Button(bar, text="[HIGH] HUNT",
                                     font=('Consolas', 10, 'bold'),
                                     bg=Colors.GAUGE_RED, fg='white',
                                     activebackground='#cc1133',
@@ -30095,7 +30095,7 @@ Verification Status:
                   command=self._run_vuln_scan
                   ).grid(row=0, column=2, padx=8, pady=6)
 
-        tk.Button(hdr, text="⚡ FIX ALL (Admin)", font=('Consolas', 9),
+        tk.Button(hdr, text="[HIGH] FIX ALL (Admin)", font=('Consolas', 9),
                   bg=Colors.GAUGE_ORANGE, fg='white', relief='flat', padx=10, pady=4,
                   command=self._vuln_fix_all
                   ).grid(row=0, column=3, padx=4, pady=6, sticky='w')
@@ -30664,7 +30664,7 @@ Verification Status:
         rep_f = tk.Frame(res_pane, bg=Colors.GLASS_CARD)
         rep_f.grid_rowconfigure(1, weight=1)
         rep_f.grid_columnconfigure(0, weight=1)
-        tk.Label(rep_f, text="⚠️ THREAT REPORT", font=('Consolas', 9, 'bold'),
+        tk.Label(rep_f, text="[WARN] THREAT REPORT", font=('Consolas', 9, 'bold'),
                  fg=Colors.GAUGE_RED, bg=Colors.GLASS_CARD).grid(row=0, column=0, sticky='w', padx=6, pady=4)
         self._sandbox_report = tk.Text(rep_f, bg=Colors.GLASS_CARD, fg=Colors.TEXT_LIGHT,
                                         font=('Consolas', 8), wrap='word', state='disabled', relief='flat')
@@ -32651,9 +32651,9 @@ Verification Status:
             # Defender exclusion indicator
             if hasattr(self, '_sb_defender'):
                 if _DEFENDER_EXCLUSION_ADDED:
-                    self._sb_defender.config(text="AV-Safe ✅", fg='#00e5ff')
+                    self._sb_defender.config(text="AV-Safe [OK]", fg='#00e5ff')
                 else:
-                    self._sb_defender.config(text="No AV Excl ⚠️", fg='#ff9800')
+                    self._sb_defender.config(text="No AV Excl [WARN]", fg='#ff9800')
             # Live threat count
             if hasattr(self, '_sb_threats'):
                 try:
@@ -35867,7 +35867,7 @@ Verification Status:
     def _show_threat_action_panel(self, alert_text: str):
         """Open a detailed threat response window for a selected alert"""
         win = tk.Toplevel(self)
-        win.title("⚡ Downpour  -  Threat Response")
+        win.title("[HIGH] Downpour  -  Threat Response")
         win.configure(bg=Colors.BG_STORM)
         win.geometry("600x520")
         win.resizable(True, True)
@@ -35877,7 +35877,7 @@ Verification Status:
         # Header
         hdr = tk.Frame(win, bg=Colors.GLASS_DARK)
         hdr.pack(fill='x', padx=0, pady=0)
-        tk.Label(hdr, text="⚡ THREAT RESPONSE CENTER",
+        tk.Label(hdr, text="[HIGH] THREAT RESPONSE CENTER",
                  font=('Consolas', 12, 'bold'), fg=Colors.GAUGE_RED,
                  bg=Colors.GLASS_DARK).pack(side='left', padx=12, pady=8)
 
@@ -36685,7 +36685,7 @@ Verification Status:
         alerts_f.grid(row=1, column=0, columnspan=2, sticky='nsew', padx=8, pady=(0,8))
         alerts_f.grid_rowconfigure(1, weight=1)
         alerts_f.grid_columnconfigure(0, weight=1)
-        tk.Label(alerts_f, text='⚠️ DNS THREAT ALERTS',
+        tk.Label(alerts_f, text='[WARN] DNS THREAT ALERTS',
                  font=('Consolas', 10, 'bold'), fg=Colors.GAUGE_RED,
                  bg=Colors.GLASS_CARD).grid(row=0, column=0, sticky='w', padx=8, pady=4)
         self._dns_alert_list = tk.Listbox(alerts_f, font=('Consolas', 9),
@@ -37087,7 +37087,7 @@ Verification Status:
         tk.Button(add_f, text='🚫 Block', command=self._dns_blocklist_add,
                   font=('Consolas', 9, 'bold'), bg=Colors.GAUGE_RED, fg='white',
                   relief='flat', padx=10).grid(row=0, column=2, padx=4)
-        tk.Button(add_f, text='✅ Unblock', command=self._dns_blocklist_remove,
+        tk.Button(add_f, text='[OK] Unblock', command=self._dns_blocklist_remove,
                   font=('Consolas', 9), bg=Colors.GAUGE_GREEN, fg=Colors.BG_VOID,
                   relief='flat', padx=10).grid(row=0, column=3, padx=4)
         tk.Button(add_f, text='📥 Import List', command=self._dns_blocklist_import,
@@ -39270,8 +39270,8 @@ Verification Status:
                 'error':   ('#ff1744', '#1a0000'),
             }
             fg, bg = colors.get(level, colors['info'])
-            icon_map = {'info': 'ℹ', 'success': '✅', 'warning': '⚠', 'error': '✖'}
-            icon = icon_map.get(level, 'ℹ')
+            icon_map = {'info': '[INFO]', 'success': '[OK]', 'warning': '[WARN]', 'error': '✖'}
+            icon = icon_map.get(level, '[INFO]')
 
             toast = _tk.Toplevel(self)
             toast.overrideredirect(True)
@@ -39372,7 +39372,7 @@ Verification Status:
         empty_f   = _frame(); sub_nb.add(empty_f,   text='📁  Empty Folders')
         startup_f = _frame(); sub_nb.add(startup_f, text='🚀  Startup Items')
         disk_f    = _frame(); sub_nb.add(disk_f,    text='💾  Disk Usage')
-        sec_f     = _frame(); sub_nb.add(sec_f,     text='🛡️  Security Cleanup')
+        sec_f     = _frame(); sub_nb.add(sec_f,     text='[SHIELD]  Security Cleanup')
 
         # FIX-v28p13: Build only first tab, defer rest to reduce 15s block
         self._cleanup_build_cache_tab(cache_f)
@@ -39408,7 +39408,7 @@ Verification Status:
         for lbl, var, color in [
             ('Found:',  self._cu_total_size_var,  C.GAUGE_TEAL),
             ('📄 Files:',  self._cu_total_files_var, C.GAUGE_YELLOW),
-            ('✅ Freed:',  self._cu_freed_var,       C.GAUGE_GREEN),
+            ('[OK] Freed:',  self._cu_freed_var,       C.GAUGE_GREEN),
         ]:
             cell = tk.Frame(stats, bg=C.GLASS_CARD, padx=14)
             cell.pack(side='left')
@@ -39472,7 +39472,7 @@ Verification Status:
                  font=('Consolas', 8, 'bold'),
                  fg=C.GAUGE_TEAL, bg=C.GLASS_PANEL, pady=2).pack(anchor='w', padx=8)
         tk.Label(cat_outer,
-                 text='✓ = include when cleaning\n(scan always finds everything)',
+                 text='[OK] = include when cleaning\n(scan always finds everything)',
                  font=('Consolas', 7), fg=C.TEXT_DIM,
                  bg=C.GLASS_PANEL, justify='left').pack(anchor='w', padx=8, pady=(0, 4))
 
@@ -39505,7 +39505,7 @@ Verification Status:
 
         if not _CLEANUP_MODULE_AVAILABLE or not hasattr(self, 'cleanup_engine'):
             tk.Label(cat_inner,
-                     text='⚠ downpour_cleanup_module.py\nnot found.',
+                     text='[WARN] downpour_cleanup_module.py\nnot found.',
                      font=('Consolas', 8), fg=Colors.GAUGE_RED,
                      bg=C.GLASS_PANEL, wraplength=220).pack(padx=8, pady=8)
         else:
@@ -39544,7 +39544,7 @@ Verification Status:
                 if hasattr(target, 'risk_level'):
                     from downpour_cleanup_module import RiskLevel
                     if target.risk_level in (RiskLevel.HIGH, RiskLevel.CRITICAL):
-                        badge_txt = '⚠' if target.risk_level == RiskLevel.HIGH else '🔴'
+                        badge_txt = '[WARN]' if target.risk_level == RiskLevel.HIGH else '[CRITICAL]'
                         tk.Label(row, text=badge_txt, font=('Consolas', 9),
                                  fg=risk_col, bg=C.GLASS_PANEL).pack(side='right', padx=2)
 
@@ -39771,7 +39771,7 @@ Verification Status:
 
         # ── SAFE / MODERATE: standard messagebox ─────────────────────────────
         if max_risk in (RiskLevel.SAFE, RiskLevel.MODERATE):
-            extra = ('\n\n⚠  IMPORTANT:\n' +
+            extra = ('\n\n[WARN]  IMPORTANT:\n' +
                      '\n'.join(f'  • {n}' for n in risk_notes)
                      ) if risk_notes else ''
             confirm_extra = ('\n\n' + '\n'.join(confirm_msgs)) if confirm_msgs else ''
@@ -39787,9 +39787,9 @@ Verification Status:
 
         # ── HIGH: orange warning — show every target + extra confirmation ─────
         elif max_risk == RiskLevel.HIGH:
-            warn_list = '\n'.join(f'  ⚠  {t.risk_note}' for t in targets
+            warn_list = '\n'.join(f'  [WARN]  {t.risk_note}' for t in targets
                                   if getattr(t, 'risk_note', ''))
-            msg = (f'⚠  WARNING — HIGH-RISK OPERATION\n\n'
+            msg = (f'[WARN]  WARNING — HIGH-RISK OPERATION\n\n'
                    f'The following will be permanently deleted:\n\n'
                    f'{cat_list}\n\n'
                    f'Total: {size_fmt(total_sz)}  ({total_fc:,} files)\n\n'
@@ -39809,7 +39809,7 @@ Verification Status:
         elif max_risk == RiskLevel.CRITICAL:
             crit_targets = [t for t in targets
                             if getattr(t, 'risk_level', None) == RiskLevel.CRITICAL]
-            crit_notes = '\n'.join(f'  🔴  {t.risk_note}' for t in crit_targets
+            crit_notes = '\n'.join(f'  [CRITICAL]  {t.risk_note}' for t in crit_targets
                                    if getattr(t, 'risk_note', ''))
             crit_confirms = '\n'.join(getattr(t, 'confirm_msg', '') for t in crit_targets
                                       if getattr(t, 'confirm_msg', ''))
@@ -40011,7 +40011,7 @@ Verification Status:
             lines.append(f'   Size   : {size_fmt(target.scanned_size)}')
             lines.append(f'   Files  : {target.item_count:,}')
             if getattr(target, 'risk_note', ''):
-                lines.append(f'   ⚠ Risk : {target.risk_note}')
+                lines.append(f'   [WARN] Risk : {target.risk_note}')
             for item in target.items[:10]:
                 lines.append(f'   {item.path}  ({size_fmt(item.size_bytes)})')
             if len(target.items) > 10:
@@ -40472,7 +40472,7 @@ Verification Status:
         if len(to_delete) > 5:
             preview += f'\n  …and {len(to_delete)-5} more groups'
 
-        msg = (f'⚠  You are about to PERMANENTLY DELETE duplicate files:\n\n'
+        msg = (f'[WARN]  You are about to PERMANENTLY DELETE duplicate files:\n\n'
                f'{preview}\n'
                f'Files to delete : {del_count:,}\n'
                f'Files to keep   : {keep_count:,}\n'
@@ -40743,7 +40743,7 @@ Verification Status:
         if len(files) > 15:
             preview += f'\n  …and {len(files)-15} more'
 
-        msg = (f'⚠  You are about to PERMANENTLY DELETE {len(files):,} file(s):\n\n'
+        msg = (f'[WARN]  You are about to PERMANENTLY DELETE {len(files):,} file(s):\n\n'
                f'{preview}\n\n'
                f'These files CANNOT be recovered.\n'
                f'Are you sure?')
@@ -40980,7 +40980,7 @@ Verification Status:
         self._su_disable_btn = _btn('🚫 Disable Selected', self._su_do_disable,
                                     C.GAUGE_ORANGE,
                                     'Move selected entries to Disabled subkey')
-        self._su_enable_btn  = _btn('✅ Re-enable Selected', self._su_do_enable,
+        self._su_enable_btn  = _btn('[OK] Re-enable Selected', self._su_do_enable,
                                     C.GAUGE_GREEN,
                                     'Restore previously disabled entries')
         self._su_disable_btn.config(state='disabled')
@@ -41408,7 +41408,7 @@ Verification Status:
 
 
     # ==========================================================================
-    #  🛡️  SECURITY CLEANUP SUB-TAB
+    #  [SHIELD]  SECURITY CLEANUP SUB-TAB
     # ==========================================================================
 
     def _cleanup_build_security_tab(self, parent):
@@ -42283,7 +42283,7 @@ Verification Status:
         self._fw_all_rules = rules
         self._fw_apply_filter()
         self._fw_status_lbl.config(
-            text=f"✓ {len(rules)} rules loaded — "
+            text=f"[OK] {len(rules)} rules loaded — "
                  f"Block: {sum(1 for r in rules if r.get('Action','').lower()=='block')}  "
                  f"Allow: {sum(1 for r in rules if r.get('Action','').lower()=='allow')}",
             fg=Colors.GAUGE_GREEN)
@@ -42668,7 +42668,7 @@ Verification Status:
         for n in nets:
             ssid_map[n['SSID']].append(n)
         for n in nets:
-            n['EvilTwin'] = '⚠ YES' if len(ssid_map[n['SSID']]) > 1 else 'No'
+            n['EvilTwin'] = '[WARN] YES' if len(ssid_map[n['SSID']]) > 1 else 'No'
             n['Score'] = self._wifi_auth_score(n.get('Auth',''))
         return nets
 
@@ -42678,16 +42678,16 @@ Verification Status:
         for n in nets:
             s = n.get('Score', 0)
             tag = 'safe' if s >= 70 else ('warn' if s >= 40 else 'danger')
-            if n.get('EvilTwin','') == '⚠ YES':
+            if n.get('EvilTwin','') == '[WARN] YES':
                 tag = 'eviltwin'
             self._wifi_tree.insert('', 'end', values=(
                 n.get('SSID',''), n.get('BSSID',''), n.get('Signal',''),
                 n.get('Auth',''), n.get('Cipher',''), n.get('Band',''),
                 f"{n.get('Score',0)}/100", n.get('EvilTwin','No')), tags=(tag,))
         danger_count = sum(1 for n in nets if n.get('Score',0) < 40)
-        evil_count   = sum(1 for n in nets if n.get('EvilTwin','') == '⚠ YES')
+        evil_count   = sum(1 for n in nets if n.get('EvilTwin','') == '[WARN] YES')
         self._wifi_status_lbl.config(
-            text=f"✓ {len(nets)} networks found  |  ⚠ Low security: {danger_count}  |  👿 Evil twins: {evil_count}",
+            text=f"[OK] {len(nets)} networks found  |  [WARN] Low security: {danger_count}  |  [EVIL] Evil twins: {evil_count}",
             fg=Colors.GAUGE_RED if evil_count else (Colors.GAUGE_ORANGE if danger_count else Colors.GAUGE_GREEN))
 
     def _wifi_on_select(self, _=None):
@@ -42705,16 +42705,16 @@ Verification Status:
         if 'OPEN' in auth_u or not auth.strip():
             findings.append("⛔ OPEN NETWORK — no encryption, all traffic visible")
         if 'WPA2' in auth_u and 'WPA3' not in auth_u:
-            findings.append("⚠ WPA2 — upgrade to WPA3 if router supports it")
+            findings.append("[WARN] WPA2 — upgrade to WPA3 if router supports it")
         if 'WPA3' in auth_u:
-            findings.append("✅ WPA3 — current best practice")
+            findings.append("[OK] WPA3 — current best practice")
         if 'TKIP' in cipher.upper():
-            findings.append("⚠ TKIP cipher is deprecated — prefer AES/CCMP")
-        if evil == '⚠ YES':
+            findings.append("[WARN] TKIP cipher is deprecated — prefer AES/CCMP")
+        if evil == '[WARN] YES':
             findings.append("⛔ EVIL TWIN DETECTED — another network has same SSID!")
             findings.append("   This may be a rogue AP for MITM attacks")
         if not findings:
-            findings.append("✅ No obvious security issues detected")
+            findings.append("[OK] No obvious security issues detected")
 
         txt = f"Network: {ssid}\nBSSID: {bssid}\nSignal: {signal}  Band: {band}\n"
         txt += f"Auth: {auth}  Cipher: {cipher}\nSecurity Score: {score}\n\n"
@@ -42759,9 +42759,9 @@ Verification Status:
             for d in test_domains:
                 try:
                     ip = socket.gethostbyname(d)
-                    results.append(f"✓ {d} → {ip}")
+                    results.append(f"[OK] {d} → {ip}")
                 except Exception as e:
-                    results.append(f"✗ {d} → {e}")
+                    results.append(f"[FAIL] {d} → {e}")
             # Check configured DNS
             import subprocess
             r = subprocess.run(['nslookup', 'whoami.akamai.net'],
@@ -42982,7 +42982,7 @@ Verification Status:
         crit = sum(1 for e in events if e['severity'] == 'critical')
         warn = sum(1 for e in events if e['severity'] == 'warning')
         self._tl_status.config(
-            text=f"✓ {len(events)} events  |  🔴 Critical: {crit}  |  🟠 Warning: {warn}",
+            text=f"[OK] {len(events)} events  |  [CRITICAL] Critical: {crit}  |  [WARNING] Warning: {warn}",
             fg=Colors.GAUGE_RED if crit else (Colors.GAUGE_ORANGE if warn else Colors.GAUGE_GREEN))
 
     def _tl_apply_filter(self, event_id_filter=None):
@@ -43041,21 +43041,21 @@ Verification Status:
         # New high-priv accounts
         for e in self._tl_all_events:
             if e['id'] in ('4720','4728','4732'):
-                findings.append(f"⚠ ACCOUNT CHANGE: {e['category']} at {e['time']}")
+                findings.append(f"[WARN] ACCOUNT CHANGE: {e['category']} at {e['time']}")
         # Services installed
         svc_events = [e for e in self._tl_all_events if e['id'] in ('4697','7045')]
         if svc_events:
-            findings.append(f"⚠ {len(svc_events)} service installation event(s) detected")
+            findings.append(f"[WARN] {len(svc_events)} service installation event(s) detected")
         # Scheduled tasks
         task_events = [e for e in self._tl_all_events if e['id'] in ('4698','4702')]
         if task_events:
-            findings.append(f"⚠ {len(task_events)} scheduled task create/modify event(s)")
+            findings.append(f"[WARN] {len(task_events)} scheduled task create/modify event(s)")
         # Explicit credential use
         ec_events = [e for e in self._tl_all_events if e['id'] == '4648']
         if len(ec_events) > 3:
-            findings.append(f"⚠ {len(ec_events)} explicit-credential logon events (lateral movement?)")
+            findings.append(f"[WARN] {len(ec_events)} explicit-credential logon events (lateral movement?)")
         if not findings:
-            findings = ["✅ No obvious attack patterns detected in loaded events."]
+            findings = ["[OK] No obvious attack patterns detected in loaded events."]
         messagebox.showinfo("Attack Pattern Analysis",
                             f"Analysis of {len(self._tl_all_events)} events:\n\n" +
                             '\n'.join(findings))
@@ -43111,7 +43111,7 @@ Verification Status:
         for txt, cmd, col in [
             ("🔄 Scan Devices",     self._usb_scan,          Colors.GAUGE_BLUE),
             ("📜 USB History",      self._usb_load_history,  Colors.GAUGE_TEAL),
-            ("✅ Add to Whitelist", self._usb_add_whitelist, Colors.GAUGE_GREEN),
+            ("[OK] Add to Whitelist", self._usb_add_whitelist, Colors.GAUGE_GREEN),
             ("🚫 Block Device",     self._usb_block_device,  Colors.GAUGE_RED),
             ("⏯ Monitor Toggle",   self._usb_toggle_monitor, Colors.GAUGE_PURPLE),
             ("📤 Export",           self._usb_export,        Colors.TEXT_DIM),
@@ -43155,7 +43155,7 @@ Verification Status:
         self._usb_menu = tk.Menu(self, tearoff=0, bg=Colors.GLASS_CARD,
                                   fg=Colors.TEXT_LIGHT, activebackground=Colors.GLASS_LIGHT,
                                   font=('Consolas', 9))
-        self._usb_menu.add_command(label="✅ Add to Whitelist", command=self._usb_add_whitelist)
+        self._usb_menu.add_command(label="[OK] Add to Whitelist", command=self._usb_add_whitelist)
         self._usb_menu.add_command(label="🚫 Block This Device",command=self._usb_block_device)
         self._usb_menu.add_command(label="📋 Copy Device ID",   command=self._usb_copy_id)
         self._usb_tree.bind('<Button-3>', lambda e: (
@@ -43172,7 +43172,7 @@ Verification Status:
         rf.grid_rowconfigure(1, weight=1); rf.grid_rowconfigure(3, weight=1)
         rf.grid_columnconfigure(0, weight=1)
 
-        tk.Label(rf, text="✅ WHITELIST", font=('Consolas', 9, 'bold'),
+        tk.Label(rf, text="[OK] WHITELIST", font=('Consolas', 9, 'bold'),
                  fg=Colors.GAUGE_GREEN, bg=Colors.GLASS_CARD
                  ).grid(row=0, column=0, sticky='w', padx=8, pady=4)
         self._usb_wl_box = tk.Text(rf, bg=Colors.GLASS_DARK, fg=Colors.GAUGE_GREEN,
@@ -43189,7 +43189,7 @@ Verification Status:
                   command=self._usb_save_whitelist
                   ).pack(side='left', padx=2, pady=2)
 
-        tk.Label(rf, text="🚨 ALERT LOG", font=('Consolas', 9, 'bold'),
+        tk.Label(rf, text="[ALERT] ALERT LOG", font=('Consolas', 9, 'bold'),
                  fg=Colors.GAUGE_RED, bg=Colors.GLASS_CARD
                  ).grid(row=3, column=0, sticky='nw', padx=8, pady=(8,2))
         self._usb_alert_log = tk.Text(rf, bg=Colors.GLASS_DARK, fg=Colors.GAUGE_RED,
@@ -43292,8 +43292,8 @@ Verification Status:
                 values=(d['name'], did, d.get('mfr',''), d.get('class',''),
                         d.get('status',''), d.get('seen','')), tags=(tag,))
         self._usb_status_lbl.config(
-            text=f"✓ {len(devices)} USB devices  |  ✅ Whitelisted: {len(devices)-unknown_count}"
-                 f"  |  ⚠ Unknown: {unknown_count}",
+            text=f"[OK] {len(devices)} USB devices  |  [OK] Whitelisted: {len(devices)-unknown_count}"
+                 f"  |  [WARN] Unknown: {unknown_count}",
             fg=Colors.GAUGE_ORANGE if unknown_count else Colors.GAUGE_GREEN)
 
     def _usb_add_whitelist(self):
@@ -43370,7 +43370,7 @@ Verification Status:
                     dev = dev.strip()
                     if not dev: continue
                     wl = dev in getattr(self, '_usb_whitelist', set())
-                    msg = f"{'✅ KNOWN' if wl else '⚠ UNKNOWN'} USB inserted: {dev[:60]}"
+                    msg = f"{'[OK] KNOWN' if wl else '[WARN] UNKNOWN'} USB inserted: {dev[:60]}"
                     self.after(0, lambda m=msg: self._usb_alert_log_msg(m))
                     if not wl:
                         self.after(0, lambda d=dev: messagebox.showwarning(
@@ -43609,7 +43609,7 @@ Verification Status:
     def _apply_security_hardening(self):
         """Apply registry security hardening"""
         def _run():
-            self._log_registry_event("🛡️ Applying security hardening...")
+            self._log_registry_event("[SHIELD] Applying security hardening...")
             fixes_applied = []
             
             try:
@@ -43653,7 +43653,7 @@ Verification Status:
                     except Exception as e:
                         fixes_applied.append(f"Failed {value_name}: {e}")
                 
-                self._log_registry_event(f"✅ Security hardening complete: {len(fixes_applied)} changes")
+                self._log_registry_event(f"[OK] Security hardening complete: {len(fixes_applied)} changes")
                 for fix in fixes_applied:
                     self._log_registry_event(f"  {fix}")
                     
@@ -43666,7 +43666,7 @@ Verification Status:
     def _optimize_registry_performance(self):
         """Optimize registry for better performance"""
         def _run():
-            self._log_registry_event("⚡ Optimizing registry performance...")
+            self._log_registry_event("[HIGH] Optimizing registry performance...")
             
             try:
                 import winreg
@@ -43699,7 +43699,7 @@ Verification Status:
                     except Exception as e:
                         optimizations.append(f"Failed {value_name}: {e}")
                 
-                self._log_registry_event(f"⚡ Performance optimization complete: {len(optimizations)} changes")
+                self._log_registry_event(f"[HIGH] Performance optimization complete: {len(optimizations)} changes")
                 for opt in optimizations:
                     self._log_registry_event(f"  {opt}")
                     
@@ -43876,7 +43876,7 @@ Verification Status:
                 
                 if result.returncode == 0:
                     self.registry_backups[timestamp] = backup_file
-                    self._log_registry_event(f"✅ Registry backup created: {backup_file}")
+                    self._log_registry_event(f"[OK] Registry backup created: {backup_file}")
                 else:
                     self._log_registry_event(f"❌ Backup failed: {result.stderr}")
                     
@@ -43916,7 +43916,7 @@ Verification Status:
                 )
                 
                 if result.returncode == 0:
-                    self._log_registry_event("✅ Registry restore completed successfully")
+                    self._log_registry_event("[OK] Registry restore completed successfully")
                     self._browse_registry()  # Refresh view
                 else:
                     self._log_registry_event(f"❌ Restore failed: {result.stderr}")
@@ -43940,7 +43940,7 @@ Verification Status:
             pass
 
     # ==========================================================================
-    #  🚨 EMERGENCY TAB — Extra Actions
+    #  [ALERT] EMERGENCY TAB — Extra Actions
     # ==========================================================================
 
     def _emergency_collect_forensics(self):
@@ -44047,7 +44047,7 @@ Verification Status:
                 f.write('\n'.join(lines))
 
             count = len(lines)
-            self.after(0, lambda: _log(f"✅ Forensic collection complete — {count} lines → {path}"))
+            self.after(0, lambda: _log(f"[OK] Forensic collection complete — {count} lines → {path}"))
             self.after(0, lambda: messagebox.showinfo("Forensics",
                 f"Collection saved to:\n{path}\n\n{count} lines of data captured."))
         threading.Thread(target=_run, daemon=True).start()
@@ -44320,7 +44320,7 @@ Verification Status:
                  bg=Colors.BG_VOID).grid(row=0, column=0, sticky='e', padx=10, pady=(8, 0))
 
         if not _backend_ok:
-            tk.Label(p, text=f"⚠  iot_scanner.py not loaded: {_import_err}",
+            tk.Label(p, text=f"[WARN]  iot_scanner.py not loaded: {_import_err}",
                      font=('Consolas', 9), fg=Colors.GAUGE_RED,
                      bg=Colors.BG_VOID).grid(row=1, column=0, sticky='w', padx=12, pady=4)
             return
@@ -44339,7 +44339,7 @@ Verification Status:
             ("🔬 Fingerprint",        self._iot_fingerprint_sel,  Colors.GAUGE_TEAL),
             ("🐛 Mozi Deep Scan",     self._iot_mozi_scan_sel,    Colors.GAUGE_ORANGE),
             ("🚫 Block Device",       self._iot_block_sel,        Colors.GAUGE_RED),
-            ("✅ Unblock Device",     self._iot_unblock_sel,      Colors.GAUGE_GREEN),
+            ("[OK] Unblock Device",     self._iot_unblock_sel,      Colors.GAUGE_GREEN),
             ("🖧 Router Commands",    self._iot_router_cmds_sel,  Colors.GAUGE_PURPLE),
             ("📋 Copy Info",          self._iot_copy_sel,         Colors.TEXT_DIM),
         ]:
@@ -44532,7 +44532,7 @@ Verification Status:
             # Botnet indicators
             if dev.botnet_indicators:
                 self._iot_botnet_lbl.config(
-                    text='\n'.join(f"⚠ {b}" for b in dev.botnet_indicators),
+                    text='\n'.join(f"[WARN] {b}" for b in dev.botnet_indicators),
                     fg=Colors.GAUGE_RED)
             else:
                 self._iot_botnet_lbl.config(text="None detected", fg=Colors.GAUGE_GREEN)
@@ -44692,7 +44692,7 @@ Verification Status:
             pass
 
     # ==========================================================================
-    #  🚨 THREATS TAB — Unified Threat Log & Remediation Centre
+    #  [ALERT] THREATS TAB — Unified Threat Log & Remediation Centre
     # ==========================================================================
 
     def _build_threats_tab(self):
@@ -44709,7 +44709,7 @@ Verification Status:
         # ── Header ──────────────────────────────────────────────────────────
         hdr = tk.Frame(p, bg=C.GLASS_CARD, pady=6)
         hdr.grid(row=0, column=0, sticky='ew', padx=6, pady=(4, 0))
-        tk.Label(hdr, text='🚨 THREAT LOG & REMEDIATION CENTRE  v29',
+        tk.Label(hdr, text='[ALERT] THREAT LOG & REMEDIATION CENTRE  v29',
                  font=('Consolas', 12, 'bold'), fg=C.GAUGE_RED,
                  bg=C.GLASS_CARD).pack(side='left', padx=10)
 
@@ -44736,8 +44736,8 @@ Verification Status:
         self._thr_info_var = tk.StringVar(value='0')
         self._thr_risk_var = tk.StringVar(value='Risk: —')
         for lbl, var, col in [
-            ('🔴 Critical', self._thr_crit_var, C.GAUGE_RED),
-            ('🟠 High',     self._thr_high_var, C.GAUGE_ORANGE),
+            ('[CRITICAL] Critical', self._thr_crit_var, C.GAUGE_RED),
+            ('[WARNING] High',     self._thr_high_var, C.GAUGE_ORANGE),
             ('🟡 Medium',   self._thr_med_var,  C.GAUGE_YELLOW),
             ('🔵 Info',     self._thr_info_var, C.GAUGE_TEAL),
             ('',            self._thr_risk_var, C.GAUGE_ORANGE),
@@ -44765,13 +44765,13 @@ Verification Status:
             return b
 
         # Row 1 — Primary actions
-        _btn(bar, '🔴 REMEDIATE ALL',   self._threats_remediate_all,
+        _btn(bar, '[CRITICAL] REMEDIATE ALL',   self._threats_remediate_all,
              C.GAUGE_RED,    'Remediate ALL active/new threats in one click', bold=True)
         _btn(bar, '🛡 Remediate Selected', self._threats_remediate_selected,
              C.GAUGE_ORANGE, 'Run 5-layer remediation on selected threat(s)')
         _btn(bar, '📦 Quarantine Selected', self._threats_quarantine_selected,
              C.GAUGE_ORANGE, 'Move associated files to quarantine vault')
-        _btn(bar, '⚡ Kill Process',    self._threats_kill_selected,
+        _btn(bar, '[HIGH] Kill Process',    self._threats_kill_selected,
              C.GAUGE_ORANGE, 'Kill the process named in selected threat')
         _btn(bar, '🚫 Block IP',        self._threats_block_ip,
              C.GAUGE_YELLOW, 'Add Windows Firewall block rule for threat IP')
@@ -44782,7 +44782,7 @@ Verification Status:
         tk.Frame(bar, bg=C.TEXT_DIM, width=1, height=24).pack(side='left', padx=6, pady=4)
 
         # Row 1 continued — Triage
-        _btn(bar, '✅ Mark FP',         self._threats_mark_fp,
+        _btn(bar, '[OK] Mark FP',         self._threats_mark_fp,
              C.GAUGE_GREEN,  'Mark selected as false positive')
         _btn(bar, '🗑 Dismiss',         self._threats_dismiss_selected,
              C.TEXT_DIM,     'Dismiss / acknowledge selected threats')
@@ -44871,9 +44871,9 @@ Verification Status:
         for dtxt, dcmd, dcol in [
             ('🛡 Remediate',  self._threats_remediate_selected, C.GAUGE_RED),
             ('📦 Quarantine', self._threats_quarantine_selected, C.GAUGE_ORANGE),
-            ('⚡ Kill',       self._threats_kill_selected,       C.GAUGE_ORANGE),
+            ('[HIGH] Kill',       self._threats_kill_selected,       C.GAUGE_ORANGE),
             ('🚫 Block IP',   self._threats_block_ip,            C.GAUGE_YELLOW),
-            ('✅ Mark FP',    self._threats_mark_fp,             C.GAUGE_GREEN),
+            ('[OK] Mark FP',    self._threats_mark_fp,             C.GAUGE_GREEN),
         ]:
             tk.Button(dtop, text=dtxt, font=('Consolas', 8), fg=dcol,
                       bg=C.GLASS_DARK, relief='flat', padx=6, pady=2,
@@ -44916,12 +44916,12 @@ Verification Status:
         self._thr_menu = tk.Menu(self, tearoff=0, bg=C.GLASS_CARD,
                                   fg=C.TEXT_LIGHT, activebackground=C.GLASS_LIGHT,
                                   font=('Consolas', 9))
-        self._thr_menu.add_command(label='🔴 Remediate This Threat', command=self._threats_remediate_selected)
+        self._thr_menu.add_command(label='[CRITICAL] Remediate This Threat', command=self._threats_remediate_selected)
         self._thr_menu.add_command(label='📦 Quarantine Associated Files', command=self._threats_quarantine_selected)
-        self._thr_menu.add_command(label='⚡ Kill Process', command=self._threats_kill_selected)
+        self._thr_menu.add_command(label='[HIGH] Kill Process', command=self._threats_kill_selected)
         self._thr_menu.add_command(label='🚫 Block IP in Firewall', command=self._threats_block_ip)
         self._thr_menu.add_separator()
-        self._thr_menu.add_command(label='✅ Mark False Positive', command=self._threats_mark_fp)
+        self._thr_menu.add_command(label='[OK] Mark False Positive', command=self._threats_mark_fp)
         self._thr_menu.add_command(label='🗑 Dismiss', command=self._threats_dismiss_selected)
         self._thr_menu.add_separator()
         self._thr_menu.add_command(label='📋 Copy Description', command=self._threats_copy_desc)
@@ -45181,7 +45181,7 @@ Verification Status:
                             f'Actions taken: {len(result.actions_taken)}\n'
                             f'Succeeded: {ok}\n'
                             f'Reboot required: {result.requires_reboot}\n\n'
-                            + '\n'.join(f'  {"✓" if a.success else "✗"} [{a.action_type}] {a.description}'
+                            + '\n'.join(f'  {"[OK]" if a.success else "[FAIL]"} [{a.action_type}] {a.description}'
                                         for a in result.actions_taken[:20]))
             ))
         threading.Thread(target=_run, daemon=True).start()
@@ -45308,7 +45308,7 @@ Verification Status:
                             f'Actions taken: {total_acts}\n'
                             f'Succeeded: {total_ok}\n'
                             f'Failed: {total_acts - total_ok}\n'
-                            + ('⚠️ REBOOT REQUIRED\n' if needs_reboot else '')
+                            + ('[WARN] REBOOT REQUIRED\n' if needs_reboot else '')
                             + '\nAll processed threats marked Remediated.')
             ))
 
@@ -45390,7 +45390,7 @@ Verification Status:
     def _threats_isolate_host(self):
         """Emergency network isolation — block all inbound/outbound via firewall."""
         import tkinter.messagebox as mb, subprocess
-        if not mb.askyesno('⚠️ ISOLATE HOST',
+        if not mb.askyesno('[WARN] ISOLATE HOST',
                            'This will BLOCK ALL network traffic via Windows Firewall.\n\n'
                            'You will lose internet and LAN access immediately.\n'
                            'Use only during active attack response.\n\n'
@@ -45404,7 +45404,7 @@ Verification Status:
                            capture_output=True, timeout=15, creationflags=_NO_WIN)
             self._queue_alert('[ISOLATION] Host network isolated — ALL traffic BLOCKED',
                               Colors.GAUGE_RED)
-            mb.showinfo('Isolated', '🔴 HOST ISOLATED\n\nAll network traffic is now blocked.\n\n'
+            mb.showinfo('Isolated', '[CRITICAL] HOST ISOLATED\n\nAll network traffic is now blocked.\n\n'
                         'To restore:\nnetsh advfirewall set allprofiles '
                         'firewallpolicy blockinbound,allowoutbound')
         except Exception as e:
@@ -45463,13 +45463,13 @@ Verification Status:
 <h1>⛈ Downpour v29 Titanium — Threat Intelligence Report</h1>
 <p style="color:#666">Generated: {now} | Total Events: {total}</p>
 <div>
-  <span class="badge crit">🔴 Critical: {len(crit)}</span>
-  <span class="badge high">🟠 High: {len(high)}</span>
+  <span class="badge crit">[CRITICAL] Critical: {len(crit)}</span>
+  <span class="badge high">[WARNING] High: {len(high)}</span>
   <span class="badge med">🟡 Medium: {len(med)}</span>
   <span class="badge info">🔵 Info: {len(info)}</span>
 </div>
-{"<h2 style='color:#e05c5c'>🔴 Critical Threats</h2><table><tr><th>Time</th><th>Severity</th><th>Category</th><th>MITRE</th><th>Description</th><th>Status</th></tr>" + _rows(crit,"#e05c5c") + "</table>" if crit else ""}
-{"<h2 style='color:#e8922b'>🟠 High Threats</h2><table><tr><th>Time</th><th>Severity</th><th>Category</th><th>MITRE</th><th>Description</th><th>Status</th></tr>" + _rows(high,"#e8922b") + "</table>" if high else ""}
+{"<h2 style='color:#e05c5c'>[CRITICAL] Critical Threats</h2><table><tr><th>Time</th><th>Severity</th><th>Category</th><th>MITRE</th><th>Description</th><th>Status</th></tr>" + _rows(crit,"#e05c5c") + "</table>" if crit else ""}
+{"<h2 style='color:#e8922b'>[WARNING] High Threats</h2><table><tr><th>Time</th><th>Severity</th><th>Category</th><th>MITRE</th><th>Description</th><th>Status</th></tr>" + _rows(high,"#e8922b") + "</table>" if high else ""}
 {"<h2 style='color:#e8c02b'>🟡 Medium Threats</h2><table><tr><th>Time</th><th>Severity</th><th>Category</th><th>MITRE</th><th>Description</th><th>Status</th></tr>" + _rows(med,"#e8c02b") + "</table>" if med else ""}
 {"<h2 style='color:#7ec8e3'>🔵 Info Events</h2><table><tr><th>Time</th><th>Severity</th><th>Category</th><th>MITRE</th><th>Description</th><th>Status</th></tr>" + _rows(info,"#7ec8e3") + "</table>" if info else ""}
 </body></html>'''

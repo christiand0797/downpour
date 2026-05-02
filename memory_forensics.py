@@ -207,7 +207,7 @@ class MemoryForensicsAnalyzer:
             finally:
                 conn.close()
             
-            logging.info("[✓] Memory forensics database initialized")
+            logging.info("[OK] Memory forensics database initialized")
             
         except Exception as e:
             logging.error(f"Failed to initialize database: {e}")
@@ -933,7 +933,7 @@ class MemoryForensicsAnalyzer:
         """Start memory forensics monitoring in background thread."""
         monitor_thread = threading.Thread(target=self.monitoring_loop, daemon=True)
         monitor_thread.start()
-        logging.info("[✓] Memory Forensics Analyzer active")
+        logging.info("[OK] Memory Forensics Analyzer active")
     
     def stop(self) -> None:
         """Stop memory forensics monitoring."""

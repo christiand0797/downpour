@@ -477,7 +477,7 @@ class BehavioralAnalyzer:
         """Start behavioral monitoring in background thread."""
         monitor_thread = threading.Thread(target=self.monitoring_loop, daemon=True)
         monitor_thread.start()
-        logging.info("[✓] Behavioral Analysis System active")
+        logging.info("[OK] Behavioral Analysis System active")
     
     def stop(self):
         """Stop behavioral monitoring."""
