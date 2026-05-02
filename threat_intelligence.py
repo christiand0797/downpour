@@ -187,6 +187,13 @@ class ThreatIntelligenceManager:
                 'priority': 'high',
                 'update_interval': 3600,  # 1 hour
                 'last_update': 0
+            },
+            'nvd_recent': {
+                'url': 'https://services.nvd.nist.gov/rest/json/cves/2.0?resultsPerPage=50&startIndex=0',
+                'enabled': True,
+                'priority': 'medium',
+                'update_interval': 21600,  # 6 hours
+                'last_update': 0
             }
         }
         
@@ -948,6 +955,50 @@ class ThreatIntelligenceManager:
             self.stats['update_failures'] += 1
             return 0
     
+    def update_nvd_recent_feed(self):
+        """Update recent CVEs from NVD (National Vulnerability Database)."""
+        try:
+            logging.info("Updating NVD Recent CVEs feed...")
+            
+            _get = self._session.get if self._session else requests.get
+            response = _get(self.feeds['nvd_recent']['url'], timeout=60)
+            response.raise_for_status()
+            
+            data = response.json()
+            iocs_added = 0
+            
+            if 'vulnerabilities' in data:
+                for vuln in data.get('vulnerabilities', []):
+                    try:
+                        cve_data = vuln.get('cve', {})
+                        cve_id = cve_data.get('id', '')
+                        if not cve_id.startswith('CVE-'):
+                            continue
+                        
+                        # Add to KEV cache with NVD source
+                        if cve_id not in self.kev_cache:
+                            self.kev_cache[cve_id] = {
+                                'source': 'nvd_recent',
+                                'published': cve_data.get('published', ''),
+                                'last_modified': cve_data.get('lastModified', ''),
+                                'status': cve_data.get('vulnStatus', ''),
+                                'date_added': datetime.now().isoformat()
+                            }
+                        iocs_added += 1
+                        
+                    except Exception as e:
+                        logging.debug(f"Error processing NVD CVE: {e}")
+                        continue
+            
+            self.feeds['nvd_recent']['last_update'] = time.time()
+            logging.info(f"[OK] NVD Recent CVEs updated: {iocs_added} CVEs added")
+            return iocs_added
+            
+        except Exception as e:
+            logging.error(f"Failed to update NVD Recent CVEs: {e}")
+            self.stats['update_failures'] += 1
+            return 0
+    
     def cleanup_old_iocs(self):
         """Remove old and stale IOCs from database."""
         conn = sqlite3.connect(self.db_path)
@@ -1005,6 +1056,8 @@ class ThreatIntelligenceManager:
                     iocs = self.update_cisa_ics_feed()
                 elif feed_name == 'blocklist_de':
                     iocs = self.update_blocklist_de_feed()
+                elif feed_name == 'nvd_recent':
+                    iocs = self.update_nvd_recent_feed()
                 else:
                     logging.warning(f"Unknown feed: {feed_name}")
                     continue
