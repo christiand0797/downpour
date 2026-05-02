@@ -49,9 +49,13 @@ if "!PY!"=="" (
 )
 echo   [OK] Python: !PY!
 
-echo   [..] Installing dependencies...
-"!PY!" -m pip install --quiet --break-system-packages psutil requests cryptography watchdog nvidia-ml-py colorama wmi pywin32 scikit-learn yara-python pillow dnspython netifaces 2>nul
-echo   [OK] Dependencies ready
+echo   [..] Installing all dependencies...
+"!PY!" -m pip install psutil requests cryptography watchdog nvidia-ml-py colorama wmi pywin32 scikit-learn yara-python pillow dnspython netifaces joblib tqdm pyperclip python-dateutil charset-normalizer idna urllib3 certifi
+if %errorlevel%==0 (
+    echo   [OK] All dependencies installed successfully
+) else (
+    echo   [!!] Some dependencies failed to install
+)
 
 echo   [..] Configuring Defender exclusions...
 powershell -NoProfile -Command "Add-MpPreference -ExclusionPath '!APPDIR!' -ErrorAction SilentlyContinue" >nul 2>&1

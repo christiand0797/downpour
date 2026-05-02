@@ -145,6 +145,34 @@ class ThreatIntelligenceManager:
                 'priority': 'medium',
                 'update_interval': 3600,
                 'last_update': 0
+            },
+            'malwarebazaar': {
+                'url': 'https://bazaar.abuse.ch/export/csv/recent/',
+                'enabled': True,
+                'priority': 'high',
+                'update_interval': 1800,  # 30 minutes
+                'last_update': 0
+            },
+            'mitre_attack': {
+                'url': 'https://raw.githubusercontent.com/mitre/cti/master/enterprise-attack/enterprise-attack.json',
+                'enabled': True,
+                'priority': 'low',
+                'update_interval': 86400,  # 24 hours
+                'last_update': 0
+            },
+            'alienvault_otx': {
+                'url': 'https://otx.alienvault.com/api/v1/indicators/export',
+                'enabled': True,
+                'priority': 'medium',
+                'update_interval': 86400,  # 24 hours
+                'last_update': 0
+            },
+            'spamhaus_dbl': {
+                'url': 'https://www.spamhaus.org/dbl/dbl.txt',
+                'enabled': True,
+                'priority': 'high',
+                'update_interval': 3600,  # 1 hour
+                'last_update': 0
             }
         }
         
@@ -575,6 +603,250 @@ class ThreatIntelligenceManager:
         
         return False, {}
     
+    def update_malwarebazaar_feed(self):
+        """Update threat intelligence from MalwareBazaar (abuse.ch)."""
+        try:
+            logging.info("Updating MalwareBazaar feed...")
+            
+            _get = self._session.get if self._session else requests.get
+            response = _get(self.feeds['malwarebazaar']['url'], timeout=30)
+            response.raise_for_status()
+            
+            # MalwareBazaar returns CSV
+            lines = response.text.strip().split('\n')
+            iocs_added = 0
+            
+            # Skip header line
+            for line in lines[1:]:
+                try:
+                    if not line or line.startswith('#'):
+                        continue
+                    
+                    # CSV format: first_seen_utc,sha256_hash,md5_hash,sha1_hash,......
+                    parts = line.split(',')
+                    if len(parts) < 3:
+                        continue
+                    
+                    sha256_hash = parts[1].strip('"') if len(parts) > 1 else ''
+                    md5_hash = parts[2].strip('"') if len(parts) > 2 else ''
+                    malware_family = parts[5].strip('"') if len(parts) > 5 else ''
+                    
+                    if sha256_hash:
+                        self.add_malware_hash(sha256_hash, 'sha256', 'malwarebazaar', malware_family, ['malwarebazaar'])
+                        iocs_added += 1
+                    if md5_hash and md5_hash != sha256_hash:
+                        self.add_malware_hash(md5_hash, 'md5', 'malwarebazaar', malware_family, ['malwarebazaar'])
+                    
+                except Exception as e:
+                    logging.debug(f"Error processing MalwareBazaar line: {e}")
+                    continue
+            
+            self.feeds['malwarebazaar']['last_update'] = time.time()
+            logging.info(f"[+] MalwareBazaar updated: {iocs_added} hashes added")
+            return iocs_added
+            
+        except Exception as e:
+            logging.error(f"Failed to update MalwareBazaar: {e}")
+            self.stats['update_failures'] += 1
+            return 0
+    
+    def update_mitre_attack_feed(self):
+        """
+        Update MITRE ATT&CK techniques mapping.
+        Downloads STIX data and extracts technique-to-tactic mappings.
+        """
+        try:
+            logging.info("Updating MITRE ATT&CK feed...")
+            
+            _get = self._session.get if self._session else requests.get
+            response = _get(self.feeds['mitre_attack']['url'], timeout=60)
+            response.raise_for_status()
+            
+            data = response.json()
+            techniques = {}
+            
+            # Parse STIX 2.0 bundle
+            for obj in data.get('objects', []):
+                if obj.get('type') == 'attack-pattern':
+                    ext_id = ''
+                    for ref in obj.get('external_references', []):
+                        if ref.get('source_name') == 'mitre-attack':
+                            ext_id = ref.get('external_id', '')
+                            break
+                    
+                    if ext_id.startswith('T'):
+                        techniques[ext_id] = {
+                            'name': obj.get('name', ''),
+                            'description': obj.get('description', '')[:200],
+                            'tactic': self._extract_tactic(obj)
+                        }
+            
+            # Store in database
+            conn = sqlite3.connect(self.db_path)
+            try:
+                cursor = conn.cursor()
+                
+                # Create table if not exists
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS mitre_attack_techniques (
+                        technique_id TEXT PRIMARY KEY,
+                        technique_name TEXT,
+                        description TEXT,
+                        tactic TEXT,
+                        last_updated TIMESTAMP
+                    )
+                ''')
+                
+                for tid, info in techniques.items():
+                    cursor.execute('''
+                        INSERT OR REPLACE INTO mitre_attack_techniques
+                        (technique_id, technique_name, description, tactic, last_updated)
+                        VALUES (?, ?, ?, ?, ?)
+                    ''', (tid, info['name'], info['description'], info['tactic'], datetime.now()))
+                
+                conn.commit()
+                logging.info(f"[+] MITRE ATT&CK updated: {len(techniques)} techniques loaded")
+                
+            finally:
+                conn.close()
+            
+            self.feeds['mitre_attack']['last_update'] = time.time()
+            return len(techniques)
+            
+        except Exception as e:
+            logging.error(f"Failed to update MITRE ATT&CK: {e}")
+            self.stats['update_failures'] += 1
+            return 0
+    
+    def update_alienvault_otx_feed(self):
+        """Update threat intelligence from AlienVault OTX."""
+        try:
+            logging.info("Updating AlienVault OTX feed...")
+            headers = {}
+            if self.api_keys.get('otx'):
+                headers['X-OTX-API-KEY'] = self.api_keys['otx']
+            
+            _get = self._session.get if self._session else requests.get
+            response = _get(self.feeds['alienvault_otx']['url'], headers=headers, timeout=30)
+            response.raise_for_status()
+            
+            data = response.json()
+            iocs_added = 0
+            
+            for indicator in data.get('results', []):
+                ioc_type = indicator.get('type', '')
+                ioc_value = indicator.get('indicator', '')
+                if not ioc_value:
+                    continue
+                
+                if ioc_type == 'IPv4':
+                    self.add_malicious_ip(ioc_value, 'alienvault_otx')
+                    iocs_added += 1
+                elif ioc_type == 'domain':
+                    self.add_malicious_domain(ioc_value, 'alienvault_otx')
+                    iocs_added += 1
+                elif ioc_type in ['URL', 'URI']:
+                    self.add_malicious_url(ioc_value, 'alienvault_otx')
+                    iocs_added += 1
+                elif ioc_type in ['FileHash-SHA256', 'FileHash-MD5', 'FileHash-SHA1']:
+                    hash_type = ioc_type.split('-')[-1].lower()
+                    self.add_malware_hash(ioc_value, hash_type, 'alienvault_otx')
+                    iocs_added += 1
+            
+            self.feeds['alienvault_otx']['last_update'] = time.time()
+            logging.info(f"[+] AlienVault OTX updated: {iocs_added} IOCs added")
+            return iocs_added
+            
+        except Exception as e:
+            logging.error(f"Failed to update AlienVault OTX: {e}")
+            self.stats['update_failures'] += 1
+            return 0
+    
+    def update_spamhaus_dbl_feed(self):
+        """Update domain blacklist from Spamhaus DBL."""
+        try:
+            logging.info("Updating Spamhaus DBL feed...")
+            _get = self._session.get if self._session else requests.get
+            response = _get(self.feeds['spamhaus_dbl']['url'], timeout=30)
+            response.raise_for_status()
+            
+            lines = response.text.strip().split('\n')
+            iocs_added = 0
+            
+            for line in lines:
+                line = line.strip()
+                if not line or line.startswith(';'):
+                    continue
+                
+                # Extract domain (ignore comments)
+                domain = line.split(';')[0].strip()
+                if domain:
+                    self.add_malicious_domain(domain, 'spamhaus_dbl', tags=['spam', 'phishing'])
+                    iocs_added += 1
+            
+            self.feeds['spamhaus_dbl']['last_update'] = time.time()
+            logging.info(f"[+] Spamhaus DBL updated: {iocs_added} domains added")
+            return iocs_added
+            
+        except Exception as e:
+            logging.error(f"Failed to update Spamhaus DBL: {e}")
+            self.stats['update_failures'] += 1
+            return 0
+    
+    def _extract_tactic(self, attack_pattern_obj: Dict) -> str:
+        """Extract tactic from ATT&CK pattern object."""
+        for ref in attack_pattern_obj.get('kill_chain_phases', []):
+            if ref.get('kill_chain_name') == 'mitre-attack':
+                return ref.get('phase_name', '')
+        return ''
+    
+    def update_emerging_threats_feed(self):
+        """Update threat intelligence from Emerging Threats (Suricata rules).
+        
+        Note: Emerging Threats provides Suricata rules. This method extracts
+        IOCs from rule contents where possible.
+        """
+        try:
+            logging.info("Updating Emerging Threats feed...")
+            
+            # Emerging Threats URL is a directory - we'll use a specific rules file
+            # For simplicity, we'll use the compromised hosts rules which contain IPs
+            rules_url = "https://rules.emergingthreats.net/open/suricata/rules/compromised.rules"
+            
+            _get = self._session.get if self._session else requests.get
+            response = _get(rules_url, timeout=30)
+            response.raise_for_status()
+            
+            lines = response.text.strip().split('\n')
+            iocs_added = 0
+            
+            import re
+            # Pattern to extract IPs from Suricata rules
+            ip_pattern = re.compile(r'(?:src_ip|dest_ip|content|alert)\s*[:\s]\s*([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})')
+            
+            for line in lines:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                
+                # Extract IPs from rule
+                matches = ip_pattern.findall(line)
+                for ip in matches:
+                    # Validate IP (basic check)
+                    parts = ip.split('.')
+                    if len(parts) == 4 and all(0 <= int(p) <= 255 for p in parts):
+                        self.add_malicious_ip(ip, 'emerging_threats', tags=['emerging_threats'])
+                        iocs_added += 1
+            
+            self.feeds['emerging_threats']['last_update'] = time.time()
+            logging.info(f"[+] Emerging Threats updated: {iocs_added} IOCs added")
+            return iocs_added
+            
+        except Exception as e:
+            logging.error(f"Failed to update Emerging Threats: {e}")
+            self.stats['update_failures'] += 1
+            return 0
+    
     def cleanup_old_iocs(self):
         """Remove old and stale IOCs from database."""
         conn = sqlite3.connect(self.db_path)
@@ -618,6 +890,16 @@ class ThreatIntelligenceManager:
                     iocs = self.update_urlhaus_feed()
                 elif feed_name == 'phishtank':
                     iocs = self.update_phishtank_feed()
+                elif feed_name == 'malwarebazaar':
+                    iocs = self.update_malwarebazaar_feed()
+                elif feed_name == 'mitre_attack':
+                    iocs = self.update_mitre_attack_feed()
+                elif feed_name == 'alienvault_otx':
+                    iocs = self.update_alienvault_otx_feed()
+                elif feed_name == 'spamhaus_dbl':
+                    iocs = self.update_spamhaus_dbl_feed()
+                elif feed_name == 'emerging_threats':
+                    iocs = self.update_emerging_threats_feed()
                 else:
                     logging.warning(f"Unknown feed: {feed_name}")
                     continue
@@ -632,7 +914,7 @@ class ThreatIntelligenceManager:
         self.stats['last_update'] = datetime.now()
         
         if total_iocs > 0:
-            logging.info(f"[✓] Total IOCs updated: {total_iocs}")
+            logging.info(f"[+] Total IOCs updated: {total_iocs}")
         
         return total_iocs
     
@@ -795,6 +1077,30 @@ class ThreatIntelligenceManager:
                     correlations.append(ctx)
         
         return correlations
+
+    def start_monitoring(self):
+        """Start background feed monitoring."""
+        if not self.running:
+            self.running = True
+            self.monitor_thread = threading.Thread(
+                target=self.monitoring_loop, 
+                daemon=True, 
+                name='ThreatIntelMonitor'
+            )
+            self.monitor_thread.start()
+            logging.info("Threat intelligence monitoring started")
+
+    def get_mitre_technique_count(self):
+        """Return number of loaded MITRE ATT&CK techniques."""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM mitre_attack_techniques")
+            count = cursor.fetchone()[0]
+            conn.close()
+            return count
+        except Exception:
+            return 0
 
 # Global instance
 _ti_instance = None

@@ -1,5 +1,5 @@
 """
-__version__ = "29.0.0"
+__version__ = "29.0.0-titanium"
 downpour  -  advanced security suite v29 TITANIUM
 ==================================================
 a comprehensive cybersecurity application featuring real-time threat detection, 
@@ -465,6 +465,21 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+class Colors:
+    """Centralized color scheme for the application."""
+    BG_VOID = '#0a0e17'
+    BG_VOID_LIGHT = '#151a24'
+    GLASS_CARD = '#1a1f2e'
+    GLASS_PANEL = '#1e2332'
+    GLASS_LIGHT = '#252b3b'
+    TEXT_DIM = '#7a8ba3'
+    TEXT_NORMAL = '#c8d6e5'
+    GAUGE_TEAL = '#00d2d3'
+    GAUGE_YELLOW = '#ff9f43'
+    GAUGE_GREEN = '#10ac84'
+    GAUGE_RED = '#ee5253'
+    GAUGE_ORANGE = '#ff7f50'
 
 # Centralized Memory Management System
 class MemoryManager:
