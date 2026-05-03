@@ -724,6 +724,13 @@ class ThreatFeedAggregator:
         self.running = True
 
         def update_loop():
+            # Initialize COM for this thread
+            try:
+                import pythoncom
+                pythoncom.CoInitialize()
+            except ImportError:
+                pass
+
             while self.running:
                 try:
                     self.update_all_feeds()
