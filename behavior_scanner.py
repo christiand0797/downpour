@@ -962,6 +962,13 @@ class RealTimeMonitor:
     
     def _monitor_loop(self):
         """Main monitoring loop"""
+        # Initialize COM for this thread
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+        except ImportError:
+            pass
+
         while self.running:
             try:
                 self._check_new_processes()
