@@ -97,8 +97,14 @@ Downpour is a personal, all-in-one Windows security suite — written entirely i
 - **3 New Threat Intelligence Feeds**: CISA ICS-CERT (OT/ICS threats), BlockList.de (malicious IPs), NVD Recent CVEs
 - **EPSS Trend Tracking**: `get_epss_trend()` method to track exploit likelihood changes over time
 - **EPSS Patch Prioritization**: `prioritize_patches()` method to auto-sort CVEs by exploit likelihood
+- **EPSS Historical Database**: Store EPSS scores with timestamps for trend analysis
+- **EPSS Periodic Update**: Daily automatic EPSS score updates for all KEV CVEs
+- **EPSS Report Generation**: `generate_epss_report()` for high-risk CVE analysis
+- **EPSS Alerting**: Automatic alerts for CVEs with EPSS >= 0.8 (every 6 hours)
+- **EPSS Caching**: 24-hour cache to avoid repeated API calls
 - **Emoji-to-ASCII Conversion**: All emojis in logging/print statements converted to ASCII across 12 modules
 - **Warning Filter**: Added suppression for sklearn warnings in main application
+- **YARA Rules**: 200+ signatures across 10+ files (malware, botnets, IoT, exploits)
 
 ### Malware Signature Expansion (v2.1)
 - 750+ total signatures
