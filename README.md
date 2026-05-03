@@ -93,6 +93,13 @@ Downpour is a personal, all-in-one Windows security suite — written entirely i
 - Threat actor indicator parsing
 - Enhanced feed correlation
 
+### v29 Titanium - 2026-05-02 Enhancements
+- **3 New Threat Intelligence Feeds**: CISA ICS-CERT (OT/ICS threats), BlockList.de (malicious IPs), NVD Recent CVEs
+- **EPSS Trend Tracking**: `get_epss_trend()` method to track exploit likelihood changes over time
+- **EPSS Patch Prioritization**: `prioritize_patches()` method to auto-sort CVEs by exploit likelihood
+- **Emoji-to-ASCII Conversion**: All emojis in logging/print statements converted to ASCII across 12 modules
+- **Warning Filter**: Added suppression for sklearn warnings in main application
+
 ### Malware Signature Expansion (v2.1)
 - 750+ total signatures
 - 30+ new APT C2 frameworks (BruteRatel, Mythic, Havoc, Sliver, etc.)
