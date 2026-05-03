@@ -1003,7 +1003,7 @@ class RealTimeMonitor:
 
                 # Process from temp directory?
                 if exe and ('\\temp\\' in exe.lower() or '\\tmp\\' in exe.lower()):
-                    self.log(f"⚠ New process from temp: {name} ({exe})", "WARNING")
+                    self.log(f"[WARN] New process from temp: {name} ({exe})", "WARNING")
                     with self._lock:
                         self.alerts.append({
                             'type': 'new_process',
@@ -1017,7 +1017,7 @@ class RealTimeMonitor:
                 # PowerShell with encoded command?
                 cmdline = ' '.join(proc.info.get('cmdline', []) or [])
                 if 'powershell' in name.lower() and '-enc' in cmdline.lower():
-                    self.log(f"⚠ Encoded PowerShell detected: PID {pid}", "CRITICAL")
+                    self.log(f"[WARN] Encoded PowerShell detected: PID {pid}", "CRITICAL")
                     with self._lock:
                         self.alerts.append({
                             'type': 'encoded_powershell',
@@ -1059,7 +1059,7 @@ class RealTimeMonitor:
                     except Exception:
                         pass
 
-                    self.log(f"⚠ Suspicious connection: {proc_name} -> {conn.raddr.ip}:{conn.raddr.port}", "CRITICAL")
+                    self.log(f"[WARN] Suspicious connection: {proc_name} -> {conn.raddr.ip}:{conn.raddr.port}", "CRITICAL")
                     with self._lock:
                         self.alerts.append({
                             'type': 'suspicious_connection',

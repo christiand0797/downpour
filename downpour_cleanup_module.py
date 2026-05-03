@@ -908,7 +908,7 @@ _DEFAULT_CATEGORIES: List[Dict] = [
     {
         "key": "quarantine",
         "label": "Expired Quarantine",
-        "icon": "🔒",
+        "icon": "[LOCK]",
         "description": f"Quarantined threat files older than {QUARANTINE_RETENTION_DAYS} days.",
         "risk_level": RiskLevel.MODERATE,
         "risk_note": "Permanently removes old quarantine samples.",

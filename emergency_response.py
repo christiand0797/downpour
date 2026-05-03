@@ -567,7 +567,7 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description="Family Security Suite - Emergency Response")
     parser.add_argument('--panic', action='store_true',
-                       help='🚨 EMERGENCY PANIC BUTTON - Instant lockdown!')
+                       help='[ALERT] EMERGENCY PANIC BUTTON - Instant lockdown!')
     parser.add_argument('--isolate', action='store_true',
                        help='Isolate network immediately')
     parser.add_argument('--snapshot', action='store_true',
@@ -591,8 +591,8 @@ if __name__ == "__main__":
         er.recovery_mode()
     else:
         print("Family Security Suite - Emergency Response System")
-        print("\n⚠️  EMERGENCY COMMANDS:")
-        print("  python emergency_response.py --panic     # 🚨 INSTANT LOCKDOWN")
+        print("\n[WARN]️  EMERGENCY COMMANDS:")
+        print("  python emergency_response.py --panic     # [ALERT] INSTANT LOCKDOWN")
         print("  python emergency_response.py --isolate   # Disconnect network")
         print("  python emergency_response.py --snapshot  # Save system state")
         print("  python emergency_response.py --recover   # Recovery mode")

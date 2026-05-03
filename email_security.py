@@ -678,7 +678,7 @@ class EmailSecurityScanner:
             # Total scanned
             cursor.execute('SELECT COUNT(*) FROM scanned_emails')
             total = cursor.fetchone()[0]
-            report_lines.append(f"📊 Total Emails Scanned: {total}")
+            report_lines.append(f"[CHART] Total Emails Scanned: {total}")
 
             # High risk emails
             cursor.execute('''
@@ -686,12 +686,12 @@ class EmailSecurityScanner:
                 WHERE risk_score >= ?
             ''', (self.config['block_threshold'],))
             high_risk = cursor.fetchone()[0]
-            report_lines.append(f"🚨 High Risk Emails: {high_risk}")
+            report_lines.append(f"[ALERT] High Risk Emails: {high_risk}")
 
             # Quarantined
             cursor.execute('SELECT COUNT(*) FROM scanned_emails WHERE was_quarantined = 1')
             quarantined = cursor.fetchone()[0]
-            report_lines.append(f"🔒 Emails Quarantined: {quarantined}")
+            report_lines.append(f"[LOCK] Emails Quarantined: {quarantined}")
             report_lines.append("")
 
             # Recent suspicious emails
@@ -705,7 +705,7 @@ class EmailSecurityScanner:
 
             suspicious = cursor.fetchall()
             if suspicious:
-                report_lines.append("⚠️  Recent Suspicious Emails:")
+                report_lines.append("[WARN]️  Recent Suspicious Emails:")
                 for timestamp, sender, subject, score in suspicious:
                     date_str = timestamp.split('T')[0]
                     report_lines.append(f"   [{score}] {date_str} - From: {sender}")

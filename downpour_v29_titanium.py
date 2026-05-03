@@ -22691,7 +22691,7 @@ class downpour(tk.Tk):
             ("🌐 Update Intel",   self._update_intel_now,      Colors.GAUGE_TEAL),
             ("📂 Quick Scan",     self._quick_file_scan,       Colors.GAUGE_PURPLE),
             ("[SHIELD] Harden",         lambda: self._select_tab(self._tab_hardening), Colors.GAUGE_GREEN),
-            ("🔒 Ransomware",     lambda: self._select_tab(self._tab_ransomware), Colors.GAUGE_ORANGE),
+            ("[LOCK] Ransomware",     lambda: self._select_tab(self._tab_ransomware), Colors.GAUGE_ORANGE),
             ("[ALERT] PANIC",          self._panic_button,          Colors.GAUGE_RED),
         ]
         for i, (txt, cmd, col) in enumerate(buttons):
@@ -22708,9 +22708,9 @@ class downpour(tk.Tk):
              Colors.GAUGE_RED,    "One click: remediate every active CRITICAL/HIGH threat"),
             ("☠️ Kill Suspicious",   self._procs_kill_all_suspicious,
              Colors.GAUGE_ORANGE, "Kill all processes flagged as suspicious"),
-            ("📊 IR Report",         self._threats_generate_report,
+            ("[CHART] IR Report",         self._threats_generate_report,
              Colors.GAUGE_TEAL,   "Generate full Incident Response HTML report"),
-            ("🔒 Isolate Host",      self._threats_isolate_host,
+            ("[LOCK] Isolate Host",      self._threats_isolate_host,
              Colors.GAUGE_RED,    "Emergency network isolation (block all traffic)"),
             ("[HIGH] Fix ALL Hardening", self._harden_fix_all,
              Colors.GAUGE_GREEN,  "Apply all available hardening fixes automatically"),
@@ -22774,7 +22774,7 @@ class downpour(tk.Tk):
                                       command=self._alert_check_ip)
         self._alert_menu.add_command(label="☠️ Kill Suspicious Processes",
                                       command=self._alert_kill_suspicious)
-        self._alert_menu.add_command(label="🔒 Quarantine Related Files",
+        self._alert_menu.add_command(label="[LOCK] Quarantine Related Files",
                                       command=self._alert_quarantine_files)
         self._alert_menu.add_command(label="🚫 Block Network (Firewall Rule)",
                                       command=self._alert_block_network)
@@ -22927,7 +22927,7 @@ class downpour(tk.Tk):
         # Header row
         _ph = tk.Frame(priv_frame, bg=Colors.GLASS_CARD)
         _ph.grid(row=0, column=0, columnspan=2, sticky='ew', padx=8, pady=(6,2))
-        tk.Label(_ph, text="🔒 PRIVACY SCORE",
+        tk.Label(_ph, text="[LOCK] PRIVACY SCORE",
                  font=('Consolas', 9, 'bold'), fg=Colors.GAUGE_TEAL,
                  bg=Colors.GLASS_CARD).pack(side='left')
         tk.Label(_ph, text="  Your protection overview",
@@ -23343,7 +23343,7 @@ class downpour(tk.Tk):
              Colors.GAUGE_RED,    "Kill every process flagged as suspicious (score ≥ 50)"),
             ("📦 Quarantine ALL",      self._procs_quarantine_all_suspicious,
              Colors.GAUGE_ORANGE, "Quarantine EXEs of all suspicious processes"),
-            ("📊 Export CSV",          self._procs_export_csv,
+            ("[CHART] Export CSV",          self._procs_export_csv,
              Colors.GAUGE_TEAL,   "Export full process list with risk scores to CSV"),
             ("🔍 Scan Selected EXE",   self._procs_scan_selected_exe,
              Colors.GAUGE_YELLOW, "Hash-scan + YARA the EXE of selected process"),
@@ -23396,10 +23396,10 @@ class downpour(tk.Tk):
         self._proc_menu.add_command(label="> Resume",                command=lambda: self._mitigate_selected('resume'))
         self._proc_menu.add_separator()
         self._proc_menu.add_command(label="☠️ Kill Tree",             command=lambda: self._mitigate_selected('kill_tree'))
-        self._proc_menu.add_command(label="🔒 Quarantine EXE",        command=lambda: self._mitigate_selected('quarantine'))
+        self._proc_menu.add_command(label="[LOCK] Quarantine EXE",        command=lambda: self._mitigate_selected('quarantine'))
         self._proc_menu.add_command(label="🚫 Network Isolate",       command=lambda: self._mitigate_selected('network_isolate'))
         self._proc_menu.add_command(label="🚫 Block All IPs",          command=lambda: self._mitigate_selected('firewall_block'))
-        self._proc_menu.add_command(label="🧹 Clean Persistence",     command=lambda: self._mitigate_selected('clean_persistence'))
+        self._proc_menu.add_command(label="[CLEAN] Clean Persistence",     command=lambda: self._mitigate_selected('clean_persistence'))
         self._proc_menu.add_command(label="[SHIELD] FULL REMEDIATION",       command=lambda: self._mitigate_selected('full_remediation'))
         self._proc_menu.add_separator()
         self._proc_menu.add_command(label="🔬 Root Cause Analysis",    command=lambda: self._mitigate_selected('root_cause'))
@@ -23534,9 +23534,9 @@ class downpour(tk.Tk):
              Colors.GAUGE_ORANGE, "Kill all processes with active C2 connections"),
             ("[OK] Whitelist IP",       self._net_whitelist_selected,
              Colors.GAUGE_GREEN,  "Add selected IP to local whitelist (suppress future alerts)"),
-            ("📊 Export Conns",       self._net_export_csv,
+            ("[CHART] Export Conns",       self._net_export_csv,
              Colors.GAUGE_TEAL,   "Export all connections to CSV"),
-            ("🔒 Isolate Host",       self._threats_isolate_host,
+            ("[LOCK] Isolate Host",       self._threats_isolate_host,
              Colors.GAUGE_RED,    "Emergency: block ALL network traffic"),
         ]:
             b = tk.Button(top, text=txt, font=('Consolas', 8, 'bold'),
@@ -23623,7 +23623,7 @@ class downpour(tk.Tk):
         # Bandwidth monitor bar
         bw_bar = tk.Frame(p, bg=Colors.GLASS_PANEL)
         bw_bar.grid(row=3, column=0, sticky='ew', padx=8, pady=(0,4))
-        tk.Label(bw_bar, text="📊 Bandwidth:", font=('Consolas', 8, 'bold'),
+        tk.Label(bw_bar, text="[CHART] Bandwidth:", font=('Consolas', 8, 'bold'),
                  fg=Colors.GAUGE_BLUE, bg=Colors.GLASS_PANEL).pack(side='left', padx=8, pady=3)
         self._net_bw_lbl = tk.Label(bw_bar, text="⬆ 0 B/s  ⬇ 0 B/s",
                                      font=('Consolas', 9, 'bold'), fg=Colors.GAUGE_GREEN,
@@ -23650,7 +23650,7 @@ class downpour(tk.Tk):
             ("Scan ALL Drives", self._scan_all_drives, Colors.GAUGE_BLUE),
             ("⏹️ Stop",       self._stop_file_scan,   Colors.GAUGE_RED),
             ("🔬 Re-Analyze Threats", self._reanalyze_scan_threats, '#c084fc'),
-            ("🔒 Quarantine",self._quarantine_scan_result, Colors.GAUGE_ORANGE),
+            ("[LOCK] Quarantine",self._quarantine_scan_result, Colors.GAUGE_ORANGE),
             ("Delete",     self._delete_scan_result,    Colors.GAUGE_RED),
             ("[OK] Whitelist",  self._whitelist_scan_result, Colors.GAUGE_TEAL),
             ("Investigate", self._view_scan_detail, Colors.TEXT_BRIGHT),
@@ -23687,7 +23687,7 @@ class downpour(tk.Tk):
 
         act_f = tk.Frame(pane, bg=Colors.GLASS_CARD)
         act_f.grid_rowconfigure(99, weight=1); act_f.grid_columnconfigure(0, weight=1)
-        tk.Label(act_f, text="📊 SCAN STATUS", font=('Consolas', 9, 'bold'),
+        tk.Label(act_f, text="[CHART] SCAN STATUS", font=('Consolas', 9, 'bold'),
                  fg=Colors.GAUGE_TEAL, bg=Colors.GLASS_CARD).pack(pady=(8,4))
         self._scan_stats = tk.Label(act_f, text="Files: 0\nThreats: 0\nClean: 0",
                                      font=('Consolas', 9), fg=Colors.TEXT_DIM,
@@ -23867,7 +23867,7 @@ class downpour(tk.Tk):
         tk.Button(db_btn_row, text="📂 Import from File", font=('Consolas', 8),
                   fg=Colors.GAUGE_BLUE, bg=Colors.GLASS_CARD, relief='flat',
                   command=self._import_feed_from_file).pack(side='left', padx=3)
-        tk.Button(db_btn_row, text="📊 Feed Statistics", font=('Consolas', 8),
+        tk.Button(db_btn_row, text="[CHART] Feed Statistics", font=('Consolas', 8),
                   fg=Colors.GAUGE_PURPLE, bg=Colors.GLASS_CARD, relief='flat',
                   command=self._show_feed_stats).pack(side='left', padx=3)
 
@@ -24352,7 +24352,7 @@ class downpour(tk.Tk):
             ("🔬 Collect Forensics",    self._emergency_collect_forensics, Colors.GAUGE_PURPLE),
             ("📦 Quarantine ALL",       self._emergency_quarantine_all, Colors.GAUGE_ORANGE),
             ("🗑 Wipe Temp/Cache",      self._emergency_wipe_temp, Colors.GAUGE_YELLOW),
-            ("📊 Full IR Report",       self._emergency_ir_report, Colors.GAUGE_TEAL),
+            ("[CHART] Full IR Report",       self._emergency_ir_report, Colors.GAUGE_TEAL),
         ]:
             tk.Button(actions_frame, text=text, font=('Consolas', 9),
                       fg=color, bg=Colors.GLASS_CARD, relief='flat',
@@ -24372,7 +24372,7 @@ class downpour(tk.Tk):
 
     def _build_ransomware_tab(self):
         p = self._tab_ransomware
-        tk.Label(p, text="🔒 RANSOMWARE PROTECTION & FILE ROLLBACK",
+        tk.Label(p, text="[LOCK] RANSOMWARE PROTECTION & FILE ROLLBACK",
                  font=('Consolas', 12, 'bold'), fg=Colors.GAUGE_ORANGE,
                  bg=Colors.BG_VOID).pack(anchor='w', padx=10, pady=10)
 
@@ -29262,7 +29262,7 @@ Verification Status:
         bar.grid(row=1, column=0, sticky='ew', padx=8, pady=4)
         bar.grid_columnconfigure(1, weight=1)
 
-        tk.Label(bar, text="🎯 Target:", font=('Consolas', 10, 'bold'),
+        tk.Label(bar, text="[TARGET] Target:", font=('Consolas', 10, 'bold'),
                  fg=Colors.GAUGE_ORANGE, bg=Colors.GLASS_PANEL).grid(row=0, column=0, padx=(10,6), pady=6)
 
         self._hunt_var = tk.StringVar()
@@ -29364,7 +29364,7 @@ Verification Status:
             ("Kill Selected Process",   lambda: self._hunt_action('kill')),
             ("📦 Quarantine File",          lambda: self._hunt_action('quarantine')),
             ("Delete File (secure)",     lambda: self._hunt_action('delete')),
-            ("🔒 Block IP / Domain",        lambda: self._hunt_action('block')),
+            ("[LOCK] Block IP / Domain",        lambda: self._hunt_action('block')),
             ("📋 Copy Path / IOC",          lambda: self._hunt_action('copy')),
             ("🔬 Deep Analyze",             lambda: self._hunt_action('analyze')),
             ("📤 Export Findings",          lambda: self._hunt_export()),
@@ -29789,7 +29789,7 @@ Verification Status:
                       state='normal' if h['type']=='file' else 'disabled')
         m.add_command(label="🗑️ Secure Delete File",  command=lambda: self._hunt_action('delete'),
                       state='normal' if h['type']=='file' else 'disabled')
-        m.add_command(label="🔒 Block IOC / IP",       command=lambda: self._hunt_action('block'))
+        m.add_command(label="[LOCK] Block IOC / IP",       command=lambda: self._hunt_action('block'))
         m.add_command(label="🔬 Deep YARA Analyze",   command=lambda: self._hunt_action('analyze'))
         m.add_separator()
         m.add_command(label="📋 Copy Path/IOC",        command=lambda: self._hunt_action('copy'))
@@ -30634,7 +30634,7 @@ Verification Status:
         tk.Button(btn_bar, text="🔬 DETONATE IN SANDBOX", font=('Consolas', 10, 'bold'),
                   bg=Colors.GAUGE_RED, fg='white', relief='flat', padx=16, pady=6,
                   command=self._sandbox_run).pack(side='left', padx=4)
-        tk.Button(btn_bar, text="📊 Static Analysis Only", font=('Consolas', 9),
+        tk.Button(btn_bar, text="[CHART] Static Analysis Only", font=('Consolas', 9),
                   bg=Colors.GAUGE_BLUE, fg='white', relief='flat', padx=10,
                   command=self._sandbox_static_only).pack(side='left', padx=4)
         tk.Button(btn_bar, text="🗑️ Clear", font=('Consolas', 9),
@@ -36060,7 +36060,7 @@ Verification Status:
             ("🔍 Scan Clipboard (Phishing)", self._aegis_scan_clipboard),
             ("📡 Run IMSI Scan Now",         self._aegis_run_imsi_scan),
             ("☠️ Run Memory Scan",           self._aegis_run_memory_scan),
-            ("🔒 DNS Shield: Flush & Check", self._aegis_dns_check),
+            ("[LOCK] DNS Shield: Flush & Check", self._aegis_dns_check),
             ("📋 View All Aegis Events",     self._aegis_show_all_events),
             ("🔮 Ephemeral Wipe Now",        self._aegis_ephemeral_wipe),
             ("⚔️ Full Aegis Sweep",          self._aegis_full_sweep),
@@ -39328,7 +39328,7 @@ Verification Status:
     # ═══════════════════════════════════════════════════════════════════════════
 
     def _build_cleanup_tab(self):
-        """🧹 Cleanup Center — 5 engines, all preview-first."""
+        """[CLEAN] Cleanup Center — 5 engines, all preview-first."""
         import tkinter as tk
         from tkinter import ttk
 
@@ -39437,7 +39437,7 @@ Verification Status:
         self._cu_scan_btn  = _btn('🔍 Scan ALL Categories', self._cleanup_do_scan,
                                   C.GAUGE_TEAL,
                                   'Scan ALL categories across all drives — checkboxes control what gets cleaned, not what gets scanned')
-        self._cu_clean_btn = _btn('🧹 Clean Selected', self._cleanup_do_clean,
+        self._cu_clean_btn = _btn('[CLEAN] Clean Selected', self._cleanup_do_clean,
                                   C.GAUGE_GREEN,
                                   'Delete items in CHECKED categories only')
         self._cu_clean_btn.config(state='disabled')
@@ -39703,7 +39703,7 @@ Verification Status:
             )
         self._cu_clean_btn.config(
             state='normal' if checked_items > 0 else 'disabled',
-            text='🧹 Clean Selected')
+            text='[CLEAN] Clean Selected')
         self._cu_clean_all_btn.config(
             state='normal' if total_fc > 0 else 'disabled',
             text='🗑 CLEAN ALL FOUND')
@@ -41257,7 +41257,7 @@ Verification Status:
             b.pack(side='left', padx=4)
             return b
 
-        self._da_analyze_btn = _btn('📊 Analyze', self._da_do_analyze, C.GAUGE_TEAL)
+        self._da_analyze_btn = _btn('[CHART] Analyze', self._da_do_analyze, C.GAUGE_TEAL)
         self._da_status_var  = tk.StringVar(value='Ready')
         tk.Label(ctrl, textvariable=self._da_status_var,
                  font=('Consolas', 8), fg=C.TEXT_DIM,
@@ -41338,7 +41338,7 @@ Verification Status:
 
     def _da_analyze_done(self, entries: list, drive_info: dict, drive: str):
         from downpour_cleanup_module import size_fmt
-        self._da_analyze_btn.config(state='normal', text='📊 Analyze')
+        self._da_analyze_btn.config(state='normal', text='[CHART] Analyze')
 
         total = sum(e.size_bytes for e in entries)
         self._da_status_var.set(
@@ -43712,7 +43712,7 @@ Verification Status:
     def _enhance_privacy_settings(self):
         """Enhance privacy through registry settings"""
         def _run():
-            self._log_registry_event("🔒 Enhancing privacy settings...")
+            self._log_registry_event("[LOCK] Enhancing privacy settings...")
             
             try:
                 import winreg
@@ -43750,7 +43750,7 @@ Verification Status:
                     except Exception as e:
                         privacy_fixes.append(f"Failed {value_name}: {e}")
                 
-                self._log_registry_event(f"🔒 Privacy enhancement complete: {len(privacy_fixes)} changes")
+                self._log_registry_event(f"[LOCK] Privacy enhancement complete: {len(privacy_fixes)} changes")
                 for fix in privacy_fixes:
                     self._log_registry_event(f"  {fix}")
                     
@@ -43763,7 +43763,7 @@ Verification Status:
     def _cleanup_registry_junk(self):
         """Clean up junk registry entries"""
         def _run():
-            self._log_registry_event("🧹 Cleaning up registry junk...")
+            self._log_registry_event("[CLEAN] Cleaning up registry junk...")
             
             try:
                 import winreg
@@ -43798,7 +43798,7 @@ Verification Status:
                     except Exception:
                         pass
                 
-                self._log_registry_event(f"🧹 Registry cleanup complete: {cleanup_count} entries removed")
+                self._log_registry_event(f"[CLEAN] Registry cleanup complete: {cleanup_count} entries removed")
                     
             except Exception as e:
                 self._log_registry_event(f"❌ Registry cleanup failed: {e}")
@@ -44738,7 +44738,7 @@ Verification Status:
         for lbl, var, col in [
             ('[CRITICAL] Critical', self._thr_crit_var, C.GAUGE_RED),
             ('[WARNING] High',     self._thr_high_var, C.GAUGE_ORANGE),
-            ('🟡 Medium',   self._thr_med_var,  C.GAUGE_YELLOW),
+            ('[YELLOW] Medium',   self._thr_med_var,  C.GAUGE_YELLOW),
             ('🔵 Info',     self._thr_info_var, C.GAUGE_TEAL),
             ('',            self._thr_risk_var, C.GAUGE_ORANGE),
         ]:
@@ -44775,7 +44775,7 @@ Verification Status:
              C.GAUGE_ORANGE, 'Kill the process named in selected threat')
         _btn(bar, '🚫 Block IP',        self._threats_block_ip,
              C.GAUGE_YELLOW, 'Add Windows Firewall block rule for threat IP')
-        _btn(bar, '🔒 Isolate Host',    self._threats_isolate_host,
+        _btn(bar, '[LOCK] Isolate Host',    self._threats_isolate_host,
              C.GAUGE_RED,    'Network-isolate this machine (emergency kill-switch)')
 
         # Separator
@@ -44795,7 +44795,7 @@ Verification Status:
              C.GAUGE_TEAL,   'Reload all entries from the threat log')
         _btn(bar, '📋 Export',          self._threats_export,
              C.GAUGE_YELLOW, 'Export full threat log to CSV/text file')
-        _btn(bar, '📊 Report',          self._threats_generate_report,
+        _btn(bar, '[CHART] Report',          self._threats_generate_report,
              C.GAUGE_TEAL,   'Generate full HTML threat intelligence report')
 
         # ── Filter row ───────────────────────────────────────────────────
@@ -45465,12 +45465,12 @@ Verification Status:
 <div>
   <span class="badge crit">[CRITICAL] Critical: {len(crit)}</span>
   <span class="badge high">[WARNING] High: {len(high)}</span>
-  <span class="badge med">🟡 Medium: {len(med)}</span>
+  <span class="badge med">[YELLOW] Medium: {len(med)}</span>
   <span class="badge info">🔵 Info: {len(info)}</span>
 </div>
 {"<h2 style='color:#e05c5c'>[CRITICAL] Critical Threats</h2><table><tr><th>Time</th><th>Severity</th><th>Category</th><th>MITRE</th><th>Description</th><th>Status</th></tr>" + _rows(crit,"#e05c5c") + "</table>" if crit else ""}
 {"<h2 style='color:#e8922b'>[WARNING] High Threats</h2><table><tr><th>Time</th><th>Severity</th><th>Category</th><th>MITRE</th><th>Description</th><th>Status</th></tr>" + _rows(high,"#e8922b") + "</table>" if high else ""}
-{"<h2 style='color:#e8c02b'>🟡 Medium Threats</h2><table><tr><th>Time</th><th>Severity</th><th>Category</th><th>MITRE</th><th>Description</th><th>Status</th></tr>" + _rows(med,"#e8c02b") + "</table>" if med else ""}
+{"<h2 style='color:#e8c02b'>[YELLOW] Medium Threats</h2><table><tr><th>Time</th><th>Severity</th><th>Category</th><th>MITRE</th><th>Description</th><th>Status</th></tr>" + _rows(med,"#e8c02b") + "</table>" if med else ""}
 {"<h2 style='color:#7ec8e3'>🔵 Info Events</h2><table><tr><th>Time</th><th>Severity</th><th>Category</th><th>MITRE</th><th>Description</th><th>Status</th></tr>" + _rows(info,"#7ec8e3") + "</table>" if info else ""}
 </body></html>'''
 

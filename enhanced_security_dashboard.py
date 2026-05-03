@@ -67,7 +67,7 @@ class SecurityDashboard:
     
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title("🔒 Family Security Suite Ultra - Security Dashboard")
+        self.root.title("[LOCK] Family Security Suite Ultra - Security Dashboard")
         self.root.geometry("1200x700")
         self.root.configure(bg='#0a0a15')
         
@@ -188,7 +188,7 @@ class SecurityDashboard:
         # Main title
         title_label = tk.Label(
             title_frame,
-            text="🔒 FAMILY SECURITY SUITE ULTRA",
+            text="[LOCK] FAMILY SECURITY SUITE ULTRA",
             font=('Arial', 18, 'bold'),
             fg='#00ffff',
             bg='#0a0a15'
@@ -216,7 +216,7 @@ class SecurityDashboard:
             ("📁 Files Scanned", 'files_scanned', '#00ff9f'),
             ("⚙️ Processes", 'processes_monitored', '#0099ff'),
             ("🌐 Connections", 'connections_active', '#ffaa00'),
-            ("🔒 Quarantine", 'quarantined_files', '#9d00ff'),
+            ("[LOCK] Quarantine", 'quarantined_files', '#9d00ff'),
             ("🤖 AI Status", 'ai_status', '#00ffff')
         ]
         
@@ -680,7 +680,7 @@ class SecurityDashboard:
     def _view_quarantine(self):
         """View quarantine contents"""
         quarantine_window = tk.Toplevel(self.root)
-        quarantine_window.title("🔒 Quarantine Manager")
+        quarantine_window.title("[LOCK] Quarantine Manager")
         quarantine_window.geometry("700x500")
         quarantine_window.configure(bg='#151528')
         
@@ -713,7 +713,7 @@ class SecurityDashboard:
         tk.Button(button_frame, text="🗑️ Delete Selected",
                  command=lambda: self._delete_quarantined(quarantine_list.curselection()),
                  bg='#8B0000', fg='#ffffff').pack(side='left', padx=5)
-        tk.Button(button_frame, text="🧹 Clear All",
+        tk.Button(button_frame, text="[CLEAN] Clear All",
                  command=lambda: self._clear_quarantine(quarantine_list),
                  bg='#FF6600', fg='#ffffff').pack(side='left', padx=5)
     
@@ -738,11 +738,11 @@ class SecurityDashboard:
             self.root.after(0, self._update_counters)
             time.sleep(0.1)
         
-        self.root.after(0, lambda: self.status_var.set("✅ File scan completed - No threats found"))
+        self.root.after(0, lambda: self.status_var.set("[OK] File scan completed - No threats found"))
     
     def _clean_threats(self):
         """Clean detected threats"""
-        self.status_var.set("🧹 Cleaning detected threats...")
+        self.status_var.set("[CLEAN] Cleaning detected threats...")
         # Simulate cleaning
         threading.Thread(target=self._simulate_cleaning, daemon=True).start()
     
@@ -761,7 +761,7 @@ class SecurityDashboard:
             self.root.after(0, self._update_counters)
             time.sleep(0.1)
         
-        self.root.after(0, lambda: self.status_var.set("✅ All threats cleaned successfully"))
+        self.root.after(0, lambda: self.status_var.set("[OK] All threats cleaned successfully"))
     
     def _restore_quarantined(self, selections):
         """Restore selected quarantined items"""

@@ -423,7 +423,7 @@ class StatusPanel:
             ('network', '🌐', 'Network'),
             ('system', '⚙️', 'System'),
             ('ai', '🤖', 'AI Engine'),
-            ('monitoring', '📊', 'Monitoring')
+            ('monitoring', '[CHART]', 'Monitoring')
         ]
         
         for i, (key, icon, label) in enumerate(indicators):

@@ -215,7 +215,7 @@ class ThreatResponseCenter(tk.Toplevel):
                  bg=Colors.BG_CARD, fg=Colors.RED, font=('Consolas', 10)).pack(side='left', padx=5)
         tk.Button(btn_frame, text="🔥 Block Port (Firewall)", command=self._block_port,
                  bg=Colors.BG_CARD, fg=Colors.ORANGE, font=('Consolas', 10)).pack(side='left', padx=5)
-        tk.Button(btn_frame, text="✅ Mark as Safe", command=self._mark_port_safe,
+        tk.Button(btn_frame, text="[OK] Mark as Safe", command=self._mark_port_safe,
                  bg=Colors.BG_CARD, fg=Colors.GREEN, font=('Consolas', 10)).pack(side='left', padx=5)
         tk.Button(btn_frame, text="🔄 Refresh", command=self._scan_ports,
                  bg=Colors.BG_CARD, fg=Colors.TEXT, font=('Consolas', 10)).pack(side='right', padx=5)
@@ -261,7 +261,7 @@ class ThreatResponseCenter(tk.Toplevel):
                  bg=Colors.BG_CARD, fg=Colors.BLUE, font=('Consolas', 10)).pack(side='left', padx=5)
         tk.Button(btn_frame, text="🔎 VirusTotal Lookup", command=self._virustotal_process,
                  bg=Colors.BG_CARD, fg=Colors.PURPLE, font=('Consolas', 10)).pack(side='left', padx=5)
-        tk.Button(btn_frame, text="✅ Mark as Safe", command=self._mark_process_safe,
+        tk.Button(btn_frame, text="[OK] Mark as Safe", command=self._mark_process_safe,
                  bg=Colors.BG_CARD, fg=Colors.GREEN, font=('Consolas', 10)).pack(side='left', padx=5)
         
     def _create_network_tab(self):
@@ -348,11 +348,11 @@ class ThreatResponseCenter(tk.Toplevel):
         btn_frame = tk.Frame(self.files_frame, bg=Colors.BG_PANEL)
         btn_frame.pack(fill='x', padx=10, pady=10)
         
-        tk.Button(btn_frame, text="🔒 Quarantine", command=self._quarantine_file,
+        tk.Button(btn_frame, text="[LOCK] Quarantine", command=self._quarantine_file,
                  bg=Colors.BG_CARD, fg=Colors.ORANGE, font=('Consolas', 10)).pack(side='left', padx=5)
         tk.Button(btn_frame, text="🗑️ Delete", command=self._delete_file,
                  bg=Colors.BG_CARD, fg=Colors.RED, font=('Consolas', 10)).pack(side='left', padx=5)
-        tk.Button(btn_frame, text="✅ Allow (Whitelist)", command=self._allow_file,
+        tk.Button(btn_frame, text="[OK] Allow (Whitelist)", command=self._allow_file,
                  bg=Colors.BG_CARD, fg=Colors.GREEN, font=('Consolas', 10)).pack(side='left', padx=5)
         tk.Button(btn_frame, text="📁 Open Location", command=self._open_file_location,
                  bg=Colors.BG_CARD, fg=Colors.BLUE, font=('Consolas', 10)).pack(side='left', padx=5)
@@ -366,7 +366,7 @@ class ThreatResponseCenter(tk.Toplevel):
         
         actions = [
             ("🔄 Reset Windows Firewall", "Resets firewall to default settings", self._reset_firewall),
-            ("🧹 Flush DNS Cache", "Clears DNS resolver cache", self._flush_dns),
+            ("[CLEAN] Flush DNS Cache", "Clears DNS resolver cache", self._flush_dns),
             ("🔌 Reset Network Stack", "Resets Winsock and IP stack", self._reset_network),
             ("🛡️ Enable Windows Defender", "Ensures Defender is running", self._enable_defender),
             ("📋 Export Threat Report", "Save detailed report to file", self._export_report),
@@ -391,9 +391,9 @@ class ThreatResponseCenter(tk.Toplevel):
         
         adv_actions = [
             ("🔍 Run Full Port Scan", "Scan all ports for suspicious listeners", self._full_port_scan),
-            ("📊 Generate netstat Report", "Save detailed network report", self._netstat_report),
+            ("[CHART] Generate netstat Report", "Save detailed network report", self._netstat_report),
             ("🛑 Kill All RAT Ports", "Terminate processes on known RAT ports", self._kill_all_rat_ports),
-            ("🔒 Lockdown Mode", "Block all non-essential network traffic", self._lockdown_mode),
+            ("[LOCK] Lockdown Mode", "Block all non-essential network traffic", self._lockdown_mode),
         ]
         
         for text, desc, cmd in adv_actions:
@@ -589,7 +589,7 @@ ASSESSMENT:
 """
         if proc_name.lower() == 'svchost.exe':
             info += """
-⚠️ SVCHOST.EXE on RAT Port
+[WARN]️ SVCHOST.EXE on RAT Port
 
 svchost.exe is a legitimate Windows process, but it
 can be hijacked by malware. Check:
@@ -606,7 +606,7 @@ can be hijacked by malware. Check:
 """.format(pid=pid)
         else:
             info += f"""
-🔴 Unknown process on RAT port - HIGH RISK
+[RED] Unknown process on RAT port - HIGH RISK
 
 Recommended Actions:
 1. Kill the process immediately
@@ -706,9 +706,9 @@ Connections: {item[5]}
 
 """
         if name.lower() in self.KNOWN_SAFE_PROCESSES:
-            info += f"✅ KNOWN SAFE: {self.KNOWN_SAFE_PROCESSES[name.lower()]}\n\n"
+            info += f"[OK] KNOWN SAFE: {self.KNOWN_SAFE_PROCESSES[name.lower()]}\n\n"
         else:
-            info += "⚠️ Unknown process - investigate further\n\n"
+            info += "[WARN]️ Unknown process - investigate further\n\n"
             
         info += """RECOMMENDED CHECKS:
 1. Verify the file location is legitimate

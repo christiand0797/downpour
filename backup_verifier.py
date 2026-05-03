@@ -457,7 +457,7 @@ class BackupIntegrityVerifier:
 
                 # Alert on critical issues
                 if results["critical_issues"]:
-                    logger.error("\n🚨 CRITICAL BACKUP ISSUES DETECTED!")
+                    logger.error("\n[ALERT] CRITICAL BACKUP ISSUES DETECTED!")
                     logger.error("   Immediate action required:")
                     for issue in results["critical_issues"]:
                         logger.error(f"   • {issue}")
