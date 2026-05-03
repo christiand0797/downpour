@@ -608,6 +608,13 @@ class AISecurityEngine:
     
     def _learning_loop(self):
         """Background learning and model updates"""
+        # Initialize COM for this thread
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+        except ImportError:
+            pass
+
         while self.learning_active:
             try:
                 # Train models periodically
