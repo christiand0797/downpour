@@ -1,5 +1,4 @@
-rule Suspicious_DNS_Query`
-{
+rule Suspicious_DNS_Query {
     meta:
         description = "Detects suspicious DNS query patterns"
         author = "Downpour v29 Titanium"
@@ -27,8 +26,7 @@ rule Suspicious_DNS_Query`
         any of ($dns*) and filesize < 1MB  
 }
 
-rule Suspicious_HTTP_Header`
-{
+rule Suspicious_HTTP_Header {
     meta:
         description = "Detects suspicious HTTP headers in files"
         author = "Downpour v29 Titanium"
@@ -54,8 +52,7 @@ rule Suspicious_HTTP_Header`
         any of ($header*) and any of ($cmd*) and filesize < 2MB  
 }
 
-rule Data_Exfiltration_Patterns`
-{
+rule Data_Exfiltration_Patterns {
     meta:
         description = "Detects data exfiltration patterns"
         author = "Downpour v29 Titanium"
@@ -85,8 +82,7 @@ rule Data_Exfiltration_Patterns`
         any of ($exfil*) and any of ($size*) and filesize < 10MB  
 }
 
-rule Lateral_Movement_Patterns`
-{
+rule Lateral_Movement_Patterns {
     meta:
         description = "Detects lateral movement patterns"
         author = "Downpour v29 Titanium"
@@ -112,8 +108,7 @@ rule Lateral_Movement_Patterns`
         any of ($lateral*) and any of ($target*) and filesize < 5MB  
 }
 
-rule Persistence_Patterns`
-{
+rule Persistence_Patterns {
     meta:
         description = "Detects persistence mechanisms"
         author = "Downpour v29 Titanium"

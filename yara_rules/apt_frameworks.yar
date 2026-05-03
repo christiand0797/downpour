@@ -1,5 +1,4 @@
-rule APT_Command_and_Control`
-{
+rule APT_Command_and_Control {
     meta:
         description = "Detects APT-related C2 patterns"
         author = "Downpour v29 Titanium"
@@ -24,8 +23,7 @@ rule APT_Command_and_Control`
         any of ($apt1, $apt2, $apt3) and any of ($apt4, $apt5, $apt6, $apt7, $apt8, $apt9, $apt10, $apt11, $apt12) and filesize < 5MB
 }
 
-rule APT_Data_Exfiltration`
-{
+rule APT_Data_Exfiltration {
     meta:
         description = "Detects APT-related data exfiltration patterns"
         author = "Downpour v29 Titanium"
@@ -51,8 +49,7 @@ rule APT_Data_Exfiltration`
         any of ($exfil1, $exfil2, $exfil3, $exfil4, $exfil5) and any of ($exfil6, $exfil7, $exfil8, $exfil9, $exfil10, $exfil11, $exfil12, $exfil13) and filesize < 10MB
 }
 
-rule APT_Persistence`
-{
+rule APT_Persistence {
     meta:
         description = "Detects APT-related persistence mechanisms"
         author = "Downpour v29 Titanium"
@@ -75,8 +72,7 @@ rule APT_Persistence`
         any of ($pers1, $pers2) and any of ($pers3, $pers4, $pers5) and filesize < 5MB
 }
 
-rule APT_Defense_Evasion`
-{
+rule APT_Defense_Evasion {
     meta:
         description = "Detects APT-related defense evasion patterns"
         author = "Downpour v29 Titanium"
@@ -101,8 +97,7 @@ rule APT_Defense_Evasion`
         any of ($evade1, $evade2, $evade3, $evade4, $evade5) and any of ($evade6, $evade7, $evade8, $evade9, $evade10, $evade11, $evade12) and filesize < 5MB
 }
 
-rule APT_Credential_Access`
-{
+rule APT_Credential_Access {
     meta:
         description = "Detects APT-related credential access patterns"
         author = "Downpour v29 Titanium"
