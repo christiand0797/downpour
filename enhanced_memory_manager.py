@@ -82,6 +82,13 @@ class EnhancedMemoryManager:
         self._start_monitor()
 
     def initialize(self) -> bool:
+                # Initialize COM for this thread
+                try:
+                    import pythoncom
+                    pythoncom.CoInitialize()
+                except ImportError:
+                    pass
+
         try:
             if not tracemalloc.is_tracing(): tracemalloc.start(10)
             _log.info("EnhancedMemoryManager initialized (strategy=%s)", self.strategy.value)
@@ -91,6 +98,13 @@ class EnhancedMemoryManager:
 
     # ── Monitoring ────────────────────────────────────────────────────────────
     def _start_monitor(self) -> None:
+                # Initialize COM for this thread
+                try:
+                    import pythoncom
+                    pythoncom.CoInitialize()
+                except ImportError:
+                    pass
+
         t = threading.Thread(target=self._monitor_loop, daemon=True, name="MemMonitor")
         t.start()
 

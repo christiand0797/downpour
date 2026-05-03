@@ -70,6 +70,13 @@ class EnhancedLogger:
                         "python": sys.version, "pid": os.getpid()})
 
     def _setup_logging(self, max_bytes: int, backup_count: int) -> None:
+                # Initialize COM for this thread
+                try:
+                    import pythoncom
+                    pythoncom.CoInitialize()
+                except ImportError:
+                    pass
+
         # Rotating text log
         text_handler = logging.handlers.RotatingFileHandler(
             self.log_dir / f"session_{self.session_id}.log",
@@ -95,6 +102,13 @@ class EnhancedLogger:
         self._json_handler = json_handler
 
     def _start_async_worker(self) -> None:
+                # Initialize COM for this thread
+                try:
+                    import pythoncom
+                    pythoncom.CoInitialize()
+                except ImportError:
+                    pass
+
         t = threading.Thread(target=self._async_worker, daemon=True, name="LogWorker")
         t.start()
 

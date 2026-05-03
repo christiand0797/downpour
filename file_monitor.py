@@ -244,6 +244,13 @@ class FileSystemMonitor:
                 time.sleep(30)
     
     def start(self):
+                # Initialize COM for this thread
+                try:
+                    import pythoncom
+                    pythoncom.CoInitialize()
+                except ImportError:
+                    pass
+
         """Start file system monitoring in background thread."""
         monitor_thread = threading.Thread(target=self.monitoring_loop, daemon=True)
         monitor_thread.start()

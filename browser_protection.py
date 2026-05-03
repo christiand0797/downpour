@@ -76,6 +76,13 @@ class BrowserProtection:
         return logging.getLogger('BrowserProtection')
     
     def get_browser_paths(self):
+                # Initialize COM for this thread
+                try:
+                    import pythoncom
+                    pythoncom.CoInitialize()
+                except ImportError:
+                    pass
+
         """Get paths to browser extension directories."""
         user_profile = os.environ.get('USERPROFILE', '')
         local_appdata = os.environ.get('LOCALAPPDATA', '')
@@ -93,6 +100,13 @@ class BrowserProtection:
         return {k: v for k, v in paths.items() if v.exists()}
     
     def start(self):
+                # Initialize COM for this thread
+                try:
+                    import pythoncom
+                    pythoncom.CoInitialize()
+                except ImportError:
+                    pass
+
         """Start browser monitoring."""
         self.running = True
         self.monitor_thread = threading.Thread(target=self.monitor_extensions, daemon=True)

@@ -264,6 +264,13 @@ class KimwolfBotnetDetector:
     # -----------------------------------------------------------------------
 
     def start(self):
+                # Initialize COM for this thread
+                try:
+                    import pythoncom
+                    pythoncom.CoInitialize()
+                except ImportError:
+                    pass
+
         if self._running:
             return
         self._stop.clear()

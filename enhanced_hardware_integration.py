@@ -238,6 +238,13 @@ class EnhancedHardwareIntegration:
             self.logger.error(f"Failed to stop monitoring: {e}")
     
     def start_fallback_monitoring(self):
+                # Initialize COM for this thread
+                try:
+                    import pythoncom
+                    pythoncom.CoInitialize()
+                except ImportError:
+                    pass
+
         """Start fallback monitoring"""
         if not hasattr(self, 'fallback_monitor'):
             return

@@ -386,6 +386,13 @@ class DefenderEnhancer:
                 time.sleep(60)
     
     def start(self):
+                # Initialize COM for this thread
+                try:
+                    import pythoncom
+                    pythoncom.CoInitialize()
+                except ImportError:
+                    pass
+
         """
         Start the Defender enhancement system.
         
