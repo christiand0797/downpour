@@ -222,6 +222,13 @@ class AdvancedHardwareMonitor:
     
     def _monitoring_loop(self):
         """Main monitoring loop with optimized performance"""
+        # Initialize COM for this thread
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+        except ImportError:
+            pass
+
         while self.is_monitoring:
             try:
                 start_time = time.time()
