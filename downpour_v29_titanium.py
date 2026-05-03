@@ -21392,7 +21392,7 @@ class downpour(tk.Tk):
             else:
                 self.cleanup_engine = None
                 self.dup_finder     = None
-            self.vuln_scanner = VulnerabilityScanner(self.db)
+            self.vuln_scanner = VulnerabilityScanner()
             try:
                 self.vuln_scanner.refresh_kev()
             except Exception: pass
