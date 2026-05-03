@@ -353,6 +353,13 @@ class VPNManager:
             self._monitor_thread.join(timeout=5)
 
     def _monitor_loop(self, interval: int) -> None:
+        # Initialize COM for this thread
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+        except ImportError:
+            pass
+
         while not self._stop_event.is_set():
             try:
                 status = self.detector.get_status(force=True)
