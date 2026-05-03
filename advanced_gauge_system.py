@@ -395,6 +395,13 @@ class AdvancedGauge:
     
     def _animate(self):
         """Animation loop"""
+        # Initialize COM for this thread
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+        except ImportError:
+            pass
+
         while self.is_animating:
             try:
                 # Calculate animation step
