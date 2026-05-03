@@ -445,7 +445,15 @@ class ProcessMonitor:
     
     def start(self):
         """Start process monitoring in background thread."""
-        monitor_thread = threading.Thread(target=self.monitoring_loop, daemon=True)
+        def _run_with_com():
+            try:
+                import pythoncom as _pc
+                _pc.CoInitializeEx(0)  # COINIT_MULTITHREADED
+            except Exception:
+                pass
+            return self.monitoring_loop()
+        
+        monitor_thread = threading.Thread(target=_run_with_com, daemon=True)
         monitor_thread.start()
         logging.info("[OK] Process Monitoring active")
         logging.info(f"Monitoring for {len(self.suspicious_names)} disguise patterns")
