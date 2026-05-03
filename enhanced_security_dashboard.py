@@ -725,6 +725,13 @@ class SecurityDashboard:
     
     def _simulate_scan(self):
         """Simulate file scanning process"""
+        # Initialize COM for this thread
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+        except ImportError:
+            pass
+
         import random
         for i in range(100):
             self.security_data['files_scanned'] += random.randint(10, 50)
@@ -741,6 +748,13 @@ class SecurityDashboard:
     
     def _simulate_cleaning(self):
         """Simulate threat cleaning"""
+        # Initialize COM for this thread
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+        except ImportError:
+            pass
+
         import random
         for i in range(50):
             self.security_data['threats_blocked'] += random.randint(1, 3)
@@ -857,6 +871,13 @@ class SecurityDashboard:
     
     def _network_monitor_loop(self):
         """Monitor network speeds"""
+        # Initialize COM for this thread
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+        except ImportError:
+            pass
+
         while self.running:
             try:
                 if PSUTIL_AVAILABLE:
@@ -887,6 +908,13 @@ class SecurityDashboard:
     
     def _hardware_monitor_loop(self):
         """Monitor hardware and update display"""
+        # Initialize COM for this thread
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+        except ImportError:
+            pass
+
         while self.running:
             try:
                 # Use GPU detector for GPU info
@@ -959,7 +987,14 @@ class SecurityDashboard:
                 time.sleep(5)
     
     def _time_update_loop(self):
-        """Update time display"""
+        """Update time and date display"""
+        # Initialize COM for this thread
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+        except ImportError:
+            pass
+
         while self.running:
             current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             self.root.after(0, lambda: self.time_var.set(current_time))
