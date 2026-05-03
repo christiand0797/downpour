@@ -61,11 +61,11 @@ try:
 except ImportError:
     _REQUESTS_AVAILABLE = False
 
-try:
-    from vulnerability_scanner import fetch_cisa_kev_catalog, get_epss_stats
-    _KEV_AVAILABLE = True
-except ImportError:
-    _KEV_AVAILABLE = False
+    try:
+        from vulnerability_scanner import get_kev_catalog, get_epss_stats
+        _KEV_AVAILABLE = True
+    except ImportError:
+        _KEV_AVAILABLE = False
 
 class NetworkMonitor:
     """
@@ -220,7 +220,7 @@ class NetworkMonitor:
             return result
 
         try:
-            kev_catalog = fetch_cisa_kev_catalog()
+            kev_catalog = get_kev_catalog()
             if not kev_catalog or 'vulnerabilities' not in kev_catalog:
                 return result
 
