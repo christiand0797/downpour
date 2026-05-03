@@ -48,22 +48,23 @@ def check_cve_threat_priority(cve_id: str) -> Dict:
         result["recommendation"] = "KEV data unavailable - install vulnerability_scanner"
         return result
     
-    try:
-        scanner = VulnerabilityScanner()
-        kev_entry = scanner.check_kev(cve_id)
+        try:
+            scanner = VulnerabilityScanner()
+            kev_data = scanner.get_kev_catalog()
+            kev_entry = next((entry for entry in kev_data if entry.get('cveID') == cve_id), None)
+            
+            if kev_entry:
+                result["in_kev"] = True
+                result["priority"] = "CRITICAL"
+                result["recommendation"] = "IMMEDIATE patch required - exploit known in the wild"
+                result["kev_details"] = kev_entry
+            else:
+                result["priority"] = "HIGH"
+                result["recommendation"] = "Monitor and patch during next maintenance window"
+        except Exception as e:
+            result["recommendation"] = f"KEV check failed: {str(e)}"
         
-        if kev_entry:
-            result["in_kev"] = True
-            result["priority"] = "CRITICAL"
-            result["recommendation"] = "IMMEDIATE patch required - exploit known in the wild"
-            result["kev_details"] = kev_entry
-        else:
-            result["priority"] = "HIGH"
-            result["recommendation"] = "Monitor and patch during next maintenance window"
-    except Exception as e:
-        result["recommendation"] = f"KEV check failed: {str(e)}"
-    
-    return result
+        return result
 
 
 class EmergencyResponse:
