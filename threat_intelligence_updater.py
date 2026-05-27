@@ -184,14 +184,14 @@ class ThreatIntelligenceUpdater:
             logging.error(f"Failed to initialize threat database: {e}")
     
     def start_auto_update(self):
-                # Initialize COM for this thread
-                try:
-                    import pythoncom
-                    pythoncom.CoInitialize()
-                except ImportError:
-                    pass
-
         """Start automatic background updates."""
+        # Initialize COM for this thread
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+        except ImportError:
+            pass
+        
         self.running = True
         threading.Thread(target=self._update_loop, daemon=True).start()
         logging.info("Threat intelligence auto-update started")

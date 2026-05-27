@@ -474,14 +474,14 @@ class BehavioralAnalyzer:
                 time.sleep(30)
     
     def start(self):
-                # Initialize COM for this thread
-                try:
-                    import pythoncom
-                    pythoncom.CoInitialize()
-                except ImportError:
-                    pass
-
         """Start behavioral monitoring in background thread."""
+        # Initialize COM for this thread
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+        except ImportError:
+            pass
+        
         monitor_thread = threading.Thread(target=self.monitoring_loop, daemon=True)
         monitor_thread.start()
         logging.info("[OK] Behavioral Analysis System active")

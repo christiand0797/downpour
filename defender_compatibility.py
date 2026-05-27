@@ -301,23 +301,24 @@ class ExclusionManager:
             return False
 
     def add_downpour_exclusion(self) -> bool:
-                # Initialize COM for this thread
-                try:
-                    import pythoncom
-                    pythoncom.CoInitialize()
-                except ImportError:
-                    pass
-
         """Add the Downpour project directory as an exclusion."""
+        # Initialize COM for this thread
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+        except ImportError:
+            pass
+        
         return self.add_exclusion(str(self.script_dir.absolute()))
 
     def is_excluded(self, path: str) -> bool:
-                # Initialize COM for this thread
-                try:
-                    import pythoncom
-                    pythoncom.CoInitialize()
-                except ImportError:
-                    pass
+        """Check if a path is excluded from Windows Defender scanning."""
+        # Initialize COM for this thread
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+        except ImportError:
+            pass
 
         """Return True if path is already in Defender exclusions."""
         checker = DefenderStatusChecker()
@@ -332,13 +333,14 @@ class CompatibilityHealthMonitor:
     """
 
     def __init__(self, interval_seconds: int = 300):
-                # Initialize COM for this thread
-                try:
-                    import pythoncom
-                    pythoncom.CoInitialize()
-                except ImportError:
-                    pass
-
+        """Initialize the compatibility health monitor."""
+        # Initialize COM for this thread
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+        except ImportError:
+            pass
+        
         self.interval = interval_seconds
         self.checker = DefenderStatusChecker()
         self._stop = threading.Event()
@@ -346,13 +348,14 @@ class CompatibilityHealthMonitor:
         self.last_metrics: Optional[CompatibilityMetrics] = None
 
     def start(self) -> None:
-                # Initialize COM for this thread
-                try:
-                    import pythoncom
-                    pythoncom.CoInitialize()
-                except ImportError:
-                    pass
-
+        """Start the health monitoring thread."""
+        # Initialize COM for this thread
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+        except ImportError:
+            pass
+        
         if self._thread and self._thread.is_alive():
             return
         self._stop.clear()

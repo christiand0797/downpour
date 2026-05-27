@@ -1001,25 +1001,25 @@ class RansomwareDetector:
             logging.error(f"Error cleaning up old data: {e}")
     
     def get_statistics(self) -> Dict:
-                # Initialize COM for this thread
-                try:
-                    import pythoncom
-                    pythoncom.CoInitialize()
-                except ImportError:
-                    pass
-
         """Get ransomware detector statistics."""
+        # Initialize COM for this thread
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+        except ImportError:
+            pass
+        
         return self.stats.copy()
     
     def start(self):
-                # Initialize COM for this thread
-                try:
-                    import pythoncom
-                    pythoncom.CoInitialize()
-                except ImportError:
-                    pass
-
         """Start ransomware detection in background thread."""
+        # Initialize COM for this thread
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+        except ImportError:
+            pass
+        
         monitor_thread = threading.Thread(target=self.monitoring_loop, daemon=True)
         monitor_thread.start()
         logging.info("[OK] Ransomware Detector active")

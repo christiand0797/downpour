@@ -56,11 +56,11 @@ import sqlite3
 import json
 
 # KEV/CVE correlation for injected code and memory exploits
-    try:
-        from vulnerability_scanner import VulnerabilityScanner, get_kev_catalog
-        _KEV_AVAILABLE = True
-    except ImportError:
-        _KEV_AVAILABLE = False
+try:
+    from vulnerability_scanner import VulnerabilityScanner, get_kev_catalog
+    _KEV_AVAILABLE = True
+except ImportError:
+    _KEV_AVAILABLE = False
 
 # Windows API definitions
 kernel32 = ctypes.windll.kernel32
@@ -910,14 +910,14 @@ class MemoryForensicsAnalyzer:
             logging.error(f"Error logging injection event: {e}")
     
     def monitoring_loop(self):
-                # Initialize COM for this thread
-                try:
-                    import pythoncom
-                    pythoncom.CoInitialize()
-                except ImportError:
-                    pass
-
         """Main monitoring loop for continuous injection detection."""
+        # Initialize COM for this thread
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+        except ImportError:
+            pass
+        
         logging.info("Memory forensics monitoring started")
         
         while self.running:
@@ -933,25 +933,25 @@ class MemoryForensicsAnalyzer:
                 time.sleep(10)
     
     def get_statistics(self) -> Dict:
-                # Initialize COM for this thread
-                try:
-                    import pythoncom
-                    pythoncom.CoInitialize()
-                except ImportError:
-                    pass
-
         """Get memory forensics statistics."""
+        # Initialize COM for this thread
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+        except ImportError:
+            pass
+        
         return self.stats.copy()
     
     def start(self):
-                # Initialize COM for this thread
-                try:
-                    import pythoncom
-                    pythoncom.CoInitialize()
-                except ImportError:
-                    pass
-
         """Start memory forensics monitoring in background thread."""
+        # Initialize COM for this thread
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+        except ImportError:
+            pass
+        
         monitor_thread = threading.Thread(target=self.monitoring_loop, daemon=True)
         monitor_thread.start()
         logging.info("[OK] Memory Forensics Analyzer active")

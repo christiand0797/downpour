@@ -386,19 +386,19 @@ class DefenderEnhancer:
                 time.sleep(60)
     
     def start(self):
-                # Initialize COM for this thread
-                try:
-                    import pythoncom
-                    pythoncom.CoInitialize()
-                except ImportError:
-                    pass
-
         """
         Start the Defender enhancement system.
         
         1. Enable all protection features
         2. Start monitoring thread to keep them enabled
         """
+        # Initialize COM for this thread
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+        except ImportError:
+            pass
+        
         # Enable all features initially
         self.enable_all_protection()
         
