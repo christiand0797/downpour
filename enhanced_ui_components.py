@@ -11,6 +11,7 @@ try:
 except ImportError:
     _KEV_AVAILABLE = False
 from tkinter import ttk
+import tkinter as tk
 import math
 import time
 import threading
@@ -19,8 +20,10 @@ from datetime import datetime
 try:
     from PIL import Image, ImageDraw, ImageFont
     PIL_AVAILABLE = True
-except ImportError:
+except Exception:
+    # Some environments can fail at native extension import time (not ImportError).
     PIL_AVAILABLE = False
+
 
 try:
     import psutil

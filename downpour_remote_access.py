@@ -567,6 +567,187 @@ class RemoteAccessController:
     def get_last_result(self) -> Optional[RemoteAccessScanResult]:
         return self.monitor.last_result
 
+    # -----------------------------------------------------------------------
+    # Static hardening methods (called unbound from the GUI: must be @staticmethod)
+    # -----------------------------------------------------------------------
+
+    #: Maps vector-key strings to the Windows service names that provide them.
+    #: Only vectors backed by a real service are included; pure network listeners
+    #: (reverse_tcp, cobalt_strike, metasploit, ngrok) have no service to stop.
+    _VECTOR_SERVICE_MAP: Dict[str, List[str]] = {
+        "rdp":       ["TermService"],
+        "winrm":     ["WinRM"],
+        "telnet":    ["TlntSvr"],
+        "vnc":       [],  # VNC is app-level, not a Windows service
+        "teamviewer":["TeamViewer"],
+        "anydesk":   ["AnyDesk"],
+        "ssh":       [],   # OpenSSH on Windows runs as sshd; often absent
+        "reverse_tcp": [],
+        "cobalt_strike": [],
+        "metasploit": [],
+        "ngrok":     [],
+    }
+
+    _NO_WIN = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+
+    @staticmethod
+    def _run_cmd(args: List[str]) -> Tuple[bool, str]:
+        """Run a subprocess command and return (success, message)."""
+        try:
+            result = subprocess.run(
+                args, check=True, capture_output=True, text=True,
+                timeout=15, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000),
+            )
+            return True, result.stdout.strip() or "OK"
+        except subprocess.TimeoutExpired:
+            return False, "Command timed out"
+        except subprocess.CalledProcessError as exc:
+            return False, exc.stderr.strip() or f"Exit code {exc.returncode}"
+        except Exception as exc:
+            return False, str(exc)
+
+    @staticmethod
+    def _identify_vector_key(vector) -> str:
+        """Given a vector dict (value from REMOTE_ACCESS_VECTORS), return its key.
+
+        The GUI passes the dict *value* (ports/risk/desc), not the key string.
+        We match by comparing ports + desc against the known vectors.
+        """
+        if isinstance(vector, str):
+            return vector
+        if isinstance(vector, dict):
+            desc = vector.get("desc", "")
+            ports = vector.get("ports", [])
+            for key, val in REMOTE_ACCESS_VECTORS.items():
+                if val.get("desc") == desc and val.get("ports") == ports:
+                    return key
+        return ""
+
+    @staticmethod
+    def _block_vector_ports(vector_key: str, action: str = "block") -> str:
+        """Add (action='block') or remove (action='delete') firewall rules for a vector's ports."""
+        vec = REMOTE_ACCESS_VECTORS.get(vector_key, {})
+        ports = vec.get("ports", [])
+        msgs = []
+        for port in ports:
+            rule_name = f"Downpour_RA_{vector_key}_port{port}"
+            if action == "block":
+                ok, out = RemoteAccessController._run_cmd([
+                    "netsh", "advfirewall", "firewall", "add", "rule",
+                    f"name={rule_name}", "dir=in", "action=block",
+                    f"protocol=TCP", f"localport={port}", "enable=yes",
+                ])
+                msgs.append(f"Port {port}: {'blocked' if ok else 'FAIL'}")
+            else:
+                # Delete the rule (ignore errors if it doesn't exist)
+                ok, out = RemoteAccessController._run_cmd([
+                    "netsh", "advfirewall", "firewall", "delete", "rule",
+                    f"name={rule_name}",
+                ])
+                msgs.append(f"Port {port}: {'unblocked' if ok else 'no rule'}")
+        return "; ".join(msgs)
+
+    @staticmethod
+    def disable_vector(vector) -> Tuple[bool, str]:
+        """Disable a remote-access vector by stopping its service and blocking ports.
+
+        Called unbound from the GUI (RemoteAccessController.disable_vector(vector)),
+        so this MUST be a @staticmethod.
+
+        Args:
+            vector: The dict value from REMOTE_ACCESS_VECTORS (has 'ports','desc','risk'),
+                    or the key string.
+
+        Returns:
+            (success: bool, message: str)
+        """
+        key = RemoteAccessController._identify_vector_key(vector)
+        desc = vector.get("desc", key) if isinstance(vector, dict) else key
+        parts = [f"Disabling {desc} ({key})"]
+
+        # 1. Stop and disable associated Windows services
+        services = RemoteAccessController._VECTOR_SERVICE_MAP.get(key, [])
+        svc_results = []
+        for svc in services:
+            # sc stop
+            ok, msg = RemoteAccessController._run_cmd(["sc", "stop", svc])
+            svc_results.append(f"{svc} stop: {msg}")
+            # sc config start= disabled
+            ok2, msg2 = RemoteAccessController._run_cmd([
+                "sc", "config", svc, "start=", "disabled",
+            ])
+            svc_results.append(f"{svc} disable: {msg2}")
+        if svc_results:
+            parts.append("; ".join(svc_results))
+
+        # 2. Block the vector's ports via Windows Firewall
+        fw_msg = RemoteAccessController._block_vector_ports(key, action="block")
+        parts.append(f"Firewall: {fw_msg}")
+
+        all_ok = all("FAIL" not in p for p in parts[1:])
+        return all_ok, " | ".join(parts)
+
+    @staticmethod
+    def enable_vector(vector) -> Tuple[bool, str]:
+        """Re-enable a remote-access vector by restoring its service and removing port blocks.
+
+        Called unbound from the GUI. @staticmethod.
+
+        Args:
+            vector: The dict value from REMOTE_ACCESS_VECTORS, or the key string.
+
+        Returns:
+            (success: bool, message: str)
+        """
+        key = RemoteAccessController._identify_vector_key(vector)
+        desc = vector.get("desc", key) if isinstance(vector, dict) else key
+        parts = [f"Enabling {desc} ({key})"]
+
+        # 1. Re-enable associated Windows services
+        services = RemoteAccessController._VECTOR_SERVICE_MAP.get(key, [])
+        svc_results = []
+        for svc in services:
+            # sc config start= demand (manual start)
+            ok, msg = RemoteAccessController._run_cmd([
+                "sc", "config", svc, "start=", "demand",
+            ])
+            svc_results.append(f"{svc} enable: {msg}")
+            # sc start
+            ok2, msg2 = RemoteAccessController._run_cmd(["sc", "start", svc])
+            svc_results.append(f"{svc} start: {msg2}")
+        if svc_results:
+            parts.append("; ".join(svc_results))
+
+        # 2. Remove port-block firewall rules
+        fw_msg = RemoteAccessController._block_vector_ports(key, action="delete")
+        parts.append(f"Firewall: {fw_msg}")
+
+        all_ok = all("FAIL" not in p for p in parts[1:])
+        return all_ok, " | ".join(parts)
+
+    @staticmethod
+    def disable_all_remote_access(progress_cb=None) -> List[str]:
+        """Disable every remote-access vector. Hardens the attack surface.
+
+        Called unbound from the GUI inside a worker thread. @staticmethod.
+
+        Args:
+            progress_cb: Optional callable(str) for live progress updates.
+
+        Returns:
+            List of result messages (one per vector).
+        """
+        results = []
+        for key, vec in REMOTE_ACCESS_VECTORS.items():
+            if progress_cb:
+                progress_cb(f"Processing {key} ({vec.get('desc', key)})...")
+            ok, msg = RemoteAccessController.disable_vector(vec)
+            tag = "OK" if ok else "FAIL"
+            results.append(f"[{tag}] {key}: {msg}")
+        if progress_cb:
+            progress_cb(f"Done -- {sum(1 for r in results if r.startswith('[OK]'))}/{len(results)} vectors disabled.")
+        return results
+
 
 # Update __all__
 __all__ = [

@@ -9,6 +9,7 @@ import logging
 import shutil
 import subprocess
 import time
+import tempfile
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional

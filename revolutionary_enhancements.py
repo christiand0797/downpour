@@ -403,12 +403,12 @@ def fractal_distribute(data: Dict[str, Any], nodes: int = 8) -> Dict[int, Dict]:
         dist.setdefault(nid, {})[k] = v
     return dist
 
-def quantum_secure_hash(data: str, salt: str = None, rounds: int = 10000) -> str:
+def quantum_secure_hash(data: str, salt: Optional[str] = None, rounds: int = 10000) -> str:
     if salt is None: salt = secrets.token_hex(32)
     h = hashlib.pbkdf2_hmac('sha256', data.encode(), salt.encode(), rounds)
     return h.hex() + ':' + salt
 
-def neural_encrypt(data: str, key: str = None) -> bytes:
+def neural_encrypt(data: str, key: Optional[str] = None) -> bytes:
     if key is None: key = secrets.token_hex(32)
     key_bytes = hashlib.sha256(key.encode()).digest()
     return bytes(b ^ key_bytes[i % 32] for i, b in enumerate(data.encode()))

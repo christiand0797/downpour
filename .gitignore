@@ -60,3 +60,28 @@ push_log.txt
 DO_PUSH_NOW.bat
 DO_PUSH_NOW.vbs
 .claude/
+
+# ─── Temp / throwaway scripts ────────────────────────────────────────────────
+_illegal_any.json
+_*_mypy_*.txt
+_mypy_*.txt
+*.bak
+compile_result.txt
+err.tmp
+
+# ─── Auto-generated stubs / cache ────────────────────────────────────────────
+.mypy_cache/
+.pytest_cache/
+
+# ─── Ad-hoc diagnostic scripts (root-level, throwaway) ───────────────────────
+_audit_*.py
+_audit_*.json
+_diag_*.py
+_find_*.ps1
+_check_*.ps1
+_python_paths.txt
+test.txt
+
+# ─── Runtime databases ────────────────────────────────────────────────────────
+vulnerability_scanner.db
+downpour_v27_data/
