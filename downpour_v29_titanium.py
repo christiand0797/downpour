@@ -23548,6 +23548,8 @@ class downpour(tk.Tk):
              Colors.GAUGE_TEAL,   "Export all connections to CSV"),
             ("[LOCK] Isolate Host",       self._threats_isolate_host,
              Colors.GAUGE_RED,    "Emergency: block ALL network traffic"),
+            ("🚫 DDoS Blocks",       self._net_view_ddos_blocks,
+             Colors.GAUGE_RED,    "View/unblock IPs auto-blocked by DDoS/port-scan protection"),
         ]:
             self._make_button(top, txt, cmd, col, tip=tip, font_size=8)
 
@@ -30321,6 +30323,11 @@ Verification Status:
                   command = self._vuln_fix_all
                   ).grid(row=0, column=3, padx=4, pady=6, sticky='w')
 
+        tk.Button(hdr, text="🚨 CHECK ZERO-DAYS (Live)", font=('Consolas', 9, 'bold'),
+                  bg = '#6a0000', fg='white', relief='flat', padx=10, pady=4,
+                  command = self._check_zero_days_live
+                  ).grid(row=0, column=4, padx=4, pady=6, sticky='w')
+
         # Results pane
         body: Any = tk.Frame(p, bg=Colors.BG_VOID)
         body.grid(row=1, column=0, sticky='nsew', padx=8, pady=4)
@@ -30741,6 +30748,84 @@ Verification Status:
             _sc = score; _g = grade; _fn = _fail_n; _c = color; self._queue_alert(f"[HOLE] Vuln Scan complete  -  score {_sc}/100 grade {_g}  -  {_fn} failures", _c)
 
         self._executor.submit(_scan)
+
+    def _check_zero_days_live(self):
+        """v29: Live Zero-Day Watch — fetches the CURRENT CISA KEV catalog
+        (1,600+ actively-exploited CVEs), filtered against TODAY'S REAL
+        SYSTEM DATE, so it stays correct no matter when the app is actually
+        run. Every result carries real, actionable patch guidance straight
+        from CISA — not just a bare CVE ID.
+        """
+        try:
+            from vulnerability_scanner import VulnerabilityScanner
+        except ImportError:
+            messagebox.showerror("Unavailable",
+                "vulnerability_scanner.py not found — live zero-day watch disabled.")
+            return
+
+        def do():
+            try:
+                vs: Any = VulnerabilityScanner()
+                watch: Any = vs.get_zero_day_watch(days_back=14)
+            except Exception as e:
+                self.after(0, lambda: messagebox.showerror(
+                    "Zero-Day Check Failed", f"Live KEV fetch error:\n{e}"))
+                return
+
+            def report():
+                if not self.winfo_exists():
+                    return
+                if watch.get('error'):
+                    self._queue_alert(f"[ZERODAY] Live check failed: {watch['error']}",
+                                       Colors.GAUGE_ORANGE)
+                    messagebox.showerror("Zero-Day Check Failed", watch['error'])
+                    return
+
+                checked_at: Any = watch['checked_at'][:19].replace('T', ' ')
+                total: Any = watch['total_kev_entries']
+                recent: Any = watch['recent_count']
+                entries: Any = watch['entries']
+
+                self._queue_alert(
+                    f"[ZERODAY] Checked {checked_at} — {total} total actively-exploited "
+                    f"CVEs tracked, {recent} disclosed in the last 14 days",
+                    Colors.GAUGE_TEAL if recent == 0 else Colors.GAUGE_ORANGE)
+
+                sev_colors: Any = {'CRITICAL': Colors.GAUGE_RED, 'HIGH': Colors.GAUGE_ORANGE,
+                              'MEDIUM': Colors.GAUGE_YELLOW, 'LOW': Colors.GAUGE_TEAL}
+                for e in entries:
+                    col: Any = sev_colors.get(e['severity'], Colors.GAUGE_YELLOW)
+                    self._queue_alert(
+                        f"[ZERODAY] {e['cve_id']} ({e['severity']}, {e['days_since_disclosure']}d ago) "
+                        f"— {e['product']}: {e['patch_guidance'][:100]}",
+                        col)
+
+                if not entries:
+                    messagebox.showinfo("Zero-Day Watch",
+                        f"Checked {checked_at}\n\n"
+                        f"No CVEs added to CISA's actively-exploited catalog "
+                        f"in the last 14 days.\n\n"
+                        f"({total} total actively-exploited CVEs tracked)")
+                    return
+
+                critical_n: Any = sum(1 for e in entries if e['severity'] == 'CRITICAL')
+                lines: Any = [f"Checked: {checked_at}",
+                         f"{recent} CVE(s) added to CISA KEV in the last 14 days "
+                         f"({critical_n} CRITICAL)", ""]
+                for e in entries[:12]:
+                    lines.append(f"• {e['cve_id']} [{e['severity']}] — {e['product']}")
+                    lines.append(f"    Disclosed {e['days_since_disclosure']}d ago  |  "
+                                 f"Patch by: {e['due_date'] or 'ASAP'}")
+                    lines.append(f"    {e['patch_guidance'][:140]}")
+                    lines.append("")
+                if len(entries) > 12:
+                    lines.append(f"...and {len(entries)-12} more (see Threats tab for full log)")
+
+                messagebox.showwarning("🚨 Zero-Day Watch — Findings", "\n".join(lines))
+
+            self.after(0, report)
+
+        self._executor.submit(do)
 
     def _vuln_fix_all(self):
         if not messagebox.askyesno("Fix All",
@@ -33512,6 +33597,84 @@ Verification Status:
             self._net_alert_box.config(state='disabled')
         except Exception:
             pass
+
+        # v29: DDoS/port-scan auto-mitigation — previously this callback only
+        # logged the alert and never actually stopped the attacker. Real
+        # protection means blocking, not just observing.
+        _ddos_types: Any = ('connection_flood', 'port_scan')
+        if alert.get('type') in _ddos_types and getattr(self, '_ddos_autoblock', True):
+            ip: Any = alert.get('ip', '')
+            if ip and ip not in getattr(self, '_ip_whitelist', set()):
+                if not hasattr(self, '_ddos_blocked_ips'):
+                    self._ddos_blocked_ips = set()
+                if ip not in self._ddos_blocked_ips and len(self._ddos_blocked_ips) < 200:
+                    self._ddos_blocked_ips.add(ip)
+                    self._executor.submit(self._ddos_block_ip, ip, alert.get('type'), alert.get('msg', ''))
+
+    def _ddos_block_ip(self, ip: str, attack_type: str, detail: str):
+        """v29: Actually mitigate a DDoS/port-scan attacker via Windows Firewall
+        block rule — real protection, not just a log line.
+
+        Safety-critical: NEVER auto-blocks private/local/loopback ranges.
+        A false-positive connection-flood alert against your own router,
+        NAS, or a busy LAN device would otherwise cause a self-inflicted
+        network outage — this check is the difference between a security
+        feature and a footgun.
+        """
+        import ipaddress
+        try:
+            addr: Any = ipaddress.ip_address(ip)
+            if (addr.is_private or addr.is_loopback or addr.is_link_local
+                    or addr.is_multicast or addr.is_reserved or addr.is_unspecified):
+                logger.info("[DDOS] Skipping auto-block of non-routable/private IP: %s", ip)
+                return
+        except ValueError:
+            return  # not a valid IP — don't attempt to block garbage input
+
+        try:
+            rule_name: Any = f"Downpour_DDoS_Block_{ip.replace('.', '_').replace(':', '_')}"
+            result: Any = subprocess.run(
+                ['netsh', 'advfirewall', 'firewall', 'add', 'rule',
+                 f'name={rule_name}', 'dir=in', 'action=block',
+                 f'remoteip={ip}', 'enable=yes'],
+                capture_output=True, text=True, timeout=15,
+                creationflags=subprocess.CREATE_NO_WINDOW)
+            # Also block outbound in case it's a reflected/spoofed-source scenario
+            subprocess.run(
+                ['netsh', 'advfirewall', 'firewall', 'add', 'rule',
+                 f'name={rule_name}_out', 'dir=out', 'action=block',
+                 f'remoteip={ip}', 'enable=yes'],
+                capture_output=True, text=True, timeout=15,
+                creationflags=subprocess.CREATE_NO_WINDOW)
+
+            if result.returncode == 0:
+                msg: Any = f"[DDOS] Auto-blocked {ip} ({attack_type}) — {detail[:100]}"
+                self._pending_alerts.append((msg, Colors.GAUGE_RED))
+                logger.warning("[DDOS] Blocked attacker IP %s (%s)", ip, attack_type)
+            else:
+                logger.warning("[DDOS] Firewall block failed for %s: %s", ip, result.stderr[:200])
+        except Exception as e:
+            logger.debug("[DDOS] Auto-block error for %s: %s", ip, e)
+
+    def _ddos_unblock_ip(self, ip: str) -> bool:
+        """Remove a DDoS auto-block rule for an IP (used by the manual
+        unblock UI, so false positives can be reversed without editing
+        the firewall by hand)."""
+        try:
+            rule_name: Any = f"Downpour_DDoS_Block_{ip.replace('.', '_').replace(':', '_')}"
+            subprocess.run(['netsh', 'advfirewall', 'firewall', 'delete', 'rule',
+                            f'name={rule_name}'],
+                           capture_output=True, timeout=15,
+                           creationflags=subprocess.CREATE_NO_WINDOW)
+            subprocess.run(['netsh', 'advfirewall', 'firewall', 'delete', 'rule',
+                            f'name={rule_name}_out'],
+                           capture_output=True, timeout=15,
+                           creationflags=subprocess.CREATE_NO_WINDOW)
+            self._ddos_blocked_ips.discard(ip)
+            return True
+        except Exception as e:
+            logger.debug("[DDOS] Unblock error for %s: %s", ip, e)
+            return False
 
     def _on_emergency_event(self, msg: str):
         # FIX: called from background threads (ransomware, mem_forensics, emergency).
@@ -44565,6 +44728,61 @@ Verification Status:
         self._ip_whitelist.add(ip)
         self._queue_alert(f'[NET] Whitelisted {ip} — future alerts suppressed', Colors.GAUGE_GREEN)
         mb.showinfo('Whitelisted', f'{ip} added to session whitelist.')
+
+    def _net_view_ddos_blocks(self):
+        """v29: Show all auto-blocked DDoS/port-scan attacker IPs with a
+        one-click unblock — makes the auto-block feature reversible and
+        auditable instead of a black box that silently edits the firewall.
+        """
+        import tkinter as tk
+        from tkinter import messagebox as mb
+        blocked: Any = sorted(getattr(self, '_ddos_blocked_ips', set()))
+        if not blocked:
+            mb.showinfo('DDoS Auto-Blocks', 'No IPs currently auto-blocked.')
+            return
+
+        win: Any = tk.Toplevel(self)
+        win.title(f'DDoS Auto-Blocked IPs ({len(blocked)})')
+        win.geometry('420x400')
+        win.configure(bg=Colors.BG_VOID)
+
+        tk.Label(win, text=f'🚫 {len(blocked)} IP(s) auto-blocked this session',
+                 font=('Consolas', 10, 'bold'), fg=Colors.GAUGE_RED,
+                 bg=Colors.BG_VOID).pack(pady=(10, 6))
+
+        frame: Any = tk.Frame(win, bg=Colors.BG_VOID)
+        frame.pack(fill='both', expand=True, padx=10)
+        listbox: Any = tk.Listbox(frame, font=('Consolas', 9),
+                              bg=Colors.GLASS_DARK, fg=Colors.TEXT_LIGHT,
+                              selectmode='extended')
+        listbox.pack(side='left', fill='both', expand=True)
+        sb: Any = tk.Scrollbar(frame, command=listbox.yview)
+        sb.pack(side='right', fill='y')
+        listbox.config(yscrollcommand=sb.set)
+        for ip in blocked:
+            listbox.insert('end', ip)
+
+        def _unblock_selected():
+            sel_idx: Any = listbox.curselection()
+            if not sel_idx:
+                mb.showwarning('Unblock', 'Select one or more IPs first.')
+                return
+            ips: Any = [listbox.get(i) for i in sel_idx]
+            for ip in ips:
+                self._executor.submit(self._ddos_unblock_ip, ip)
+            self._queue_alert(f'[DDOS] Unblocking {len(ips)} IP(s) (manual override)',
+                              Colors.GAUGE_TEAL)
+            for i in reversed(sel_idx):
+                listbox.delete(i)
+
+        btn_row: Any = tk.Frame(win, bg=Colors.BG_VOID)
+        btn_row.pack(pady=8)
+        tk.Button(btn_row, text='✅ Unblock Selected', font=('Consolas', 9, 'bold'),
+                  fg=Colors.GAUGE_GREEN, bg=Colors.GLASS_CARD, relief='flat',
+                  padx=10, pady=4, command=_unblock_selected).pack(side='left', padx=4)
+        tk.Button(btn_row, text='Close', font=('Consolas', 9),
+                  fg=Colors.TEXT_DIM, bg=Colors.GLASS_CARD, relief='flat',
+                  padx=10, pady=4, command=win.destroy).pack(side='left', padx=4)
 
     def _net_export_csv(self):
         """Export all network connections to CSV."""
