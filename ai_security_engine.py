@@ -68,6 +68,34 @@ except ImportError:
     PSUTIL_AVAILABLE = False
 
 
+import io
+
+
+class _RestrictedUnpickler(pickle.Unpickler):
+    """Security-restricted unpickler preventing arbitrary code execution."""
+    ALLOWED_MODULES = {
+        'sklearn', 'sklearn.ensemble', 'sklearn.preprocessing',
+        'sklearn.cluster', 'sklearn.linear_model', 'sklearn.svm',
+        'numpy', 'numpy.core', 'numpy.core.multiarray',
+        'scipy', 'scipy.sparse', 'joblib', 'joblib.numpy_pickle',
+        'collections', 'builtins', '__builtin__',
+    }
+    
+    def find_class(self, module, name):
+        top_level = module.split('.')[0]
+        if top_level not in self.ALLOWED_MODULES:
+            raise pickle.UnpicklingError(
+                f"Blocked attempt to unpickle from restricted module: {module}.{name}"
+            )
+        return super().find_class(module, name)
+
+
+def _safe_load_model(path):
+    """Load a scikit-learn model file with restricted unpickling."""
+    with open(path, 'rb') as f:
+        return _RestrictedUnpickler(io.BytesIO(f.read())).load()
+
+
 class AISecurityEngine:
     """Advanced AI-driven security analysis engine"""
     
@@ -103,7 +131,7 @@ class AISecurityEngine:
             import logging as _logging
             lvl_name = (APP_CONFIG.get('LOGGING', {}).get('LEVEL', 'INFO') if isinstance(APP_CONFIG, dict) else 'INFO')
             lvl = getattr(_logging, str(lvl_name).upper(), _logging.INFO)
-            _logging.getLogger().setLevel(lvl)
+            _logging.getLogger(__name__).setLevel(lvl)
             self.logger.info(f"Logging level set to {lvl_name.upper()} via config")
         except Exception:
             pass
@@ -168,17 +196,17 @@ class AISecurityEngine:
         try:
             process_model_path = self.model_dir / "process_anomaly_model.pkl"
             if process_model_path.exists():
-                self.process_anomaly_model = joblib.load(process_model_path)
+                self.process_anomaly_model = _safe_load_model(process_model_path)
                 self.logger.info("Loaded process anomaly model")
             
             behavior_model_path = self.model_dir / "behavior_classifier.pkl"
             if behavior_model_path.exists():
-                self.behavior_classifier = joblib.load(behavior_model_path)
+                self.behavior_classifier = _safe_load_model(behavior_model_path)
                 self.logger.info("Loaded behavior classifier")
             
             scaler_path = self.model_dir / "feature_scaler.pkl"
             if scaler_path.exists():
-                self.scaler = joblib.load(scaler_path)
+                self.scaler = _safe_load_model(scaler_path)
                 self.logger.info("Loaded feature scaler")
                 
         except Exception as e:

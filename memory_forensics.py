@@ -39,8 +39,11 @@ import ctypes
 import ctypes.wintypes
 try:
     import psutil
+    _PSUTIL_AVAILABLE = True
 except ImportError:
-    raise ImportError("memory_forensics requires psutil: pip install psutil")
+    _PSUTIL_AVAILABLE = False
+    import logging as _tmp_log
+    _tmp_log.getLogger(__name__).warning("memory_forensics: psutil not available, some features disabled")
 import logging
 log = logging.getLogger(__name__)
 log.info("Memory Forensics module loaded (v29)")
@@ -72,7 +75,9 @@ PROCESS_VM_READ = 0x0010
 PROCESS_VM_WRITE = 0x0020
 PROCESS_VM_OPERATION = 0x0008
 PROCESS_CREATE_THREAD = 0x0002
-PROCESS_ALL_ACCESS = 0x1F0FFF
+PROCESS_ALL_ACCESS = 0x1F0FFF  # Do not use — overly broad; kept for legacy reference only
+# Minimum permissions needed for forensic read-only analysis:
+_PROCESS_READ_FLAGS = PROCESS_QUERY_INFORMATION | PROCESS_VM_READ  # 0x0410
 
 MEM_COMMIT = 0x1000
 MEM_RESERVE = 0x2000

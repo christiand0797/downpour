@@ -55,17 +55,19 @@ except ImportError:
 from datetime import datetime, timedelta
 from collections import defaultdict
 import socket
+import ipaddress
+
 try:
     import requests
     _REQUESTS_AVAILABLE = True
 except ImportError:
     _REQUESTS_AVAILABLE = False
 
-    try:
-        from vulnerability_scanner import get_kev_catalog, get_epss_stats
-        _KEV_AVAILABLE = True
-    except ImportError:
-        _KEV_AVAILABLE = False
+try:
+    from vulnerability_scanner import get_kev_catalog, get_epss_stats
+    _KEV_AVAILABLE = True
+except ImportError:
+    _KEV_AVAILABLE = False
 
 class NetworkMonitor:
     """
@@ -103,6 +105,16 @@ class NetworkMonitor:
             # Known CobaltStrike servers
             '23.106.160.188', '194.165.16.134', '185.220.101.47', '45.142.212.100',
         ])
+        
+        # Split into exact IPs and CIDR networks for proper matching
+        self._malicious_exact_ips = {ip for ip in self.malicious_ips if '/' not in ip}
+        self._malicious_networks: list = []
+        for cidr in self.malicious_ips:
+            if '/' in cidr:
+                try:
+                    self._malicious_networks.append(ipaddress.ip_network(cidr, strict=False))
+                except ValueError:
+                    pass
         
         # Suspicious ports commonly used by malware
         self.suspicious_ports = [
@@ -157,6 +169,21 @@ class NetworkMonitor:
         if ip == '0.0.0.0' or ip == '::':  # Any address
             return True
         return False
+    
+    def _is_malicious_ip(self, ip: str) -> bool:
+        """
+        Check if an IP matches any known malicious IP or CIDR range.
+        
+        Uses proper CIDR matching via ipaddress module so ranges like
+        185.220.101.0/24 correctly match 185.220.101.47.
+        """
+        if ip in self._malicious_exact_ips:
+            return True
+        try:
+            addr = ipaddress.ip_address(ip)
+            return any(addr in net for net in self._malicious_networks)
+        except ValueError:
+            return False
     
     def get_country_for_ip(self, ip: str) -> str:
         """
@@ -290,8 +317,8 @@ class NetworkMonitor:
             if self.is_private_ip(remote_ip):
                 return (False, "LOW", "")
             
-            # Check against known malicious IPs
-            if remote_ip in self.malicious_ips:
+            # Check against known malicious IPs (exact match + CIDR ranges)
+            if self._is_malicious_ip(remote_ip):
                 # Check if this IP is associated with any known CVEs
                 cve_info = self.check_ip_cve(remote_ip)
                 reason = f"Connection to known malicious IP: {remote_ip}"
@@ -619,10 +646,3 @@ NETWORK_DETECTION_RULES = [
     {'name': 'Tor Connection', 'port': 9050, 'pattern': b'tor', 'severity': 'MEDIUM'},
 ]
 
-
-print("[NetworkMonitor v1.2] Loaded - Enhanced with MITRE ATT&CK network mappings")
-try:
-    import requests
-    _REQUESTS_AVAILABLE = True
-except Exception:
-    _REQUESTS_AVAILABLE = False

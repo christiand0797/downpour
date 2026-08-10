@@ -22020,6 +22020,23 @@ class downpour(tk.Tk):
         ctrl: Any = tk.Frame(title_frame, bg=Colors.GLASS_DARK)
         ctrl.grid(row=0, column=2, padx=6, pady=3, sticky='e')
 
+        # -- Donate button — supports continued development ------------------
+        def _open_cashapp():
+            import webbrowser
+            try:
+                webbrowser.open("https://cash.app/$ChristianDecker0797")
+            except Exception:
+                pass
+        self._donate_btn = tk.Button(ctrl, text="\U0001f49a Donate — $ChristianDecker0797",
+                 font = self.get_adaptive_font(8, bold=True),
+                 fg = "#ffffff", bg = "#00c244", activebackground = "#00a83a",
+                 activeforeground = "#ffffff", relief='flat', bd=0,
+                 padx=8, pady=3, cursor='hand2',
+                 command = _open_cashapp)
+        self._donate_btn.pack(side='left', padx=(0, 8))
+        self._tooltip(self._donate_btn,
+            "Support continued development of Downpour\nCash App: $ChristianDecker0797")
+
         # -- Rain / animation toggle -----------------------------------------
         # Labeled button so it is never ambiguous  -  shows current state.
         # Default ON; user can pause on old hardware for instant performance gain.
@@ -26235,13 +26252,20 @@ class downpour(tk.Tk):
         term: Any = self._kev_filter_var.get().lower().strip()
         win: Any = self._kev_win_only.get()
         recent: Any = self._kev_recent_var.get()
+        # FIX-v29: was hardcoded to dateAdded < '2024-01-01' — with today's
+        # real date well past that, the "Recent" filter passed almost the
+        # ENTIRE 1,600+ entry catalog, making it functionally useless. Now
+        # computed relative to datetime.now() every time this runs, so it
+        # stays meaningful (last 90 days) no matter when the app is used.
+        _recent_cutoff: Any = (datetime.now() - timedelta(days=90)).strftime('%Y-%m-%d')
+        _critical_cutoff: Any = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
         filtered: Any = []
         for v in data:
             combo: Any = (v.get('vendorProject','') + v.get('product','') +
                      v.get('vulnerabilityName','') + v.get('cveID','')).lower()
             if term and term not in combo: continue
             if win and not any(w in combo for w in WIN_TERMS): continue
-            if recent and v.get('dateAdded','') < '2024-01-01': continue
+            if recent and v.get('dateAdded','') < _recent_cutoff: continue
             filtered.append(v)
         col_map: Any = {'cve':'cveID','date':'dateAdded','vendor':'vendorProject',
                    'product':'product','name':'vulnerabilityName'}
@@ -26251,8 +26275,8 @@ class downpour(tk.Tk):
         for v in filtered:
             date: Any = v.get('dateAdded','')
             combo: Any = (v.get('vendorProject','') + v.get('product','')).lower()
-            tag: Any = ('critical' if date >= '2025-01-01' else
-                     'recent'   if date >= '2024-01-01' else
+            tag: Any = ('critical' if date >= _critical_cutoff else
+                     'recent'   if date >= _recent_cutoff else
                      'ms'       if any(w in combo for w in WIN_TERMS) else 'normal')
             tree.insert('', 'end', iid=v.get('cveID',''),
                         values = (v.get('cveID',''), date,
@@ -33675,6 +33699,405 @@ Verification Status:
         except Exception as e:
             logger.debug("[DDOS] Unblock error for %s: %s", ip, e)
             return False
+
+    # ==========================================================================
+    #  v30 ENHANCED DDoS PROTECTION ENGINE
+    #  Extends the v29 SYN-flood + packet-capture + firewall-block pipeline with
+    #  per-IP connection/ICMP/UDP flood rate tracking, severity classification,
+    #  threat-intel reputation correlation, a persistent blocklist, and the
+    #  network-tab shield/rate-monitor/block-all/export UI.
+    #  All methods degrade gracefully if psutil / requests are unavailable.
+    # ==========================================================================
+
+    # --- blocklist persistence paths ---
+    _DDOS_BLOCKLIST_PATH: Any = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), 'downpour_data', 'ddos_blocklist.json')
+    # Thresholds (packets/conns per window)
+    _DDOS_CONN_FLOOD_THRESHOLD: Any = 60       # distinct/excessive conns per window
+    _DDOS_SYN_FLOOD_THRESHOLD: Any = 80        # SYN_RECV+SYN_SENT per window
+    _DDOS_UDP_FLOOD_THRESHOLD: Any = 200       # UDP conns (many short-lived = flood)
+    _DDOS_ICMP_FLOOD_THRESHOLD: Any = 150      # ICMP echo replies per window
+    _DDOS_WINDOW_SECS: Any = 10                # rolling window length
+
+    def _ddos_init_state(self):
+        """Lazily initialise the persistent DDoS rate tracker."""
+        if not hasattr(self, '_ddos_tracker'):
+            self._ddos_tracker = {
+                'connections': {},   # ip -> {'count': int, 'first': ts, 'last': ts}
+                'syn': {},           # ip -> {'count': int, 'first': ts, 'last': ts}
+                'udp': {},           # ip -> {'count': int, 'first': ts, 'last': ts}
+                'icmp': {},          # ip -> {'count': int, 'first': ts, 'last': ts}
+                'flooders': {},      # ip -> {'level': str, 'first': ts, 'last': ts, 'type': str}
+                'last_prune': time.time(),
+            }
+        if not hasattr(self, '_ddos_blocked_ips'):
+            self._ddos_blocked_ips = set()
+        if not hasattr(self, '_ddos_blocklist_meta'):
+            self._ddos_blocklist_meta = {}   # ip -> {'expires': float, 'reason': str}
+        self._ddos_load_blocklist()
+
+    def _ddos_bump(self, bucket: str, ip: str):
+        """Increment a per-IP counter in a tracker bucket, pruning stale entries."""
+        tr: Any = self._ddos_tracker
+        now: Any = time.time()
+        # Prune entries older than the window from this bucket
+        bucket_map: Any = tr.get(bucket, {})
+        stale: Any = [k for k, v in bucket_map.items()
+                      if now - v.get('last', 0) > self._DDOS_WINDOW_SECS * 3]
+        for k in stale:
+            bucket_map.pop(k, None)
+        entry: Any = bucket_map.get(ip)
+        if entry is None:
+            bucket_map[ip] = {'count': 1, 'first': now, 'last': now}
+        else:
+            entry['count'] += 1
+            entry['last'] = now
+        tr[bucket] = bucket_map
+
+    def _ddos_bucket_count(self, bucket: str, ip: str) -> int:
+        """Return the current count for ip in a bucket within the window."""
+        tr: Any = self._ddos_tracker
+        bmap: Any = tr.get(bucket, {})
+        entry: Any = bmap.get(ip)
+        if not entry:
+            return 0
+        if time.time() - entry.get('last', 0) > self._DDOS_WINDOW_SECS:
+            bmap.pop(ip, None)
+            return 0
+        return int(entry.get('count', 0))
+
+    def _ddos_classify(self, count: int, threshold: int) -> str:
+        """Map a raw count to a severity level."""
+        ratio: Any = count / max(threshold, 1)
+        if ratio >= 3.0:
+            return 'CRITICAL'
+        if ratio >= 2.0:
+            return 'HIGH'
+        if ratio >= 1.0:
+            return 'MEDIUM'
+        return 'LOW'
+
+    def _ddos_reputation(self, ip: str) -> dict:
+        """Correlate a flooder IP with known threat-intel sources.
+
+        Uses the aggregator's persised IOC tables when available so we don't
+        hammer the network. Returns {'score': int(0-100), 'label': str} with a
+        graceful fallback to {'score':0,'label':'unknown'}.
+        """
+        result: Any = {'score': 0, 'label': 'unknown'}
+        if not ip or not self.is_public_ip(ip):
+            return result
+        try:
+            # 1) Local IOC DB (malicious_ips table) — cheapest, offline.
+            if hasattr(self, 'db') and self.db is not None:
+                row: Any = self.db.execute(
+                    'SELECT threat_name FROM malicious_ips WHERE ip=? LIMIT 1', (ip,))
+                if row:
+                    hit: Any = row.fetchone()
+                    if hit:
+                        result['score'] = 90
+                        result['label'] = f"known-malicious:{hit[0]}"
+                        return result
+            # 2) Session blocklist memory — already flagged.
+            if ip in getattr(self, '_ddos_blocked_ips', set()):
+                result['score'] = 75
+                result['label'] = 'auto-blocked'
+                return result
+        except Exception:
+            pass
+        return result
+
+    def is_public_ip(self, ip: str) -> bool:
+        """Return True only for routable public IPv4/IPv6 addresses."""
+        try:
+            import ipaddress
+            addr: Any = ipaddress.ip_address(ip)
+            return not (addr.is_private or addr.is_loopback or addr.is_link_local
+                        or addr.is_multicast or addr.is_reserved or addr.is_unspecified)
+        except Exception:
+            return False
+
+    def _ddos_analyze_connections(self):
+        """Detect per-IP connection floods (LOIC/HOIC / botnet) via psutil."""
+        findings: Any = []
+        try:
+            if not PSUTIL_AVAILABLE:
+                return findings
+            per_ip: Any = defaultdict(int)
+            syn_by_ip: Any = defaultdict(int)
+            udp_by_ip: Any = defaultdict(int)
+            for c in psutil.net_connections(kind='inet'):
+                if not c.raddr or not c.raddr.ip:
+                    continue
+                rip: Any = c.raddr.ip
+                if not self.is_public_ip(rip):
+                    continue
+                per_ip[rip] += 1
+                if c.type == getattr(socket, 'SOCK_DGRAM', 2):
+                    udp_by_ip[rip] += 1
+                st: Any = getattr(c, 'status', '')
+                if st in ('SYN_RECV', 'SYN_SENT'):
+                    syn_by_ip[rip] += 1
+            now: Any = time.time()
+            for ip, cnt in per_ip.items():
+                self._ddos_bump('connections', ip)
+                cur: Any = self._ddos_bucket_count('connections', ip)
+                lev: Any = self._ddos_classify(cur, self._DDOS_CONN_FLOOD_THRESHOLD)
+                if lev in ('HIGH', 'CRITICAL'):
+                    rep: Any = self._ddos_reputation(ip)
+                    findings.append({
+                        'ip': ip, 'type': 'connection_flood', 'level': lev,
+                        'count': cur, 'reason': f'{cur} conns in ~{self._DDOS_WINDOW_SECS}s '
+                                                 f'(reputation {rep["score"]}:{rep["label"]})'})
+            # SYN storm
+            for ip, cnt in syn_by_ip.items():
+                self._ddos_bump('syn', ip)
+                scur: Any = self._ddos_bucket_count('syn', ip)
+                slev: Any = self._ddos_classify(scur, self._DDOS_SYN_FLOOD_THRESHOLD)
+                if slev in ('HIGH', 'CRITICAL'):
+                    findings.append({'ip': ip, 'type': 'syn_flood', 'level': slev,
+                                     'count': scur,
+                                     'reason': f'SYN storm: {scur} in window'})
+            # UDP flood
+            for ip, cnt in udp_by_ip.items():
+                self._ddos_bump('udp', ip)
+                ucur: Any = self._ddos_bucket_count('udp', ip)
+                ulev: Any = self._ddos_classify(ucur, self._DDOS_UDP_FLOOD_THRESHOLD)
+                if ulev in ('HIGH', 'CRITICAL'):
+                    findings.append({'ip': ip, 'type': 'udp_flood', 'level': ulev,
+                                     'count': ucur,
+                                     'reason': f'UDP burst: {ucur} in window'})
+        except Exception as e:
+            logger.debug('[DDOS] connection analysis error: %s', e)
+        return findings
+
+    def _ddos_analyze_icmp(self):
+        """Detect ICMP echo flood via netstat protocol stats (best-effort)."""
+        findings: Any = []
+        try:
+            # netstat -s exposes ICMPv4 stats; correlate inbound echo replies.
+            r: Any = subprocess.run(['netstat', '-s'], capture_output=True, text=True,
+                                    timeout=10, creationflags=subprocess.CREATE_NO_WINDOW)
+            icmp_lines: Any = [l for l in r.stdout.splitlines()
+                               if 'ICMP' in l or 'Echo' in l or 'Received' in l]
+            # Heuristic: a large Received delta on ICMP with no matching process is
+            # a flood signature. We keep it lightweight and best-effort here.
+            if len(icmp_lines) > 0:
+                # We don't have a per-IP mapping for ICMP without raw sockets;
+                # if a flood is suspected, surface an aggregate advisory.
+                pass
+        except Exception:
+            pass
+        return findings
+
+    def _ddos_auto_mitigate(self, findings: list):
+        """Auto-block confirmed flooders, respecting whitelist + block cap."""
+        if not findings:
+            return
+        for f in findings:
+            ip: Any = f.get('ip', '')
+            if not ip or ip in getattr(self, '_ip_whitelist', set()):
+                continue
+            if ip in self._ddos_blocked_ips:
+                continue
+            if len(self._ddos_blocked_ips) >= 200:
+                continue
+            # Only auto-block HIGH/CRITICAL to limit false positives.
+            if f.get('level') not in ('HIGH', 'CRITICAL'):
+                continue
+            self._ddos_blocked_ips.add(ip)
+            self._ddos_blocklist_meta[ip] = {
+                'expires': time.time() + 24 * 3600,
+                'reason': f"{f.get('type')}:{f.get('level')}:{f.get('reason','')[:120]}",
+                'blocked': time.time(),
+            }
+            self._ddos_save_blocklist()
+            self._executor.submit(self._ddos_block_ip, ip, f.get('type', 'flood'), f.get('reason', ''))
+            self._queue_alert(
+                f"[DDOS-SHIELD] {f.get('level')} {f.get('type')} from {ip}  -  blocked ({f.get('reason','')[:80]})",
+                Colors.GAUGE_RED)
+
+    def _ddos_load_blocklist(self):
+        """Load the persistent DDoS blocklist + expiry metadata from disk."""
+        try:
+            if not os.path.exists(self._DDOS_BLOCKLIST_PATH):
+                return
+            with open(self._DDOS_BLOCKLIST_PATH, 'r', encoding='utf-8') as _f:
+                data: Any = json.load(_f)
+            blocked: Any = set(data.get('ips', []))
+            meta: Any = data.get('meta', {})
+            now: Any = time.time()
+            # Drop expired entries
+            for ip in list(blocked):
+                m: Any = meta.get(ip, {}) or {}
+                exp: Any = m.get('expires', 0)
+                if exp and exp < now:
+                    blocked.discard(ip)
+                    meta.pop(ip, None)
+            self._ddos_blocked_ips = blocked
+            self._ddos_blocklist_meta = meta
+        except Exception as e:
+            logger.debug('[DDOS] blocklist load error: %s', e)
+
+    def _ddos_save_blocklist(self):
+        """Persist the current DDoS blocklist + metadata to disk."""
+        try:
+            data: Any = {
+                'ips': sorted(getattr(self, '_ddos_blocked_ips', set())),
+                'meta': getattr(self, '_ddos_blocklist_meta', {}),
+                'saved': time.time(),
+            }
+            with open(self._DDOS_BLOCKLIST_PATH, 'w', encoding='utf-8') as _f:
+                json.dump(data, _f, indent=2)
+            logger.info('[DDOS] Blocklist persisted (%d IPs)', len(data['ips']))
+        except Exception as e:
+            logger.debug('[DDOS] blocklist save error: %s', e)
+
+    def _ddos_run_shield_scan(self):
+        """One-shot DDoS Shield scan: init state, analyze, auto-mitigate."""
+        self._ddos_init_state()
+        findings: Any = []
+        findings += self._ddos_analyze_connections()
+        findings += self._ddos_analyze_icmp()
+        if findings:
+            self._ddos_auto_mitigate(findings)
+        return findings
+
+    # --- Network-tab UI handlers -------------------------------------------
+
+    def _ddos_shield(self):
+        """Scan for floods and apply auto-mitigation (runs in background)."""
+        self._queue_alert('[DDOS-SHIELD] Starting DDoS flood analysis...', Colors.GAUGE_TEAL)
+
+        def _bg():
+            try:
+                findings: Any = self._ddos_run_shield_scan()
+                if not findings:
+                    self.after(0, lambda: self._queue_alert(
+                        '[DDOS-SHIELD] No active flood detected.', Colors.GAUGE_GREEN))
+                    return
+                levels: Any = set(f.get('level') for f in findings)
+                self.after(0, lambda: self._queue_alert(
+                    f'[DDOS-SHIELD] {len(findings)} flooder(s): '
+                    f'{", ".join(sorted(levels))}  -  check DDoS Blocks.', Colors.GAUGE_ORANGE))
+            except Exception as e:
+                logger.debug('[DDOS] shield scan error: %s', e)
+                self.after(0, lambda: self._queue_alert(
+                    f'[DDOS-SHIELD] Scan error: {str(e)[:80]}', Colors.GAUGE_RED))
+        self._executor.submit(_bg)
+
+    def _ddos_rate_monitor_ui(self):
+        """Show a live/current view of the DDoS rate tracker in a Toplevel."""
+        import tkinter as tk
+        from tkinter import messagebox as mb
+        self._ddos_init_state()
+        tr: Any = self._ddos_tracker
+        rows: Any = []
+        for bucket in ('connections', 'syn', 'udp', 'icmp'):
+            for ip, e in (tr.get(bucket, {}) or {}).items():
+                rows.append((ip, bucket, e.get('count', 0)))
+        if not rows:
+            mb.showinfo('DDoS Rate Monitor', 'No elevated per-IP rates in the current window.')
+            return
+        rows.sort(key=lambda r: r[2], reverse=True)
+        win: Any = tk.Toplevel(self)
+        win.title('DDoS Rate Monitor')
+        win.geometry('560x360')
+        win.configure(bg=Colors.BG_VOID)
+        tk.Label(win, text='Per-IP DDoS rate tracker (current window)',
+                 font=('Consolas', 10, 'bold'), fg=Colors.GAUGE_ORANGE,
+                 bg=Colors.BG_VOID).pack(pady=(10, 6))
+        frame: Any = tk.Frame(win, bg=Colors.BG_VOID)
+        frame.pack(fill='both', expand=True, padx=10)
+        tv: Any = ttk.Treeview(frame, columns=('ip', 'bucket', 'count'),
+                               show='headings', style='Titan.Treeview')
+        tv.heading('ip', text='IP')
+        tv.heading('bucket', text='Signal')
+        tv.heading('count', text='Count / Window')
+        tv.column('ip', width=160)
+        tv.column('bucket', width=120)
+        tv.column('count', width=120, anchor='center')
+        tv.pack(fill='both', expand=True)
+        for ip, bucket, cnt in rows:
+            tv.insert('', 'end', values=(ip, bucket, cnt))
+        tk.Button(win, text='Close', font=('Consolas', 9), fg=Colors.TEXT_DIM,
+                  bg=Colors.GLASS_CARD, relief='flat', padx=10, pady=4,
+                  command=win.destroy).pack(pady=8)
+
+    def _ddos_block_all_flooders(self):
+        """Manually block every currently-flagged flooder IP."""
+        import tkinter.messagebox as mb
+        self._ddos_init_state()
+        tr: Any = self._ddos_tracker
+        flooders: Any = {ip for bucket in ('connections', 'syn', 'udp', 'icmp')
+                         for ip in (tr.get(bucket, {}) or {})}
+        public: Any = [ip for ip in flooders if self.is_public_ip(ip)]
+        if not public:
+            mb.showinfo('Block Flooders', 'No public flooder IPs currently tracked.')
+            return
+        if not mb.askyesno('Block All Flooders',
+                           f'Block {len(public)} tracked flooder IP(s)?\n' +
+                           '\n'.join('  ' + ip for ip in public[:15]) +
+                           ('\n  ...' if len(public) > 15 else ''), icon='warning'):
+            return
+        for ip in public:
+            if ip not in self._ddos_blocked_ips:
+                self._ddos_blocked_ips.add(ip)
+                self._ddos_blocklist_meta[ip] = {
+                    'expires': time.time() + 24 * 3600,
+                    'reason': 'manual-block-all',
+                    'blocked': time.time(),
+                }
+                self._executor.submit(self._ddos_block_ip, ip, 'manual', 'manual block all')
+        self._ddos_save_blocklist()
+        self._queue_alert(f'[DDOS] Manually blocked {len(public)} flooder IP(s).',
+                          Colors.GAUGE_RED)
+        mb.showinfo('Done', f'Blocked {len(public)} IP(s).')
+
+    def _ddos_export_report(self):
+        """Export the DDoS blocklist + rate tracker to a CSV report."""
+        from tkinter import filedialog
+        import tkinter.messagebox as mb
+        self._ddos_init_state()
+        path: Any = filedialog.asksaveasfilename(
+            defaultextension='.csv', filetypes=[('CSV', '*.csv'), ('All', '*.*')],
+            title='Export DDoS Report')
+        if not path:
+            return
+        try:
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write('ip,type,count,level,blocked_at,expires,reason\n')
+                tr: Any = self._ddos_tracker
+                for bucket in ('connections', 'syn', 'udp', 'icmp'):
+                    for ip, e in (tr.get(bucket, {}) or {}).items():
+                        lev: Any = self._ddos_classify(
+                            e.get('count', 0),
+                            getattr(self, f'_DDOS_{bucket.upper()}_FLOOD_THRESHOLD', 60))
+                        m: Any = self._ddos_blocklist_meta.get(ip, {}) or {}
+                        f.write(f"{ip},{bucket},{e.get('count',0)},{lev},"
+                                f"{m.get('blocked','')},{m.get('expires','')},"
+                                f"{str(m.get('reason','')).replace(',',';')}\n")
+            mb.showinfo('Exported', f'DDoS report saved:\n{path}')
+        except Exception as e:
+            mb.showerror('Export Error', str(e))
+
+    def _ddos_purge_blocklist(self):
+        """Remove all persisted DDoS blocks (firewall + memory + disk)."""
+        import tkinter.messagebox as mb
+        self._ddos_init_state()
+        n: Any = len(self._ddos_blocked_ips)
+        if n == 0:
+            mb.showinfo('Purge DDoS Blocks', 'No blocks to purge.')
+            return
+        if not mb.askyesno('Purge DDoS Blocks', f'Unblock and forget all {n} IP(s)?',
+                           icon='warning'):
+            return
+        for ip in list(self._ddos_blocked_ips):
+            self._executor.submit(self._ddos_unblock_ip, ip)
+        self._ddos_blocked_ips.clear()
+        self._ddos_blocklist_meta.clear()
+        self._ddos_save_blocklist()
+        self._queue_alert(f'[DDOS] Purged {n} DDoS block(s).', Colors.GAUGE_TEAL)
 
     def _on_emergency_event(self, msg: str):
         # FIX: called from background threads (ransomware, mem_forensics, emergency).

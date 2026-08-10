@@ -55,7 +55,6 @@ def check_process_kev(process_name: str) -> dict:
 
 from datetime import datetime, timedelta
 from collections import defaultdict
-import os
 
 class ProcessMonitor:
     """
@@ -255,7 +254,7 @@ class ProcessMonitor:
 
         # 3. Memory anomaly: high private bytes with no matching exe size
         try:
-            proc = _psutil.Process(pid)
+            proc = psutil.Process(pid)
             mem = proc.memory_info()
             private_mb = getattr(mem, 'private', getattr(mem, 'rss', 0)) / (1024 * 1024)
             # If a small system process uses >500MB private, suspicious
@@ -266,7 +265,7 @@ class ProcessMonitor:
 
         # 4. Thread count anomaly for known processes
         try:
-            proc = _psutil.Process(pid)
+            proc = psutil.Process(pid)
             num_threads = proc.num_threads()
             # Normal notepad/calc has 1-5 threads; >50 suggests injection
             low_thread_procs = {'notepad.exe', 'calc.exe', 'mspaint.exe', 'write.exe'}
