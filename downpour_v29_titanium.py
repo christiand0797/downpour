@@ -45198,8 +45198,25 @@ Verification Status:
             for i in reversed(sel_idx):
                 listbox.delete(i)
 
+        def _check_greynoise():
+            # v29: GreyNoise classifies whether an IP is routine internet-
+            # wide scanning noise (very common, usually not worth blocking
+            # long-term) versus a genuinely targeted/malicious actor —
+            # exactly the context needed before deciding to keep a
+            # connection_flood/port_scan auto-block in place.
+            import webbrowser
+            sel_idx: Any = listbox.curselection()
+            if not sel_idx:
+                mb.showwarning('Check GreyNoise', 'Select one or more IPs first.')
+                return
+            for i in sel_idx:
+                webbrowser.open_new_tab(f'https://viz.greynoise.io/ip/{listbox.get(i)}')
+
         btn_row: Any = tk.Frame(win, bg=Colors.BG_VOID)
         btn_row.pack(pady=8)
+        tk.Button(btn_row, text='🔍 Check on GreyNoise', font=('Consolas', 9, 'bold'),
+                  fg=Colors.GAUGE_TEAL, bg=Colors.GLASS_CARD, relief='flat',
+                  padx=10, pady=4, command=_check_greynoise).pack(side='left', padx=4)
         tk.Button(btn_row, text='✅ Unblock Selected', font=('Consolas', 9, 'bold'),
                   fg=Colors.GAUGE_GREEN, bg=Colors.GLASS_CARD, relief='flat',
                   padx=10, pady=4, command=_unblock_selected).pack(side='left', padx=4)
@@ -46531,18 +46548,25 @@ Verification Status:
         if hash_m:
             query: Any = hash_m.group(1)
             url: Any = f'https://www.virustotal.com/gui/search/{query}'
+            webbrowser.open(url)
         elif ip_m:
             query: Any = ip_m.group(1)
-            url: Any = f'https://www.abuseipdb.com/check/{query}'
+            # v29: open both AbuseIPDB (abuse-report history) and GreyNoise
+            # (internet-noise classification — is this a targeted attacker
+            # or just routine internet-wide scanning?) for richer context
+            # than a single reputation source can provide.
+            webbrowser.open(f'https://www.abuseipdb.com/check/{query}')
+            webbrowser.open_new_tab(f'https://viz.greynoise.io/ip/{query}')
         elif dom_m:
             query: Any = dom_m.group(1)
             url: Any = f'https://www.virustotal.com/gui/domain/{query}'
+            webbrowser.open(url)
         else:
             # Fall back to general search
             query: Any = e['category']
             url: Any = f'https://www.google.com/search?q=site:attack.mitre.org+{query}'
+            webbrowser.open(url)
 
-        webbrowser.open(url)
         self._queue_alert(f'[INTEL] Looking up: {query}', Colors.GAUGE_TEAL)
 
 
