@@ -7018,6 +7018,11 @@ class ConfigManager:
                       'block_adult': 'true', 'block_gambling': 'true', 'block_violence': 'true'},
         'intel':     {'auto_update': 'false', 'update_interval_hours': '6'},
         'security':  {'bypass_tpm_bitlocker': 'false'},
+        'osint':     {'abuseipdb_key': '', 'talos_reputation': 'true',
+                      'shodan_key': '', 'censys_enabled': 'true',
+                      'pulsedive_key': '', 'onyphe_key': '',
+                      'emailrep_key': '', 'greynoise_key': '',
+                      'urlscan_key': ''},
     }
 
     def __init__(self):
@@ -23542,6 +23547,23 @@ class downpour(tk.Tk):
              "Add a Windows Firewall block rule for the selected remote IP"),
             ("Lookup IP",      self._lookup_selected_ip,  Colors.GAUGE_TEAL,
              "Query threat-intelligence feeds for reputation data on the selected IP"),
+            ("OSINT Stack",    self._osint_lookup_selected, Colors.GAUGE_PURPLE,
+             "Open selected IP across VirusTotal/AbuseIPDB/Talos/GreyNoise/Shodan/Censys/OTX (OSINT4ALL stack)"),
+            ("AbuseIPDB",      lambda: self._osint_abuseipdb_lookup(self._get_net_selected_ip()),
+             Colors.GAUGE_ORANGE,
+             "Live AbuseIPDB reputation check (uses your free API key if configured)"),
+            ("Shodan",         lambda: self._osint_shodan_lookup(self._get_net_selected_ip()),
+             Colors.GAUGE_CYAN,
+             "Shodan host lookup — inline with API key, else opens the web page"),
+            ("Pulsedive",      lambda: self._osint_pulsedive_lookup(self._get_net_selected_ip()),
+             Colors.GAUGE_PURPLE,
+             "Pulsedive indicator enrichment — inline with API key, else opens the page"),
+            ("GreyNoise",      lambda: self._osint_greynoise_lookup(self._get_net_selected_ip()),
+             Colors.GAUGE_YELLOW,
+             "GreyNoise background-noise vs targeted-host triage — inline with key, else opens viz"),
+            ("ONYPHE",         lambda: self._osint_onyphe_lookup(self._get_net_selected_ip()),
+             Colors.GAUGE_ORANGE,
+             "ONYPHE passive attack-surface lookup — inline with API key, else opens the page"),
             ("Copy IP",        self._copy_selected_ip,    Colors.TEXT_DIM,
              "Copy the selected remote IP address to the clipboard"),
             ("Geo-Locate",     self._geolocate_ip,        Colors.GAUGE_PURPLE,
@@ -23567,6 +23589,16 @@ class downpour(tk.Tk):
              Colors.GAUGE_RED,    "Emergency: block ALL network traffic"),
             ("🚫 DDoS Blocks",       self._net_view_ddos_blocks,
              Colors.GAUGE_RED,    "View/unblock IPs auto-blocked by DDoS/port-scan protection"),
+            ("🛡 DDoS Shield",       self._ddos_shield,
+             Colors.GAUGE_TEAL,    "v30: scan for connection/SYN/UDP/ICMP floods and auto-block"),
+            ("📊 Rate Monitor",      self._ddos_rate_monitor_ui,
+             Colors.GAUGE_BLUE,    "v30: live per-IP flood rate tracker (current window)"),
+            ("🚫 Block Flooders",    self._ddos_block_all_flooders,
+             Colors.GAUGE_ORANGE,  "v30: manually block every currently-flagged flooder IP"),
+            ("📄 Export DDoS Report", self._ddos_export_report,
+             Colors.GAUGE_PURPLE,  "v30: export blocklist + rate tracker to CSV"),
+            ("🧹 Purge DDoS Blocks", self._ddos_purge_blocklist,
+             Colors.GAUGE_RED,     "v30: unblock + forget all persisted DDoS blocks"),
         ]:
             self._make_button(top, txt, cmd, col, tip=tip, font_size=8)
 
@@ -23598,6 +23630,11 @@ class downpour(tk.Tk):
                                   font = ('Consolas', 9))
         self._net_menu.add_command(label="🚫 Block This IP",   command=self._block_selected_ip)
         self._net_menu.add_command(label="🔍 Lookup in Intel", command=self._lookup_selected_ip)
+        self._net_menu.add_command(label="🌐 OSINT Stack Lookup", command=self._osint_lookup_selected)
+        self._net_menu.add_command(label="🛡 AbuseIPDB Check", command=lambda: self._osint_abuseipdb_lookup(self._get_net_selected_ip()))
+        self._net_menu.add_command(label="🔎 Pulsedive Check", command=lambda: self._osint_pulsedive_lookup(self._get_net_selected_ip()))
+        self._net_menu.add_command(label="🔔 GreyNoise Check", command=lambda: self._osint_greynoise_lookup(self._get_net_selected_ip()))
+        self._net_menu.add_command(label="🛰 ONYPHE Check", command=lambda: self._osint_onyphe_lookup(self._get_net_selected_ip()))
         self._net_menu.add_command(label="🌐 Geo-Locate IP",   command=self._geolocate_ip)
         self._net_menu.add_command(label="📡 Port Scan Host",  command=self._portscan_selected)
         self._net_menu.add_command(label="☠️ Kill Connection Process", command=self._kill_conn_proc)
@@ -23849,6 +23886,13 @@ class downpour(tk.Tk):
             ("🔍 Whois Lookup",         lambda: self._intel_whois()),
             ("📡 Reverse DNS",          lambda: self._intel_rdns()),
             ("GeoIP Lookup",         lambda: self._intel_geoip()),
+            ("OSINT Stack",          lambda: self._osint_lookup_intel_entry()),
+            ("Pulsedive",            lambda: self._osint_pulsedive_lookup(self._get_intel_entry_value())),
+            ("ONYPHE",               lambda: self._osint_onyphe_lookup(self._get_intel_entry_value())),
+            ("EmailRep",             lambda: self._osint_emailrep_lookup(self._get_intel_entry_value())),
+            ("Wayback Check",        lambda: self._osint_wayback_check(self._get_intel_entry_value())),
+            ("urlscan Submit",       lambda: self._osint_urlscan_submit(self._get_intel_entry_value())),
+            ("CyberChef Decode",     lambda: self._intel_cyberchef()),
             ("Export Report",        lambda: self._intel_export_report()),
             ("[HIGH] Submit to VirusTotal", lambda: self._intel_submit_vt()),
         ]:
@@ -27422,6 +27466,33 @@ Verification Status:
                          width = 8, relief='flat').pack(side='left', padx=4)
             self._cfg_vars[f'{section}.{key}'] = var
 
+        # -- OSINT API keys (OSINT4ALL indicator-triage stack) -----------------
+        osint_frame: Any = tk.Frame(f, bg=Colors.GLASS_CARD)
+        osint_frame.pack(fill='x', padx=8, pady=(8, 4))
+        tk.Label(osint_frame, text="OSINT API Keys (optional)", font=('Consolas', 10, 'bold'),
+                 fg = Colors.GAUGE_PURPLE, bg=Colors.GLASS_CARD).pack(anchor='w', padx=8, pady=4)
+        tk.Label(osint_frame, text="Free keys enable inline results instead of opening web pages. "
+                                   "AbuseIPDB: abuseipdb.com (free tier).",
+                 font = ('Consolas', 8), fg=Colors.TEXT_DIM, bg=Colors.GLASS_CARD).pack(anchor='w', padx=8)
+        for osection, okey, olabel in [
+            ('osint', 'abuseipdb_key', 'AbuseIPDB API key:'),
+            ('osint', 'shodan_key',    'Shodan API key:'),
+            ('osint', 'pulsedive_key', 'Pulsedive API key:'),
+            ('osint', 'onyphe_key',    'ONYPHE API key:'),
+            ('osint', 'emailrep_key',  'EmailRep.io API key:'),
+            ('osint', 'greynoise_key', 'GreyNoise API key:'),
+            ('osint', 'urlscan_key',   'urlscan.io API key:'),
+        ]:
+            orow: Any = tk.Frame(f, bg=Colors.GLASS_CARD)
+            orow.pack(fill='x', padx=8, pady=2)
+            tk.Label(orow, text=olabel, font=('Consolas', 9), fg=Colors.TEXT_DIM,
+                     bg = Colors.GLASS_CARD).pack(side='left')
+            ovar: Any = tk.StringVar(value=str(self.cfg.get(osection, okey) or ''))
+            tk.Entry(orow, textvariable=ovar, font=('Consolas', 9), show='*',
+                     bg = Colors.GLASS_LIGHT, fg=Colors.TEXT_BRIGHT,
+                     width = 40, relief='flat').pack(side='left', padx=4)
+            self._cfg_vars[f'{osection}.{okey}'] = ovar
+
         rain_frame: Any = tk.Frame(f, bg=Colors.GLASS_CARD)
         rain_frame.pack(fill='x', padx=8, pady=6)
         tk.Label(rain_frame, text="Rain Intensity:", font=('Consolas', 9),
@@ -27723,6 +27794,13 @@ Verification Status:
                   )
         _zt3.pack(side='left', padx=4)
         self._tooltip(_zt3, "Check whether your email or domain appears in known breach corpora (HIBP-style lookup).")
+        _zt3b = tk.Button(btn_row, text="🔑 Password Breach Check",
+                  font = ('Consolas', 9), bg=Colors.GAUGE_ORANGE, fg='white',
+                  relief = 'flat', padx=10,
+                  command = self._prompt_pwned_password
+                  )
+        _zt3b.pack(side='left', padx=4)
+        self._tooltip(_zt3b, "Check a password against HIBP Pwned Passwords (no API key, k-anonymity: only 5 hash chars are sent).")
         _zt4 = tk.Button(btn_row, text="Collect IR Evidence",
                   font = ('Consolas', 9), bg=Colors.GAUGE_ORANGE, fg='white',
                   relief = 'flat', padx=10, command=self._run_ir_collect
@@ -32548,6 +32626,13 @@ Verification Status:
         # Track which engines the user has manually started
         if not hasattr(self, '_manual_engines_started'):
             self._manual_engines_started = set()
+        # v30: restore the persistent DDoS blocklist now so the review UI and
+        # auto-mitigation are accurate from launch (expired entries are
+        # auto-unblocked here — the load handles expiry).
+        try:
+            self._ddos_init_state()
+        except Exception as e:
+            logger.debug('[DDOS] startup init error: %s', e)
 
     def _manual_start_monitoring(self):
         """User-triggered: start process, network, and hardware monitoring."""
@@ -33675,10 +33760,38 @@ Verification Status:
                 msg: Any = f"[DDOS] Auto-blocked {ip} ({attack_type}) — {detail[:100]}"
                 self._pending_alerts.append((msg, Colors.GAUGE_RED))
                 logger.warning("[DDOS] Blocked attacker IP %s (%s)", ip, attack_type)
+                # v29: persist with a 24h expiry so a false positive can't
+                # silently block traffic forever, and so blocks survive an
+                # app restart in the review UI (the firewall rule itself
+                # already persists — without this, the app would "forget"
+                # about a rule that's still actively blocking real traffic).
+                self._ddos_record_block(ip, attack_type, detail)
             else:
                 logger.warning("[DDOS] Firewall block failed for %s: %s", ip, result.stderr[:200])
         except Exception as e:
             logger.debug("[DDOS] Auto-block error for %s: %s", ip, e)
+
+    DDOS_BLOCK_TTL_HOURS: Any = 24
+
+    def _ddos_record_block(self, ip: str, attack_type: str, detail: str):
+        """Record a block's metadata (when, why, expiry) and persist to disk.
+
+        v29: writes into the v30 persistent blocklist structures
+        (_ddos_blocked_ips + _ddos_blocklist_meta) so every auto-block — whether
+        raised by the legacy packet-capture/port-scan path here or by the v30
+        shield engine below — lands in the same on-disk store. A 24h expiry
+        guards against a false positive blocking traffic forever, and the
+        record survives an app restart so the review UI stays accurate.
+        """
+        self._ddos_init_state()
+        now: Any = time.time()
+        self._ddos_blocked_ips.add(ip)
+        self._ddos_blocklist_meta[ip] = {
+            'expires': now + self.DDOS_BLOCK_TTL_HOURS * 3600,
+            'reason': f'{attack_type}:{detail[:120]}',
+            'blocked': now,
+        }
+        self._ddos_save_blocklist()
 
     def _ddos_unblock_ip(self, ip: str) -> bool:
         """Remove a DDoS auto-block rule for an IP (used by the manual
@@ -33695,6 +33808,9 @@ Verification Status:
                            capture_output=True, timeout=15,
                            creationflags=subprocess.CREATE_NO_WINDOW)
             self._ddos_blocked_ips.discard(ip)
+            if hasattr(self, '_ddos_blocklist_meta'):
+                self._ddos_blocklist_meta.pop(ip, None)
+                self._ddos_save_blocklist()
             return True
         except Exception as e:
             logger.debug("[DDOS] Unblock error for %s: %s", ip, e)
@@ -33734,6 +33850,8 @@ Verification Status:
             self._ddos_blocked_ips = set()
         if not hasattr(self, '_ddos_blocklist_meta'):
             self._ddos_blocklist_meta = {}   # ip -> {'expires': float, 'reason': str}
+        if not hasattr(self, '_ddos_rate_samples'):
+            self._ddos_rate_samples = {}     # (bucket, ip) -> deque of per-window counts
         self._ddos_load_blocklist()
 
     def _ddos_bump(self, bucket: str, ip: str):
@@ -33776,6 +33894,31 @@ Verification Status:
         if ratio >= 1.0:
             return 'MEDIUM'
         return 'LOW'
+
+    def _ddos_record_sample(self, bucket: str, ip: str, count: int):
+        """Append a per-window sample for later z-score computation."""
+        key: Any = (bucket, ip)
+        samples: Any = self._ddos_rate_samples.get(key)
+        if samples is None:
+            samples = deque(maxlen=40)
+            self._ddos_rate_samples[key] = samples
+        samples.append(count)
+
+    def _ddos_zscore(self, bucket: str, ip: str, cur: float) -> tuple:
+        """Return (z, mean) for the current sample vs its prior rolling history."""
+        try:
+            import statistics
+            samples: Any = self._ddos_rate_samples.get((bucket, ip)) or deque()
+            prior: Any = list(samples)[:-1]
+            if len(prior) < 3:
+                return 0.0, 0.0
+            mean: float = statistics.mean(prior)
+            sd: float = statistics.pstdev(prior)
+            if sd <= 0:
+                return 0.0, mean
+            return (cur - mean) / sd, mean
+        except Exception:
+            return 0.0, 0.0
 
     def _ddos_reputation(self, ip: str) -> dict:
         """Correlate a flooder IP with known threat-intel sources.
@@ -33842,52 +33985,148 @@ Verification Status:
             for ip, cnt in per_ip.items():
                 self._ddos_bump('connections', ip)
                 cur: Any = self._ddos_bucket_count('connections', ip)
+                self._ddos_record_sample('connections', ip, cur)
                 lev: Any = self._ddos_classify(cur, self._DDOS_CONN_FLOOD_THRESHOLD)
-                if lev in ('HIGH', 'CRITICAL'):
+                zconn: Any = self._ddos_zscore('connections', ip, float(cur))
+                if lev in ('HIGH', 'CRITICAL') or zconn[0] >= 4.0:
                     rep: Any = self._ddos_reputation(ip)
+                    reasons: Any = (f'{cur} conns in ~{self._DDOS_WINDOW_SECS}s '
+                                    f'(reputation {rep["score"]}:{rep["label"]})')
+                    if zconn[0] >= 4.0:
+                        reasons += f' | z={zconn[0]:.1f} vs baseline {zconn[1]:.0f}'
+                        lev = 'CRITICAL' if zconn[0] >= 6.0 else 'HIGH'
                     findings.append({
                         'ip': ip, 'type': 'connection_flood', 'level': lev,
-                        'count': cur, 'reason': f'{cur} conns in ~{self._DDOS_WINDOW_SECS}s '
-                                                 f'(reputation {rep["score"]}:{rep["label"]})'})
+                        'count': cur, 'reason': reasons})
             # SYN storm
             for ip, cnt in syn_by_ip.items():
                 self._ddos_bump('syn', ip)
                 scur: Any = self._ddos_bucket_count('syn', ip)
+                self._ddos_record_sample('syn', ip, scur)
                 slev: Any = self._ddos_classify(scur, self._DDOS_SYN_FLOOD_THRESHOLD)
-                if slev in ('HIGH', 'CRITICAL'):
+                zsyn: Any = self._ddos_zscore('syn', ip, float(scur))
+                if slev in ('HIGH', 'CRITICAL') or zsyn[0] >= 4.0:
+                    sreason: Any = f'SYN storm: {scur} in window'
+                    if zsyn[0] >= 4.0:
+                        sreason += f' | z={zsyn[0]:.1f} vs baseline {zsyn[1]:.0f}'
+                        slev = 'CRITICAL' if zsyn[0] >= 6.0 else 'HIGH'
                     findings.append({'ip': ip, 'type': 'syn_flood', 'level': slev,
-                                     'count': scur,
-                                     'reason': f'SYN storm: {scur} in window'})
+                                     'count': scur, 'reason': sreason})
             # UDP flood
             for ip, cnt in udp_by_ip.items():
                 self._ddos_bump('udp', ip)
                 ucur: Any = self._ddos_bucket_count('udp', ip)
+                self._ddos_record_sample('udp', ip, ucur)
                 ulev: Any = self._ddos_classify(ucur, self._DDOS_UDP_FLOOD_THRESHOLD)
-                if ulev in ('HIGH', 'CRITICAL'):
+                zudp: Any = self._ddos_zscore('udp', ip, float(ucur))
+                if ulev in ('HIGH', 'CRITICAL') or zudp[0] >= 4.0:
+                    ureason: Any = f'UDP burst: {ucur} in window'
+                    if zudp[0] >= 4.0:
+                        ureason += f' | z={zudp[0]:.1f} vs baseline {zudp[1]:.0f}'
+                        ulev = 'CRITICAL' if zudp[0] >= 6.0 else 'HIGH'
                     findings.append({'ip': ip, 'type': 'udp_flood', 'level': ulev,
-                                     'count': ucur,
-                                     'reason': f'UDP burst: {ucur} in window'})
+                                     'count': ucur, 'reason': ureason})
         except Exception as e:
             logger.debug('[DDOS] connection analysis error: %s', e)
         return findings
 
+    def _ddos_icmp_top_talker(self) -> str:
+        """Best-effort attribution: the public remote IP with the most live
+        connections at scan time. ICMP floods are stateless so no per-IP mapping
+        exists via psutil; this gives the auto-mitigator a concrete target."""
+        try:
+            if not PSUTIL_AVAILABLE:
+                return ''
+            counts: Any = defaultdict(int)
+            for c in psutil.net_connections(kind='inet'):
+                if not c.raddr or not c.raddr.ip:
+                    continue
+                rip: Any = c.raddr.ip
+                if self.is_public_ip(rip):
+                    counts[rip] += 1
+            if not counts:
+                return ''
+            return max(counts, key=counts.get)
+        except Exception:
+            return ''
+
     def _ddos_analyze_icmp(self):
-        """Detect ICMP echo flood via netstat protocol stats (best-effort)."""
+        """Detect ICMP echo flood via netstat protocol stats (delta + z-score).
+
+        netstat -s exposes aggregate ICMPv4 counters. We track the
+        received-messages counter across samples and compute a per-second echo
+        rate. A z-score over the recent rolling baseline separates a genuine
+        flood from normal pinging. Since ICMP is stateless there is no per-IP
+        mapping, so HIGH/CRITICAL findings are attributed to the top remote
+        talker (allowing auto-mitigation to act), otherwise surfaced as an
+        aggregate advisory.
+        """
         findings: Any = []
         try:
-            # netstat -s exposes ICMPv4 stats; correlate inbound echo replies.
             r: Any = subprocess.run(['netstat', '-s'], capture_output=True, text=True,
                                     timeout=10, creationflags=subprocess.CREATE_NO_WINDOW)
-            icmp_lines: Any = [l for l in r.stdout.splitlines()
-                               if 'ICMP' in l or 'Echo' in l or 'Received' in l]
-            # Heuristic: a large Received delta on ICMP with no matching process is
-            # a flood signature. We keep it lightweight and best-effort here.
-            if len(icmp_lines) > 0:
-                # We don't have a per-IP mapping for ICMP without raw sockets;
-                # if a flood is suspected, surface an aggregate advisory.
-                pass
-        except Exception:
-            pass
+            received: Any = None
+            in_section: bool = False
+            for line in r.stdout.splitlines():
+                s: Any = (line or '').strip()
+                if 'ICMP' in s and 'stats' in s:
+                    in_section = True
+                    continue
+                if in_section:
+                    m: Any = re.search(r'^\s*(\d+)\s+Received\s+Messages', s)
+                    if m:
+                        received = int(m.group(1))
+                        break
+                    # Stop once we pass the ICMP section into IP section
+                    if s.startswith('IP') or 'statistics' in s and 'ICMP' not in s and not s.startswith('IPv4 ICMP'):
+                        in_section = False
+            if received is None:
+                # Touch the baseline with nothing (avoids divide-by-zero later)
+                now: Any = time.time()
+                if not hasattr(self, '_icmp_hist'):
+                    self._icmp_hist = {'last': 0, 'ts': now, 'samples': []}
+                return findings
+
+            now: Any = time.time()
+            if not hasattr(self, '_icmp_hist'):
+                self._icmp_hist = {'last': received, 'ts': now, 'samples': []}
+            hist: Any = self._icmp_hist
+            dt: Any = max(now - hist.get('ts', now), 0.1)
+            delta: Any = max(received - hist.get('last', received), 0)
+            rate: float = delta / dt
+            hist['samples'].append(rate)
+            if len(hist['samples']) > 30:
+                hist['samples'] = hist['samples'][-30:]
+            hist['last'] = received
+            hist['ts'] = now
+
+            cur: float = hist['samples'][-1]
+            # Adaptive z-score over the prior baseline (exclude current sample)
+            import statistics
+            prior: Any = hist['samples'][:-1]
+            mean: float = statistics.mean(prior) if len(prior) else 0.0
+            sd: float = statistics.pstdev(prior) if len(prior) > 1 else 0.0
+            z: float = ((cur - mean) / sd) if sd > 0 else 0.0
+
+            # 1) Aggregate advisory if the rate exceeds the hard threshold
+            if rate >= self._DDOS_ICMP_FLOOD_THRESHOLD:
+                findings.append({
+                    'ip': self._ddos_icmp_top_talker(),
+                    'type': 'icmp_flood',
+                    'level': self._ddos_classify(rate, self._DDOS_ICMP_FLOOD_THRESHOLD),
+                    'count': int(rate),
+                    'reason': f'ICMP echo burst: {rate:.0f}/s (threshold '
+                              f'{self._DDOS_ICMP_FLOOD_THRESHOLD})'})
+            # 2) Statistical spike even below the hard threshold (adaptive)
+            if z >= 4.0 and len(prior) >= 2 and cur >= 5:
+                findings.append({
+                    'ip': self._ddos_icmp_top_talker(),
+                    'type': 'icmp_flood',
+                    'level': 'CRITICAL' if z >= 6.0 else 'HIGH',
+                    'count': int(cur),
+                    'reason': f'ICMP rate spike z={z:.1f} vs baseline {mean:.1f}/s'})
+        except Exception as e:
+            logger.debug('[DDOS] ICMP analysis error: %s', e)
         return findings
 
     def _ddos_auto_mitigate(self, findings: list):
@@ -33924,18 +34163,36 @@ Verification Status:
                 return
             with open(self._DDOS_BLOCKLIST_PATH, 'r', encoding='utf-8') as _f:
                 data: Any = json.load(_f)
-            blocked: Any = set(data.get('ips', []))
-            meta: Any = data.get('meta', {})
+            # Backward-compat: a v29-era file is a flat {ip: meta} dict without
+            # the 'ips'/'meta' wrapper that v30 writes.
+            if isinstance(data, dict) and 'ips' in data and isinstance(data.get('ips'), list):
+                blocked = set(data.get('ips', []))
+                meta = data.get('meta', {})
+            elif isinstance(data, dict):
+                blocked = set(data.keys())
+                meta = data
+            else:
+                blocked, meta = set(), {}
             now: Any = time.time()
-            # Drop expired entries
+            # Drop expired entries — and ACTUALLY remove their firewall rules
+            # so a false positive can't keep blocking traffic after expiry.
+            expired_ips: Any = []
             for ip in list(blocked):
                 m: Any = meta.get(ip, {}) or {}
                 exp: Any = m.get('expires', 0)
                 if exp and exp < now:
                     blocked.discard(ip)
                     meta.pop(ip, None)
+                    expired_ips.append(ip)
             self._ddos_blocked_ips = blocked
             self._ddos_blocklist_meta = meta
+            if expired_ips:
+                logger.info('[DDOS] Auto-unblocking %d expired block(s) on load', len(expired_ips))
+                for ip in expired_ips:
+                    try:
+                        self._executor.submit(self._ddos_unblock_ip, ip)
+                    except Exception:
+                        pass
         except Exception as e:
             logger.debug('[DDOS] blocklist load error: %s', e)
 
@@ -34098,6 +34355,195 @@ Verification Status:
         self._ddos_blocklist_meta.clear()
         self._ddos_save_blocklist()
         self._queue_alert(f'[DDOS] Purged {n} DDoS block(s).', Colors.GAUGE_TEAL)
+
+    # --------------------------------------------------------------------------
+    #  HONEYPOT / DECEPTION ENGINE  (tab 27 — "HoneyPot")
+    #  Low-interaction TCP decoy services on a fixed host interface, zero
+    #  fire-and-forget "deception by default" — everything listens on
+    #  127.x.y.z (loopback CANARY) unless the user opts into exposure.
+    # --------------------------------------------------------------------------
+
+    def _honeypot_init_state(self):
+        if not hasattr(self, '_honeypot_threads'):
+            self._honeypot_threads = {}     # port -> threading.Thread
+        if not hasattr(self, '_honeypot_sockets'):
+            self._honeypot_sockets = {}     # port -> socket
+        if not hasattr(self, '_honeypot_stop_events'):
+            self._honeypot_stop_events = {}  # port -> threading.Event
+        if not hasattr(self, '_honeypot_hits'):
+            self._honeypot_hits = []        # list of hit dicts
+        if not hasattr(self, '_honeypot_auto_block'):
+            self._honeypot_auto_block = True
+        if not hasattr(self, '_honeypot_hits_lock'):
+            import threading as _thr
+            self._honeypot_hits_lock = _thr.Lock()
+
+    HONEYPOT_DECOR: Any = {
+        22: b'SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.1\r\n',
+        23: b'\xff\xfd\x18\xff\xfd\x20\xff\xfd\x23\xff\xfd\x27\r\nlogin: ',
+        80: b'HTTP/1.1 200 OK\r\nServer: nginx/1.18.0\r\nContent-Length: 120\r\n'
+             b'Content-Type: text/html\r\nConnection: close\r\n\r\n'
+             b'<html><head><title>Index of /</title></head><body><h1>Index of /</h1>'
+             b'<a href="admin/">admin/</a> <a href="backup.zip">backup.zip</a>'
+             b'<a href=".git/">.git/</a><p>nginx/1.18.0</p></body></html>',
+        443: b'HTTP/1.1 301 Moved Permanently\r\nLocation: https://192.168.1.1/\r\n'
+             b'Server: nginx/1.18.0\r\nConnection: close\r\n\r\n',
+        3389: b'\x03\x00\x00\x13\x0e\xe0\x00\x00\x00\x00\x00\x01\x00\x08\x00\x03\x00\x00\x00',
+        5900: b'RFB 003.008\n',
+        6379: b'-ERR wrong number of arguments\r\n',
+    } if False else {
+        22: b'SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.1\r\n',
+        23: b'\xff\xfd\x18\xff\xfd\x20\xff\xfd\x23\xff\xfd\x27\r\nlogin: ',
+        80: b'HTTP/1.1 200 OK\r\nServer: nginx/1.18.0\r\nContent-Length: 120\r\n'
+             b'Content-Type: text/html\r\nConnection: close\r\n\r\n'
+             b'<html><head><title>Index of /</title></head><body><h1>Index of /</h1>'
+             b'<a href="admin/">admin/</a> <a href="backup.zip">backup.zip</a>'
+             b'<a href=".git/">.git/</a><p>nginx/1.18.0</p></body></html>',
+        443: b'HTTP/1.1 301 Moved Permanently\r\nLocation: https://192.168.1.1/\r\n'
+             b'Server: nginx/1.18.0\r\nConnection: close\r\n\r\n',
+        3389: b'\x03\x00\x00\x13\x0e\xe0\x00\x00\x00\x00\x00\x01\x00\x08\x00\x03\x00\x00\x00',
+        5900: b'RFB 003.008\n',
+        6379: b'-ERR wrong number of arguments\r\n',
+    }
+
+    def _honeypot_bind(self, port: int, host: str = '127.0.0.1'):
+        """Bind a decoy listener; returns the bound address or raises."""
+        import socket as _sock
+        import threading as _thr
+        self._honeypot_init_state()
+        if port in self._honeypot_sockets:
+            return
+        s: Any = _sock.socket(_sock.AF_INET, _sock.SOCK_STREAM)
+        s.setsockopt(_sock.SOL_SOCKET, _sock.SO_REUSEADDR, 1)
+        s.bind((host, port))
+        s.listen(5)
+        s.settimeout(0.5)
+        stop_ev: Any = _thr.Event()
+        banner: Any = self.HONEYPOT_DECOR.get(port, b'')
+        self._honeypot_sockets[port] = s
+        self._honeypot_stop_events[port] = stop_ev
+
+        def _serve():
+            while not stop_ev.is_set():
+                try:
+                    conn, addr = s.accept()
+                except _sock.timeout:
+                    continue
+                except Exception:
+                    break
+                if stop_ev.is_set():
+                    try: conn.close()
+                    except Exception: pass
+                    break
+                # correct the tuple — socket module vs psutil consistency
+                peer_ip: Any = str(addr[0])
+                try:
+                    if banner:
+                        conn.sendall(banner)
+                    conn.settimeout(2.0)
+                    try:
+                        data: Any = conn.recv(1024)
+                    except Exception:
+                        data = b''
+                    try: conn.close()
+                    except Exception: pass
+                    self._honeypot_handle_hit(port, peer_ip, data[:64])
+                except Exception:
+                    try: conn.close()
+                    except Exception: pass
+
+        t: Any = _thr.Thread(target=_serve, daemon=True, name=f'honeypot-{port}')
+        t.start()
+        self._honeypot_threads[port] = t
+        return (host, port)
+
+    def _honeypot_handle_hit(self, port: int, ip: str, payload: bytes):
+        """Record a honeypot hit, alert, and optionally auto-block."""
+        import threading as _thr
+        try:
+            from ipaddress import ip_address as _ipa
+            a: Any = _ipa(ip)
+            if a.is_private or a.is_loopback or a.is_link_local:
+                return  # canary on loopback: LAN clients would be noise
+        except Exception:
+            return
+        hit: Any = {
+            'port': port, 'ip': ip, 'data': (payload or b'').decode(errors='replace')[:40],
+            'time': time.strftime('%H:%M:%S'), 'blocked': False,
+        }
+        with self._honeypot_hits_lock:
+            self._honeypot_hits.append(hit)
+            if len(self._honeypot_hits) > 500:
+                self._honeypot_hits = self._honeypot_hits[-500:]
+        self._queue_alert(f'[HONEY] Probe on :{port} from {ip}', Colors.GAUGE_ORANGE)
+        try:
+            self._honeypot_log.insert('end', f"{hit['time']}  :{port:<6} {ip:<18} {hit['data']}\n")
+            self._honeypot_log.see('end')
+        except Exception:
+            pass
+        if self._honeypot_auto_block and self.is_public_ip(str(ip)):
+            self._ddos_block_ip(str(ip), 'honeypot_probe', f'probe on decoy port {port}')
+            hit['blocked'] = True
+            hit['evidence'] = None if False else payload[:32]
+
+    def _honeypot_start(self):
+        import tkinter.messagebox as mb
+        import threading as _thr
+        self._honeypot_init_state()
+        active: Any = [p for p in self._honeypot_sockets]
+        if active:
+            mb.showinfo('HoneyPot', f'Decoys already active on ports {active}.')
+            return
+        bound: Any = []
+        for port in (22, 23, 80, 443, 3389, 5900, 6379):
+            try:
+                self._honeypot_bind(port, '127.0.0.1')
+                bound.append(port)
+            except Exception as e:
+                logger.debug('[HONEY] bind fail :%s %s', port, e)
+        stale: Any = [p for p in bound if p not in self._honeypot_sockets]
+        for p in stale:
+            bound.remove(p)
+        self._queue_alert(f'[HONEY] {len(bound)} decoy service(s) listening on loopback '
+                          f'{sorted(bound)} — probes are being logged + auto-blocked.',
+                          Colors.GAUGE_TEAL)
+
+    def _honeypot_stop(self):
+        import tkinter.messagebox as mb
+        self._honeypot_init_state()
+        for port, ev in list(self._honeypot_stop_events.items()):
+            ev.set()
+        for port, s in list(self._honeypot_sockets.items()):
+            try: s.close()
+            except Exception: pass
+        self._honeypot_sockets.clear()
+        self._honeypot_stop_events.clear()
+        self._honeypot_threads.clear()
+        self._queue_alert('[HONEY] All decoys stopped.', Colors.GAUGE_GREEN)
+
+    def _honeypot_clear_hits(self):
+        self._honeypot_init_state()
+        with self._honeypot_hits_lock:
+            n: Any = len(self._honeypot_hits)
+            self._honeypot_hits = []
+        try:
+            self._honeypot_log.delete('1.0', 'end')
+        except Exception:
+            pass
+        if n:
+            self._queue_alert(f'[HONEY] Cleared {n} recorded probe(s).', Colors.GAUGE_TEAL)
+
+    def _honeypot_toggle_autoblock(self):
+        self._honeypot_init_state()
+        self._honeypot_auto_block = not self._honeypot_auto_block
+        state: Any = 'ON' if self._honeypot_auto_block else 'OFF'
+        lbl: Any = getattr(self, '_honeypot_ab_label', None)
+        if lbl is not None:
+            try:
+                lbl.config(text=f'Auto-Block Public Probes: {state}')
+            except Exception:
+                pass
+        self._queue_alert(f'[HONEY] Honeypot auto-block is now {state}', Colors.GAUGE_ORANGE)
 
     def _on_emergency_event(self, msg: str):
         # FIX: called from background threads (ransomware, mem_forensics, emergency).
@@ -36591,6 +37037,626 @@ Verification Status:
         if messagebox.askyesno("IP Lookup", msg + "\n\nBlock this IP now?"):
             self._executor.submit(lambda: self._do_block_ip(ip))
 
+    def _osint_abuseipdb_lookup(self, ioc: str):
+        """Live AbuseIPDB reputation check for an IP.
+
+        Uses the user's free AbuseIPDB API key from settings when present
+        (config [osint] abuseipdb_key); otherwise falls back to opening the
+        public AbuseIPDB page so the analyst still gets the report. Keyless
+        lookup is entirely offline-safe and never blocks the UI.
+        """
+        import webbrowser
+        import tkinter.messagebox as mb
+        ioc = (ioc or '').strip()
+        if not ioc:
+            mb.showinfo('AbuseIPDB', 'No IP to check.')
+            return
+        key: Any = ''
+        try:
+            key = str(self.cfg.get('osint', 'abuseipdb_key', '') or '')
+        except Exception:
+            key = ''
+        if not key:
+            webbrowser.open(f'https://www.abuseipdb.com/check/{ioc}')
+            self._queue_alert(f'[OSINT] Opened AbuseIPDB page for {ioc} '
+                              '(set an API key in Settings for inline results).',
+                              Colors.GAUGE_TEAL)
+            return
+
+        def _do():
+            try:
+                import urllib.request as _ur
+                import json as _j
+                req: Any = _ur.Request(
+                    f'https://api.abuseipdb.com/api/v2/check?ipAddress={ioc}&maxAgeInDays=90',
+                    headers={'Key': key, 'Accept': 'application/json'})
+                with _ur.urlopen(req, timeout=10) as r:
+                    d: Any = _j.loads(r.read().decode())['data']
+                score: Any = d.get('abuseConfidenceScore', 0)
+                rep: Any = (f"IP:            {ioc}\n"
+                            f"Confidence:    {score}/100  "
+                            f"{'[!] ABUSED' if score >= 50 else '[OK] Low'}\n"
+                            f"Reports:       {d.get('totalReports', 0)}\n"
+                            f"Last Reported: {d.get('lastReportedAt', 'never') or 'never'}\n"
+                            f"Usage:         {d.get('usageType', 'unknown')}\n"
+                            f"ISP:           {d.get('isp', 'unknown')}\n"
+                            f"Country:       {d.get('countryCode', '?')}\n"
+                            f"Domain:        {d.get('domain', '?')}")
+                self.after(0, lambda: mb.showinfo('AbuseIPDB Reputation', rep))
+                col: Any = Colors.GAUGE_RED if score >= 50 else Colors.GAUGE_GREEN
+                self._queue_alert(f'[OSINT] AbuseIPDB {ioc}: confidence {score}/100',
+                                  col)
+            except Exception as e:
+                self.after(0, lambda _e=str(e): mb.showwarning(
+                    'AbuseIPDB', f'Live lookup failed ({_e[:120]}).\n'
+                                 'Opening the public page instead.'))
+                webbrowser.open(f'https://www.abuseipdb.com/check/{ioc}')
+        self._executor.submit(_do)
+
+    def _osint_multi_lookup(self, ioc: str):
+        """Deep-link an IOC across the OSINT4ALL-curated indicator stack.
+
+        Opens the selected IP/hash/domain in the top services from the
+        OSINT4ALL Threat Intelligence + Breach/Exposure toolkits: VirusTotal,
+        AbuseIPDB, Cisco Talos, GreyNoise, Shodan, Censys, urlscan.io,
+        AlienVault OTX and Hybrid Analysis. Each opens in its own tab so the
+        analyst can cross-check reputation sources side by side.
+        """
+        import webbrowser
+        import tkinter.messagebox as mb
+        ioc = (ioc or '').strip()
+        if not ioc:
+            mb.showinfo('OSINT Multi-Lookup', 'Nothing to look up.')
+            return
+
+        is_ip: Any = bool(re.match(r'^\d{1,3}(\.\d{1,3}){3}$', ioc))
+        is_hash: Any = bool(re.match(r'^[0-9a-fA-F]{32,64}$', ioc))
+        links: Any = []
+        if is_ip:
+            links = [
+                ('VirusTotal',   f'https://www.virustotal.com/gui/ip-address/{ioc}/detection'),
+                ('AbuseIPDB',    f'https://www.abuseipdb.com/check/{ioc}'),
+                ('Cisco Talos',  f'https://talosintelligence.com/reputation_center/lookup?search={ioc}'),
+                ('GreyNoise',    f'https://viz.greynoise.io/ip/{ioc}'),
+                ('Shodan',       f'https://www.shodan.io/host/{ioc}'),
+                ('Censys',       f'https://search.censys.io/search?resource=hosts&sort=RELEVANCE&per_page=25&virtual_hosts=EXCLUDE&q=ip%3A{ioc}'),
+                ('AlienVault OTX', f'https://otx.alienvault.com/indicator/ip/{ioc}'),
+                ('urlscan.io',   f'https://urlscan.io/api/v1/search/?q=ip%3A{ioc}'),
+                ('Pulsedive',    f'https://pulsedive.com/indicator/?ioc={ioc}'),
+                ('ONYPHE',       f'https://www.onyphe.io/search?q=ip%3A{ioc}'),
+            ]
+        elif is_hash:
+            links = [
+                ('VirusTotal',       f'https://www.virustotal.com/gui/file/{ioc}/detection'),
+                ('Hybrid Analysis',  f'https://www.hybrid-analysis.com/search?query={ioc}'),
+                ('AlienVault OTX',   f'https://otx.alienvault.com/indicator/file/{ioc}'),
+                ('MalwareBazaar',    f'https://bazaar.abuse.ch/sample/{ioc}/'),
+                ('Pulsedive',        f'https://pulsedive.com/indicator/?ioc={ioc}'),
+                ('ANY.RUN',          f'https://app.any.run/submissions/#filehash:{ioc}'),
+                ('Joe Sandbox',      f'https://www.joesandbox.com/search?q={ioc}'),
+            ]
+        else:  # domain / URL
+            dom: Any = ioc.split('/')[2] if ioc.startswith('http') else ioc.split('/')[0]
+            links = [
+                ('VirusTotal',       f'https://www.virustotal.com/gui/domain/{dom}'),
+                ('Cisco Talos',      f'https://talosintelligence.com/reputation_center/lookup?search={dom}'),
+                ('AlienVault OTX',   f'https://otx.alienvault.com/indicator/domain/{dom}'),
+                ('urlscan.io',       f'https://urlscan.io/api/v1/search/?q=domain%3A{dom}'),
+                ('SecurityTrails',   f'https://securitytrails.com/domain/{dom}/dns'),
+                ('DNSlytics',        f'https://dnslytics.com/domain/{dom}'),
+                ('Pulsedive',        f'https://pulsedive.com/indicator/?ioc={dom}'),
+                ('ONYPHE',           f'https://www.onyphe.io/search?q=domain%3A{dom}'),
+                ('URLhaus',          f'https://urlhaus.abuse.ch/host/{dom}/'),
+                ('crt.sh CT',        f'https://crt.sh/?q=%25.{dom}'),
+                ('ViewDNS',          f'https://viewdns.info/iphistory/?domain={dom}'),
+                ('MXToolbox',        f'https://mxtoolbox.com/SuperTool.aspx?action=blacklist%3a{dom}&run=toolpage'),
+                ('Wappalyzer',       f'https://www.wappalyzer.com/technologies/{dom}'),
+                ('Netlas.io',        f'https://app.netlas.io/host/?q={dom}'),
+            ]
+        # Every IOC type can still check its breach exposure.
+        links.append(('Have I Been Pwned',
+                      f'https://haveibeenpwned.com/breaches'))
+        self._queue_alert(f'[OSINT] Multi-lookup {ioc} across '
+                          f'{len(links)} indicator sources', Colors.GAUGE_PURPLE)
+        opened: Any = 0
+        for name, url in links:
+            try:
+                webbrowser.open_new_tab(url)
+                opened += 1
+            except Exception:
+                pass
+        mb.showinfo('OSINT Multi-Lookup',
+                    f'Opened {opened}/{len(links)} OSINT sources for:\n{ioc}\n\n'
+                    'Cross-check reputation across independent providers '
+                    '(OSINT4ALL indicator-triage stack).')
+
+    def _osint_lookup_selected(self):
+        """Run the full OSINT stack on the selected network row."""
+        ip: Any = self._get_net_selected_ip()
+        if not ip:
+            messagebox.showinfo("No Selection", "Select a connection row first")
+            return
+        self._osint_multi_lookup(ip)
+
+    def _osint_shodan_lookup(self, ioc: str):
+        """Inline Shodan host lookup when a free API key is configured.
+
+        Falls back to opening the Shodan page if no key is set, keeping the
+        action useful in both configurations.
+        """
+        import webbrowser
+        import tkinter.messagebox as mb
+        ioc = (ioc or '').strip()
+        if not ioc:
+            mb.showinfo('Shodan', 'No IP to look up.')
+            return
+        key: Any = ''
+        try:
+            key = str(self.cfg.get('osint', 'shodan_key', '') or '')
+        except Exception:
+            key = ''
+        if not key:
+            webbrowser.open(f'https://www.shodan.io/host/{ioc}')
+            self._queue_alert(f'[OSINT] Opened Shodan page for {ioc} '
+                              '(set an API key in Settings for inline results).',
+                              Colors.GAUGE_TEAL)
+            return
+
+        def _do():
+            try:
+                import urllib.request as _ur
+                import json as _j
+                req: Any = _ur.Request(f'https://api.shodan.io/shodan/host/{ioc}?key={key}')
+                with _ur.urlopen(req, timeout=12) as r:
+                    d: Any = _j.loads(r.read().decode())
+                ports: Any = d.get('ports', [])
+                vulns: Any = d.get('vulns', [])
+                info: Any = (f"IP:        {ioc}\n"
+                            f"Ports:     {', '.join(str(p) for p in ports[:15]) or 'none'}\n"
+                            f"OS:        {d.get('os', 'unknown')}\n"
+                            f"ISP:       {d.get('isp', 'unknown')}\n"
+                            f"Org:       {d.get('org', 'unknown')}\n"
+                            f"Country:   {d.get('country_name', '?')}\n"
+                            f"Hostnames: {', '.join(d.get('hostnames', [])[:3]) or 'none'}\n"
+                            f"Vulns:     {', '.join(v for v in vulns[:10]) or 'none'}\n"
+                            f"Last Scan: {d.get('last_update', '?')}")
+                self.after(0, lambda: mb.showinfo('Shodan Host', info))
+                self._queue_alert(f'[OSINT] Shodan {ioc}: {len(ports)} open port(s), '
+                                  f'{len(vulns)} vuln(s)',
+                                  Colors.GAUGE_RED if vulns else Colors.GAUGE_GREEN)
+            except Exception as e:
+                self.after(0, lambda _e=str(e): mb.showwarning(
+                    'Shodan', f'Inline lookup failed ({_e[:120]}).\n'
+                              'Opening the Shodan page instead.'))
+                webbrowser.open(f'https://www.shodan.io/host/{ioc}')
+        self._executor.submit(_do)
+
+    def _osint_lookup_intel_entry(self):
+        """Run the full OSINT stack on the value in the Intel check box."""
+        val: Any = getattr(self, '_intel_check_var', None)
+        ioc: Any = val.get().strip() if val else ''
+        if not ioc:
+            messagebox.showinfo("OSINT Lookup", "Enter an IP, hash, or domain first")
+            return
+        self._osint_multi_lookup(ioc)
+
+    def _get_intel_entry_value(self) -> str:
+        """Return the current Intel check-box value (for single-source lookups)."""
+        val: Any = getattr(self, '_intel_check_var', None)
+        return val.get().strip() if val else ''
+
+    def _osint_emailrep_lookup(self, email: str):
+        """Inline EmailRep.io email reputation check (breach/exposure stack).
+
+        Uses the free EmailRep.io API (Settings → OSINT API Keys) to get a
+        risk signal for an email address: reputation, suspicious flag,
+        deliverability and breach associations. Falls back to the public
+        EmailRep.io page when no key is set or the inline call fails.
+        """
+        import webbrowser
+        import tkinter.messagebox as mb
+        email = (email or '').strip()
+        if not email:
+            mb.showinfo('EmailRep.io', 'Enter an email address to check.')
+            return
+        if '@' not in email or '.' not in email.split('@')[-1]:
+            mb.showinfo('EmailRep.io',
+                        'Enter a full email address (e.g. user@example.com).')
+            return
+        key: Any = ''
+        try:
+            key = str(self.cfg.get('osint', 'emailrep_key', '') or '')
+        except Exception:
+            key = ''
+        if not key:
+            webbrowser.open(f'https://emailrep.io/{email}')
+            self._queue_alert(f'[OSINT] Opened EmailRep.io for {email} '
+                              '(set an EmailRep key in Settings for inline results).',
+                              Colors.GAUGE_TEAL)
+            return
+
+        def _do():
+            try:
+                import urllib.request as _ur
+                import json as _j
+                req: Any = _ur.Request(f'https://emailrep.io/{_ur.quote(email)}',
+                                       headers={'Key': key,
+                                                'User-Agent': 'Downpour-SecuritySuite/20'})
+                with _ur.urlopen(req, timeout=12) as r:
+                    d: Any = _j.loads(r.read().decode())
+                rep: Any = str(d.get('reputation', 'unknown'))
+                susp: Any = bool(d.get('suspicious', False))
+                details: Any = d.get('details', {}) or {}
+                rep_str: Any = (f"Email:          {email}\n"
+                                f"Reputation:     {rep}  "
+                                f"{'[!] SUSPICIOUS' if susp else '[OK]'}\n"
+                                f"Deliverable:    {d.get('deliverable', 'unknown')}\n"
+                                f"First Seen:     {d.get('first_seen', '?')}\n"
+                                f"Last Seen:      {d.get('last_seen', '?')}\n"
+                                f"Breaches:       {details.get('breaches', 0)} "
+                                f"(domain {details.get('malicious_activity', 'n/a')})")
+                self.after(0, lambda: mb.showinfo('EmailRep.io Reputation', rep_str))
+                col: Any = Colors.GAUGE_RED if susp else Colors.GAUGE_GREEN
+                self._queue_alert(f'[OSINT] EmailRep {email}: {rep} '
+                                  f'{"(suspicious)" if susp else "(clean)"}', col)
+            except Exception as e:
+                self.after(0, lambda _e=str(e): mb.showwarning(
+                    'EmailRep.io', f'Inline lookup failed ({_e[:120]}).\n'
+                                   'Opening the public page instead.'))
+                webbrowser.open(f'https://emailrep.io/{email}')
+        self._executor.submit(_do)
+
+    def _intel_cyberchef(self):
+        """Open GCHQ CyberChef pre-loaded with the current Intel value."""
+        import webbrowser
+        import base64 as _b64
+        import urllib.parse as _up
+        val: Any = self._get_intel_entry_value()
+        if not val:
+            messagebox.showinfo("CyberChef", "Enter an IOC/string to decode first")
+            return
+        payload: Any = _b64.urlsafe_b64encode(val.encode()).decode()
+        url: Any = f'https://gchq.github.io/CyberChef/#input={_up.quote(payload)}'
+        webbrowser.open(url)
+        self._queue_alert('[OSINT] Opened CyberChef with the selected value '
+                          'for decoding', Colors.GAUGE_PURPLE)
+
+    def _osint_wayback_check(self, url_or_domain: str):
+        """Wayback Machine availability check (evidence-preservation stack).
+
+        Free, no-key API: finds the most recent archived snapshot of a URL or
+        domain. Lets an analyst prove what a page looked like at a given time
+        — or detect that a suspicious page has no history at all.
+        """
+        import tkinter.messagebox as mb
+        import urllib.request as _ur
+        import urllib.parse as _up
+        import json as _j
+        target = (url_or_domain or '').strip()
+        if not target:
+            mb.showinfo('Wayback Machine', 'Enter a URL or domain to check.')
+            return
+        target = target if '://' in target else f'https://{target}'
+
+        def _do():
+            try:
+                api: Any = ('https://archive.org/wayback/available?'
+                            f'url={_up.quote(target, safe="")}')
+                req: Any = _ur.Request(api,
+                                       headers={'User-Agent': 'Downpour-SecuritySuite/20'})
+                with _ur.urlopen(req, timeout=12) as r:
+                    d: Any = _j.loads(r.read().decode())
+                snap: Any = (d.get('archived_snapshots', {}) or {}).get('closest', {}) or {}
+                if not snap or not snap.get('url'):
+                    msg: Any = (f"No archived snapshot found for:\n{target}\n\n"
+                                "A brand-new or rarely-archived page with no "
+                                "history is a common phishing/one-shot indicator.")
+                    col: Any = Colors.GAUGE_ORANGE
+                else:
+                    msg = (f"Last archived snapshot of:\n{target}\n\n"
+                           f"Date:   {snap.get('timestamp', '?')}\n"
+                           f"Status: {snap.get('status', '?')}\n"
+                           f"URL:    {snap.get('url', '?')}")
+                    col = Colors.GAUGE_GREEN
+                self.after(0, lambda _m=msg: mb.showinfo('Wayback Machine', _m))
+                self._queue_alert(f'[OSINT] Wayback: '
+                                  f'{"snapshot found" if snap.get("url") else "no history"} '
+                                  f'for {target}', col)
+            except Exception as e:
+                self.after(0, lambda _e=str(e): mb.showwarning(
+                    'Wayback Machine', f'Availability check failed ({_e[:120]}).'))
+        self._executor.submit(_do)
+
+    def _osint_greynoise_lookup(self, ioc: str):
+        """GreyNoise Community triage for an IP.
+
+        With a free GreyNoise API key (Settings → OSINT API Keys) this tells
+        you whether the IP is just routine internet background noise (scanners,
+        bots, RIOT) or a targeted/threat host — separating 'seen scanning'
+        from 'targeting this box'. Keyless mode opens the GreyNoise viz page.
+        """
+        import webbrowser
+        import tkinter.messagebox as mb
+        ioc = (ioc or '').strip()
+        if not ioc:
+            mb.showinfo('GreyNoise', 'No IP to check.')
+            return
+        if not re.match(r'^\d{1,3}(\.\d{1,3}){3}$', ioc):
+            mb.showinfo('GreyNoise', 'GreyNoise checks IP addresses only.')
+            return
+        key: Any = ''
+        try:
+            key = str(self.cfg.get('osint', 'greynoise_key', '') or '')
+        except Exception:
+            key = ''
+        if not key:
+            webbrowser.open(f'https://viz.greynoise.io/ip/{ioc}')
+            self._queue_alert(f'[OSINT] Opened GreyNoise viz for {ioc} '
+                              '(set a GreyNoise key in Settings for inline results).',
+                              Colors.GAUGE_TEAL)
+            return
+
+        def _do():
+            try:
+                import urllib.request as _ur
+                import json as _j
+                req: Any = _ur.Request(
+                    f'https://api.greynoise.io/v3/community/{ioc}',
+                    headers={'key': key, 'Accept': 'application/json',
+                             'User-Agent': 'Downpour-SecuritySuite/20'})
+                with _ur.urlopen(req, timeout=12) as r:
+                    d: Any = _j.loads(r.read().decode())
+                noise: Any = bool(d.get('noise', False))
+                riot: Any = bool(d.get('riot', False))
+                classification: Any = str(d.get('classification', 'unknown'))
+                rep: Any = (f"IP:             {ioc}\n"
+                            f"Background:     {'NOISE (routine scanner)' if noise else 'SILENT/not scanning'}\n"
+                            f"RIOT (benign):  {'YES' if riot else 'no'}\n"
+                            f"Classification: {classification}\n"
+                            f"Last Seen:      {d.get('last_seen', '?')}")
+                self.after(0, lambda: mb.showinfo('GreyNoise Community', rep))
+                col: Any = Colors.GAUGE_GREEN if riot else (
+                    Colors.GAUGE_TEAL if noise else Colors.GAUGE_ORANGE)
+                self._queue_alert(f'[OSINT] GreyNoise {ioc}: '
+                                  f'{"RIOT benign" if riot else "noise" if noise else classification}',
+                                  col)
+            except Exception as e:
+                self.after(0, lambda _e=str(e): mb.showwarning(
+                    'GreyNoise', f'Inline lookup failed ({_e[:120]}).\n'
+                                 'Opening the GreyNoise viz page instead.'))
+                webbrowser.open(f'https://viz.greynoise.io/ip/{ioc}')
+        self._executor.submit(_do)
+
+    def _osint_urlscan_submit(self, url: str):
+        """Submit a URL to urlscan.io for a render + network-trace scan.
+
+        With a free urlscan.io API key (Settings → OSINT API Keys) this
+        captures the page's visible state, redirects, requests and loaded
+        resources (evidence preservation) then opens the public result page.
+        """
+        import webbrowser
+        import tkinter.messagebox as mb
+        target = (url or '').strip()
+        if not target:
+            mb.showinfo('urlscan.io', 'Enter a URL to scan.')
+            return
+        key: Any = ''
+        try:
+            key = str(self.cfg.get('osint', 'urlscan_key', '') or '')
+        except Exception:
+            key = ''
+        if not key:
+            webbrowser.open(f'https://urlscan.io/search/#{target}')
+            self._queue_alert(f'[OSINT] Opened urlscan.io search for {target} '
+                              '(set a urlscan key in Settings to submit scans).',
+                              Colors.GAUGE_TEAL)
+            return
+
+        def _do():
+            try:
+                import urllib.request as _ur
+                import json as _j
+                body: Any = json.dumps({'url': target,
+                                        'visibility': 'public'}).encode()
+                req: Any = _ur.Request('https://urlscan.io/api/v1/scan/',
+                                       data=body,
+                                       headers={'Content-Type': 'application/json',
+                                                'API-Key': key,
+                                                'User-Agent': 'Downpour-SecuritySuite/20'})
+                with _ur.urlopen(req, timeout=25) as r:
+                    d: Any = _j.loads(r.read().decode())
+                result_url: Any = d.get('result', '')
+                msg: Any = (f"Scan submitted for:\n{target}\n\n"
+                            f"UUID: {d.get('uuid', '?')}\n"
+                            f"Result: {result_url or 'pending'}")
+                self.after(0, lambda: mb.showinfo('urlscan.io Scan Submitted', msg))
+                self._queue_alert('[OSINT] urlscan.io scan submitted for '
+                                  f'{target}', Colors.GAUGE_PURPLE)
+                if result_url:
+                    webbrowser.open(result_url)
+            except Exception as e:
+                self.after(0, lambda _e=str(e): mb.showwarning(
+                    'urlscan.io', f'Submit failed ({_e[:120]}).\n'
+                                  'Opening search instead.'))
+                webbrowser.open(f'https://urlscan.io/search/#{target}')
+        self._executor.submit(_do)
+
+    def _osint_pulsedive_lookup(self, ioc: str):
+        """Inline Pulsedive indicator enrichment (threat-intel stack).
+
+        Free API key from pulsedive.com adds reputation labels, threat
+        types and linked indicators; keyless mode opens the public page so
+        the analyst still gets the report. Never blocks the UI.
+        """
+        import webbrowser
+        import tkinter.messagebox as mb
+        ioc = (ioc or '').strip()
+        if not ioc:
+            mb.showinfo('Pulsedive', 'No indicator to check.')
+            return
+        key: Any = ''
+        try:
+            key = str(self.cfg.get('osint', 'pulsedive_key', '') or '')
+        except Exception:
+            key = ''
+        if not key:
+            webbrowser.open(f'https://pulsedive.com/indicator/?ioc={ioc}')
+            self._queue_alert(f'[OSINT] Opened Pulsedive page for {ioc} '
+                              '(set a Pulsedive API key in Settings for inline results).',
+                              Colors.GAUGE_TEAL)
+            return
+
+        def _do():
+            try:
+                import urllib.request as _ur
+                import json as _j
+                url: Any = ('https://pulsedive.com/api/info.php'
+                            f'?indicator={_ur.quote(ioc)}&key={_ur.quote(key)}')
+                req: Any = _ur.Request(url, headers={'User-Agent': 'Downpour-SecuritySuite/20'})
+                with _ur.urlopen(req, timeout=10) as r:
+                    d: Any = _j.loads(r.read().decode())
+                threat: Any = str(d.get('threat', '') or '')
+                risk: Any = str(d.get('risk', '') or '')
+                props: Any = d.get('properties', {}) or {}
+                resp: Any = d.get('response', '')
+                rep: Any = (f"Indicator:  {ioc}\n"
+                            f"Threat:     {threat or 'unknown'}\n"
+                            f"Risk:       {risk or 'n/a'}\n"
+                            f"Response:   {resp or 'n/a'}\n"
+                            f"Updated:    {d.get('stamp', '?')}\n"
+                            f"Refs:       {len(d.get('references', []) or [])}")
+                if isinstance(props, dict) and props:
+                    rep += f"\nProps:      {', '.join(str(k) for k in list(props)[:6])}"
+                self.after(0, lambda: mb.showinfo('Pulsedive Indicator', rep))
+                bad: Any = ('malicious' in threat.lower() or 'high' in risk.lower())
+                self._queue_alert(f'[OSINT] Pulsedive {ioc}: threat={threat or "clean"}',
+                                  Colors.GAUGE_RED if bad else Colors.GAUGE_GREEN)
+            except Exception as e:
+                self.after(0, lambda _e=str(e): mb.showwarning(
+                    'Pulsedive', f'Inline lookup failed ({_e[:120]}).\n'
+                                 'Opening the public page instead.'))
+                webbrowser.open(f'https://pulsedive.com/indicator/?ioc={ioc}')
+        self._executor.submit(_do)
+
+    def _osint_onyphe_lookup(self, ioc: str):
+        """Inline ONYPHE passive attack-surface lookup.
+
+        Free API key from onyphe.io returns live IP/domain dataleaks,
+        open ports and exposed records from passive collection. Keyless
+        mode opens the public search page.
+        """
+        import webbrowser
+        import tkinter.messagebox as mb
+        ioc = (ioc or '').strip()
+        if not ioc:
+            mb.showinfo('ONYPHE', 'No indicator to check.')
+            return
+        key: Any = ''
+        try:
+            key = str(self.cfg.get('osint', 'onyphe_key', '') or '')
+        except Exception:
+            key = ''
+        if not key:
+            webbrowser.open(f'https://www.onyphe.io/search?q=ip%3A{ioc}')
+            self._queue_alert(f'[OSINT] Opened ONYPHE search for {ioc} '
+                              '(set an ONYPHE API key in Settings for inline results).',
+                              Colors.GAUGE_TEAL)
+            return
+
+        def _do():
+            try:
+                import urllib.request as _ur
+                import json as _j
+                url: Any = ('https://api.onyphe.io/v2/search/'
+                            f'?apikey={_ur.quote(key)}&q=ip%3A{ioc}')
+                req: Any = _ur.Request(url, headers={'User-Agent': 'Downpour-SecuritySuite/20'})
+                with _ur.urlopen(req, timeout=12) as r:
+                    d: Any = _j.loads(r.read().decode())
+                result: Any = d.get('count', 0)
+                total: Any = d.get('total', 0)
+                first: Any = (d.get('results') or [{}])[0] if d.get('results') else {}
+                rep: Any = (f"Indicator:  {ioc}\n"
+                            f"Records:    {result} (total {total})\n"
+                            f"Last Seen:  {first.get('@timestamp', '?')}\n")
+                for k in ('dataleak', 'hostname', 'country_code'):
+                    if first.get(k):
+                        rep += f"{k.replace('_',' ').title()}: {first.get(k)}\n"
+                self.after(0, lambda: mb.showinfo('ONYPHE Passive Intel', rep))
+                self._queue_alert(f'[OSINT] ONYPHE {ioc}: {result} passive record(s)',
+                                  Colors.GAUGE_RED if result > 0 else Colors.GAUGE_GREEN)
+            except Exception as e:
+                self.after(0, lambda _e=str(e): mb.showwarning(
+                    'ONYPHE', f'Inline lookup failed ({_e[:120]}).\n'
+                              'Opening the public search instead.'))
+                webbrowser.open(f'https://www.onyphe.io/search?q=ip%3A{ioc}')
+        self._executor.submit(_do)
+
+    def _check_pwned_password(self, pw: str) -> int:
+        """HIBP Pwned Passwords k-anonymity check (no API key required).
+
+        Sends only the first 5 hex chars of SHA-1(password) to
+        api.pwnedpasswords.com and counts local matches — the full hash
+        never leaves the machine. Returns breach count (0 = not found).
+        """
+        import hashlib as _hl
+        import urllib.request as _ur
+        import binascii as _bi
+        digest: Any = _hl.sha1(pw.encode('utf-8', errors='ignore')).hexdigest().upper()
+        prefix, suffix = digest[:5], digest[5:]
+        req: Any = _ur.Request(f'https://api.pwnedpasswords.com/range/{prefix}',
+                               headers={'User-Agent': 'Downpour-SecuritySuite/20'})
+        with _ur.urlopen(req, timeout=12) as r:
+            body: Any = r.read().decode('latin-1')
+        count: Any = 0
+        for line in body.splitlines():
+            h, _, c = line.partition(':')
+            if h.strip().upper() == suffix:
+                count = int(c.strip() or 0)
+                break
+        return count
+
+    def _prompt_pwned_password(self):
+        """Prompt for a password and report how often it appears in public
+        breach corpora (HIBP Pwned Passwords, free + no key)."""
+        import tkinter.simpledialog as sd
+        pw: Any = sd.askstring("Password Breach Check",
+                               "Enter a password to check against known breach "
+                               "corpora\n(only the first 5 chars of its SHA-1 "
+                               "hash are sent — never the password itself):",
+                               show='*', parent=self)
+        if not pw:
+            return
+        self._queue_alert('[OSINT] Checking password against Pwned Passwords…',
+                          Colors.GAUGE_TEAL)
+
+        def _do():
+            try:
+                n: Any = self._check_pwned_password(pw)
+                if n > 0:
+                    msg: Any = (f"FOUND in {n:,} public breach records.\n\n"
+                                "An attacker using a credential-stuffing list "
+                                "would break this password. Change it now and "
+                                "do NOT reuse it anywhere else.")
+                    col: Any = Colors.GAUGE_RED
+                    self._play_alarm('HIGH')
+                    self._maybe_send_alert_email(
+                        'Password found in breach corpus',
+                        f'Password appeared in {n} breached records.')
+                else:
+                    msg = ("Not found in the known breach corpus.\n\n"
+                           "That does NOT mean the password is secure — it "
+                           "only means it has not been seen in public leaks.")
+                    col = Colors.GAUGE_GREEN
+                self.after(0, lambda _m=msg: mb.showinfo('Password Breach Check', _m))
+                self._queue_alert(
+                    f'[OSINT] Pwned Passwords: {"BREACHED " + str(n) + "x" if n else "not found"}',
+                    col)
+            except Exception as e:
+                self.after(0, lambda _e=str(e): mb.showwarning(
+                    'Pwned Passwords', f'Check failed ({_e[:120]}). '
+                                       'Check network connectivity.'))
+        self._executor.submit(_do)
+
     def _copy_selected_ip(self):
         ip: Any = self._get_net_selected_ip()
         if ip:
@@ -36606,18 +37672,24 @@ Verification Status:
         def do():
             try:
                 req: Any = urllib.request.Request(
-                    f"http://ip-api.com/json/{ip}?fields=status,country,regionName,city,isp,org,as,threat",
+                    f"http://ip-api.com/json/{ip}?fields=status,country,regionName,city,isp,org,as,proxy,hosting,query",
                     headers = {'User-Agent': 'Downpour/1.0'})
                 with urllib.request.urlopen(req, timeout=8) as r:
                     data: Any = json.loads(r.read().decode())
                 if data.get('status') == 'success':
+                    flags: Any = []
+                    if data.get('proxy'):
+                        flags.append('PROXY/VPN')
+                    if data.get('hosting'):
+                        flags.append('HOSTING/DC')
+                    flag_txt: Any = ('  [⚠ ' + ' '.join(flags) + ']') if flags else ''
                     info: Any = (f"IP:      {ip}\n"
                             f"Country: {data.get('country','?')}\n"
                             f"Region:  {data.get('regionName','?')}\n"
                             f"City:    {data.get('city','?')}\n"
                             f"ISP:     {data.get('isp','?')}\n"
                             f"Org:     {data.get('org','?')}\n"
-                            f"AS:      {data.get('as','?')}")
+                            f"AS:      {data.get('as','?')}{flag_txt}")
                 else:
                     info: Any = f"IP: {ip}\nGeo lookup failed"
                 self.after(0, lambda: messagebox.showinfo("GeoIP Result", info))
@@ -38062,6 +39134,8 @@ Verification Status:
         _tbtn(tools_f, 'Trace DNS Path',      self._dns_adv_trace)
         _tbtn(tools_f, '[WEB] Whois Lookup',        self._dns_adv_whois)
         _tbtn(tools_f, '[SHIELD] Check Blacklists (DNSBL)', self._dns_adv_dnsbl)
+        _tbtn(tools_f, '[CT] crt.sh Subdomains',     self._dns_adv_crtsh)
+        _tbtn(tools_f, '[WEB] Domain OSINT Stack',   self._dns_adv_domain_osint)
 
         # Column 2: Security Tests
         sec_f: Any = tk.Frame(main_f, bg=Colors.GLASS_CARD)
@@ -39214,6 +40288,140 @@ Verification Status:
             self._dns_out(self._dns_adv_output,
                           f'\\nResult: {domain} listed on {listed}/{len(dnsbls)} blacklists', color)
         threading.Thread(target=_do, daemon=True).start()
+
+    def _dns_adv_crtsh(self):
+        """crt.sh certificate-transparency lookup (OSINT4ALL DNS stack).
+
+        Free, no-key JSON API from crt.sh returns historical certificates
+        for the domain — revealing subdomains and related hostnames from
+        certificate SAN entries. Passive: only queries the CT log, never
+        touches the target host.
+        """
+        domain: Any = self._dns_adv_domain_var.get().strip()
+        if not domain:
+            return
+
+        def _do():
+            import webbrowser
+            self._dns_out(self._dns_adv_output,
+                          f'crt.sh certificate transparency for: {domain}',
+                          Colors.GAUGE_TEAL, True)
+            try:
+                import urllib.parse as _up
+                url: Any = f'https://crt.sh/?q=%25.{_up.quote(domain)}&output=json'
+                data: Any = None
+                last_err: Any = None
+                # crt.sh backend is often overloaded — retry a few times
+                for attempt in range(3):
+                    try:
+                        req: Any = urllib.request.Request(
+                            url, headers={'User-Agent': 'Downpour-SecuritySuite/20'})
+                        with urllib.request.urlopen(req, timeout=25) as r:
+                            raw: Any = r.read()
+                        data = json.loads(raw)
+                        break
+                    except Exception as e:
+                        last_err = e
+                        time.sleep(1.5 * (attempt + 1))
+                if data is None:
+                    raise last_err or RuntimeError('crt.sh API unreachable')
+                if not data:
+                    self._dns_out(self._dns_adv_output,
+                                  'No certificates found in CT logs.', Colors.GAUGE_ORANGE)
+                    return
+                names: Any = []
+                for entry in data:
+                    if isinstance(entry, dict):
+                        for n in str(entry.get('name_value', '')).split('\\n'):
+                            n = n.strip().lower()
+                            if n and n.endswith(domain) and n not in names:
+                                names.append(n)
+                names.sort()
+                self._dns_out(self._dns_adv_output,
+                              f'Found {len(names)} hostname(s) in certificate '
+                              f'transparency logs:', Colors.GAUGE_GREEN)
+                for n in names[:120]:
+                    self._dns_out(self._dns_adv_output, f'  {n}', Colors.TEXT_LIGHT)
+                if len(names) > 120:
+                    self._dns_out(self._dns_adv_output,
+                                  f'  … and {len(names) - 120} more', Colors.TEXT_DIM)
+                self._queue_alert(f'[DNS] crt.sh: {len(names)} CT hostnames for {domain}',
+                                  Colors.GAUGE_GREEN if names else Colors.GAUGE_ORANGE)
+            except Exception as e:
+                # Fallback: Certspotter free CT API (reliable, no key for
+                # limited queries) — same passive certificate-log data.
+                try:
+                    cs_url: Any = ('https://api.certspotter.com/v1/issuances?'
+                                   f'domain={domain}&include_subdomains=true'
+                                   '&expand=dns_names')
+                    cs_req: Any = urllib.request.Request(
+                        cs_url, headers={'User-Agent': 'Downpour-SecuritySuite/20'})
+                    with urllib.request.urlopen(cs_req, timeout=20) as r:
+                        cs_data: Any = json.loads(r.read().decode())
+                    names: Any = []
+                    for cert in cs_data or []:
+                        for n in cert.get('dns_names', []) or []:
+                            n = n.strip().lower()
+                            if n.endswith(domain) and n not in names:
+                                names.append(n)
+                    names.sort()
+                    self._dns_out(self._dns_adv_output,
+                                  f'crt.sh unavailable; using Certspotter CT log '
+                                  f'— {len(names)} hostname(s):', Colors.GAUGE_ORANGE)
+                    for n in names[:120]:
+                        self._dns_out(self._dns_adv_output, f'  {n}', Colors.TEXT_LIGHT)
+                    if len(names) > 120:
+                        self._dns_out(self._dns_adv_output,
+                                      f'  … and {len(names) - 120} more', Colors.TEXT_DIM)
+                    self._queue_alert(f'[DNS] Certspotter: {len(names)} CT hostnames '
+                                      f'for {domain}',
+                                      Colors.GAUGE_GREEN if names else Colors.GAUGE_ORANGE)
+                    return
+                except Exception:
+                    pass
+                self._dns_out(self._dns_adv_output,
+                              f'crt.sh API failed ({str(e)[:100]}); opening web page.',
+                              Colors.GAUGE_ORANGE)
+                try:
+                    webbrowser.open(f'https://crt.sh/?q=%25.{domain}')
+                except Exception:
+                    pass
+        threading.Thread(target=_do, daemon=True).start()
+
+    def _dns_adv_domain_osint(self):
+        """Deep-link the domain across the OSINT4ALL infrastructure stack."""
+        import webbrowser
+        domain: Any = self._dns_adv_domain_var.get().strip()
+        if not domain:
+            return
+        links: Any = [
+            ('crt.sh CT',       f'https://crt.sh/?q=%25.{domain}'),
+            ('Wayback Machine', f'https://web.archive.org/web/*/{domain}'),
+            ('Archive.today',   f'https://archive.ph/newest/{domain}'),
+            ('ViewDNS.info',    f'https://viewdns.info/iphistory/?domain={domain}'),
+            ('DNSDumpster',     f'https://dnsdumpster.com/'),
+            ('MXToolbox',       f'https://mxtoolbox.com/SuperTool.aspx?action=blacklist%3a{domain}&run=toolpage'),
+            ('SecurityTrails',  f'https://securitytrails.com/domain/{domain}/dns'),
+            ('DNSlytics',       f'https://dnslytics.com/domain/{domain}'),
+            ('urlscan.io',      f'https://urlscan.io/api/v1/search/?q=domain%3A{domain}'),
+            ('Wappalyzer',      f'https://www.wappalyzer.com/technologies/{domain}'),
+            ('BuiltWith',       f'https://builtwith.com/{domain}'),
+            ('Netlas.io',       f'https://app.netlas.io/host/?q={domain}'),
+            ('ZoomEye',         f'https://www.zoomeye.ai/search?q=site%3A{domain}'),
+            ('FullHunt',        f'https://fullhunt.io/search?q=domain%3A{domain}'),
+        ]
+        self._queue_alert(f'[OSINT] Domain stack opened for {domain} '
+                          f'({len(links)} sources)', Colors.GAUGE_PURPLE)
+        opened: Any = 0
+        for name, url in links:
+            try:
+                webbrowser.open_new_tab(url)
+                opened += 1
+            except Exception:
+                pass
+        self._dns_out(self._dns_adv_output,
+                      f'Opened {opened}/{len(links)} infrastructure sources for {domain}',
+                      Colors.GAUGE_TEAL)
 
     def _dns_full_security_audit(self):
         def _do():

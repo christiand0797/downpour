@@ -72,6 +72,10 @@ err.tmp
 # ─── Auto-generated stubs / cache ────────────────────────────────────────────
 .mypy_cache/
 .pytest_cache/
+*.pyi
+pyrightconfig.json
+sklearn/
+GPUtil.pyi
 
 # ─── Ad-hoc diagnostic scripts (root-level, throwaway) ───────────────────────
 _audit_*.py

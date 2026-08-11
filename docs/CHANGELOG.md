@@ -1,5 +1,111 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.1 Titanium — OSINT4ALL Indicator-Triage + DDoS v30 Bootstrap
+
+Session goal: leverage the OSINT4ALL curated OSINT resource directory
+(threat-intelligence / indicator-triage and breach-exposure toolkits) to expand
+Downpour's indicator investigation depth, and finish the v30 DDoS persistence
+bootstrap that was only half-wired.
+
+### DDoS v30 — persistence bootstrap completed + critical conflict fixed
+- **Fixed duplicate/conflicting blocklist methods.** Two parallel DDoS
+  blocklist stores existed: a v29-era flat `{ip: meta}` on-disk format
+  (`_ddos_block_metadata`) and the v30 `_ddos_blocked_ips` + `_ddos_blocklist_meta`
+  wrapper. Because the v30 `_ddos_load/save_blocklist` were defined later in the
+  class body they silently shadowed the v29 ones — so `_ddos_record_block` wrote
+  into `_ddos_block_metadata` which was **never persisted**. Consolidated to a
+  single v30 store:
+  - `_ddos_record_block()` now calls `_ddos_init_state()` and writes into
+    `_ddos_blocked_ips` + `_ddos_blocklist_meta`, then persists. Every auto-block
+    (legacy packet-capture path OR v30 shield engine) lands in the same file.
+  - `_ddos_unblock_ip()` now prunes `_ddos_blocklist_meta` too (was only removing
+    the un-persisted v29 dict).
+  - `_ddos_load_blocklist()` gained **backward compatibility** with the old flat
+    dict format, and now **actually removes expired firewall rules** on load
+    instead of just dropping them from memory.
+- **v30 DDoS Shield UI was dead code** — the 4 shield/rate-monitor handlers were
+  defined but never attached to any button. Wired into the Network tab action bar:
+  `DDoS Shield`, `Rate Monitor`, `Block All Flooders`, `Export DDoS Report`,
+  `Purge DDoS Blocks` (all via `_make_button` with tooltips).
+- **Blocklist now restores on startup.** `_start_loops()` calls `_ddos_init_state()`
+  so persisted blocks survive a restart and expired entries self-heal at launch.
+
+### OSINT4ALL integration — indicator triage + breach/exposure stack
+- **OSINT Stack deep-link** button (Network tab + right-click menu + Intel tab):
+  opens the selected IP/hash/domain across the OSINT4ALL-curated indicator stack —
+  VirusTotal, AbuseIPDB, Cisco Talos, GreyNoise, Shodan, Censys, urlscan.io,
+  AlienVault OTX, Hybrid Analysis, MalwareBazaar, SecurityTrails, DNSlytics.
+  Extended this session with **Pulsedive**, **ONYPHE**, **ANY.RUN**, **Joe Sandbox**,
+  **URLhaus** host lookups, and a Have I Been Pwned breach listing.
+- **AbuseIPDB inline reputation** — live `api/v2/check` with the user's free API
+  key (Settings → OSINT API Keys); falls back to opening the AbuseIPDB page
+  when no key is set. Shows confidence score, report count, usage type, ISP.
+- **Shodan inline host lookup** — API-key based (`shodan/host/{ip}`): open ports,
+  CVEs, OS, hostnames; graceful web-page fallback without a key.
+- **Pulsedive inline enrichment** (NEW) — `pulsedive.com/api/info.php` with the
+  free API key returns threat label, risk, references and linked properties for
+  IP/domain/URL/hash IOCs; keyless mode opens the public indicator page.
+- **ONYPHE passive attack-surface** (NEW) — `api.onyphe.io/v2/search` with the
+  free API key returns passive dataleak/port/hostname records; keyless fallback
+  opens the ONYPHE search page. Wired to Network action bar + right-click menu
+  + Intel tab.
+- **HIBP Pwned Passwords check** (NEW) — k-anonymity hash-range lookup against
+  `api.pwnedpasswords.com` needs **no API key**: only the first 5 hex chars of
+  SHA-1(password) leave the machine. Verdict popup + HIGH alarm + alert email
+  when a password is found in public breach corpora. Live-verified against the
+  real HIBP API this session (`password` → 52,372,427 hits). Added as a
+  `🔑 Password Breach Check` button beside Dark Web Leak Check.
+- **GeoIP enrichment** — ip-api now reports `proxy` / `hosting` flags (VPN/datacenter
+  signals) alongside country/ISP/AS.
+- **Settings** gained an OSINT API Keys section (AbuseIPDB + Shodan + Pulsedive
+  + ONYPHE), stored in the `[osint]` config section.
+
+### DNS tab — OSINT4ALL infrastructure stack (Session 2)
+- **crt.sh certificate-transparency subdomain discovery** (NEW) — passive CT-log
+  lookup pulls historical hostnames/SAN entries for a domain with zero network
+  touch on the target. Free, no API key. Includes 3-attempt retry for crt.sh's
+  flaky backend + **Certspotter free CT API fallback** (live-verified this session:
+  3 hostnames for example.com). On total failure, opens the crt.sh web page.
+- **Domain OSINT Stack deep-link** (NEW) — one button opens the domain across the
+  full OSINT4ALL infrastructure stack: crt.sh, Wayback Machine, Archive.today,
+  ViewDNS.info, DNSDumpster, MXToolbox, SecurityTrails, DNSlytics, urlscan.io,
+  Wappalyzer, BuiltWith, Netlas.io, ZoomEye, FullHunt.
+- `_osint_multi_lookup` domain branch extended with crt.sh, ViewDNS, MXToolbox,
+  Wappalyzer, Netlas.io deep-links alongside the existing reputation sources.
+
+### Intel tab — EmailRep + CyberChef (Session 3)
+- **EmailRep.io email reputation** (NEW) — inline risk signal for an email address
+  (reputation, suspicious flag, deliverability, breach associations) via the free
+  EmailRep.io API key (Settings → OSINT API Keys). Keyless/rate-limited calls fall
+  back to opening the EmailRep.io page. Validates the input is a real email first.
+- **GCHQ CyberChef decode** (NEW) — one button opens CyberChef with the current
+  Intel check-box value pre-loaded (base64url input) for safe offline decoding of
+  indicators, encodings, and extracted strings.
+- Settings → OSINT API Keys now has 5 fields (AbuseIPDB, Shodan, Pulsedive,
+  ONYPHE, EmailRep).
+
+### Intel/Network tabs — GreyNoise + Wayback + urlscan submit (Session 4)
+- **Wayback Machine availability check** (NEW, no key) — `archive.org/wayback/available`
+  finds the most recent archived snapshot of a URL/domain (proof of historical page
+  state) and flags **no-history pages** as a common one-shot phishing indicator.
+  Live-verified against the real API this session.
+- **GreyNoise Community triage** (NEW) — free API key (Settings → OSINT API Keys)
+  separates routine internet background noise (scanners, bots) and RIOT benign
+  infrastructure from hosts that actually warrant attention. Keyless mode opens
+  the GreyNoise viz page. Wired into the Network action bar + right-click menu.
+- **urlscan.io scan submit** (NEW) — free API key submits a URL for a public
+  render + network-trace scan (evidence preservation), then opens the result
+  page. Keyless mode opens the urlscan search. Wired into the Intel tab.
+- Settings → OSINT API Keys now has 7 fields (AbuseIPDB, Shodan, Pulsedive,
+  ONYPHE, EmailRep, GreyNoise, urlscan.io).
+
+### Verification
+- `py_compile` clean; module imports cleanly under Python 3.12.
+- Blocklist round-trip, restart-restore, and legacy-format import all tested
+  against the real `downpour` class methods (all pass).
+
+---
+
 ## v29 Titanium — Session 2 (Threat Hunt Engine + Live Feed Fixes)
 
 ### New Module: `threat_hunt_engine.py`
