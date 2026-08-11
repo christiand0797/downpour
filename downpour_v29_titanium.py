@@ -7020,6 +7020,7 @@ class ConfigManager:
         'security':  {'bypass_tpm_bitlocker': 'false'},
         'osint':     {'abuseipdb_key': '', 'talos_reputation': 'true',
                       'shodan_key': '', 'censys_enabled': 'true',
+                      'censys_api_id': '', 'censys_secret': '',
                       'pulsedive_key': '', 'onyphe_key': '',
                       'emailrep_key': '', 'greynoise_key': '',
                       'urlscan_key': ''},
@@ -23889,6 +23890,7 @@ class downpour(tk.Tk):
             ("OSINT Stack",          lambda: self._osint_lookup_intel_entry()),
             ("Pulsedive",            lambda: self._osint_pulsedive_lookup(self._get_intel_entry_value())),
             ("ONYPHE",               lambda: self._osint_onyphe_lookup(self._get_intel_entry_value())),
+            ("Censys",               lambda: self._osint_censys_lookup(self._get_intel_entry_value())),
             ("EmailRep",             lambda: self._osint_emailrep_lookup(self._get_intel_entry_value())),
             ("Wayback Check",        lambda: self._osint_wayback_check(self._get_intel_entry_value())),
             ("urlscan Submit",       lambda: self._osint_urlscan_submit(self._get_intel_entry_value())),
@@ -27765,6 +27767,8 @@ Verification Status:
         for osection, okey, olabel in [
             ('osint', 'abuseipdb_key', 'AbuseIPDB API key:'),
             ('osint', 'shodan_key',    'Shodan API key:'),
+            ('osint', 'censys_api_id', 'Censys API ID (search.censys.io):'),
+            ('osint', 'censys_secret', 'Censys API Secret:'),
             ('osint', 'pulsedive_key', 'Pulsedive API key:'),
             ('osint', 'onyphe_key',    'ONYPHE API key:'),
             ('osint', 'emailrep_key',  'EmailRep.io API key:'),
@@ -37847,6 +37851,99 @@ Verification Status:
         import webbrowser
         mb.showinfo('urlscan.io Public Search', text)
         webbrowser.open(page)
+
+    def _osint_censys_lookup(self, ioc: str):
+        """Inline Censys host-view lookup (attack-surface stack).
+
+        Uses the free Censys Search API v2 (API ID + Secret from
+        search.censys.io/account/api, HTTP basic auth, 250 queries/mo free).
+        Returns the host's open ports, services, software/CPE, TLS cert
+        subject/issuer, geo + ASN. Keyless mode opens the public search page.
+        """
+        import webbrowser
+        import tkinter.messagebox as mb
+        ioc = (ioc or '').strip()
+        if not ioc:
+            mb.showinfo('Censys', 'Enter an IP address to look up.')
+            return
+        api_id: Any = ''
+        secret: Any = ''
+        try:
+            api_id = str(self.cfg.get('osint', 'censys_api_id', '') or '')
+            secret = str(self.cfg.get('osint', 'censys_secret', '') or '')
+        except Exception:
+            api_id, secret = '', ''
+        if not (api_id and secret):
+            webbrowser.open(
+                f'https://search.censys.io/hosts/{ioc}?resource=hosts')
+            self._queue_alert(f'[OSINT] Opened Censys host view for {ioc} '
+                              '(set Censys API ID + Secret in Settings for '
+                              'inline results).', Colors.GAUGE_TEAL)
+            return
+
+        def _do():
+            try:
+                import urllib.request as _ur
+                import base64 as _b64
+                import json as _j
+                _auth: Any = _b64.b64encode(f'{api_id}:{secret}'.encode()).decode()
+                url: Any = f'https://search.censys.io/api/v2/hosts/{ioc}'
+                req: Any = _ur.Request(url,
+                                       headers={'User-Agent': 'Downpour-SecuritySuite/20',
+                                                'Authorization': f'Basic {_auth}',
+                                                'Accept': 'application/json'})
+                with _ur.urlopen(req, timeout=20) as r:
+                    d: Any = _j.loads(r.read().decode('utf-8', 'replace'))
+                res: Any = d.get('result') or {}
+                loc: Any = res.get('location') or {}
+                asn: Any = res.get('autonomous_system') or {}
+                dns: Any = res.get('dns') or {}
+                names: Any = dns.get('names') or []
+                services: Any = res.get('services') or []
+                lines: Any = [f'Censys host view: {res.get("ip", ioc)}',
+                              f'Last scanned: {res.get("last_updated_at", "?")[:19]}']
+                if asn:
+                    lines.append(f'ASN: {asn.get("asn", "?")} - '
+                                 f'{asn.get("name", asn.get("description", "?"))} '
+                                 f'({asn.get("bgp_prefix", "?")})')
+                if loc:
+                    lines.append(f'Location: {loc.get("country", "?")} / '
+                                 f'{loc.get("city", "?")}')
+                if names:
+                    lines.append(f'DNS names: {", ".join(names[:5])}')
+                if services:
+                    lines.append(f'Open services: {len(services)}')
+                    for svc in services[:8]:
+                        port: Any = svc.get('port', '?')
+                        sname: Any = svc.get('service_name', '?')
+                        proto: Any = svc.get('transport_protocol', '?')
+                        lines.append(f'  {port}/{proto}: {sname}')
+                        tls: Any = svc.get('tls') or {}
+                        leaf: Any = (tls.get('certificates') or {}).get('leaf') or {}
+                        if leaf:
+                            lines.append(f'    TLS subject: {leaf.get("subject_dn", "?")[:80]}')
+                            lines.append(f'    TLS issuer:  {leaf.get("issuer_dn", "?")[:80]}')
+                else:
+                    lines.append('No services observed by Censys.')
+                self.after(0, lambda m='\n'.join(lines):
+                    self._osint_censys_show(m, ioc))
+                self._queue_alert(
+                    f'[OSINT] Censys {ioc}: {len(services)} open service(s)',
+                    Colors.GAUGE_RED if services else Colors.GAUGE_TEAL)
+            except Exception as e:
+                self.after(0, lambda _e=str(e), _i=ioc: mb.showwarning(
+                    'Censys',
+                    f'Inline lookup failed ({_e[:120]}).\n'
+                    'Opening the public host page instead.'))
+                webbrowser.open(f'https://search.censys.io/hosts/{ioc}')
+        self._executor.submit(_do)
+
+    def _osint_censys_show(self, text: str, ioc: str):
+        """Display Censys host-view results and open the public page."""
+        import tkinter.messagebox as mb
+        import webbrowser
+        mb.showinfo('Censys Host View', text)
+        webbrowser.open(f'https://search.censys.io/hosts/{ioc}')
 
     def _osint_pulsedive_lookup(self, ioc: str):
         """Inline Pulsedive indicator enrichment (threat-intel stack).

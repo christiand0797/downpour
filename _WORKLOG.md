@@ -9,6 +9,12 @@
 - ✅ Repointed THREAT FEEDS gauge from broken ultimate_threat_intel stub to working threat_feed_aggregator
 - ✅ Added `_make_button()` shared helper + tooltips to: Scanner, Processes, Network, Hardening, AEGIS, Intel, Firewalls, Threats detail panel
 
+## Session 2026-08-11e — Inline Censys host-view lookup (v29.6)
+- ✅ `_osint_censys_lookup(ioc)` — Censys Search API v2 host view (API ID + Secret basic auth): ports/services, TLS cert subject/issuer, ASN/geo/DNS; keyless → public page
+- ✅ Settings: `censys_api_id` + `censys_secret` masked fields (replaces dead `censys_enabled` boolean)
+- ✅ `Censys` button in Intel Threat Response row; `_osint_censys_show()` Tk callback
+- ✅ Keyed path verified via mocked v2 response; keyless path opens host page
+
 ## Session 2026-08-11d — Keyless urlscan.io public search (v29.5)
 - ✅ `_osint_urlscan_search(ioc)` — no-key urlscan.io public search: IP → `ip:`, URL → `page.url:`, else `domain:`; verdicts+scores surfaced, index page opened
 - ✅ `is:` operator 403s keyless on this network → switched to `ip:` (live-verified)

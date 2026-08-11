@@ -1,5 +1,27 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.6 Titanium — Inline Censys Host-View Lookup
+
+Session goal: close the last gap in the OSINT4ALL attack-surface stack — Censys
+was only a web-page deep-link despite the `censys_enabled` config flag.
+
+### Inline Censys Search API v2 host view
+- **`_osint_censys_lookup(ioc)`** — free Censys Search API v2 (API ID + Secret,
+  HTTP basic auth, 250 queries/mo free tier):
+  - Returns the host's last-scan timestamp, ASN + BGP prefix, geo, DNS names,
+    and up to 8 open services with port/transport/service name plus TLS leaf
+    cert subject + issuer.
+  - Keyless mode opens `search.censys.io/hosts/<ip>` instead of failing.
+  - Runs on `self._executor`; network failure degrades to the public host page.
+- **`_osint_censys_show(text, ioc)`** — Tk callback for the result dialog +
+  page open (matches the urlscan-search pattern).
+- **Settings**: `censys_api_id` + `censys_secret` masked fields added to OSINT
+  API Keys (previously only the dead `censys_enabled` boolean existed).
+- **UI**: `Censys` button added to Intel tab Threat Response row (Censys already
+  present in the multi-lookup deep-link stack).
+- Verified: keyed path renders services/ASN/TLS via mocked v2 response;
+  keyless path opens the host page; `py_compile` + integrity OK.
+
 ## v29.5 Titanium — Keyless urlscan.io Public-Search Lookup
 
 Session goal: add a credential-free urlscan.io indicator triage path to the
