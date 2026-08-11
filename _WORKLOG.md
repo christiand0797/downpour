@@ -9,6 +9,15 @@
 - ✅ Repointed THREAT FEEDS gauge from broken ultimate_threat_intel stub to working threat_feed_aggregator
 - ✅ Added `_make_button()` shared helper + tooltips to: Scanner, Processes, Network, Hardening, AEGIS, Intel, Firewalls, Threats detail panel
 
+## Session 2026-08-11b — MISP/STIX indicator sharing (v29.3)
+- ✅ `_intel_import_misp()` — imports MISP event JSON / STIX 2.0 bundle / plain IOC text into titanium.db intel tables (source `MISP-Import:<file>`)
+- ✅ `_misp_extract_iocs()` recursive parser (Event/Attribute/objects/response containers, dedupe, generic fallback)
+- ✅ MISP type hints incl. `filename|sha256` composite; STIX indicator.pattern + ipv4-addr/domain-name/url/file SCO; multi-label domain classifier
+- ✅ `_intel_export_misp()` — exports malicious_ips/domains/urls/hashes as MISP-format JSON event (uuid/info/date/Attribute with type/category/to_ids/comment)
+- ✅ Buttons `[MISP] Import IOCs` + `[MISP] Export Event` in Intel Threat Response row
+- ✅ Round-trip verified vs temp DB (import→store→export), no duplicates; `py_compile` OK
+- ✅ `docs/TODO_v30_DDoS.md` — all 6 DDoS checklist items marked complete
+
 ## Session 2026-08-11 — Email-auth DNS check + DNS allowlist bug fix (v29.2)
 - ✅ `_dns_adv_email_security()` SPF/DMARC/DKIM check in DNS Advanced Tools (DNS-only, no key)
 - ✅ SPF verdict regex handles `-all`/`~all`/`+all`/missing; DMARC `p=` tag regex fixes `sp=reject` false-positive; DKIM multi-selector probe (google/selector1/etc.)

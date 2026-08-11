@@ -23894,6 +23894,8 @@ class downpour(tk.Tk):
             ("urlscan Submit",       lambda: self._osint_urlscan_submit(self._get_intel_entry_value())),
             ("CyberChef Decode",     lambda: self._intel_cyberchef()),
             ("Export Report",        lambda: self._intel_export_report()),
+            ("[MISP] Import IOCs",   lambda: self._intel_import_misp()),
+            ("[MISP] Export Event",  lambda: self._intel_export_misp()),
             ("[HIGH] Submit to VirusTotal", lambda: self._intel_submit_vt()),
         ]:
             tk.Button(resp_row, text=btn_txt, font=('Consolas', 8),
@@ -24079,6 +24081,252 @@ class downpour(tk.Tk):
             import webbrowser
             webbrowser.open(f"https://www.virustotal.com/gui/search/{ioc}")
             self._intel_result.config(text=f"[ZAP] Opened VirusTotal for {ioc}", fg=Colors.GAUGE_ORANGE)
+
+    # -- MISP / STIX indicator sharing (import + export) ----------------------
+    # MISP (Malware Information Sharing Platform) is the open-source standard for
+    # exchanging threat indicators. Downpour ingests MISP event JSON, STIX 2.0
+    # bundles, or plain IOC lists into the same titanium.db tables the intel tab
+    # reads, and can export the local indicator set back as a MISP event for
+    # sharing with peers/a SOC.
+
+    def _misp_classify_value(self, val: str) -> str:
+        """Map a raw MISP value to a store category: ip/domain/url/hash."""
+        if not val or len(val) < 4 or len(val) > 500:
+            return ''
+        if val.startswith(('http://', 'https://', 'ftp://')):
+            return 'url'
+        if re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', val):
+            parts: Any = val.split('.')
+            if all(0 <= int(p) <= 255 for p in parts):
+                if not (val.startswith('10.') or val.startswith('192.168.') or
+                        val.startswith('172.') or val == '127.0.0.1' or val == '0.0.0.0'):
+                    return 'ip'
+        if re.match(r'^[0-9a-fA-F]{32}$', val) or re.match(r'^[0-9a-fA-F]{40}$', val) \
+                or re.match(r'^[0-9a-fA-F]{64}$', val):
+            return 'hash'
+        if re.match(r'^[a-zA-Z0-9][a-zA-Z0-9\-]*(\.[a-zA-Z0-9][a-zA-Z0-9\-]*)*\.[a-zA-Z]{2,63}$',
+                    val) and '/' not in val:
+            if val not in ('localhost', 'localdomain', 'local', 'example.com'):
+                return 'domain'
+        return ''
+
+    def _misp_extract_iocs(self, obj: Any, out: dict) -> None:
+        """Recursively extract indicators from a MISP/STIX JSON node into
+        out = {'ip': [], 'domain': [], 'url': [], 'hash': []}."""
+        if isinstance(obj, dict):
+            # MISP Event.Attribute entries
+            if 'type' in obj and ('value' in obj):
+                _t: Any = str(obj.get('type', '')).lower()
+                _v: Any = str(obj.get('value', '')).strip()
+                # type hints from MISP: ip-src/ip-dst, domain/hostname, url,
+                # sha256/sha1/md5, filename|sha256 composite
+                _main: Any = _v.partition('|')[0]
+                _cat: Any = self._misp_classify_value(_v)
+                if _cat:
+                    out[_cat].append(_v)
+                    return
+            # STIX 2.0 objects
+            if obj.get('type') == 'ipv4-addr' and obj.get('value'):
+                _cat = self._misp_classify_value(str(obj['value']))
+                if _cat == 'ip':
+                    out['ip'].append(str(obj['value']))
+                return
+            if obj.get('type') == 'domain-name' and obj.get('value'):
+                out['domain'].append(str(obj['value']).lower())
+                return
+            if obj.get('type') == 'url' and obj.get('value'):
+                out['url'].append(str(obj['value']))
+                return
+            if obj.get('type') == 'file':
+                _fh: Any = obj.get('hashes') or {}
+                if isinstance(_fh, dict):
+                    for _h in _fh.values():
+                        if isinstance(_h, str) and self._misp_classify_value(_h) == 'hash':
+                            out['hash'].append(_h.lower())
+                return
+            if obj.get('type') == 'indicator' and obj.get('pattern'):
+                # STIX pattern: [ipv4-addr:value = '1.2.3.4'] / [url:value = '...']
+                for _m in re.finditer(r"value\s*=\s*'([^']+)'", str(obj['pattern'])):
+                    _cat = self._misp_classify_value(_m.group(1))
+                    if _cat:
+                        out[_cat].append(_m.group(1))
+                for _m in re.finditer(r"hashes\.'[^']+'\s*=\s*'([^']+)'",
+                                      str(obj['pattern'])):
+                    if self._misp_classify_value(_m.group(1)) == 'hash':
+                        out['hash'].append(_m.group(1).lower())
+                return
+            # descend into containers (top-level: Event, objects, response,
+            # Attribute lists, etc.); only fall back to generic dict scan if
+            # none of the known containers were present
+            for _k in ('Event', 'Attribute', 'objects', 'object', 'response'):
+                _c: Any = obj.get(_k)
+                if _c is not None:
+                    if isinstance(_c, (dict, list)):
+                        self._misp_extract_iocs(_c, out)
+                    return
+            # generic dict values fallback
+            for _v2 in obj.values():
+                if isinstance(_v2, (dict, list)):
+                    self._misp_extract_iocs(_v2, out)
+        elif isinstance(obj, list):
+            for _it in obj:
+                self._misp_extract_iocs(_it, out)
+
+    def _intel_import_misp(self):
+        """Import MISP event JSON / STIX bundle / plain IOC list into intel DB."""
+        from tkinter import filedialog as _fd
+        path: Any = _fd.askopenfilename(
+            filetypes=[("MISP/STIX/IOC files", "*.json *.txt *.csv *.ioc"),
+                       ("All files", "*.*")],
+            title="Import MISP / STIX / IOC Indicators")
+        if not path:
+            return
+
+        def _do():
+            try:
+                with open(path, 'r', errors='replace') as fh:
+                    raw: Any = fh.read()
+                out: Any = {'ip': [], 'domain': [], 'url': [], 'hash': []}
+                stripped: Any = raw.strip()
+                try:
+                    data: Any = json.loads(stripped)
+                    self._misp_extract_iocs(data, out)
+                except Exception:
+                    # plain text IOC list, one per line (hosts-format aware)
+                    for line in raw.splitlines():
+                        line = line.strip()
+                        if not line or line.startswith('#') or line.startswith(';') \
+                                or line.startswith('!'):
+                            continue
+                        if line.startswith('0.0.0.0 ') or line.startswith('127.0.0.1 '):
+                            line = line.split()[1]
+                        if ',' in line:
+                            for part in line.split(','):
+                                part = part.strip().strip('"').strip("'")
+                                if part:
+                                    self._misp_extract_iocs({'type': 'x', 'value': part}, out)
+                        else:
+                            self._misp_extract_iocs({'type': 'x', 'value': line}, out)
+                # dedupe
+                for _k in out:
+                    out[_k] = list(dict.fromkeys(out[_k]))
+                total: Any = sum(len(v) for v in out.values())
+                if not total:
+                    self.after(0, lambda:
+                        self._intel_result.config(
+                            text=f"[MISP] No recognizable indicators in {path}",
+                            fg=Colors.GAUGE_ORANGE))
+                    return
+                import os as _os
+                _src: Any = f"MISP-Import:{_os.path.basename(path)}"
+                _ts: Any = datetime.now().isoformat()
+                # write into the same tables _store_iocs() uses
+                if out['ip']:
+                    for _bi in range(0, min(len(out['ip']), 50000), 2000):
+                        self.db.executemany(
+                            "INSERT OR IGNORE INTO malicious_ips (ip, source, added, threat_type) VALUES (?,?,?,?)",
+                            [(ip, _src, _ts, 'MISP') for ip in out['ip'][_bi:_bi+2000]])
+                if out['url']:
+                    for _bi in range(0, min(len(out['url']), 50000), 2000):
+                        self.db.executemany(
+                            "INSERT OR IGNORE INTO malicious_urls (url, source, added) VALUES (?,?,?)",
+                            [(u, _src, _ts) for u in out['url'][_bi:_bi+2000]])
+                if out['hash']:
+                    for _bi in range(0, min(len(out['hash']), 50000), 2000):
+                        self.db.executemany(
+                            "INSERT OR IGNORE INTO malicious_hashes (hash, source, threat_name, added) VALUES (?,?,?,?)",
+                            [(h, _src, 'MISP', _ts) for h in out['hash'][_bi:_bi+2000]])
+                if out['domain']:
+                    for _bi in range(0, min(len(out['domain']), 50000), 2000):
+                        self.db.executemany(
+                            "INSERT OR IGNORE INTO malicious_domains (domain, source, added) VALUES (?,?,?)",
+                            [(d, _src, _ts) for d in out['domain'][_bi:_bi+2000]])
+                _msg: Any = (f"[MISP] Imported {total} indicators from "
+                             f"{_os.path.basename(path)}\n"
+                             f"  IPs: {len(out['ip'])} | Domains: {len(out['domain'])} | "
+                             f"URLs: {len(out['url'])} | Hashes: {len(out['hash'])}")
+                self.after(0, lambda m=_msg:
+                    self._intel_result.config(text=m, fg=Colors.GAUGE_GREEN))
+            except Exception as e:
+                self.after(0, lambda m=str(e):
+                    self._intel_result.config(text=f"[MISP] Import error: {m}",
+                                              fg=Colors.GAUGE_RED))
+        threading.Thread(target=_do, daemon=True).start()
+
+    def _intel_export_misp(self):
+        """Export current intel DB indicators as a MISP-format JSON event."""
+        from tkinter import filedialog as _fd
+        path: Any = _fd.asksaveasfilename(
+            defaultextension=".json",
+            filetypes=[("MISP JSON", "*.json"), ("All files", "*.*")],
+            title="Export Indicators as MISP Event")
+        if not path:
+            return
+
+        def _do():
+            try:
+                attributes: Any = []
+                try:
+                    rows: Any = self.db.execute(
+                        "SELECT ip, source, threat_type FROM malicious_ips")
+                    for ip, src, ttype in rows:
+                        attributes.append({
+                            "type": "ip-src", "category": "Network activity",
+                            "value": ip, "to_ids": True,
+                            "comment": f"source: {src}; {ttype or ''}".strip()})
+                except Exception:
+                    pass
+                try:
+                    rows = self.db.execute(
+                        "SELECT domain, source FROM malicious_domains")
+                    for dom, src in rows:
+                        attributes.append({
+                            "type": "domain", "category": "Network activity",
+                            "value": dom, "to_ids": True,
+                            "comment": f"source: {src}"})
+                except Exception:
+                    pass
+                try:
+                    rows = self.db.execute(
+                        "SELECT url, source FROM malicious_urls")
+                    for url, src in rows:
+                        attributes.append({
+                            "type": "url", "category": "Network activity",
+                            "value": url, "to_ids": True,
+                            "comment": f"source: {src}"})
+                except Exception:
+                    pass
+                try:
+                    rows = self.db.execute(
+                        "SELECT hash, source, threat_name FROM malicious_hashes")
+                    for h, src, name in rows:
+                        _t = 'sha256' if len(h) == 64 else ('sha1' if len(h) == 40 else 'md5')
+                        attributes.append({
+                            "type": _t, "category": "Payload delivery",
+                            "value": h, "to_ids": True,
+                            "comment": f"source: {src}; {name or ''}".strip()})
+                except Exception:
+                    pass
+                event: Any = {
+                    "Event": {
+                        "uuid": str(uuid.uuid4()),
+                        "info": f"Downpour v29 exported indicators",
+                        "date": datetime.now().strftime('%Y-%m-%d'),
+                        "analysis": "2",
+                        "Attribute": attributes,
+                    }
+                }
+                with open(path, 'w') as fh:
+                    json.dump(event, fh, indent=2)
+                self.after(0, lambda n=len(attributes), p=path:
+                    self._intel_result.config(
+                        text=f"[MISP] Exported {n} indicators -> {p}",
+                        fg=Colors.GAUGE_GREEN))
+            except Exception as e:
+                self.after(0, lambda m=str(e):
+                    self._intel_result.config(text=f"[MISP] Export error: {m}",
+                                              fg=Colors.GAUGE_RED))
+        threading.Thread(target=_do, daemon=True).start()
 
     def _add_custom_feed(self):
         name: Any = getattr(self, '_custom_db_name', None)

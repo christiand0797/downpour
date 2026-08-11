@@ -1,5 +1,41 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.3 Titanium — MISP/STIX Indicator Sharing (import + export)
+
+Session goal: add the OSINT4ALL open-source pick for indicator exchange — MISP
+(Malware Information Sharing Platform) — as a first-class Intel tab workflow.
+
+### MISP / STIX indicator import
+- **`_intel_import_misp()`** — file dialog (`.json`/`.txt`/`.csv`/`.ioc`) ingests
+  indicators into the same `titanium.db` tables the intel tab reads:
+  - **MISP event JSON** — walks `Event.Attribute[]`, honoring type hints
+    (`ip-src`/`ip-dst`, `domain`/`hostname`, `url`, `sha256`/`sha1`/`md5`,
+    `filename|sha256` composite → hash before the `|`).
+  - **STIX 2.0 bundles** — `indicator.pattern` (ipv4-addr/domain-name/url
+    `value = '...'` and `file:hashes.'SHA-256'`), plus `ipv4-addr`,
+    `domain-name`, `url`, `file.hashes` SCO objects.
+  - **Plain IOC text** — one per line, hosts-file (`0.0.0.0 dom`) and CSV aware.
+  - Stores via the same `INSERT OR IGNORE` batching `_store_iocs()` uses, with
+    `MISP-Import:<filename>` source tag; result tallies IPs/Domains/URLs/Hashes.
+- **`_misp_extract_iocs(obj, out)`** — recursive parser; descends `Event`,
+  `Attribute`, `objects`, `response` containers with dedupe, falls back to a
+  generic dict scan only when no known container present.
+- **`_misp_classify_value(val)`** — type classifier (ip/domain/url/hash);
+  domain regex upgraded to accept **multi-label domains** (subdomains).
+
+### MISP event export
+- **`_intel_export_misp()`** — dumps current `malicious_ips/domains/urls/hashes`
+  tables as a MISP-format JSON event (`Event.uuid/info/date/Attribute[]` with
+  proper `type`, `category`, `to_ids`, source `comment`), ready to share with a
+  peer MISP instance or SOC. Hash lengths auto-map to `sha256`/`sha1`/`md5`.
+
+### UI + verification
+- Two buttons added to Intel tab Threat Response row: `[MISP] Import IOCs`,
+  `[MISP] Export Event`.
+- Verified: MISP event + STIX bundle extraction (no duplicates), plain-text +
+  hosts-format import, import→DB→export round-trip against a temp DB, `py_compile`
+  OK, module import + 11-method integrity OK.
+
 ## v29.2 Titanium — Email-Auth DNS Check + DNS Allowlist Bug Fix
 
 Session goal: add a DNS-only SPF/DMARC/DKIM email-authentication check to the

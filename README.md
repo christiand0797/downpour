@@ -59,6 +59,7 @@ LAUNCH_V29_TITANIUM.bat
 | 🔎 **Inline Reputation Lookups** | AbuseIPDB, Shodan, Pulsedive, ONYPHE, EmailRep, GreyNoise via free API keys (web-page fallback when keyless); Settings → OSINT API Keys |
 | 🗄️ **Evidence Preservation** | Wayback Machine availability check (no-key, flags no-history phishing pages) + urlscan.io one-click scan submit |
 | 🔬 **CyberChef Decode** | One-click pre-loaded GCHQ CyberChef for safe offline IOC/encoding decoding from the Intel tab |
+| 🤝 **MISP/STIX Sharing** | Import MISP event JSON / STIX 2.0 bundles / plain IOC lists into the intel DB; export the local indicator set as a MISP-format JSON event for SOC/peer sharing |
 | 🌍 **Domain Investigation** | crt.sh certificate-transparency subdomain discovery (Certspotter fallback), Domain OSINT Stack deep-links (ViewDNS/DNSDumpster/MXToolbox/Wappalyzer/Netlas/ZoomEye/FullHunt + archives), email-security SPF/DMARC/DKIM DNS check |
 | 🔑 **Pwned Passwords Check** | HIBP k-anonymity hash-range lookup (no API key — only 5 SHA-1 chars sent); alerts if a password appears in breach corpora |
 | 🛡️ **DDoS Shield v30** | Auto-block flooders, rate monitor, block-all, export report, purge — persistent 24h-TTL blocklist restored at startup |
