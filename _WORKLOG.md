@@ -7,7 +7,14 @@
 - ✅ Fixed 6 global/nonlocal annotation conflicts
 - ✅ Implemented RemoteAccessController.disable_vector / enable_vector / disable_all_remote_access (@staticmethod)
 - ✅ Repointed THREAT FEEDS gauge from broken ultimate_threat_intel stub to working threat_feed_aggregator
-- ✅ Added `_make_button()` shared helper + tooltips to: Scanner, Processes, Network, Hardening, AEGIS, Intel, Firewall, Threats detail panel
+- ✅ Added `_make_button()` shared helper + tooltips to: Scanner, Processes, Network, Hardening, AEGIS, Intel, Firewalls, Threats detail panel
+
+## Session 2026-08-11 — Email-auth DNS check + DNS allowlist bug fix (v29.2)
+- ✅ `_dns_adv_email_security()` SPF/DMARC/DKIM check in DNS Advanced Tools (DNS-only, no key)
+- ✅ SPF verdict regex handles `-all`/`~all`/`+all`/missing; DMARC `p=` tag regex fixes `sp=reject` false-positive; DKIM multi-selector probe (google/selector1/etc.)
+- ✅ **FIXED latent bug**: `_DNS_SAFE_CMD_RE` had a literal backspace byte (`\x08`) instead of `\b`, making every `_dns_run_cmd()` return `[BLOCKED]` — whole DNS tab tooling was silently dead; now `\b`, all 7 call patterns verified
+- ✅ Live-verified: google.com (SPF `~all` WARN / DMARC `p=reject` OK / DKIM google selector OK), github.com (DMARC `p=quarantine; sp=reject` now correctly WARN)
+- ✅ `_txt_for()` extracts quoted TXT values via regex (nslookup puts value on a separate line from `text =`)
 
 ## Session 2026-08-10 — DDoS v30 bootstrap + OSINT4ALL indicator stack (v29.1)
 - ✅ Fixed duplicate/conflicting DDoS blocklist persistence (v29 flat dict vs v30 wrapper) — all blocks now land in one JSON store

@@ -39135,6 +39135,7 @@ Verification Status:
         _tbtn(tools_f, '[WEB] Whois Lookup',        self._dns_adv_whois)
         _tbtn(tools_f, '[SHIELD] Check Blacklists (DNSBL)', self._dns_adv_dnsbl)
         _tbtn(tools_f, '[CT] crt.sh Subdomains',     self._dns_adv_crtsh)
+        _tbtn(tools_f, '[EMAIL] SPF/DMARC/DKIM',     self._dns_adv_email_security)
         _tbtn(tools_f, '[WEB] Domain OSINT Stack',   self._dns_adv_domain_osint)
 
         # Column 2: Security Tests
@@ -39240,7 +39241,7 @@ Verification Status:
 
     # -- DNS command allowlist + shell injection guard -------------------------
     _DNS_SAFE_CMD_RE: Any = re.compile(
-        r'^(nslookup|ipconfig|netsh|powershell|Get-DnsClient)',
+        r'^(nslookup|ipconfig|netsh|powershell|Get-DnsClient)\b',
         re.IGNORECASE)
     _DNS_SHELL_META: Any = re.compile(r'[;&|`\r\n$(){}\[\]<>!]')
 
@@ -40422,6 +40423,117 @@ Verification Status:
         self._dns_out(self._dns_adv_output,
                       f'Opened {opened}/{len(links)} infrastructure sources for {domain}',
                       Colors.GAUGE_TEAL)
+
+    def _dns_adv_email_security(self):
+        """SPF / DMARC / DKIM email-auth record check (DNS-only, no key).
+
+        Email spoofing is one of the cheapest ways into a network. This runs
+        three passive TXT queries:
+          • SPF   — v=spf1 ... all  (-all = strict, ~all = softfail, +all = open)
+          • DMARC — v=DMARC1; p=reject/quarantine/none (from _dmarc.<domain>)
+          • DKIM  — default selector probe (default._domainkey.<domain>)
+        and prints a plain-language security verdict for each.
+        """
+        domain: Any = self._dns_adv_domain_var.get().strip()
+        if not domain:
+            return
+
+        def _txt_for(q: str) -> str:
+            r: Any = self._dns_run_cmd(f'nslookup -type=TXT {q}', 6)
+            # nslookup prints records as "quoted value" lines (one per TXT RR);
+            # extract the quoted strings directly.
+            vals: Any = re.findall(r'"([^"]*)"', r or '')
+            return '\n'.join(vals)
+
+        def _do():
+            self._dns_out(self._dns_adv_output,
+                          f'EMAIL AUTH (SPF/DMARC/DKIM) check for: {domain}',
+                          Colors.GAUGE_TEAL, True)
+
+            # 1) SPF
+            spf_raw: Any = _txt_for(domain)
+            spf_low: Any = spf_raw.lower()
+            # trailing mechanism: -all (hardfail) / ~all (softfail) / +all (open)
+            _spf_all: Any = re.search(r'(?:^|\s)([\-~+]?)all(?:\s|$)', spf_low)
+            _all_sign: Any = _spf_all.group(1) if _spf_all else ''
+            if 'v=spf1' in spf_low:
+                if _all_sign == '-':
+                    spf_verdict: Any = '[OK] SPF present with hard fail (-all) — strict'
+                    spf_col: Any = Colors.GAUGE_GREEN
+                elif _all_sign == '~':
+                    spf_verdict = '[WARN] SPF softfail (~all) — spoofed mail may pass'
+                    spf_col = Colors.GAUGE_ORANGE
+                elif _all_sign == '+':
+                    spf_verdict = '[HIGH] SPF +all — any sender can spoof this domain'
+                    spf_col = Colors.GAUGE_RED
+                else:
+                    spf_verdict = '[WARN] SPF present but missing an "all" mechanism'
+                    spf_col = Colors.GAUGE_ORANGE
+            else:
+                spf_verdict = '[HIGH] No SPF record — domain can be spoofed freely'
+                spf_col = Colors.GAUGE_RED
+            self._dns_out(self._dns_adv_output, f'SPF:  {spf_verdict}', spf_col)
+            spf_show: Any = next((ln for ln in spf_raw.splitlines()
+                                  if 'v=spf1' in ln.lower()), spf_raw)
+            if spf_show:
+                self._dns_out(self._dns_adv_output, f'      {spf_show[:160]}',
+                              Colors.TEXT_DIM)
+
+            # 2) DMARC
+            dmarc_raw: Any = _txt_for(f'_dmarc.{domain}')
+            dmarc_low: Any = dmarc_raw.lower()
+            # extract ONLY the main policy tag 'p=' (not 'sp=', 'rua=', 'fo=' etc.)
+            _p_tag: Any = re.search(r'(?:^|;)\s*p=([a-z]+)', dmarc_low)
+            _p_val: Any = _p_tag.group(1) if _p_tag else ''
+            if 'v=dmarc1' in dmarc_low:
+                if _p_val == 'reject':
+                    dmarc_verdict: Any = '[OK] DMARC p=reject — strongest policy'
+                    dmarc_col: Any = Colors.GAUGE_GREEN
+                elif _p_val == 'quarantine':
+                    dmarc_verdict = '[WARN] DMARC p=quarantine — spoofed mail sent to spam'
+                    dmarc_col = Colors.GAUGE_ORANGE
+                else:
+                    dmarc_verdict = '[HIGH] DMARC p=none — monitor only, no enforcement'
+                    dmarc_col = Colors.GAUGE_RED
+            else:
+                dmarc_verdict = '[HIGH] No DMARC record — no reporting or policy'
+                dmarc_col = Colors.GAUGE_RED
+            self._dns_out(self._dns_adv_output, f'DMARC: {dmarc_verdict}', dmarc_col)
+            if dmarc_raw:
+                self._dns_out(self._dns_adv_output, f'      {dmarc_raw.splitlines()[0]}',
+                              Colors.TEXT_DIM)
+
+            # 3) DKIM (multi-selector probe)
+            dkim_selectors: Any = ('default', 'google', 'selector1', 'selector2',
+                                   's1', 's2', 'k1', 'dkim')
+            dkim_found: Any = None
+            dkim_records: Any = []
+            for _sel in dkim_selectors:
+                _raw: Any = _txt_for(f'{_sel}._domainkey.{domain}')
+                _low: Any = _raw.lower()
+                if 'k=rsa' in _low or 'v=dkim1' in _low or 'p=' in _low:
+                    dkim_found = _sel
+                    dkim_records.append(_raw)
+                    break
+            if dkim_found:
+                dkim_verdict: Any = f'[OK] DKIM key found (selector: {dkim_found}._domainkey)'
+                dkim_col: Any = Colors.GAUGE_GREEN
+            else:
+                dkim_verdict = '[WARN] No DKIM found across common selectors'
+                dkim_col = Colors.GAUGE_ORANGE
+            self._dns_out(self._dns_adv_output, f'DKIM:  {dkim_verdict}', dkim_col)
+            if dkim_records:
+                for _rec in dkim_records:
+                    self._dns_out(self._dns_adv_output, f'      {_rec[:160]}',
+                                  Colors.TEXT_DIM)
+
+            risks: Any = sum(1 for _s, _c in [
+                (spf_verdict, spf_col), (dmarc_verdict, dmarc_col)] if _c == Colors.GAUGE_RED)
+            self._dns_out(self._dns_adv_output,
+                          f'Result: {domain} has {risks} high-risk email-auth '
+                          f'gap(s). Fix SPF/DMARC before relying on DKIM.',
+                          Colors.GAUGE_RED if risks else Colors.GAUGE_GREEN)
+        threading.Thread(target=_do, daemon=True).start()
 
     def _dns_full_security_audit(self):
         def _do():

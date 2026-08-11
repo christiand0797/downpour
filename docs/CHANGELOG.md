@@ -1,5 +1,42 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.2 Titanium — Email-Auth DNS Check + DNS Allowlist Bug Fix
+
+Session goal: add a DNS-only SPF/DMARC/DKIM email-authentication check to the
+DNS Advanced Tools, and fix a latent shell-allowlist regex bug found while
+verifying it.
+
+### DNS Advanced Tools — new `[EMAIL] SPF/DMARC/DKIM` check
+- **`_dns_adv_email_security()`** runs three passive `nslookup -type=TXT`
+  queries (DNS-only, no API key) and renders plain-language verdicts:
+  - **SPF** — `v=spf1` trailing `all` mechanism parsed with a tag regex:
+    `-all` hardfail = OK (green), `~all` softfail = WARN (orange),
+    `+all` open = HIGH (red), missing `all` = WARN, no record = HIGH.
+  - **DMARC** — queries `_dmarc.<domain>` and extracts the **main `p=` policy
+    tag only** (regex `(?:^|;)\s*p=([a-z]+)`), so `p=quarantine; sp=reject`
+    no longer false-positives as `p=reject`. `p=reject` = OK, `p=quarantine` =
+    WARN, `p=none` = HIGH, missing = HIGH.
+  - **DKIM** — multi-selector probe (`default`, `google`, `selector1`,
+    `selector2`, `s1`, `s2`, `k1`, `dkim`), reports which selector holds the
+    `v=DKIM1; k=rsa; p=` key; cross-selector miss degrades to WARN.
+  - Detail lines show the raw record; a closing line tallies HIGH-risk gaps.
+  - Live-verified: google.com → SPF `~all` WARN / DMARC `p=reject` OK / DKIM
+    (google selector) OK; github.com → DMARC `p=quarantine; sp=reject` now
+    correctly reported WARN (not reject).
+- **`_dns_adv_email_security` wired** into the DNS Advanced Tools column as a
+  `_tbtn` between crt.sh and the Domain OSINT Stack.
+
+### Bug fix — DNS command allowlist regex rejected every command
+- `_DNS_SAFE_CMD_RE` at the allowlist guard contained a **literal backspace
+  byte** (`\x08`) instead of `\b` word boundary after the command alternation,
+  so `^(nslookup|ipconfig|netsh|powershell|Get-DnsClient)<BACKSPACE>` matched
+  nothing — every `_dns_run_cmd()` call returned `[BLOCKED: command not in DNS
+  allowlist]`, silently breaking the whole DNS tab's nslookup / ipconfig /
+  netsh / powershell tooling. Replaced with `\b`; all 7 existing call patterns
+  (nslookup, -type=dnskey, ipconfig /flushdns, netsh winsock/int ip reset,
+  powershell -Command Get-DnsClient*) verified to pass, shell-metachar strip
+  still enforced first.
+
 ## v29.1 Titanium — OSINT4ALL Indicator-Triage + DDoS v30 Bootstrap
 
 Session goal: leverage the OSINT4ALL curated OSINT resource directory
