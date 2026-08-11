@@ -1,5 +1,21 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.4 Titanium — MISP Import Firewall-Block Option
+
+Session goal: make MISP-imported indicators immediately actionable.
+
+### Optional inbound firewall blocking of imported IPs
+- `_intel_import_misp()` now prompts after a successful import with
+  `messagebox.askyesno` — "Block imported IPs via Windows Firewall?".
+  - Accepting creates `Downpour_MISP_<ip>` inbound block rules via
+    `netsh advfirewall firewall add rule`, capped at `_MISP_BLOCK_IMPORT_CAP`
+    (250) per import for safety.
+  - Result label reports blocked/failed/skipped tallies; failures degrade to
+    an orange status instead of aborting the import.
+  - Declining skips firewall work entirely (indicator import still completes).
+- Verified: accept path issues exactly one netsh rule per IP, decline path issues
+  zero; import tally + block tally both reported; `py_compile` + integrity OK.
+
 ## v29.3 Titanium — MISP/STIX Indicator Sharing (import + export)
 
 Session goal: add the OSINT4ALL open-source pick for indicator exchange — MISP

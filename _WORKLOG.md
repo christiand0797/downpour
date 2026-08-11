@@ -9,6 +9,10 @@
 - ✅ Repointed THREAT FEEDS gauge from broken ultimate_threat_intel stub to working threat_feed_aggregator
 - ✅ Added `_make_button()` shared helper + tooltips to: Scanner, Processes, Network, Hardening, AEGIS, Intel, Firewalls, Threats detail panel
 
+## Session 2026-08-11c — MISP import firewall-block option (v29.4)
+- ✅ `_intel_import_misp()` prompts to firewall-block imported IPs (askyesno) — `Downpour_MISP_<ip>` netsh inbound rules, cap 250 (`_MISP_BLOCK_IMPORT_CAP`), blocked/failed/skipped tally
+- ✅ Decline path = no firewall work; import unaffected; accept/decline verified via fake netsh harness
+
 ## Session 2026-08-11b — MISP/STIX indicator sharing (v29.3)
 - ✅ `_intel_import_misp()` — imports MISP event JSON / STIX 2.0 bundle / plain IOC text into titanium.db intel tables (source `MISP-Import:<file>`)
 - ✅ `_misp_extract_iocs()` recursive parser (Event/Attribute/objects/response containers, dedupe, generic fallback)

@@ -24088,6 +24088,7 @@ class downpour(tk.Tk):
     # bundles, or plain IOC lists into the same titanium.db tables the intel tab
     # reads, and can export the local indicator set back as a MISP event for
     # sharing with peers/a SOC.
+    _MISP_BLOCK_IMPORT_CAP: Any = 250
 
     def _misp_classify_value(self, val: str) -> str:
         """Map a raw MISP value to a store category: ip/domain/url/hash."""
@@ -24247,6 +24248,44 @@ class downpour(tk.Tk):
                              f"URLs: {len(out['url'])} | Hashes: {len(out['hash'])}")
                 self.after(0, lambda m=_msg:
                     self._intel_result.config(text=m, fg=Colors.GAUGE_GREEN))
+                # Optional: firewall-block the imported IPs (cap for safety)
+                if out['ip']:
+                    try:
+                        from tkinter import messagebox as _mb
+                        _n: Any = len(out['ip'])
+                        if _mb.askyesno(
+                                "Block imported IPs?",
+                                f"{_n} IP(s) were imported.\n\n"
+                                f"Block them now via Windows Firewall?\n"
+                                f"(creates 'Downpour_MISP_<ip>' inbound block rules)"):
+                            _blocked: Any = 0
+                            _failed: Any = 0
+                            import subprocess as _sp
+                            for _ip in out['ip'][:self._MISP_BLOCK_IMPORT_CAP]:
+                                try:
+                                    _r: Any = _sp.run(
+                                        ['netsh', 'advfirewall', 'firewall', 'add', 'rule',
+                                         f'name=Downpour_MISP_{_ip}', 'dir=in', 'action=block',
+                                         f'remoteip={_ip}'],
+                                        capture_output=True, text=True, timeout=8)
+                                    if _r.returncode == 0:
+                                        _blocked += 1
+                                    else:
+                                        _failed += 1
+                                except Exception:
+                                    _failed += 1
+                            _skip: Any = max(0, _n - self._MISP_BLOCK_IMPORT_CAP)
+                            self.after(0, lambda b=_blocked, f=_failed, s=_skip:
+                                self._intel_result.config(
+                                    text=f"[MISP] Firewall: blocked {b} IPs"
+                                         f"{', failed ' + str(f) if f else ''}"
+                                         f"{', skipped ' + str(s) if s else ''}",
+                                    fg=Colors.GAUGE_GREEN if not f else Colors.GAUGE_ORANGE))
+                    except Exception as _be:
+                        self.after(0, lambda m=str(_be):
+                            self._intel_result.config(
+                                text=f"[MISP] Firewall block skipped: {m}",
+                                fg=Colors.GAUGE_ORANGE))
             except Exception as e:
                 self.after(0, lambda m=str(e):
                     self._intel_result.config(text=f"[MISP] Import error: {m}",
