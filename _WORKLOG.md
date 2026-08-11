@@ -9,6 +9,11 @@
 - ✅ Repointed THREAT FEEDS gauge from broken ultimate_threat_intel stub to working threat_feed_aggregator
 - ✅ Added `_make_button()` shared helper + tooltips to: Scanner, Processes, Network, Hardening, AEGIS, Intel, Firewalls, Threats detail panel
 
+## Session 2026-08-11g — Inline MalwareBazaar hash lookup (v29.8)
+- ✅ `_osint_malwarebazaar_lookup(ioc)` — POST get_info (MD5/SHA1/SHA256), free Auth-Key header; signature/file/type/timestamps/tags/vendor-intel
+- ✅ Live probe: endpoint now 401 without Auth-Key → added Settings key field + keyless page fallback
+- ✅ Verified hit/not-found/non-hash/keyless paths
+
 ## Session 2026-08-11f — Inline Netlas.io host lookup (v29.7)
 - ✅ `_osint_netlas_lookup(ioc)` — Netlas host API (Bearer key): IP (ASN/netblock/org/geo/PTR/ports/software) + domain (WHOIS/related domains/NS/MX/ports)
 - ✅ `netlas_key` Settings field; `Netlas` button in Intel Threat Response row

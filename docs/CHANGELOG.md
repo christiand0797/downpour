@@ -1,5 +1,28 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.8 Titanium — Inline MalwareBazaar Hash Lookup
+
+Session goal: give hash IOCs their first inline lookup (previously hashes only
+had deep-links to VirusTotal/Hybrid/MalwareBazaar).
+
+### Inline MalwareBazaar get_info lookup
+- **`_osint_malwarebazaar_lookup(ioc)`** — abuse.ch MalwareBazaar community API
+  (POST form-data `query=get_info&hash=<md5|sha1|sha256>`, free Auth-Key from
+  auth.abuse.ch, required since the API moved to header auth):
+  - Returns malware signature/family, file name + size, MIME type, first/last
+    seen timestamps, tags and per-vendor intel detection counts.
+  - Hash format gate (32/40/64 hex) before calling; `hash_not_found` → clean
+    "not known to MalwareBazaar" dialog (not an error).
+  - Keyless mode opens `bazaar.abuse.ch/sample/<hash>/` instead of failing.
+  - Runs on `self._executor`; failure degrades to the public sample page.
+- **`_osint_malwarebazaar_show(text, ioc)`** — Tk callback (Censys/Netlas pattern).
+- **Settings**: `malwarebazaar_key` masked field added to OSINT API Keys.
+- **UI**: `MalwareBazaar` button added to Intel tab Threat Response row.
+- Verified: hit path (signature/file/tags/vendor intel), not-found dialog,
+  non-hash input gate, keyless fallback, `py_compile` + integrity OK.
+- Note: live probe confirmed the endpoint now returns 401 without an Auth-Key
+  header (keyless `get_info` is no longer accepted).
+
 ## v29.7 Titanium — Inline Netlas.io Host Lookup
 
 Session goal: add the last deep-link-only attack-surface service from the

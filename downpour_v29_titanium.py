@@ -7023,7 +7023,8 @@ class ConfigManager:
                       'censys_api_id': '', 'censys_secret': '',
                       'pulsedive_key': '', 'onyphe_key': '',
                       'emailrep_key': '', 'greynoise_key': '',
-                      'urlscan_key': '', 'netlas_key': ''},
+                      'urlscan_key': '', 'netlas_key': '',
+                      'malwarebazaar_key': ''},
     }
 
     def __init__(self):
@@ -23896,6 +23897,7 @@ class downpour(tk.Tk):
             ("Wayback Check",        lambda: self._osint_wayback_check(self._get_intel_entry_value())),
             ("urlscan Submit",       lambda: self._osint_urlscan_submit(self._get_intel_entry_value())),
             ("urlscan Search",       lambda: self._osint_urlscan_search(self._get_intel_entry_value())),
+            ("MalwareBazaar",        lambda: self._osint_malwarebazaar_lookup(self._get_intel_entry_value())),
             ("CyberChef Decode",     lambda: self._intel_cyberchef()),
             ("Export Report",        lambda: self._intel_export_report()),
             ("[MISP] Import IOCs",   lambda: self._intel_import_misp()),
@@ -27776,6 +27778,7 @@ Verification Status:
             ('osint', 'greynoise_key', 'GreyNoise API key:'),
             ('osint', 'urlscan_key',   'urlscan.io API key:'),
             ('osint', 'netlas_key',    'Netlas API key (app.netlas.io):'),
+            ('osint', 'malwarebazaar_key', 'MalwareBazaar Auth-Key (auth.abuse.ch):'),
         ]:
             orow: Any = tk.Frame(f, bg=Colors.GLASS_CARD)
             orow.pack(fill='x', padx=8, pady=2)
@@ -38065,6 +38068,115 @@ Verification Status:
         import webbrowser
         mb.showinfo('Netlas Host View', text)
         webbrowser.open(f'https://app.netlas.io/host/{ioc}/')
+
+    def _osint_malwarebazaar_lookup(self, ioc: str):
+        """Inline MalwareBazaar hash lookup (threat-intel stack).
+
+        Uses the abuse.ch MalwareBazaar community API (POST form-data
+        `query=get_info&hash=<md5|sha1|sha256>`, free Auth-Key from
+        auth.abuse.ch). Returns malware signature/family, file name/type,
+        first/last seen, tags and vendor detections. Keyless mode opens the
+        public sample page.
+        """
+        import webbrowser
+        import tkinter.messagebox as mb
+        ioc = (ioc or '').strip()
+        if not ioc:
+            mb.showinfo('MalwareBazaar', 'Enter a file hash (MD5/SHA1/SHA256) '
+                        'to look up.')
+            return
+        is_hash: Any = bool(re.match(r'^[0-9a-fA-F]{32}$|^[0-9a-fA-F]{40}$|^[0-9a-fA-F]{64}$', ioc))
+        if not is_hash:
+            mb.showinfo('MalwareBazaar', 'MalwareBazaar looks up file hashes '
+                        '(MD5 = 32 hex, SHA1 = 40 hex, SHA256 = 64 hex).')
+            return
+        api_key: Any = ''
+        try:
+            api_key = str(self.cfg.get('osint', 'malwarebazaar_key', '') or '')
+        except Exception:
+            api_key = ''
+        if not api_key:
+            webbrowser.open(f'https://bazaar.abuse.ch/sample/{ioc}/')
+            self._queue_alert(f'[OSINT] Opened MalwareBazaar page for {ioc} '
+                              '(set MalwareBazaar Auth-Key in Settings for '
+                              'inline results).', Colors.GAUGE_TEAL)
+            return
+
+        def _do():
+            try:
+                import urllib.request as _ur
+                import urllib.parse as _up
+                import json as _j
+                _body: Any = _up.urlencode(
+                    {'query': 'get_info', 'hash': ioc}).encode()
+                req: Any = _ur.Request(
+                    'https://mb-api.abuse.ch/api/v1/', data=_body,
+                    headers={'User-Agent': 'Downpour-SecuritySuite/20',
+                             'Auth-Key': api_key,
+                             'Accept': 'application/json'})
+                with _ur.urlopen(req, timeout=20) as r:
+                    d: Any = _j.loads(r.read().decode('utf-8', 'replace'))
+                qs: Any = str(d.get('query_status', ''))
+                if qs != 'ok':
+                    data_note: Any = 'not found in MalwareBazaar' if \
+                        qs == 'hash_not_found' else qs
+                    self.after(0, lambda _q=data_note, _i=ioc: mb.showinfo(
+                        'MalwareBazaar',
+                        f'{_i}\n\nNot found ({_q}). The sample is not known '
+                        'to abuse.ch MalwareBazaar.'))
+                    self._queue_alert(f'[OSINT] MalwareBazaar {ioc}: {data_note}',
+                                      Colors.GAUGE_TEAL)
+                    return
+                recs: Any = d.get('data') or []
+                if not recs:
+                    self.after(0, lambda _i=ioc: mb.showinfo(
+                        'MalwareBazaar', f'{_i}\n\nNo record returned.'))
+                    return
+                rec: Any = recs[0]
+                lines: Any = [f'MalwareBazaar: {rec.get("sha256_hash", ioc)}']
+                sig: Any = rec.get('signature')
+                lines.append(f'Signature: {sig or "unknown"}')
+                if rec.get('file_name'):
+                    lines.append(f'File: {rec.get("file_name", "?")} '
+                                 f'({rec.get("file_size", "?")} bytes)')
+                if rec.get('file_type_mime'):
+                    lines.append(f'Type: {rec.get("file_type_mime", "?")}')
+                if rec.get('first_seen'):
+                    lines.append(f'First seen: {rec.get("first_seen", "?")}')
+                if rec.get('last_seen'):
+                    lines.append(f'Last seen: {rec.get("last_seen", "?")}')
+                tags: Any = rec.get('tags') or []
+                if tags:
+                    lines.append(f'Tags: {", ".join(str(t) for t in tags[:8])}')
+                vin: Any = rec.get('vendor_intel') or {}
+                if vin:
+                    hits: Any = []
+                    for vendor, vd in vin.items():
+                        if isinstance(vd, list) and vd:
+                            hits.append(f'{vendor} ({len(vd)} detections)')
+                        elif vd:
+                            hits.append(str(vendor))
+                    if hits:
+                        lines.append(f'Vendor intel: {", ".join(hits[:5])}')
+                self.after(0, lambda m='\n'.join(lines):
+                    self._osint_malwarebazaar_show(m, ioc))
+                self._queue_alert(
+                    f'[OSINT] MalwareBazaar {ioc}: {sig or "unknown signature"}',
+                    Colors.GAUGE_RED if sig else Colors.GAUGE_TEAL)
+            except Exception as e:
+                self.after(0, lambda _e=str(e), _i=ioc: mb.showwarning(
+                    'MalwareBazaar',
+                    f'Inline lookup failed ({_e[:120]}).\n'
+                    'Opening the public sample page instead.'))
+                webbrowser.open(f'https://bazaar.abuse.ch/sample/{ioc}/')
+        self._executor.submit(_do)
+
+    def _osint_malwarebazaar_show(self, text: str, ioc: str):
+        """Display MalwareBazaar result and open the public sample page."""
+        import tkinter.messagebox as mb
+        import webbrowser
+        mb.showinfo('MalwareBazaar Lookup', text)
+        webbrowser.open(f'https://bazaar.abuse.ch/sample/{ioc}/')
 
     def _osint_pulsedive_lookup(self, ioc: str):
         """Inline Pulsedive indicator enrichment (threat-intel stack).
