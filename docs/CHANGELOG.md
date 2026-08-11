@@ -1,5 +1,29 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.5 Titanium — Keyless urlscan.io Public-Search Lookup
+
+Session goal: add a credential-free urlscan.io indicator triage path to the
+OSINT4ALL stack (the keyed submit already covers evidence preservation).
+
+### Inline keyless urlscan.io search
+- **`_osint_urlscan_search(ioc)`** — queries the public urlscan.io search index
+  (no API key) for the most recent public scans touching the indicator and
+  surfaces verdicts + scores in a messagebox, then opens the matching index page:
+  - IP → `ip:<addr>`; URL → `page.url:"..."`; otherwise `domain:<host>`.
+  - Renders up to 8 recent results with `[MALICIOUS]`/`score=` flags, page
+    domain/IP and scan time, plus the index `total`.
+  - `is:` operator dropped in favor of `ip:` — urlscan returns 403 on `is:`
+    without credentials from this network.
+  - Runs on `self._executor`; network failure falls back to opening the public
+    search site.
+- **`_urlscan_search_show(text, page)`** — small Tk callback that shows the
+  result dialog and opens the page (separated so the executor callback stays
+  single-purpose).
+- **UI**: `urlscan Search` button added to Intel tab Threat Response row next to
+  the existing `urlscan Submit`.
+- Verified live: `domain:example.com`, `ip:1.1.1.1`, and `page.url:"https://..."`
+  variants all return results; expr builder + `py_compile` + integrity OK.
+
 ## v29.4 Titanium — MISP Import Firewall-Block Option
 
 Session goal: make MISP-imported indicators immediately actionable.

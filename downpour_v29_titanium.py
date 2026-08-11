@@ -23892,6 +23892,7 @@ class downpour(tk.Tk):
             ("EmailRep",             lambda: self._osint_emailrep_lookup(self._get_intel_entry_value())),
             ("Wayback Check",        lambda: self._osint_wayback_check(self._get_intel_entry_value())),
             ("urlscan Submit",       lambda: self._osint_urlscan_submit(self._get_intel_entry_value())),
+            ("urlscan Search",       lambda: self._osint_urlscan_search(self._get_intel_entry_value())),
             ("CyberChef Decode",     lambda: self._intel_cyberchef()),
             ("Export Report",        lambda: self._intel_export_report()),
             ("[MISP] Import IOCs",   lambda: self._intel_import_misp()),
@@ -37767,6 +37768,85 @@ Verification Status:
                                   'Opening search instead.'))
                 webbrowser.open(f'https://urlscan.io/search/#{target}')
         self._executor.submit(_do)
+
+    def _osint_urlscan_search(self, ioc: str):
+        """Keyless urlscan.io public-search lookup.
+
+        Queries the public urlscan.io search index (no API key) for the most
+        recent public scans touching the given IP / domain / URL and surfaces
+        verdicts + scores. Unlike the keyed submit, this needs no credentials —
+        it reads scans that others (and previous local submissions) already made.
+        """
+        import webbrowser
+        import tkinter.messagebox as mb
+        ioc = (ioc or '').strip()
+        if not ioc:
+            mb.showinfo('urlscan.io Search', 'Enter an IP, domain, or URL.')
+            return
+        # Build the search expression by indicator shape
+        if re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', ioc):
+            expr: Any = f'ip:{ioc}'
+        elif ioc.startswith(('http://', 'https://')):
+            expr = f'page.url:"{ioc}"'
+        else:
+            expr = f'domain:{ioc}'
+
+        def _do():
+            try:
+                import urllib.request as _ur
+                import urllib.parse as _up
+                import json as _j
+                q: Any = _up.quote(expr)
+                url: Any = (f'https://urlscan.io/api/v1/search/?'
+                            f'q={q}&size=8')
+                req: Any = _ur.Request(url,
+                                       headers={'User-Agent': 'Downpour-SecuritySuite/20',
+                                                'Accept': 'application/json'})
+                with _ur.urlopen(req, timeout=15) as r:
+                    d: Any = _j.loads(r.read().decode('utf-8', 'replace'))
+                results: Any = d.get('results') or []
+                total: Any = d.get('total', 0)
+                if not results:
+                    self.after(0, lambda: mb.showinfo(
+                        'urlscan.io Search',
+                        f'No public scans found for {expr}.\n\n'
+                        f'Total index matches: {total}\n'
+                        f'Try "Submit Scan" to create the first one.'))
+                    return
+                lines: Any = [f'urlscan.io public search: {expr}',
+                              f'Index matches: {total}  |  showing {len(results)}\n']
+                for res in results[:8]:
+                    t: Any = res.get('task') or {}
+                    pg: Any = res.get('page') or {}
+                    ov: Any = (res.get('verdicts') or {}).get('overall') or {}
+                    _url: Any = t.get('url', '?')
+                    _dom: Any = pg.get('domain', '?')
+                    _ip: Any = pg.get('ip', '?')
+                    _score: Any = t.get('score')
+                    _mal: Any = ov.get('malicious')
+                    _ts: Any = (t.get('time') or '?')[:19]
+                    _flags: Any = []
+                    if _mal:
+                        _flags.append('MALICIOUS')
+                    if _score:
+                        _flags.append(f'score={_score}')
+                    lines.append(f'[{"!".join(_flags) or "clean"}] {_url[:70]}')
+                    lines.append(f'    {_dom} ({_ip}) @ {_ts}')
+                self.after(0, lambda m='\n'.join(lines), p=f'https://urlscan.io/search/#{expr}':
+                    self._urlscan_search_show(m, p))
+            except Exception as e:
+                self.after(0, lambda _e=str(e): mb.showwarning(
+                    'urlscan.io Search',
+                    f'Search failed ({_e[:120]}).\nOpening the site instead.'))
+                webbrowser.open(f'https://urlscan.io/search/#{expr}')
+        self._executor.submit(_do)
+
+    def _urlscan_search_show(self, text: str, page: str):
+        """Display urlscan search results and open the index page."""
+        import tkinter.messagebox as mb
+        import webbrowser
+        mb.showinfo('urlscan.io Public Search', text)
+        webbrowser.open(page)
 
     def _osint_pulsedive_lookup(self, ioc: str):
         """Inline Pulsedive indicator enrichment (threat-intel stack).
