@@ -1,5 +1,25 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.7 Titanium — Inline Netlas.io Host Lookup
+
+Session goal: add the last deep-link-only attack-surface service from the
+OSINT4ALL stack — Netlas.io (free tier: 50 API requests/day).
+
+### Inline Netlas host API lookup
+- **`_osint_netlas_lookup(ioc)`** — Netlas host API (`app.netlas.io/api/host/<ip|domain>/`,
+  Bearer auth) for both IP and domain IOCs:
+  - **IP**: ASN + netblock, org, geo, PTR, related domains, open ports,
+    software fingerprints (with tag names / fullnames).
+  - **Domain**: WHOIS registrant, related domains, NS + MX records, open ports.
+  - Keyless mode opens `app.netlas.io/host/<ioc>/` instead of failing.
+  - Runs on `self._executor`; failure degrades to the public host page.
+- **`_osint_netlas_show(text, ioc)`** — Tk callback matching the Censys pattern.
+- **Settings**: `netlas_key` masked field added to OSINT API Keys.
+- **UI**: `Netlas` button added to Intel tab Threat Response row (Netlas was
+  previously only a domain deep-link in the multi-lookup stack).
+- Verified: IP + domain `_do` bodies vs mocked v2 responses, keyless fallback,
+  empty-input handling, `py_compile` + integrity OK.
+
 ## v29.6 Titanium — Inline Censys Host-View Lookup
 
 Session goal: close the last gap in the OSINT4ALL attack-surface stack — Censys

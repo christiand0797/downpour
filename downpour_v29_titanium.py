@@ -7023,7 +7023,7 @@ class ConfigManager:
                       'censys_api_id': '', 'censys_secret': '',
                       'pulsedive_key': '', 'onyphe_key': '',
                       'emailrep_key': '', 'greynoise_key': '',
-                      'urlscan_key': ''},
+                      'urlscan_key': '', 'netlas_key': ''},
     }
 
     def __init__(self):
@@ -23891,6 +23891,7 @@ class downpour(tk.Tk):
             ("Pulsedive",            lambda: self._osint_pulsedive_lookup(self._get_intel_entry_value())),
             ("ONYPHE",               lambda: self._osint_onyphe_lookup(self._get_intel_entry_value())),
             ("Censys",               lambda: self._osint_censys_lookup(self._get_intel_entry_value())),
+            ("Netlas",               lambda: self._osint_netlas_lookup(self._get_intel_entry_value())),
             ("EmailRep",             lambda: self._osint_emailrep_lookup(self._get_intel_entry_value())),
             ("Wayback Check",        lambda: self._osint_wayback_check(self._get_intel_entry_value())),
             ("urlscan Submit",       lambda: self._osint_urlscan_submit(self._get_intel_entry_value())),
@@ -27774,6 +27775,7 @@ Verification Status:
             ('osint', 'emailrep_key',  'EmailRep.io API key:'),
             ('osint', 'greynoise_key', 'GreyNoise API key:'),
             ('osint', 'urlscan_key',   'urlscan.io API key:'),
+            ('osint', 'netlas_key',    'Netlas API key (app.netlas.io):'),
         ]:
             orow: Any = tk.Frame(f, bg=Colors.GLASS_CARD)
             orow.pack(fill='x', padx=8, pady=2)
@@ -37944,6 +37946,125 @@ Verification Status:
         import webbrowser
         mb.showinfo('Censys Host View', text)
         webbrowser.open(f'https://search.censys.io/hosts/{ioc}')
+
+    def _osint_netlas_lookup(self, ioc: str):
+        """Inline Netlas.io host lookup (attack-surface stack).
+
+        Uses the Netlas host API (app.netlas.io/api/host/<ip-or-domain>/,
+        free tier: 50 requests/day). Returns ASN/netblock, geo, WHOIS,
+        related domains and open ports/software. Keyless mode opens the
+        public host page.
+        """
+        import webbrowser
+        import tkinter.messagebox as mb
+        ioc = (ioc or '').strip()
+        if not ioc:
+            mb.showinfo('Netlas', 'Enter an IP address or domain to look up.')
+            return
+        api_key: Any = ''
+        try:
+            api_key = str(self.cfg.get('osint', 'netlas_key', '') or '')
+        except Exception:
+            api_key = ''
+        if not api_key:
+            webbrowser.open(f'https://app.netlas.io/host/{ioc}/')
+            self._queue_alert(f'[OSINT] Opened Netlas host view for {ioc} '
+                              '(set Netlas API key in Settings for inline '
+                              'results).', Colors.GAUGE_TEAL)
+            return
+
+        def _do():
+            try:
+                import urllib.request as _ur
+                import json as _j
+                url: Any = f'https://app.netlas.io/api/host/{ioc}/'
+                req: Any = _ur.Request(url,
+                                       headers={'User-Agent': 'Downpour-SecuritySuite/20',
+                                                'Authorization': f'Bearer {api_key}',
+                                                'Accept': 'application/json'})
+                with _ur.urlopen(req, timeout=20) as r:
+                    d: Any = _j.loads(r.read().decode('utf-8', 'replace'))
+                lines: Any = []
+                if d.get('type') == 'ip':
+                    lines.append(f'Netlas host view: {d.get("ip", ioc)}')
+                    whois: Any = d.get('whois') or {}
+                    asn: Any = whois.get('asn') or {}
+                    if asn:
+                        num: Any = asn.get('number') or []
+                        lines.append(f'ASN: {", ".join(str(n) for n in num[:5])} - '
+                                     f'{asn.get("name", "?")} '
+                                     f'({asn.get("cidr", "?")})')
+                    net: Any = whois.get('net') or {}
+                    if net.get('organization'):
+                        netcidr: Any = net.get('cidr') or []
+                        if isinstance(netcidr, list):
+                            netcidr = ", ".join(str(c) for c in netcidr[:3])
+                        lines.append(f'Org: {net.get("organization", "?")} '
+                                     f'({netcidr})')
+                    geo: Any = d.get('geo') or {}
+                    if geo:
+                        lines.append(f'Location: {geo.get("country", "?")} / '
+                                     f'{geo.get("continent", "?")}')
+                    ptr: Any = d.get('ptr') or []
+                    if ptr:
+                        lines.append(f'PTR: {", ".join(str(p) for p in ptr[:3])}')
+                    doms: Any = d.get('domains') or []
+                    if doms:
+                        lines.append(f'Related domains: {", ".join(str(x) for x in doms[:6])}')
+                    ports: Any = d.get('ports') or []
+                elif d.get('type') == 'domain':
+                    lines.append(f'Netlas host view: {d.get("domain", ioc)}')
+                    whois = d.get('whois') or {}
+                    reg: Any = whois.get('registrant') or {}
+                    if reg.get('organization'):
+                        lines.append(f'Registrant: {reg.get("organization", "?")} '
+                                     f'({reg.get("country", "?")})')
+                    rd: Any = d.get('related_domains') or []
+                    if rd:
+                        lines.append(f'Related domains: {", ".join(str(x) for x in rd[:6])}')
+                    dns: Any = d.get('dns') or {}
+                    ns: Any = dns.get('ns') or []
+                    if ns:
+                        lines.append(f'NS: {", ".join(str(x) for x in ns[:4])}')
+                    mx: Any = dns.get('mx') or []
+                    if mx:
+                        lines.append(f'MX: {", ".join(str(x) for x in mx[:4])}')
+                    ports = d.get('ports') or []
+                else:
+                    lines.append(f'Netlas host view: {ioc}')
+                    ports = d.get('ports') or []
+                if ports:
+                    lines.append(f'Open ports: {len(ports)}')
+                    for p in ports[:10]:
+                        lines.append(f'  {p.get("port", "?")}/{p.get("prot4", "?")}: '
+                                     f'{p.get("protocol", p.get("prot7", "?"))}')
+                sw: Any = d.get('software') or []
+                if sw:
+                    lines.append(f'Software: {len(sw)} fingerprint(s)')
+                    for s in sw[:5]:
+                        tags: Any = s.get('tag') or []
+                        tn: Any = ", ".join(str(t.get('fullname') or t.get('name', '?'))
+                                            for t in tags if t)
+                        lines.append(f'  {tn or s.get("uri", "?")[:70]}')
+                self.after(0, lambda m='\n'.join(lines):
+                    self._osint_netlas_show(m, ioc))
+                self._queue_alert(
+                    f'[OSINT] Netlas {ioc}: {len(ports)} open port(s)',
+                    Colors.GAUGE_RED if ports else Colors.GAUGE_TEAL)
+            except Exception as e:
+                self.after(0, lambda _e=str(e), _i=ioc: mb.showwarning(
+                    'Netlas',
+                    f'Inline lookup failed ({_e[:120]}).\n'
+                    'Opening the public host page instead.'))
+                webbrowser.open(f'https://app.netlas.io/host/{ioc}/')
+        self._executor.submit(_do)
+
+    def _osint_netlas_show(self, text: str, ioc: str):
+        """Display Netlas host results and open the public page."""
+        import tkinter.messagebox as mb
+        import webbrowser
+        mb.showinfo('Netlas Host View', text)
+        webbrowser.open(f'https://app.netlas.io/host/{ioc}/')
 
     def _osint_pulsedive_lookup(self, ioc: str):
         """Inline Pulsedive indicator enrichment (threat-intel stack).

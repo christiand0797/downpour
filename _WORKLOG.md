@@ -9,6 +9,11 @@
 - ✅ Repointed THREAT FEEDS gauge from broken ultimate_threat_intel stub to working threat_feed_aggregator
 - ✅ Added `_make_button()` shared helper + tooltips to: Scanner, Processes, Network, Hardening, AEGIS, Intel, Firewalls, Threats detail panel
 
+## Session 2026-08-11f — Inline Netlas.io host lookup (v29.7)
+- ✅ `_osint_netlas_lookup(ioc)` — Netlas host API (Bearer key): IP (ASN/netblock/org/geo/PTR/ports/software) + domain (WHOIS/related domains/NS/MX/ports)
+- ✅ `netlas_key` Settings field; `Netlas` button in Intel Threat Response row
+- ✅ Verified IP + domain paths, keyless fallback, empty input
+
 ## Session 2026-08-11e — Inline Censys host-view lookup (v29.6)
 - ✅ `_osint_censys_lookup(ioc)` — Censys Search API v2 host view (API ID + Secret basic auth): ports/services, TLS cert subject/issuer, ASN/geo/DNS; keyless → public page
 - ✅ Settings: `censys_api_id` + `censys_secret` masked fields (replaces dead `censys_enabled` boolean)
