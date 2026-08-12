@@ -1,5 +1,28 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.11 Titanium — Keyless Inline AlienVault OTX Indicator Lookup
+
+Session goal: add an inline lookup for AlienVault OTX — the highest-profile
+OSINT4ALL threat-intel source still stuck as a deep-link — without requiring an
+API key (the OTX `general` summary endpoint is public).
+
+### Inline OTX indicator lookup
+- **`_osint_otx_lookup(ioc)`** — OTX `indicators/<section>/<ioc>/general`
+  endpoint, keyless:
+  - IOC-type dispatch: IPv4 / domain / hostname / URL / file (by regex).
+  - Summary fields: ASN, country + code, city, numeric reputation (neutral /
+    suspicious / positive), OTX pulse count + up to 3 pulse names with tags,
+    and a "community-flagged false positive" notice when `validation` lists
+    one.
+  - Runs on `self._executor`; failures open the matching OTX indicator page
+    (IPv4/hostname/domain/file sections resolved per IOC type).
+- **`_osint_otx_show(text, ioc)`** — Tk callback (established pattern).
+- **UI**: `AlienVault OTX` button added to Intel tab Threat Response row.
+- Verified: IP/domain/URL/file dispatches vs mocked responses, live keyless
+  8.8.8.8 lookup, failure→web fallback, `py_compile` + integrity OK.
+- Fixed mid-session: `urllib.request` has no `.parse` attribute — quote the
+  IOC with an explicit `urllib.parse` import.
+
 ## v29.10 Titanium — Inline ThreatFox IOC Search
 
 Session goal: complete the abuse.ch trio by adding an inline search for

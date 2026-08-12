@@ -23900,6 +23900,7 @@ class downpour(tk.Tk):
             ("MalwareBazaar",        lambda: self._osint_malwarebazaar_lookup(self._get_intel_entry_value())),
             ("URLhaus",              lambda: self._osint_urlhaus_lookup(self._get_intel_entry_value())),
             ("ThreatFox",            lambda: self._osint_threatfox_lookup(self._get_intel_entry_value())),
+            ("AlienVault OTX",        lambda: self._osint_otx_lookup(self._get_intel_entry_value())),
             ("CyberChef Decode",     lambda: self._intel_cyberchef()),
             ("Export Report",        lambda: self._intel_export_report()),
             ("[MISP] Import IOCs",   lambda: self._intel_import_misp()),
@@ -38414,6 +38415,109 @@ Verification Status:
         import webbrowser
         mb.showinfo('ThreatFox Search', text)
         webbrowser.open(f'https://threatfox.abuse.ch/browse.php?search={ioc}')
+
+    def _osint_otx_lookup(self, ioc: str):
+        """Inline AlienVault OTX indicator lookup (threat-intel stack).
+
+        Uses the OTX API general endpoint (keyless for the summary fields).
+        Dispatches on the IOC type (IPv4 / domain / hostname / URL / file).
+        Returns asn, geo, reputation, pulse count (how many OSINT playbooks
+        reference it) and a public False-Positive notice when present.
+        """
+        import webbrowser
+        import tkinter.messagebox as mb
+        ioc = (ioc or '').strip()
+        if not ioc:
+            mb.showinfo('AlienVault OTX', 'Enter an IP, domain, URL or hash '
+                        'to look up.')
+            return
+        is_ip: Any = bool(re.match(r'^\d{1,3}(\.\d{1,3}){3}$', ioc))
+        is_hash: Any = bool(re.match(r'^[0-9a-fA-F]{32,64}$', ioc))
+        is_url: Any = bool(re.match(r'^https?://', ioc))
+        if is_ip:
+            section: Any = 'IPv4'
+        elif is_hash:
+            section = 'file'
+        elif is_url:
+            section = 'url'
+        else:
+            if ioc.startswith('http'):
+                dom_o: Any = ioc.split('/')[2]
+            else:
+                dom_o = ioc
+            section = 'domain' if '.' in dom_o and not dom_o.replace('.', '').isdigit() else 'hostname'
+
+        def _do():
+            try:
+                import urllib.request as _ur
+                import urllib.parse as _up
+                import json as _j
+                url: Any = (f'https://otx.alienvault.com/api/v1/indicators/'
+                            f'{section}/{_up.quote(ioc)}/general')
+                req: Any = _ur.Request(url,
+                                       headers={'User-Agent': 'Downpour-SecuritySuite/20',
+                                                'Accept': 'application/json'})
+                with _ur.urlopen(req, timeout=20) as r:
+                    d: Any = _j.loads(r.read().decode('utf-8', 'replace'))
+                pi: Any = d.get('pulse_info') or {}
+                lines: Any = [f'OTX {section}: {d.get("indicator", ioc)}']
+                if d.get('asn'):
+                    lines.append(f'ASN: {d.get("asn", "?")}')
+                if d.get('country_name'):
+                    lines.append(f'Country: {d.get("country_name", "?")} '
+                                 f'({d.get("country_code2", "?")})')
+                if d.get('city'):
+                    lines.append(f'City: {d.get("city", "?")}')
+                rep: Any = d.get('reputation')
+                if rep is not None:
+                    rep_txt: Any = 'neutral' if int(rep) == 0 else \
+                        ('suspicious' if int(rep) < 0 else 'positive')
+                    lines.append(f'Reputation: {rep} ({rep_txt})')
+                pc: Any = pi.get('count') or 0
+                lines.append(f'OTX pulses: {pc}')
+                pulses: Any = pi.get('pulses') or []
+                for p in pulses[:3]:
+                    pn: Any = p.get('name', '?')
+                    tags: Any = p.get('tags') or []
+                    lines.append(f'  - {pn[:60]}'
+                                 + (f' [{", ".join(str(t) for t in tags[:4])}]' if tags else ''))
+                val: Any = d.get('validation') or []
+                fpos: Any = [v for v in val if v.get('source') == 'false_positive']
+                if fpos:
+                    lines.append('  Note: community-flagged false positive')
+                self.after(0, lambda m='\n'.join(lines):
+                    self._osint_otx_show(m, ioc))
+                self._queue_alert(
+                    f'[OSINT] OTX {ioc}: {pc} pulse(s)',
+                    Colors.GAUGE_RED if pc else Colors.GAUGE_TEAL)
+            except Exception as e:
+                self.after(0, lambda _e=str(e), _i=ioc: mb.showwarning(
+                    'AlienVault OTX',
+                    f'Inline lookup failed ({_e[:120]}).\n'
+                    'Opening the OTX indicator page instead.'))
+                url2: Any = ioc
+                if is_url:
+                    dom = ioc.split('/')[2]
+                    url2 = f'https://otx.alienvault.com/indicator/{section}/{dom}'
+                else:
+                    url2 = f'https://otx.alienvault.com/indicator/{section}/{ioc}'
+                webbrowser.open(url2)
+        self._executor.submit(_do)
+
+    def _osint_otx_show(self, text: str, ioc: str):
+        """Display OTX results and open the indicator page."""
+        import tkinter.messagebox as mb
+        import webbrowser
+        mb.showinfo('AlienVault OTX Lookup', text)
+        is_url: Any = bool(re.match(r'^https?://', ioc))
+        if is_url:
+            dom = ioc.split('/')[2]
+            section = 'domain' if '.' in dom and not dom.replace('.', '').isdigit() else 'hostname'
+            webbrowser.open(f'https://otx.alienvault.com/indicator/{section}/{dom}')
+        else:
+            section2: Any = 'IPv4' if re.match(r'^\d{1,3}(\.\d{1,3}){3}$', ioc) else ioc
+            webbrowser.open(f'https://otx.alienvault.com/indicator/'
+                            f'{section2 if section2 == "IPv4" else ("file" if re.match(r"^[0-9a-fA-F]{32,64}$", ioc) else "domain")}/{ioc}')
 
     def _osint_pulsedive_lookup(self, ioc: str):
         """Inline Pulsedive indicator enrichment (threat-intel stack).

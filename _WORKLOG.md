@@ -9,6 +9,11 @@
 - ✅ Repointed THREAT FEEDS gauge from broken ultimate_threat_intel stub to working threat_feed_aggregator
 - ✅ Added `_make_button()` shared helper + tooltips to: Scanner, Processes, Network, Hardening, AEGIS, Intel, Firewalls, Threats detail panel
 
+## Session 2026-08-11j — Keyless inline AlienVault OTX lookup (v29.11)
+- ✅ `_osint_otx_lookup(ioc)` — OTX general endpoint, keyless; IP/domain/hostname/URL/file dispatch
+- ✅ ASN/geo/reputation/pulse-count/pulse-names + community false-positive notice
+- ✅ Live keyless 8.8.8.8 verified; fixed urllib.parse quote bug
+
 ## Session 2026-08-11i — Inline ThreatFox IOC search (v29.10)
 - ✅ `_osint_threatfox_lookup(ioc)` — ThreatFox API (search_hash / search_ioc exact-match), same abuse.ch Auth-Key
 - ✅ Renders malware family/threat type/confidence/Malpedia per hit; no-result dialog
