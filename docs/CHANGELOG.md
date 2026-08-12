@@ -1,5 +1,54 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.13 Titanium — Hudson Rock Infostealer Lookup + Status-Pill Freeze Fix
+
+Session goal: add the last OSINT4ALL "Exposure and breach context" source
+(Hudson Rock Cavalier, keyless free OSINT endpoints) as an inline lookup, and
+fix a main-thread DB-block freeze in the status bar.
+
+### Inline Hudson Rock Cavalier infostealer lookup (keyless)
+- **`_osint_hudsonrock_lookup(ioc)`** — Cavalier public API (no API key):
+  - **Email** → `search-by-email`: affected-machine count, corporate + user
+    credentials exposed, most-recent compromise date, antivirus present on the
+    infected machines, and the first 5 matched machines (date + OS).
+  - **Domain** → `search-by-domain`: compromised-credential total with the
+    employee/user/third-party split, compromised login URLs, last user +
+    employee compromise dates.
+  - Fires a `[BREACH]` alert into the live stream (RED when exposure is found,
+    GREEN when clean) so credential-exposure signals surface in the dashboard.
+  - Runs on `self._executor`; failures open cavalier.hudsonrock.com.
+- **`_osint_hudsonrock_show(text, ioc)`** — Tk callback (established pattern).
+- **UI wiring**:
+  - Intel tab Threat Response row: `Hudson Rock` button (email/domain dispatch).
+  - DNS Advanced Tools: `[BREACH] Infostealer Check` via `_dns_adv_hudsonrock`
+    (domain field, mirrors the urlscan cross-integration).
+  - `_osint_multi_lookup` domain deep-link stack: added `Hudson Rock`.
+- Verified live: email-with-hits (test@example.com), clean domain (`total=0`),
+  real exposure (tesla.com → 29,630 creds / 548 employees / 774 third-parties),
+  no-hit email (`stealers=[]`), and domain input-validation (`domain=not a
+  domain` → rejected before any network call).
+
+### Freeze fix — status-bar pill DB query moved off main thread
+- **Root cause**: `_refresh_status_pills()` ran
+  `SELECT COUNT(*) FROM threats WHERE status='active'` on the **main thread**
+  every 10s. `db.execute()` acquires `db._lock`, which background threads also
+  hold during bulk IOC inserts — so the UI could block for many seconds. This
+  is the exact freeze mechanism already fixed for `_feed_refresh_loop`/`count_intel`.
+- **Fix**: the count now runs on `self._executor`, posting the result via
+  `self.after(0, ...)` to a small main-thread updater `_apply_threat_pill(count)`
+  that owns all `_sb_threats` + rain-label writes. Pills refresh on the same
+  10s cadence but never block the event loop.
+
+### Housekeeping
+- **Committed `ultimate_threat_intel/__init__.py`** (was untracked despite being
+  runtime reality): `threat_feed_aggregator.py` imports `ThreatFeedRegistry` /
+  `ThreatDatabase` / `get_database()` from it and the main app references it at
+  line 17165. The `.pyi` sibling stays gitignored (`*.pyi` rule).
+
+### Verification
+- `py_compile` clean; main file 715 methods / **0 duplicate method names**;
+  full-project AST audit **0 failures**; all new call sites wired (grep).
+
 ## v29.12 Titanium — DNS Tab: Inline urlscan.io Domain Search
 
 Session goal: cross-integrate the keyless urlscan.io public-search capability

@@ -23901,6 +23901,10 @@ class downpour(tk.Tk):
             ("URLhaus",              lambda: self._osint_urlhaus_lookup(self._get_intel_entry_value())),
             ("ThreatFox",            lambda: self._osint_threatfox_lookup(self._get_intel_entry_value())),
             ("AlienVault OTX",        lambda: self._osint_otx_lookup(self._get_intel_entry_value())),
+            ("AbuseIPDB",            lambda: self._osint_abuseipdb_lookup(self._get_intel_entry_value())),
+            ("Shodan",               lambda: self._osint_shodan_lookup(self._get_intel_entry_value())),
+            ("GreyNoise",            lambda: self._osint_greynoise_lookup(self._get_intel_entry_value())),
+            ("Hudson Rock",          lambda: self._osint_hudsonrock_lookup(self._get_intel_entry_value())),
             ("CyberChef Decode",     lambda: self._intel_cyberchef()),
             ("Export Report",        lambda: self._intel_export_report()),
             ("[MISP] Import IOCs",   lambda: self._intel_import_misp()),
@@ -33378,30 +33382,49 @@ Verification Status:
                     self._sb_defender.config(text="AV-Safe [OK]", fg='#00e5ff')
                 else:
                     self._sb_defender.config(text="No AV Excl [WARN]", fg='#ff9800')
-            # Live threat count
-            if hasattr(self, '_sb_threats'):
+            # Live threat count. FIX-v31p1: the DB read below acquires
+            # db._lock, which background threads also hold during bulk IOC
+            # inserts — calling it on the main thread can block the UI for
+            # seconds. Run the count on the executor and post the result.
+            def _count_threats():
                 try:
-                    rows: Any = self.db.execute(
-                        "SELECT COUNT(*) FROM threats WHERE status='active'")
-                    count: Any = rows[0][0] if rows else 0
+                    n: Any = 0
+                    try:
+                        rows: Any = self.db.execute(
+                            "SELECT COUNT(*) FROM threats WHERE status='active'")
+                        n = rows[0][0] if rows else 0
+                    except Exception:
+                        n = len(getattr(self, '_active_threats', {}))
+                    self.after(0, lambda c=n: self._apply_threat_pill(c))
                 except Exception:
-                    count: Any = len(getattr(self, '_active_threats', {}))
-                if count == 0:
-                    self._sb_threats.config(text="\u2714 Threats: 0", fg='#00e5ff')
-                    # v28p35: calm rain when no threats
-                    if hasattr(self, 'rain') and hasattr(self.rain, 'set_threat_level'):
-                        self.rain.set_threat_level(0)
-                elif count < 5:
-                    self._sb_threats.config(text=f"\u26a0 Threats: {count}", fg='#ff9800')
-                    if hasattr(self, 'rain') and hasattr(self.rain, 'set_threat_level'):
-                        self.rain.set_threat_level(min(count * 15, 60))
-                else:
-                    self._sb_threats.config(text=f"\u2622 Threats: {count} [RED]", fg='#ff1744')
-                    if hasattr(self, 'rain') and hasattr(self.rain, 'set_threat_level'):
-                        self.rain.set_threat_level(min(count * 10, 100))
+                    pass
+            try:
+                self._executor.submit(_count_threats)
+            except Exception:
+                pass
         except Exception:
             pass
         self.after(10000, self._refresh_status_pills)
+
+    def _apply_threat_pill(self, count: int):
+        """Main-thread status-pill updater (runs after an executor count)."""
+        try:
+            if not hasattr(self, '_sb_threats'):
+                return
+            if count == 0:
+                self._sb_threats.config(text="\u2714 Threats: 0", fg='#00e5ff')
+                if hasattr(self, 'rain') and hasattr(self.rain, 'set_threat_level'):
+                    self.rain.set_threat_level(0)
+            elif count < 5:
+                self._sb_threats.config(text=f"\u26a0 Threats: {count}", fg='#ff9800')
+                if hasattr(self, 'rain') and hasattr(self.rain, 'set_threat_level'):
+                    self.rain.set_threat_level(min(count * 15, 60))
+            else:
+                self._sb_threats.config(text=f"\u2622 Threats: {count} [RED]", fg='#ff1744')
+                if hasattr(self, 'rain') and hasattr(self.rain, 'set_threat_level'):
+                    self.rain.set_threat_level(min(count * 10, 100))
+        except Exception:
+            pass
 
     def _on_aegis_alert(self, msg: str, level: str = 'HIGH'):
         color: Any = (Colors.GAUGE_RED if level == 'CRITICAL' else
@@ -37452,6 +37475,7 @@ Verification Status:
                 ('MXToolbox',        f'https://mxtoolbox.com/SuperTool.aspx?action=blacklist%3a{dom}&run=toolpage'),
                 ('Wappalyzer',       f'https://www.wappalyzer.com/technologies/{dom}'),
                 ('Netlas.io',        f'https://app.netlas.io/host/?q={dom}'),
+                ('Hudson Rock',      f'https://cavalier.hudsonrock.com/{dom}'),
             ]
         # Every IOC type can still check its breach exposure.
         links.append(('Have I Been Pwned',
@@ -38518,6 +38542,135 @@ Verification Status:
             section2: Any = 'IPv4' if re.match(r'^\d{1,3}(\.\d{1,3}){3}$', ioc) else ioc
             webbrowser.open(f'https://otx.alienvault.com/indicator/'
                             f'{section2 if section2 == "IPv4" else ("file" if re.match(r"^[0-9a-fA-F]{32,64}$", ioc) else "domain")}/{ioc}')
+
+    def _osint_hudsonrock_lookup(self, ioc: str):
+        """Inline Hudson Rock Cavalier infostealer-exposure lookup (keyless).
+
+        OSINT4ALL "Exposure and breach context" source. Queries the free
+        Cavalier public API (no API key required) to check whether an email
+        address or domain is associated with computers compromised by
+        info-stealer malware.
+
+        Dispatch on input shape:
+          • email  -> search-by-email  (how many infected machines, most
+                       recent compromise, stealer families, AV present)
+          • domain -> search-by-domain (recruit employees/users/third-parties,
+                       compromised URLs, last-compromise timestamps)
+
+        Renders a plain summary in a popup (never blocks the UI — runs on the
+        executor) and fires a red alert when a compromise is found, so a
+        credential-exposure signal lands in the live alert stream too.
+        """
+        import webbrowser
+        import tkinter.messagebox as mb
+        ioc = (ioc or '').strip()
+        if not ioc:
+            mb.showinfo('Hudson Rock', 'Enter an email address or domain to '
+                        'check for infostealer compromise.')
+            return
+        # Dispatch: email if it looks like one, else treat as a domain
+        is_email: Any = bool(re.match(r'^[^@\s]+@[^@\s]+\.[a-zA-Z]{2,}$', ioc))
+        if not is_email and not re.match(r'^[A-Za-z0-9.\-]+\.[a-zA-Z]{2,}$', ioc):
+            mb.showinfo('Hudson Rock', 'Enter a full email (user@example.com) '
+                        'or a domain (example.com).')
+            return
+
+        def _do():
+            try:
+                import urllib.request as _ur
+                import urllib.parse as _up
+                import json as _j
+                if is_email:
+                    ep: Any = ('https://cavalier.hudsonrock.com/api/json/v2/'
+                               'osint-tools/search-by-email'
+                               f'?email={_up.quote(ioc)}')
+                else:
+                    ep = ('https://cavalier.hudsonrock.com/api/json/v2/'
+                          'osint-tools/search-by-domain'
+                          f'?domain={_up.quote(ioc)}')
+                req: Any = _ur.Request(ep, headers={
+                    'User-Agent': 'Downpour-SecuritySuite/20',
+                    'Accept': 'application/json'})
+                with _ur.urlopen(req, timeout=20) as r:
+                    d: Any = _j.loads(r.read().decode('utf-8', 'replace'))
+
+                compromised: bool = False
+                if is_email:
+                    stealers: Any = d.get('stealers') or []
+                    cor: Any = d.get('total_corporate_services', 0) or 0
+                    usr: Any = d.get('total_user_services', 0) or 0
+                    compromised = bool(stealers)
+                    lines: Any = [f'Hudson Rock infostealer check: {ioc}',
+                                  f'Affected machines: {len(stealers)}',
+                                  f'Corporate creds exposed: {cor}',
+                                  f'User creds exposed: {usr}']
+                    if stealers:
+                        # Most recent compromise
+                        rec = max(stealers,
+                                  key=lambda s: s.get('date_compromised', '') or '')
+                        lines.append(f"Most recent: "
+                                     f"{(rec.get('date_compromised') or '?')[:10]}")
+                        # Antivirus presence across infected machines
+                        avs: Any = []
+                        for s in stealers:
+                            for a in (s.get('antiviruses') or []):
+                                if a and str(a).strip().lower() not in ('none',):
+                                    avs.append(str(a))
+                        if avs:
+                            from collections import Counter as _Cnt
+                            top_av = _Cnt(avs).most_common(3)
+                            lines.append('AV on infected: '
+                                         + ', '.join(f'{k} (x{v})' for k, v in top_av))
+                        for s in stealers[:5]:
+                            lines.append(f"  • {s.get('date_compromised','?')[:10]} "
+                                         f"| {s.get('operating_system','?')[:24]}")
+                    else:
+                        lines.append('No infostealer compromise found for this email.')
+                else:
+                    total: Any = d.get('total', 0) or 0
+                    emp: Any = d.get('employees', 0) or 0
+                    us = d.get('users', 0) or 0
+                    tp: Any = d.get('third_parties', 0) or 0
+                    urls: Any = d.get('totalUrls', 0) or 0
+                    compromised = total > 0
+                    lines = [f'Hudson Rock infostealer check: {ioc}',
+                             f'Compromised credentials: {total}',
+                             f'  Employees: {emp}   Users: {us}   '
+                             f'Third-parties: {tp}',
+                             f'Compromised login URLs: {urls}']
+                    if d.get('last_user_compromised'):
+                        lines.append(f"Last user compromise: "
+                                     f"{d.get('last_user_compromised')[:10]}")
+                    if d.get('last_employee_compromised'):
+                        lines.append(f"Last employee compromise: "
+                                     f"{d.get('last_employee_compromised')[:10]}")
+                    if not compromised:
+                        lines.append('No infostealer compromise found for this '
+                                     'domain.')
+
+                self.after(0, lambda m='\n'.join(lines), _i=ioc:
+                    self._osint_hudsonrock_show(m, _i))
+                self._queue_alert(
+                    f'[BREACH] Hudson Rock: {ioc} flags '
+                    f'{"CREDENTIAL EXPOSURE" if compromised else "no exposure"}',
+                    Colors.GAUGE_RED if compromised else Colors.GAUGE_GREEN)
+            except Exception as e:
+                self.after(0, lambda _e=str(e): mb.showwarning(
+                    'Hudson Rock',
+                    f'Inline lookup failed ({_e[:120]}).\n'
+                    'Opening the Hudson Rock page instead.'))
+                webbrowser.open(f'https://cavalier.hudsonrock.com/{ioc}')
+        self._executor.submit(_do)
+
+    def _osint_hudsonrock_show(self, text: str, ioc: str):
+        """Display Hudson Rock results and open the Cavalier page."""
+        import tkinter.messagebox as mb
+        import webbrowser
+        mb.showinfo('Hudson Rock Cavalier', text)
+        try:
+            webbrowser.open(f'https://cavalier.hudsonrock.com/{ioc}')
+        except Exception:
+            pass
 
     def _osint_pulsedive_lookup(self, ioc: str):
         """Inline Pulsedive indicator enrichment (threat-intel stack).
@@ -40175,6 +40328,7 @@ Verification Status:
         _tbtn(tools_f, '[CT] crt.sh Subdomains',     self._dns_adv_crtsh)
         _tbtn(tools_f, '[EMAIL] SPF/DMARC/DKIM',     self._dns_adv_email_security)
         _tbtn(tools_f, '[WEB] urlscan.io Search',    self._dns_adv_urlscan)
+        _tbtn(tools_f, '[BREACH] Infostealer Check', self._dns_adv_hudsonrock)
         _tbtn(tools_f, '[WEB] Domain OSINT Stack',   self._dns_adv_domain_osint)
 
         # Column 2: Security Tests
@@ -41472,6 +41626,16 @@ Verification Status:
                         'Enter a domain in the DNS Tools field first.')
             return
         self._osint_urlscan_search(domain)
+
+    def _dns_adv_hudsonrock(self):
+        """Inline Hudson Rock infostealer check for the DNS tab domain (keyless)."""
+        import tkinter.messagebox as mb
+        domain: Any = self._dns_adv_domain_var.get().strip()
+        if not domain:
+            mb.showinfo('Infostealer Check',
+                        'Enter a domain in the DNS Tools field first.')
+            return
+        self._osint_hudsonrock_lookup(domain)
 
     def _dns_adv_email_security(self):
         """SPF / DMARC / DKIM email-auth record check (DNS-only, no key).

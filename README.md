@@ -17,7 +17,7 @@
 
 ## What is Downpour?
 
-Downpour is a personal, all-in-one Windows security suite — written entirely in Python — that covers every attack surface a modern threat actor might exploit. It runs as a standalone GUI application with 24 tabs, live threat gauges, an animated rain overlay that intensifies with threat level, and one-click remediation for everything it detects.
+Downpour is a personal, all-in-one Windows security suite — written entirely in Python — that covers every attack surface a modern threat actor might exploit. It runs as a standalone GUI application with 27 tabs, live threat gauges, an animated rain overlay that intensifies with threat level, and one-click remediation for everything it detects.
 
 ---
 
@@ -42,7 +42,7 @@ LAUNCH_V29_TITANIUM.bat
 | 🔥 **Firewall Manager** | netsh advfirewall integration, Block ALL C2 IPs in one click |
 | 🌐 **Network Monitor** | Live connection map, IP reputation, bandwidth graph, ARP spoof detection |
 | 🧬 **Process Monitor** | Kill ALL suspicious, Quarantine ALL, real-time injection detection |
-| 📁 **File Integrity Monitor** | 35 critical system files, SHA-256 baseline drift detection |
+| 📁 **File Integrity Monitor** | 6 critical Windows processes, SHA-256 integrity checks |
 | 🔑 **Credential Guard** | LSASS dump detection, HVCI/PPL/VBS status, Kerberoasting alerts |
 | 🛡️ **Windows Hardening** | 40+ DISA-STIG checks, Fix ALL Hardening in one click |
 | 📡 **DNS Security** | DoH provider switcher, DNS rebind detection, canary monitoring |
@@ -53,7 +53,7 @@ LAUNCH_V29_TITANIUM.bat
 | 🍯 **Ransomware Canaries** | Honeytoken files with instant tripwire on delete/modify (T1486) |
 | 🎯 **Proactive Threat Hunt** | On-demand: LOLBAS abuse, registry persistence, BYOVD (vulnerable driver), canary check |
 | 🛡️ **BYOVD Detection** | Catches EDR-killer drivers (RTCore64, dbutil_2_3, TrueSight, etc.) used by ransomware to blind AV/EDR before encrypting |
-| 📋 **Live CISA KEV Feed** | 1,650+ actively-exploited CVEs, rate-limit-safe NVD CVSS enrichment |
+| 📋 **Live CISA KEV Feed** | Dynamically updated actively-exploited-CVE catalog, rate-limit-safe NVD CVSS enrichment |
 | 📤 **Sigma Rule Export** | Any finding exports as a portable `.yml` rule for Splunk/Elastic/Sentinel |
 | 🌐 **OSINT4ALL Indicator Stack** | One-click deep-links for any IP/hash/domain → VirusTotal, AbuseIPDB, Talos, GreyNoise, Shodan, Censys, OTX, Pulsedive, ONYPHE, urlscan.io + more |
 | 🔎 **Inline Reputation Lookups** | AbuseIPDB, Shodan, Pulsedive, ONYPHE, EmailRep, GreyNoise via free API keys (web-page fallback when keyless); Settings → OSINT API Keys |
@@ -66,6 +66,7 @@ LAUNCH_V29_TITANIUM.bat
 | 🚨 **URLhaus Lookup** | Inline URLhaus dispatch (host/URL/hash): blacklist state (Surbl + Spamhaus DBL), VT ratio, payload drops, malware URLs |
 | 🎯 **ThreatFox Search** | Inline ThreatFox IOC search (exact match): malware family, threat type, confidence, Malpedia links |
 | 🛡️ **AlienVault OTX** | Keyless inline OTX indicator summary: ASN/geo, reputation, pulse count + names, false-positive notices |
+| 🕵️ **Hudson Rock Cavalier** | Keyless infostealer-exposure check (email/domain): affected machines, exposed corporate+user creds, compromise dates, AV on infected, employee/third-party split |
 | 📡 **DNS urlscan Search** | DNS Tools cross-integration: inline keyless urlscan.io public search for the domain field |
 | 🤝 **MISP/STIX Sharing** | Import MISP event JSON / STIX 2.0 bundles / plain IOC lists into the intel DB (optional firewall-block of imported IPs); export the local indicator set as a MISP-format JSON event for SOC/peer sharing |
 | 🌍 **Domain Investigation** | crt.sh certificate-transparency subdomain discovery (Certspotter fallback), Domain OSINT Stack deep-links (ViewDNS/DNSDumpster/MXToolbox/Wappalyzer/Netlas/ZoomEye/FullHunt + archives), email-security SPF/DMARC/DKIM DNS check |
@@ -91,7 +92,7 @@ The launcher installs all dependencies automatically on first run.
 
 ```
 downpour/
-├── downpour_v29_titanium.py      ← Main application (44,900+ lines)
+├── downpour_v29_titanium.py      ← Main application (49,000+ lines)
 ├── LAUNCH_V29_TITANIUM.bat       ← v29 launcher (use this)
 ├── LAUNCH_DOWNPOUR.bat           ← v28 launcher (kept as backup)
 ├── requirements.txt
@@ -115,7 +116,7 @@ downpour/
 | `kimwolf_botnet_detector.py` | Kimwolf/Botnet detector with 150+ IOCs |
 | `ml_behavioral_analyzer.py` | Behavioral baseline + anomaly scoring |
 | `ransomware_detector.py` | Entropy monitoring, shadow copy watch, canary files |
-| `threat_intelligence.py` | 289-feed threat intel aggregator |
+| `threat_intelligence.py` | Legacy 11-source threat-intelligence downloader (not wired into the main app) |
 | `threat_intelligence_updater.py` | KEV/EPSS/CVE live update engine |
 | `network_monitor.py` | Live connection analysis |
 | `file_scanner.py` | YARA + hash scan engine |
@@ -136,18 +137,20 @@ Detects: **Mimikatz, CobaltStrike, Metasploit, Empire, PoshC2, AsyncRAT, NjRAT, 
 
 ---
 
-## Threat Feeds (34)
+## Configured Threat Feed Sources (34)
 
 | Category | Count | Examples |
 |----------|-------|---------|
-| IP Reputation | ~80 | Blocklist.de, FireHOL, IPSUM, Emerging Threats |
-| Domain Blocklists | ~90 | Hagezi, StevenBlack, OISD, AdGuard |
-| C2 Tracking | ~20 | Feodo, Bambenek, C2IntelFeeds, Blackbook |
-| URL Feeds | ~15 | URLhaus, OpenPhish, PhishTank |
-| Malware Hashes | ~10 | MalwareBazaar, YARAify |
-| CVE / Exploit | ~10 | CISA KEV, ExploitDB, MITRE ATT&CK |
-| Ransomware | ~5 | Maltrail, RansomWatch |
-| DNS Security | ~15 | Hagezi (5 tiers), NoTrack |
+| abuse.ch malware / C2 / hash feeds | 8 | URLhaus, Feodo Tracker, MalwareBazaar, ThreatFox, SSLBL |
+| Spamhaus blocklists | 2 | DROP, EDROP |
+| Phishing intelligence | 4 | PhishTank, OpenPhish, Phishing Army |
+| Malware analysis | 3 | Malpedia, MalShare, VirusShare |
+| C2 tracking | 2 | Malware Traffic Analysis, Fox-IT Cobalt Strike |
+| DNS security | 3 | HaGeZi, StevenBlack, AdGuard DNS |
+| IP reputation | 5 | AbuseIPDB, Binary Defense, CINS, Blocklist.de |
+| YARA rule sources | 2 | Yara-Rules, Malpedia |
+| CVE / exploit data | 3 | CISA KEV, NVD, ExploitDB |
+| MISP community sources | 2 | CIRCL MISP, MISP Project |
 
 ---
 
@@ -165,7 +168,7 @@ Detects: **Mimikatz, CobaltStrike, Metasploit, Empire, PoshC2, AsyncRAT, NjRAT, 
 
 See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for full details.
 
-**v29 highlights:** 10 critical bug fixes from live crash logs, one-click Remediate All, 45+ YARA rules, 85+ MITRE techniques, 35-file FIM with drift detection, COM crash eliminated, auto-remediate toggle, threat detail panel, IR report generator, proactive threat hunt engine (LOLBAS/persistence/BYOVD/canaries), live CISA KEV feed (1,650+ CVEs, rate-limit-safe).
+**v29 highlights:** 10 critical bug fixes from live crash logs, one-click Remediate All, 104 YARA rules, 85+ MITRE techniques, six-file FIM integrity checks, COM crash eliminated, auto-remediate toggle, threat detail panel, IR report generator, proactive threat hunt engine (LOLBAS/persistence/BYOVD/canaries), and a live CISA KEV feed with rate-limit-safe enrichment.
 
 ---
 

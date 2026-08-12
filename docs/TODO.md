@@ -1,5 +1,5 @@
 # TODO / Current State — Downpour v29 Titanium
-# Last verified: 2026-08-11 (multiple agents/sessions, see docs/CHANGELOG.md + _WORKLOG.md for full history)
+# Last verified: 2026-08-11 (v29.13, Hudson Rock + status-pill freeze fix)
 
 **READ THIS FIRST if you are a new agent picking up this project.**
 This file was badly stale (dated April 2026) until this rewrite. `_WORKLOG.md`
@@ -10,7 +10,7 @@ authoritative history. This file is the current-state snapshot + what's left.
 
 ## Verified Current State (as of this rewrite)
 
-- `downpour_v29_titanium.py`: ~45,900 lines, 711 methods in the main `downpour`
+- `downpour_v29_titanium.py`: ~49,400 lines, 715 methods in the main `downpour`
   class, **0 duplicate method names** (verify with the AST script below before
   and after any edit session — this has caught real bugs multiple times)
 - Full project: 58 Python files, 0 syntax errors
@@ -83,9 +83,57 @@ for node in ast.walk(tree):
       whitelists in places; a DB-backed auto-suppression (track alert
       frequency per indicator, auto-suppress after N confirmed-clean cycles)
       would reduce alert fatigue.
-- [ ] **`docs/TODO_v30_DDoS.md`** — per `_WORKLOG.md` all 6 checklist items
-      are marked complete. Spot-check this file's checkboxes match reality
-      before trusting it; it may itself need a final "done" pass.
+- [x] **Main-thread DB freeze in status pills** — FIXED v29.13: the 10s
+      `_refresh_status_pills` threat-count query ran on the main thread and
+      could block on `db._lock` held by background bulk inserts. Now runs on
+      `self._executor` + `_apply_threat_pill`. Same class of fix as the
+      earlier `_feed_refresh_loop`/`count_intel` fix — when you find another
+      `self.db.execute(...)` call inside an `after()` loop on the main thread,
+      apply the same executor pattern.
+- [x] **`docs/TODO_v30_DDoS.md`** — spot-checked directly against the code
+      (not just the checklist file): all 10 named handler methods
+      (`_ddos_init_state`, `_ddos_analyze_connections`, `_ddos_classify`,
+      `_ddos_load_blocklist`, `_ddos_save_blocklist`, `_ddos_reputation`,
+      `_ddos_shield`, `_ddos_rate_monitor_ui`, `_ddos_block_all_flooders`,
+      `_ddos_export_report`) genuinely exist. Confirmed complete, not
+      aspirational.
+
+## OSINT4ALL Research — Status
+
+Mined start.me/p/L1rEYQ/osint4all (mirrored at osint4all.com) across
+multiple sessions. Summary for future agents so this doesn't get re-done:
+
+- [x] **Threat Intelligence and Indicator Triage Stack** collection —
+      comprehensively mined. This is the direct source of the 18+ inline
+      OSINT lookups added in v29.1–v29.12 (VirusTotal, AbuseIPDB, Shodan,
+      Censys, Netlas, GreyNoise, Pulsedive, ONYPHE, urlscan.io, ThreatFox,
+      URLhaus, AlienVault OTX, MalwareBazaar, EmailRep.io, HIBP Pwned
+      Passwords, crt.sh, Wayback Machine, CyberChef).
+- [x] **Hudson Rock Cavalier** (exposure/breach context, osint4all.com
+      "OSINT for Cybersecurity" guide) — added in **v29.13** as a keyless
+      inline lookup (email + domain dispatch). This was the last actionable
+      gap in the OSINT4ALL cybersecurity use-case page; the remaining listed
+      tools there (Shodan/Censys/Netlas, urlscan/VT/OTX, CyberChef/MISP,
+      HIBP/EmailRep) are all already integrated.
+- [x] **Mitaka** (browser-extension indicator pivoting) — reviewed; it is a
+      Chrome/Firefox extension, not an API/web service, so there is no
+      programmatic surface to integrate. Not a fit — don't re-evaluate.
+- [x] **Domain/DNS/Web Infrastructure** tools — also already covered.
+      DNSDumpster, MXToolbox, DNSlytics, ViewDNS.info, SecurityTrails are
+      all part of the existing "Domain OSINT Stack" deep-link (14 infra
+      sources per `_WORKLOG.md`, alongside Wappalyzer/BuiltWith/ZoomEye/
+      FullHunt/Archive.today).
+- [ ] Not yet done, low priority: OSINT4ALL's "Shodan vs Censys vs
+      SecurityTrails" comparison guide frames these as 3 *different*
+      reconnaissance jobs (exposed services / cert pivots / DNS history)
+      rather than interchangeable options. Worth reading before doing the
+      "consolidate 18+ lookup buttons into one dispatcher" item below —
+      naive consolidation could blur genuinely different use cases.
+- [x] The other OSINT4ALL collections (breach/exposure research for
+      companies, journalist verification workflows, corporate due-diligence,
+      geolocation) are NOT relevant — evaluated and confirmed out of scope,
+      see "Content Judgment Calls" section below. No further mining of this
+      resource is expected to yield new value for this codebase.
 
 ## MEDIUM PRIORITY
 
@@ -97,8 +145,8 @@ for node in ast.walk(tree):
 - [ ] **Feed auto-retry with backoff** — currently just skips on failure.
 - [ ] Consider consolidating the OSINT lookup buttons (VT/AbuseIPDB/Shodan/
       Censys/Netlas/GreyNoise/Pulsedive/ONYPHE/urlscan/ThreatFox/URLhaus/OTX/
-      MalwareBazaar/EmailRep/HIBP/crt.sh/Wayback/CyberChef — that's 18+
-      separate inline lookups added across v29.1–v29.12) into a single
+      MalwareBazaar/EmailRep/HIBP/crt.sh/Wayback/CyberChef/HudsonRock — that's
+      19+ separate inline lookups added across v29.1–v29.13) into a single
       "Lookup Everywhere" dispatcher that opens the relevant subset based on
       indicator type, rather than one button per service. Getting unwieldy.
 
@@ -121,11 +169,14 @@ for node in ast.walk(tree):
 
 1. **Python GIL** — background threads still contend with the main thread on
    CPU-bound work (psutil polling, regex scans). Expect occasional 2-12s UI
-   pauses during heavy monitoring-loop activations.
+   pauses during heavy monitoring-loop activations. The known main-thread
+   blocking-DB freezes have been fixed (status pills v29.13, feed loop earlier);
+   any *new* `self.db.execute()` inside a main-thread `after()` loop should be
+   moved to the executor the same way.
 2. **Tkinter is single-threaded** — all widget updates must happen on the
    main thread via `self.after()` / `_pending_alerts`. Never touch a widget
    directly from a background/executor thread.
-3. **~46K-line single file** — monolithic. Changes are riskier than they'd be
+3. **~49K-line single file** — monolithic. Changes are riskier than they'd be
    in a properly modularized codebase. This is why the AST duplicate-method
    check matters so much — normal code review can't catch a silent shadow in
    a file this size.

@@ -1,6 +1,31 @@
 # Downpour v29 Titanium — Enhancement Worklog
 
-## Branch: enhance/all-mods-v29
+## Branch: main
+
+## Session 2026-08-11m — v29.13: Hudson Rock infostealer lookup + freeze fix (v31p1)
+- ✅ `_osint_hudsonrock_lookup(ioc)` — keyless Hudson Rock **Cavalier** API
+  (sidebar source: OSINT4ALL "OSINT for Cybersecurity" — Exposure & breach
+  context). Dispatch: email → `search-by-email`, domain → `search-by-domain`.
+  Renders affected-machine count, corporate/user creds exposed, most-recent
+  compromise date, AV present on infected machines, employee/user/third-party
+  split + compromised login URLs for domains. Fires `[BREACH]` alert signal.
+- ✅ `_osint_hudsonrock_show(text, ioc)` — display + open cavalier.hudsonrock.com
+- ✅ Buttons: `Hudson Rock` in Intel tab Threat Response row; `[BREACH]
+  Infostealer Check` in DNS Advanced Tools (via `_dns_adv_hudsonrock` wrapper);
+  `Hudson Rock` added to `_osint_multi_lookup` domain deep-link stack.
+- ✅ **Freeze fix**: `_refresh_status_pills` ran `SELECT COUNT(*) FROM threats`
+  on the *main thread* every 10s — with `db._lock` already held by background
+  bulk-insert threads this blocks the UI (same documented root cause as the
+  earlier `_feed_refresh_loop` fix). Moved the count to `self._executor` +
+  `self.after(0, _apply_threat_pill)`. Status pills now non-blocking.
+- ✅ Verified live: email-with-hits, clean domain (`total=0`), real exposure
+  domain (tesla.com → 29,630 creds), no-hit email (`stealers=[]`).
+- ✅ Project: 0 AST failures; main file 715 methods / 0 dupes; py_compile OK.
+- ✅ Committed previously-untracked `ultimate_threat_intel/__init__.py`
+  (live runtime for threat_feed_aggregator: ThreatDatabase schema + registry)
+  — it was showing as untracked despite being imported at runtime.
+
+## Branch: enhance/all-mods-v29 (historical; now committed on main)
 
 ## Completed (Phases 1-2)
 - ✅ Removed 2249 illegal `: Any` annotations (token-stream CRLF-safe rewriter)
