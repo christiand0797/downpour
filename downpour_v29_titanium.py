@@ -40174,6 +40174,7 @@ Verification Status:
         _tbtn(tools_f, '[SHIELD] Check Blacklists (DNSBL)', self._dns_adv_dnsbl)
         _tbtn(tools_f, '[CT] crt.sh Subdomains',     self._dns_adv_crtsh)
         _tbtn(tools_f, '[EMAIL] SPF/DMARC/DKIM',     self._dns_adv_email_security)
+        _tbtn(tools_f, '[WEB] urlscan.io Search',    self._dns_adv_urlscan)
         _tbtn(tools_f, '[WEB] Domain OSINT Stack',   self._dns_adv_domain_osint)
 
         # Column 2: Security Tests
@@ -41461,6 +41462,16 @@ Verification Status:
         self._dns_out(self._dns_adv_output,
                       f'Opened {opened}/{len(links)} infrastructure sources for {domain}',
                       Colors.GAUGE_TEAL)
+
+    def _dns_adv_urlscan(self):
+        """Inline urlscan.io public-search for the DNS tab domain (keyless)."""
+        import tkinter.messagebox as mb
+        domain: Any = self._dns_adv_domain_var.get().strip()
+        if not domain:
+            mb.showinfo('urlscan.io Search',
+                        'Enter a domain in the DNS Tools field first.')
+            return
+        self._osint_urlscan_search(domain)
 
     def _dns_adv_email_security(self):
         """SPF / DMARC / DKIM email-auth record check (DNS-only, no key).

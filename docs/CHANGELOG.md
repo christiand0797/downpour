@@ -1,5 +1,19 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.12 Titanium — DNS Tab: Inline urlscan.io Domain Search
+
+Session goal: cross-integrate the keyless urlscan.io public-search capability
+into the DNS tab, where domain-context OSINT deep-links already live.
+
+### DNS tab urlscan.io search
+- **`_dns_adv_urlscan()`** — DNS Tools button `[WEB] urlscan.io Search` feeds
+  the DNS domain field into the existing keyless `_osint_urlscan_search`
+  (domain: search expr, renders recent public scans with MALICIOUS/score
+  flags, index total, opens the urlscan.io search page).
+- Guards empty domain with an inline notice.
+- Verified: delegation + empty-guard via mock, live keyless `github.com`
+  search end-to-end, `py_compile` + integrity OK.
+
 ## v29.11 Titanium — Keyless Inline AlienVault OTX Indicator Lookup
 
 Session goal: add an inline lookup for AlienVault OTX — the highest-profile

@@ -9,6 +9,10 @@
 - ✅ Repointed THREAT FEEDS gauge from broken ultimate_threat_intel stub to working threat_feed_aggregator
 - ✅ Added `_make_button()` shared helper + tooltips to: Scanner, Processes, Network, Hardening, AEGIS, Intel, Firewalls, Threats detail panel
 
+## Session 2026-08-11k — DNS tab inline urlscan.io search (v29.12)
+- ✅ `_dns_adv_urlscan()` — reuses keyless `_osint_urlscan_search` on the DNS domain field; empty-domain guard
+- ✅ Live github.com domain search verified
+
 ## Session 2026-08-11j — Keyless inline AlienVault OTX lookup (v29.11)
 - ✅ `_osint_otx_lookup(ioc)` — OTX general endpoint, keyless; IP/domain/hostname/URL/file dispatch
 - ✅ ASN/geo/reputation/pulse-count/pulse-names + community false-positive notice
