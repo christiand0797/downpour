@@ -1,5 +1,5 @@
 # TODO / Current State — Downpour v29 Titanium
-# Last verified: 2026-08-11 (v29.13, Hudson Rock + status-pill freeze fix)
+# Last verified: 2026-08-12 (v29.14, main-thread DB freeze cleanup round 2)
 
 **READ THIS FIRST if you are a new agent picking up this project.**
 This file was badly stale (dated April 2026) until this rewrite. `_WORKLOG.md`
@@ -10,10 +10,17 @@ authoritative history. This file is the current-state snapshot + what's left.
 
 ## Verified Current State (as of this rewrite)
 
-- `downpour_v29_titanium.py`: ~49,400 lines, 715 methods in the main `downpour`
+- `downpour_v29_titanium.py`: ~49,400 lines, 718 methods in the main `downpour`
   class, **0 duplicate method names** (verify with the AST script below before
   and after any edit session — this has caught real bugs multiple times)
 - Full project: 58 Python files, 0 syntax errors
+- **Main-thread DB-freeze rule (v29.14)**: every `self.db.*` / `count_intel()`
+  reached from a main-thread `after()` loop or a one-shot startup callback must
+  run on `self._executor` with results marshaled back via `self.after(0, ...)`.
+  The shared helper `_refresh_ioc_count_display()` centralizes the IOC-count
+  pattern; `_aegis_fetch_events` → `_apply_aegis_events` covers the AEGIS
+  event log. grep for `count_intel` and `SELECT COUNT(*)` before editing a
+  periodic loop. Background threads may still call `self.db.*` directly.
 - **Python 3.12 is the correct interpreter.** Do NOT use whatever `python` on
   PATH resolves to without checking — this machine's default was Python
   3.15.0a6 (an alpha build) for a long time, which has NO compiled wheels for

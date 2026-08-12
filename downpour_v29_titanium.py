@@ -33251,9 +33251,9 @@ Verification Status:
             self._orig_after(500, _freeze_check)
         self._orig_after(500, _freeze_check)
 
-        # Initial intel stats (one-shot, lightweight)
-        self.after(500, lambda: self._stat_labels['iocs'].config(
-            text = f"{self.db.count_intel():,}"))
+        # Initial intel stats (one-shot, lightweight — count runs on executor
+        # so startup never blocks on db._lock)
+        self.after(500, self._refresh_ioc_count_display)
 
         # Feed refresh loop (lightweight UI update, 30s interval)
         self.after(20_000, self._feed_refresh_loop)
@@ -33454,18 +33454,8 @@ Verification Status:
                 if 'iocs' in self._stat_labels:
                     # FIX: db.count_intel() acquires db._lock which background threads
                     # also hold during bulk inserts — calling it on the main thread can
-                    # block for many seconds. Run it in the executor instead.
-                    def _update_ioc_count():
-                        try:
-                            n: Any = self.db.count_intel()
-                            self.after(0, lambda c=n: (
-                                hasattr(self, '_stat_labels') and
-                                'iocs' in self._stat_labels and
-                                self._stat_labels['iocs'].config(text=f"{c:,}")
-                            ))
-                        except Exception:
-                            pass
-                    self._executor.submit(_update_ioc_count)
+                    # block for many seconds. Run it via the shared executor helper.
+                    self._refresh_ioc_count_display()
         except Exception:
             pass
         self._orig_after(self._adaptive_feed_ms, self._feed_refresh_loop)
@@ -33809,9 +33799,32 @@ Verification Status:
                 else:
                     self._net_tree.insert('', 'end', iid=k, values=vals, tags=(tag,))
 
-            self._stat_labels['iocs'].config(text=f"{self.db.count_intel():,}")
+            self._refresh_ioc_count_display()
         except Exception as e:
             error_logger.log('NetUI', 'Update error', e)
+
+    def _refresh_ioc_count_display(self):
+        """Update the IOC-count stat label without blocking the main thread.
+
+        db.count_intel() acquires db._lock, which background threads also hold
+        during bulk IOC inserts — calling it on the main thread can block the
+        UI for seconds. Runs the count on the executor and posts the string
+        back via after(0).
+        """
+        def _count():
+            try:
+                n: Any = self.db.count_intel()
+                self.after(0, lambda c=n: (
+                    hasattr(self, '_stat_labels') and
+                    'iocs' in self._stat_labels and
+                    self._stat_labels['iocs'].config(text=f"{c:,}")
+                ))
+            except Exception:
+                pass
+        try:
+            self._executor.submit(_count)
+        except Exception:
+            pass
 
     def _on_tk_callback_error(self, exc_type, exc_value, exc_tb):
         """Catch Tkinter callback errors — log them instead of crashing."""
@@ -35030,8 +35043,8 @@ Verification Status:
                 ]))
             self.after(0, lambda: [
                 self._set_status(self.intel.status),
-                self._stat_labels['iocs'].config(text=f"{self.db.count_intel():,}"),
             ])
+            self.after(0, self._refresh_ioc_count_display)
         self._executor.submit(do)
 
     def _quick_file_scan(self):
@@ -39303,36 +39316,51 @@ Verification Status:
             self._aegis_stat_labels['dns_blocked'].config(text=str(s2['dns_blocked']))
             self._aegis_stat_labels['phishing_caught'].config(text=str(s4['phishing_caught']))
             self._aegis_stat_labels['blob_blocked'].config(text=str(s4['blob_blocked']))
-            # Event count from DB
-            try:
-                rows: Any = self.db.execute("SELECT COUNT(*) FROM aegis_events")
-                self._aegis_event_count.config(text=f"Events: {rows[0][0]:,}")
-            except Exception:
-                pass
-            # Load the 10 most-recent DB events  -  append to log, then trim top
-            try:
-                recent: Any = self.db.execute(
-                    "SELECT ts, layer, event, severity FROM aegis_events ORDER BY id DESC LIMIT 10")
-                for row in reversed(recent):
-                    _, layer, event, severity = row
-                    self._aegis_log_event(f"[{layer.upper()}] {event}", severity or 'INFO')
-                # FIX-C2: Trim widget to cap  -  delete excess lines from the top
-                try:
-                    line_count: Any = int(self._aegis_log.index('end-1c').split('.')[0])
-                    if line_count > self._AEGIS_LOG_MAX_LINES:
-                        excess: Any = line_count - self._AEGIS_LOG_MAX_LINES
-                        self._aegis_log.config(state='normal')
-                        self._aegis_log.delete('1.0', f'{excess + 1}.0')
-                        self._aegis_log.config(state='disabled')
-                except Exception:
-                    pass
-            except Exception:
-                pass
+            # Event count + recent events from DB  -  run off-thread, then
+            # marshal results back to the main thread (avoids db._lock stalls).
+            self._executor.submit(self._aegis_fetch_events)
         except Exception as e:
             error_logger.log('AegisUI', 'Stats refresh failed', e)
         # FIX-v28p35: release guard, then schedule the next tick
         self._aegis_refresh_running = False
         self.after(15000, self._refresh_aegis_stats)
+
+    def _aegis_fetch_events(self):
+        """Async: query aegis_events count + 10 recent rows on the executor.
+
+        Both queries acquire db._lock, which background inserts also hold —
+        running them on the main thread (as _refresh_aegis_stats formerly did
+        every 15 s) could stall the UI for seconds. Results are posted back
+        via after(0) so all widget/Text mutations stay on the main thread.
+        """
+        try:
+            rows: Any = self.db.execute("SELECT COUNT(*) FROM aegis_events")
+            recent: Any = self.db.execute(
+                "SELECT ts, layer, event, severity FROM aegis_events ORDER BY id DESC LIMIT 10")
+            count: Any = rows[0][0] if rows else 0
+            self.after(0, lambda c=count, r=recent: self._apply_aegis_events(c, r))
+        except Exception:
+            pass
+
+    def _apply_aegis_events(self, count, recent):
+        """Main-thread: render DB event count + recent rows into the AEGIS log."""
+        try:
+            self._aegis_event_count.config(text=f"Events: {count:,}")
+            for row in reversed(recent):
+                _, layer, event, severity = row
+                self._aegis_log_event(f"[{layer.upper()}] {event}", severity or 'INFO')
+            # FIX-C2: Trim widget to cap  -  delete excess lines from the top
+            try:
+                line_count: Any = int(self._aegis_log.index('end-1c').split('.')[0])
+                if line_count > self._AEGIS_LOG_MAX_LINES:
+                    excess: Any = line_count - self._AEGIS_LOG_MAX_LINES
+                    self._aegis_log.config(state='normal')
+                    self._aegis_log.delete('1.0', f'{excess + 1}.0')
+                    self._aegis_log.config(state='disabled')
+            except Exception:
+                pass
+        except Exception:
+            pass
 
     # -- Aegis action methods -------------------------------------------------
 
@@ -39492,8 +39520,9 @@ Verification Status:
             self.after(0, lambda: (
                 self._aegis_log_event(f"[WEB] Extra feeds done  -  {total:,} IOCs added", 'INFO'),
                 self._add_alert(f"[SWORDS] AEGIS: Extra feeds fetched  -  {total:,} IOCs", Colors.GAUGE_TEAL),
-                self._stat_labels['iocs'].config(text=f"{self.db.count_intel():,}")
             ))
+            # IOC count label updated off-thread (DB lock can block the UI)
+            self.after(0, self._refresh_ioc_count_display)
         self._executor.submit(do)
 
     # --------------------------------------------------------------------------

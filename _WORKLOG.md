@@ -2,6 +2,28 @@
 
 ## Branch: main
 
+## Session 2026-08-12a — v29.14: main-thread DB freeze cleanup (v31p2)
+- ✅ **Freeze fix round 2**: audited every `count_intel()` / `SELECT COUNT(*)`
+  call site for main-thread risk. Eliminated 5+ remaining main-thread DB blocks:
+  - New shared helper `_refresh_ioc_count_display()` — runs `db.count_intel()`
+    on `self._executor`, posts the label update back via `self.after(0, ...)`,
+    with `hasattr`/membership guards so it is safe from both main-thread
+    loops and background threads.
+  - `_update_network_ui` (30s loop) — was calling `count_intel()` inline on main.
+  - `_auto_start` — one-shot `count_intel()` on main at startup.
+  - `_feed_refresh_loop` — replaced the per-loop inline executor closure with
+    the shared helper (dedupe).
+  - `_update_intel_now` — posted `count_intel()` to main in its after(0) lambda.
+  - `_aegis_fetch_extra_feeds` — same main-thread after(0) pattern.
+  - `_refresh_aegis_stats` (15s AEGIS loop) — both `SELECT COUNT(*) FROM
+    aegis_events` and the 10-row `ORDER BY id DESC LIMIT 10` were on main.
+    Wired `_aegis_fetch_events` (executor) → `_apply_aegis_events` (main).
+- ✅ Audit results: main file now **718 methods / 0 dupes**; py_compile OK;
+  project-wide AST **0 failures** (removed stray `zz_dbaudit.py`,
+  `zz_health.py` BOM-broken temp scripts).
+
+## Branch: main
+
 ## Session 2026-08-11m — v29.13: Hudson Rock infostealer lookup + freeze fix (v31p1)
 - ✅ `_osint_hudsonrock_lookup(ioc)` — keyless Hudson Rock **Cavalier** API
   (sidebar source: OSINT4ALL "OSINT for Cybersecurity" — Exposure & breach

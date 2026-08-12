@@ -1,5 +1,39 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.14 Titanium — Main-Thread DB Freeze Cleanup (round 2)
+
+Session goal: eliminate the remaining main-thread DB-blocking call sites so no
+`db._lock`-held query can stall the UI, and centralize the IOC-count pattern
+into a single shared helper.
+
+### Shared helper: `_refresh_ioc_count_display()`
+Runs `db.count_intel()` on `self._executor` and posts the label update back
+via `self.after(0, ...)`, with `hasattr(self, '_stat_labels')` +
+`'iocs' in self._stat_labels` guards so it is safe to call from both
+main-thread loops and background threads. Replaces 5 duplicated inline
+closures with one reviewed implementation.
+
+### Off-main-thread audit — fixed call sites
+- **`_update_network_ui`** (Network tab, 30 s loop): `count_intel()` was called
+  inline on the main thread every refresh — now delegated to the helper.
+- **`_auto_start`**: one-shot startup `count_intel()` on main — now schedules
+  `_refresh_ioc_count_display()` after 500 ms.
+- **`_feed_refresh_loop`**: the per-loop inline executor closure was moved to
+  the shared helper (pure dedupe, same behavior).
+- **`_update_intel_now`**: `count_intel()` was posted into a main-thread
+  `after(0)` lambda — now the helper runs the count off-thread.
+- **`_aegis_fetch_extra_feeds`**: same main-thread `after(0)` pattern — routed
+  through the helper.
+- **`_refresh_aegis_stats`** (AEGIS tab, 15 s loop): the two `aegis_events`
+  queries (`SELECT COUNT(*)` and `ORDER BY id DESC LIMIT 10`) ran on the main
+  thread. Split into `_aegis_fetch_events` (executor, queries + marshals rows
+  back) → `_apply_aegis_events` (main thread, renders count + log + FIX-C2 trim).
+
+### Invariant re-verified
+- Main `downpour` class: **718 methods, 0 duplicate method names**.
+- `py_compile` OK; project-wide AST walk: **0 failures** (also removed two
+  BOM-corrupted leftover `zz_dbaudit.py` / `zz_health.py` audit temp files).
+
 ## v29.13 Titanium — Hudson Rock Infostealer Lookup + Status-Pill Freeze Fix
 
 Session goal: add the last OSINT4ALL "Exposure and breach context" source
