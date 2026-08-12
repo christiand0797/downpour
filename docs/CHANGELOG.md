@@ -1,5 +1,29 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.9 Titanium — Inline URLhaus Lookup (Host/URL/Hash Dispatch)
+
+Session goal: add an inline lookup for URLhaus (the sibling abuse.ch service
+to MalwareBazaar) covering domain, URL and hash IOCs in one dispatch method.
+
+### Inline URLhaus API lookup
+- **`_osint_urlhaus_lookup(ioc)`** — URLhaus API dispatch on IOC type, reusing
+  the abuse.ch Auth-Key already configured for MalwareBazaar
+  (auth.abuse.ch issues one key for all abuse.ch services):
+  - **MD5/SHA256** → `/v1/payload/`: signature/family, file type + size,
+    first-seen, VirusTotal detection ratio, and observed malware URLs.
+  - **URL** → `/v1/url/`: online status, host, blacklist state (Surbl +
+    Spamhaus DBL with the specific abuse-type label), tags, payload drops.
+  - **IP/domain** → `/v1/host/`: URL count, first-seen, blacklist state,
+    recent malware URLs with threat labels.
+  - Keyless mode opens `urlhaus.abuse.ch` (browse.php for hashes, /host/ for
+    hosts/URLs) instead of failing.
+  - Runs on `self._executor`; failure degrades to the public page.
+- **`_osint_urlhaus_show(text, ioc)`** — Tk callback (established pattern).
+- **UI**: `URLhaus` button added to Intel tab Threat Response row next to
+  `MalwareBazaar`.
+- Verified: hash/URL/host `_do` paths vs mocked responses with the real API
+  field names, keyless fallbacks, `py_compile` + integrity OK.
+
 ## v29.8 Titanium — Inline MalwareBazaar Hash Lookup
 
 Session goal: give hash IOCs their first inline lookup (previously hashes only

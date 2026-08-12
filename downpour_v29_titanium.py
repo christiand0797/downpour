@@ -23898,6 +23898,7 @@ class downpour(tk.Tk):
             ("urlscan Submit",       lambda: self._osint_urlscan_submit(self._get_intel_entry_value())),
             ("urlscan Search",       lambda: self._osint_urlscan_search(self._get_intel_entry_value())),
             ("MalwareBazaar",        lambda: self._osint_malwarebazaar_lookup(self._get_intel_entry_value())),
+            ("URLhaus",              lambda: self._osint_urlhaus_lookup(self._get_intel_entry_value())),
             ("CyberChef Decode",     lambda: self._intel_cyberchef()),
             ("Export Report",        lambda: self._intel_export_report()),
             ("[MISP] Import IOCs",   lambda: self._intel_import_misp()),
@@ -38177,6 +38178,151 @@ Verification Status:
         import webbrowser
         mb.showinfo('MalwareBazaar Lookup', text)
         webbrowser.open(f'https://bazaar.abuse.ch/sample/{ioc}/')
+
+    def _osint_urlhaus_lookup(self, ioc: str):
+        """Inline URLhaus lookup (threat-intel stack).
+
+        Dispatches on the IOC type against the URLhaus API (same abuse.ch
+        Auth-Key as MalwareBazaar): host/IP -> /v1/host/, URL -> /v1/url/,
+        MD5/SHA256 hash -> /v1/payload/. Returns blacklist status (Surbl +
+        Spamhaus DBL), URL count, first-seen, signatures, and associated
+        payload drops / malware URLs. Keyless mode opens the public page.
+        """
+        import webbrowser
+        import tkinter.messagebox as mb
+        ioc = (ioc or '').strip()
+        if not ioc:
+            mb.showinfo('URLhaus', 'Enter an IP, domain, URL or file hash '
+                        'to look up.')
+            return
+        api_key: Any = ''
+        try:
+            api_key = str(self.cfg.get('osint', 'malwarebazaar_key', '') or '')
+        except Exception:
+            api_key = ''
+        is_md5: Any = bool(re.match(r'^[0-9a-fA-F]{32}$', ioc))
+        is_sha256: Any = bool(re.match(r'^[0-9a-fA-F]{64}$', ioc))
+        is_url: Any = bool(re.match(r'^https?://', ioc))
+        public_url: Any = ioc
+        if not api_key:
+            if is_md5 or is_sha256:
+                public_url = f'https://urlhaus.abuse.ch/browse.php?search={ioc}'
+            elif is_url:
+                dom_b: Any = ioc.split('/')[2] if ioc.startswith('http') else ioc
+                public_url = f'https://urlhaus.abuse.ch/host/{dom_b}/'
+            else:
+                public_url = f'https://urlhaus.abuse.ch/host/{ioc}/'
+            webbrowser.open(public_url)
+            self._queue_alert(f'[OSINT] Opened URLhaus page for {ioc} '
+                              '(set abuse.ch Auth-Key in Settings for inline '
+                              'results).', Colors.GAUGE_TEAL)
+            return
+
+        def _do():
+            try:
+                import urllib.request as _ur
+                import urllib.parse as _up
+                import json as _j
+                if is_md5 or is_sha256:
+                    ep: Any = 'https://urlhaus-api.abuse.ch/v1/payload/'
+                    _data: Any = {'md5_hash': ioc} if is_md5 else {'sha256_hash': ioc}
+                elif is_url:
+                    ep = 'https://urlhaus-api.abuse.ch/v1/url/'
+                    _data = {'url': ioc}
+                else:
+                    host_l: Any = ioc.split('/')[2] if '://' in ioc else ioc.split('/')[0]
+                    ep = 'https://urlhaus-api.abuse.ch/v1/host/'
+                    _data = {'host': host_l}
+                _body: Any = _up.urlencode(_data).encode()
+                req: Any = _ur.Request(ep, data=_body,
+                                       headers={'User-Agent': 'Downpour-SecuritySuite/20',
+                                                'Auth-Key': api_key,
+                                                'Accept': 'application/json'})
+                with _ur.urlopen(req, timeout=20) as r:
+                    d: Any = _j.loads(r.read().decode('utf-8', 'replace'))
+                qs: Any = str(d.get('query_status', ''))
+                if qs != 'ok':
+                    note: Any = 'not listed anywhere in URLhaus' if \
+                        qs == 'no_results' else qs
+                    self.after(0, lambda _q=note, _i=ioc: mb.showinfo(
+                        'URLhaus', f'{_i}\n\n{_q}'))
+                    self._queue_alert(f'[OSINT] URLhaus {ioc}: {note}',
+                                      Colors.GAUGE_TEAL)
+                    return
+                lines: Any = []
+                if is_md5 or is_sha256:
+                    sig: Any = d.get('signature') or 'unknown'
+                    lines.append(f'URLhaus payload: {ioc}')
+                    lines.append(f'Signature: {sig}')
+                    if d.get('file_type'):
+                        lines.append(f'Type: {d.get("file_type", "?")} '
+                                     f'({d.get("file_size", "?")} bytes)')
+                    if d.get('firstseen'):
+                        lines.append(f'First seen: {d.get("firstseen", "?")}')
+                    vt: Any = d.get('virustotal') or {}
+                    if vt.get('result'):
+                        lines.append(f'VirusTotal: {vt.get("result", "?")} '
+                                     f'({vt.get("percent", "?")}%)')
+                    urls: Any = d.get('urls') or []
+                    if urls:
+                        lines.append(f'Observed on {len(urls)} malware URL(s):')
+                        for u in urls[:5]:
+                            lines.append(f'  {u.get("url", "?")[:70]} '
+                                         f'[{u.get("url_status", "?")}]')
+                elif is_url:
+                    lines.append(f'URLhaus URL: {ioc}')
+                    lines.append(f'Status: {d.get("url_status", "?")}')
+                    lines.append(f'Host: {d.get("host", "?")}')
+                    if d.get('date_added'):
+                        lines.append(f'Date added: {d.get("date_added", "?")}')
+                    bl: Any = d.get('blacklists') or {}
+                    if bl:
+                        lines.append(f'Spamhaus DBL: {bl.get("spamhaus_dbl", "?")}')
+                        lines.append(f'SURBL: {bl.get("surbl", "?")}')
+                    if d.get('tags'):
+                        lines.append(f'Tags: {", ".join(str(t) for t in d.get("tags", [])[:8])}')
+                    pl: Any = d.get('payloads') or []
+                    if pl:
+                        lines.append(f'Payloads: {len(pl)}')
+                        for p in pl[:5]:
+                            lines.append(f'  {p.get("signature") or p.get("file_type", "?")} '
+                                         f'- {p.get("response_sha256", "?")[:16]}')
+                else:
+                    lines.append(f'URLhaus host: {ioc}')
+                    lines.append(f'URL count: {d.get("url_count", "0")}')
+                    if d.get('firstseen'):
+                        lines.append(f'First seen: {d.get("firstseen", "?")}')
+                    bl = d.get('blacklists') or {}
+                    if bl:
+                        lines.append(f'Spamhaus DBL: {bl.get("spamhaus_dbl", "?")}')
+                        lines.append(f'SURBL: {bl.get("surbl", "?")}')
+                    urls = d.get('urls') or []
+                    if urls:
+                        lines.append(f'Recent URLs: {len(urls)}')
+                        for u in urls[:6]:
+                            lines.append(f'  {u.get("url", "?")[:70]} '
+                                         f'[{u.get("url_status", "?")}] '
+                                         f'{u.get("threat", "?")}')
+                self.after(0, lambda m='\n'.join(lines):
+                    self._osint_urlhaus_show(m, ioc))
+                self._queue_alert(f'[OSINT] URLhaus {ioc}: ok',
+                                  Colors.GAUGE_RED)
+            except Exception as e:
+                self.after(0, lambda _e=str(e), _i=ioc: mb.showwarning(
+                    'URLhaus',
+                    f'Inline lookup failed ({_e[:120]}).\n'
+                    'Opening the public page instead.'))
+                webbrowser.open(f'https://urlhaus.abuse.ch/host/'
+                                f'{ioc.split("/")[2] if "://" in ioc else ioc.split("/")[0]}/')
+        self._executor.submit(_do)
+
+    def _osint_urlhaus_show(self, text: str, ioc: str):
+        """Display URLhaus result and open the public page."""
+        import tkinter.messagebox as mb
+        import webbrowser
+        mb.showinfo('URLhaus Lookup', text)
+        dom_c: Any = ioc.split('/')[2] if '://' in ioc else ioc.split('/')[0]
+        webbrowser.open(f'https://urlhaus.abuse.ch/host/{dom_c}/')
 
     def _osint_pulsedive_lookup(self, ioc: str):
         """Inline Pulsedive indicator enrichment (threat-intel stack).

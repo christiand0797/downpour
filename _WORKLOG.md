@@ -9,6 +9,11 @@
 - ✅ Repointed THREAT FEEDS gauge from broken ultimate_threat_intel stub to working threat_feed_aggregator
 - ✅ Added `_make_button()` shared helper + tooltips to: Scanner, Processes, Network, Hardening, AEGIS, Intel, Firewalls, Threats detail panel
 
+## Session 2026-08-11h — Inline URLhaus lookup (v29.9)
+- ✅ `_osint_urlhaus_lookup(ioc)` — URLhaus API dispatch (hash→payload/, URL→url/, IP/domain→host/), reuses abuse.ch Auth-Key
+- ✅ Blacklist state (Surbl + Spamhaus DBL labels), VT ratio, payload drops, recent malware URLs
+- ✅ Verified hash/URL/host paths + keyless fallbacks
+
 ## Session 2026-08-11g — Inline MalwareBazaar hash lookup (v29.8)
 - ✅ `_osint_malwarebazaar_lookup(ioc)` — POST get_info (MD5/SHA1/SHA256), free Auth-Key header; signature/file/type/timestamps/tags/vendor-intel
 - ✅ Live probe: endpoint now 401 without Auth-Key → added Settings key field + keyless page fallback
