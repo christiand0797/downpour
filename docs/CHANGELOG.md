@@ -1,5 +1,28 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.10 Titanium — Inline ThreatFox IOC Search
+
+Session goal: complete the abuse.ch trio by adding an inline search for
+ThreatFox IOCs (MalwareBazaar + URLhaus added in v29.8/v29.9).
+
+### Inline ThreatFox API search
+- **`_osint_threatfox_lookup(ioc)`** — ThreatFox API (POST JSON with the same
+  abuse.ch Auth-Key already configured for MalwareBazaar/URLhaus):
+  - **Hash** → `search_hash`; **everything else (IP/domain/URL)** →
+    `search_ioc` with `exact_match: True`.
+  - Renders up to 8 hits: malware family (printable + malpedia ID), threat
+    type, confidence level, exact IOC + port (when it differs), truncated
+    first-seen and the Malpedia deep-link.
+  - `no_result` → clean "no exactly-matching IOC known" dialog.
+  - Keyless mode opens `threatfox.abuse.ch/browse.php?search=<ioc>`.
+  - Runs on `self._executor`; failure degrades to the browse page.
+- **`_osint_threatfox_show(text, ioc)`** — Tk callback (established pattern).
+- **UI**: `ThreatFox` button added to Intel tab Threat Response row, closing
+  the abuse.ch slice (MalwareBazaar / URLhaus / ThreatFox all inline).
+- Verified: search_ioc dispatch (query + exact_match), search_hash dispatch,
+  multi-hit rendering, no-result dialog, keyless fallback, `py_compile` +
+  integrity OK.
+
 ## v29.9 Titanium — Inline URLhaus Lookup (Host/URL/Hash Dispatch)
 
 Session goal: add an inline lookup for URLhaus (the sibling abuse.ch service

@@ -64,6 +64,7 @@ LAUNCH_V29_TITANIUM.bat
 | 🛰️ **Netlas Host Lookup** | Inline Netlas host API (free tier): ASN/netblock, geo, WHOIS, related domains, NS/MX + open ports/software |
 | 🦠 **MalwareBazaar Hash** | Inline abuse.ch hash triage (free Auth-Key): signature/family, file info, first/last seen, tags, vendor detections |
 | 🚨 **URLhaus Lookup** | Inline URLhaus dispatch (host/URL/hash): blacklist state (Surbl + Spamhaus DBL), VT ratio, payload drops, malware URLs |
+| 🎯 **ThreatFox Search** | Inline ThreatFox IOC search (exact match): malware family, threat type, confidence, Malpedia links |
 | 🤝 **MISP/STIX Sharing** | Import MISP event JSON / STIX 2.0 bundles / plain IOC lists into the intel DB (optional firewall-block of imported IPs); export the local indicator set as a MISP-format JSON event for SOC/peer sharing |
 | 🌍 **Domain Investigation** | crt.sh certificate-transparency subdomain discovery (Certspotter fallback), Domain OSINT Stack deep-links (ViewDNS/DNSDumpster/MXToolbox/Wappalyzer/Netlas/ZoomEye/FullHunt + archives), email-security SPF/DMARC/DKIM DNS check |
 | 🔑 **Pwned Passwords Check** | HIBP k-anonymity hash-range lookup (no API key — only 5 SHA-1 chars sent); alerts if a password appears in breach corpora |

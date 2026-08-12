@@ -9,6 +9,11 @@
 - ✅ Repointed THREAT FEEDS gauge from broken ultimate_threat_intel stub to working threat_feed_aggregator
 - ✅ Added `_make_button()` shared helper + tooltips to: Scanner, Processes, Network, Hardening, AEGIS, Intel, Firewalls, Threats detail panel
 
+## Session 2026-08-11i — Inline ThreatFox IOC search (v29.10)
+- ✅ `_osint_threatfox_lookup(ioc)` — ThreatFox API (search_hash / search_ioc exact-match), same abuse.ch Auth-Key
+- ✅ Renders malware family/threat type/confidence/Malpedia per hit; no-result dialog
+- ✅ Verified both dispatches + keyless fallback; abuse.ch slice complete (MalwareBazaar + URLhaus + ThreatFox)
+
 ## Session 2026-08-11h — Inline URLhaus lookup (v29.9)
 - ✅ `_osint_urlhaus_lookup(ioc)` — URLhaus API dispatch (hash→payload/, URL→url/, IP/domain→host/), reuses abuse.ch Auth-Key
 - ✅ Blacklist state (Surbl + Spamhaus DBL labels), VT ratio, payload drops, recent malware URLs

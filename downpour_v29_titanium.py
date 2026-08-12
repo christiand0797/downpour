@@ -23899,6 +23899,7 @@ class downpour(tk.Tk):
             ("urlscan Search",       lambda: self._osint_urlscan_search(self._get_intel_entry_value())),
             ("MalwareBazaar",        lambda: self._osint_malwarebazaar_lookup(self._get_intel_entry_value())),
             ("URLhaus",              lambda: self._osint_urlhaus_lookup(self._get_intel_entry_value())),
+            ("ThreatFox",            lambda: self._osint_threatfox_lookup(self._get_intel_entry_value())),
             ("CyberChef Decode",     lambda: self._intel_cyberchef()),
             ("Export Report",        lambda: self._intel_export_report()),
             ("[MISP] Import IOCs",   lambda: self._intel_import_misp()),
@@ -38323,6 +38324,96 @@ Verification Status:
         mb.showinfo('URLhaus Lookup', text)
         dom_c: Any = ioc.split('/')[2] if '://' in ioc else ioc.split('/')[0]
         webbrowser.open(f'https://urlhaus.abuse.ch/host/{dom_c}/')
+
+    def _osint_threatfox_lookup(self, ioc: str):
+        """Inline ThreatFox IOC search (threat-intel stack).
+
+        Uses the abuse.ch ThreatFox API (POST JSON, same free Auth-Key as
+        MalwareBazaar/URLhaus). Dispatches on hash (search_hash) vs any other
+        IOC (search_ioc, exact match). Returns malware family + printable
+        name, threat type, confidence, first/last seen, tags, Malpedia link.
+        Keyless mode opens the ThreatFox browse page.
+        """
+        import webbrowser
+        import tkinter.messagebox as mb
+        ioc = (ioc or '').strip()
+        if not ioc:
+            mb.showinfo('ThreatFox', 'Enter an IP, domain, URL or file hash '
+                        'to search.')
+            return
+        api_key: Any = ''
+        try:
+            api_key = str(self.cfg.get('osint', 'malwarebazaar_key', '') or '')
+        except Exception:
+            api_key = ''
+        is_hash: Any = bool(re.match(r'^[0-9a-f]{32}$|^[0-9a-fA-F]{64}$', ioc))
+        if not api_key:
+            browse: Any = f'https://threatfox.abuse.ch/browse.php?search={ioc}'
+            webbrowser.open(browse)
+            self._queue_alert(f'[OSINT] Opened ThreatFox browse for {ioc} '
+                              '(set abuse.ch Auth-Key in Settings for inline '
+                              'results).', Colors.GAUGE_TEAL)
+            return
+
+        def _do():
+            try:
+                import urllib.request as _ur
+                import json as _j
+                _query: Any = {'query': 'search_hash', 'hash': ioc} if \
+                    is_hash else {'query': 'search_ioc',
+                                  'search_term': ioc, 'exact_match': True}
+                req: Any = _ur.Request(
+                    'https://threatfox-api.abuse.ch/api/v1/',
+                    data=_j.dumps(_query).encode('utf-8'),
+                    headers={'User-Agent': 'Downpour-SecuritySuite/20',
+                             'Content-Type': 'application/json',
+                             'Auth-Key': api_key,
+                             'Accept': 'application/json'})
+                with _ur.urlopen(req, timeout=20) as r:
+                    d: Any = _j.loads(r.read().decode('utf-8', 'replace'))
+                qs: Any = str(d.get('query_status', ''))
+                recs: Any = d.get('data') or []
+                if qs != 'ok' or not recs:
+                    note: Any = 'no exactly-matching IOC known to ThreatFox' \
+                        if not recs else qs
+                    self.after(0, lambda _q=note, _i=ioc: mb.showinfo(
+                        'ThreatFox', f'{_i}\n\n{_q}'))
+                    self._queue_alert(f'[OSINT] ThreatFox {ioc}: {note}',
+                                      Colors.GAUGE_TEAL)
+                    return
+                lines: Any = [f'ThreatFox hits for {ioc}: {len(recs)}']
+                for r0 in recs[:8]:
+                    mp: Any = r0.get('malware_printable')
+                    mt: Any = r0.get('malware')
+                    lines.append(f'  - {mp or mt or "unknown"} '
+                                 f'[{r0.get("threat_type", "?").replace("_", " ")}] '
+                                 f'conf {r0.get("confidence_level", "?")}')
+                    if r0.get('ioc') and r0.get('ioc') != ioc:
+                        lines.append(f'      IOC: {r0.get("ioc", "")[:60]}')
+                    fs: Any = r0.get('first_seen')
+                    if fs:
+                        lines.append(f'      First seen: {str(fs)[:16]}')
+                    malp: Any = r0.get('malware_malpedia')
+                    if malp:
+                        lines.append(f'      {malp[:70]}')
+                self.after(0, lambda m='\n'.join(lines):
+                    self._osint_threatfox_show(m, ioc))
+                self._queue_alert(f'[OSINT] ThreatFox {ioc}: {len(recs)} match(es)',
+                                  Colors.GAUGE_RED)
+            except Exception as e:
+                self.after(0, lambda _e=str(e), _i=ioc: mb.showwarning(
+                    'ThreatFox',
+                    f'Inline search failed ({_e[:120]}).\n'
+                    'Opening the ThreatFox browse page instead.'))
+                webbrowser.open(f'https://threatfox.abuse.ch/browse.php?search={ioc}')
+        self._executor.submit(_do)
+
+    def _osint_threatfox_show(self, text: str, ioc: str):
+        """Display ThreatFox results and open the browse page."""
+        import tkinter.messagebox as mb
+        import webbrowser
+        mb.showinfo('ThreatFox Search', text)
+        webbrowser.open(f'https://threatfox.abuse.ch/browse.php?search={ioc}')
 
     def _osint_pulsedive_lookup(self, ioc: str):
         """Inline Pulsedive indicator enrichment (threat-intel stack).
