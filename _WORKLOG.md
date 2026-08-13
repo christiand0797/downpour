@@ -2,6 +2,29 @@
 
 ## Branch: main
 
+## Session 2026-08-13b — v29.22: real PDF export for security reports
+- ✅ **Bug**: `_export_compliance_pdf` was a stub — it just showed a messagebox
+  telling the user to save a .txt and use a PDF printer.
+- ✅ **Bug**: `_run_nsa_security_report` pushed results only to the alerts
+  panel and then discarded them — the full assessment was never persisted.
+- ✅ **`_export_pdf_report(title, subtitle, headers, rows, notes)`** — generic
+  reportlab PDF writer. Save dialog on main thread, build on `_executor`.
+  Teal-on-dark styled: wrapped Paragraph cells, dark header row, PASS/FAIL
+  row shading, timestamp, optional notes bullets.
+- ✅ **`_export_compliance_pdf`** — now dumps the live compliance tree into a
+  real PDF (with failing/warning count note); guards empty-tree with a
+  "run Full Audit first" hint.
+- ✅ **`_save_nsa_report_pdf(report, critical, grade)`** — executor-side PDF
+  writer for the NSA assessment; auto-writes to
+  `~/Documents/DownpourReports/downpour_nsa_report_<ts>.pdf` and shows a
+  completion dialog. `_run_nsa_security_report` calls it after the summary.
+- ✅ Dependency: reportlab verified installed + live-built a valid `%PDF-1.4`
+  file with the exact table/style code used. No new installs.
+- ✅ Verified: py_compile OK; main file **740 methods / 0 dupes**; project AST
+  **0 failures**.
+
+## Branch: main
+
 ## Session 2026-08-13a — v29.21: Performance tab live controls + keyless infra OSINT
 - ✅ Checkpointed the uncommitted sprint (perf controls + 3 keyless OSINT
   lookups) as v29.21.

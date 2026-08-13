@@ -1,5 +1,33 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.22 Titanium — Real PDF Export for Security Reports
+
+Session goal: fix the fake "PDF export" (a stub messagebox) and the
+alert-only NSA assessment (results were pushed to alerts and then discarded)
+by shipping genuine reportlab PDF exports.
+
+- **`_export_pdf_report()`** — generic reportlab PDF writer: save dialog on
+  the main thread, PDF build on the executor (never blocks the event loop).
+  Teal-on-dark styled document with title, subtitle + timestamp, a wrapped
+  table (Paragraph cells) with dark header row, PASS/FAIL row shading, and
+  an optional notes list. Verified live: builds a valid `%PDF-1.4` file.
+- **`_export_compliance_pdf()`** — replaced the stub messagebox with a real
+  export: reads the current compliance audit results tree, computes a
+  failing/warning summary note, and renders it via `_export_pdf_report`.
+  Guarded with a "run Full Audit first" hint when the tree is empty.
+- **`_run_nsa_security_report()`** — the NSA-style assessment previously only
+  queued alerts and lost the details. Now persists the full result set to
+  `~/Documents/DownpourReports/downpour_nsa_report_<ts>.pdf` automatically
+  after the assessment completes (graceful error logged via error_logger if
+  the build fails).
+- **`_save_nsa_report_pdf()`** — executor-side PDF writer for the assessment:
+  three-column Status/Check/Detail table with `[OK]`/`[FAIL]` icons, grade +
+  pass/critical summary line, teal title block, and a completion messagebox.
+- Dependency note: reportlab is installed on Python 3.12 — no new installs.
+- Verified: `py_compile` OK; live reportlab build test produced a valid PDF;
+  project-wide AST 0 failures. Invariant: main `downpour` class **740 methods,
+  0 duplicate method names**.
+
 ## v29.21 Titanium — Performance Tab Live Controls + Keyless Infra OSINT
 
 Session goal: turn the Performance tab into a live, interactive monitoring

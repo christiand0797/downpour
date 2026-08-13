@@ -25455,9 +25455,148 @@ class downpour(tk.Tk):
             score_lbl.config(text=f"Security Score: {score} / 100  ({passed}/{total} checks passed)",
                              fg = color)
 
-    def _export_compliance_pdf(self):
+    def _export_pdf_report(self, title: str, subtitle: str,
+                           headers: list, rows: list,
+                           notes: list = None):
+        """Export a table report to a real PDF via reportlab.
+
+        Runs the save dialog on the main thread, then builds the PDF on the
+        executor (reportlab build can take a moment for large reports).
+        Renders a teal-on-dark styled document: title, subtitle + timestamp,
+        a wrapped table with a dark header row and PASS/FAIL row shading.
+        """
+        import tkinter.filedialog as _fd
         from tkinter import messagebox as _mb
-        _mb.showinfo("Export", "PDF export: save compliance tree to a .txt report first,\nthen open with your PDF printer.")
+        path: Any = _fd.asksaveasfilename(
+            parent=self, defaultextension='.pdf',
+            filetypes=[('PDF Report', '*.pdf')],
+            initialfile=f'Downpour_{title.replace(" ", "_")}.pdf')
+        if not path:
+            return
+
+        def _do():
+            try:
+                from reportlab.lib.pagesizes import LETTER
+                from reportlab.lib.units import inch
+                from reportlab.lib import colors as _rc
+                from reportlab.platypus import (SimpleDocTemplate, Paragraph,
+                                                Spacer, Table, TableStyle)
+                from reportlab.lib.styles import getSampleStyleSheet
+                import datetime as _dt
+                _styles = getSampleStyleSheet()
+                _doc = SimpleDocTemplate(
+                    path, pagesize=LETTER,
+                    leftMargin=0.75*inch, rightMargin=0.75*inch,
+                    topMargin=0.75*inch, bottomMargin=0.75*inch,
+                    title=title, author='Downpour v29 Titanium')
+
+                _TEAL = _rc.HexColor('#0f766e')
+                _DARK = _rc.HexColor('#0d0f1a')
+                _HEAD = _rc.HexColor('#1e2537')
+                _PASS = _rc.HexColor('#0f2e22')
+                _FAIL = _rc.HexColor('#3a1420')
+
+                _elems: list = []
+                _h = _styles['Title']
+                _h.fontName = 'Helvetica-Bold'; _h.fontSize = 18
+                _h.textColor = _TEAL
+                _elems.append(Paragraph(title, _h))
+                _sub = _styles['Normal']
+                _sub.fontSize = 9; _sub.textColor = _rc.HexColor('#667')
+                _elems.append(Paragraph(
+                    f'{subtitle or "Security report"}  &nbsp;|&nbsp;  '
+                    f'Generated {_dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
+                    if subtitle else
+                    f'Generated {_dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}',
+                    _sub))
+                _elems.append(Spacer(1, 0.15*inch))
+
+                # Build table with Paragraph-wrapped cells for wrapping
+                _cell = getSampleStyleSheet()['BodyText']
+                _cell.fontSize = 8
+                _cell_hdr = getSampleStyleSheet()['BodyText']
+                _cell_hdr.fontSize = 8; _cell_hdr.textColor = _rc.white
+                _cell_hdr.fontName = 'Helvetica-Bold'
+                _data: list = [[Paragraph(str(h), _cell_hdr) for h in headers]]
+                for r in rows:
+                    _data.append([Paragraph(str(c), _cell) for c in r])
+                _tbl = Table(_data, repeatRows=1, hAlign='LEFT')
+                _tbl.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), _HEAD),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), _rc.white),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ('GRID', (0, 0), (-1, -1), 0.3, _rc.HexColor('#333')),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1),
+                     [_rc.HexColor('#11131f'), _rc.HexColor('#161928')]),
+                    ('FONTSIZE', (0, 0), (-1, -1), 8),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 4),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+                ]))
+                _elems.append(_tbl)
+
+                if notes:
+                    _elems.append(Spacer(1, 0.15*inch))
+                    _nt = getSampleStyleSheet()['BodyText']
+                    _nt.fontSize = 8; _nt.textColor = _rc.HexColor('#889')
+                    for n in notes:
+                        _elems.append(Paragraph(f'&bull; {n}', _nt))
+                _doc.build(_elems)
+
+                def _ok():
+                    _mb.showinfo('Export', f'PDF saved:\n{path}')
+                    try:
+                        self._queue_alert(
+                            f'[EXPORT] PDF report saved: {path}',
+                            Colors.GAUGE_TEAL)
+                    except Exception:
+                        pass
+                self.after(0, lambda: _ok() if self.winfo_exists() else None)
+            except Exception as e:
+                self.after(0, lambda _e=str(e): (
+                    _mb.showerror('Export',
+                                  f'PDF generation failed ({_e[:180]}).')
+                    if self.winfo_exists() else None))
+        self._executor.submit(_do)
+
+    def _export_compliance_pdf(self):
+        """Export the current compliance audit results tree to a real PDF."""
+        from tkinter import messagebox as _mb
+        tree: Any = getattr(self, '_compliance_tree', None)
+        if tree is None:
+            _mb.showinfo("Export",
+                         "Compliance tab not loaded yet - switch to the "
+                         "Audit tab first.")
+            return
+        rows: list = []
+        try:
+            for item in tree.get_children():
+                vals: Any = tree.item(item, 'values')
+                if vals:
+                    rows.append(list(vals))
+        except Exception:
+            rows = []
+        if not rows:
+            _mb.showinfo("Export",
+                         "No compliance results yet.\n\n"
+                         "Run 'Full Audit' first, then export the report.")
+            return
+        headers: list = ['Check', 'Category', 'Status', 'Severity',
+                         'Recommendation']
+        score_txt: str = ''
+        score_lbl: Any = getattr(self, '_compliance_score_lbl', None)
+        if score_lbl is not None:
+            try:
+                score_txt = str(score_lbl.cget('text'))
+            except Exception:
+                score_txt = ''
+        notes: list = []
+        fails: int = sum(1 for r in rows if len(r) > 2
+                         and str(r[2]).upper() in ('FAIL', 'WARN'))
+        notes.append(f'{len(rows)} checks total, {fails} failing or warning.')
+        notes.append('Generated by Downpour v29 Titanium - see the '
+                     'Audit tab for the live results tree.')
+        self._export_pdf_report('Downpour Compliance Audit', score_txt,
+                                headers, rows, notes)
 
     def _compare_compliance_baseline(self):
         from tkinter import messagebox as _mb
@@ -33137,7 +33276,6 @@ Verification Status:
                     critical += 1
                     _ln: Any = line[:120]
                     _x: Any = _ln; self._queue_alert(_x, Colors.GAUGE_RED)
-
             # HVCI + PPL
             hvci: Any = self._check_hvci()
             _rpt('HVCI (Memory Integrity)', hvci['hvci'],
@@ -33248,7 +33386,97 @@ Verification Status:
                         f"{critical} CRITICAL issues  -  Grade {grade}")
             _m = _summary; _c = color; self._queue_alert(_m, _c)
 
+            # v29.22: persist the full assessment as a PDF (was alert-only)
+            try:
+                self._save_nsa_report_pdf(report, critical, grade)
+            except Exception as _pdf_err:
+                error_logger.log('NsaPdf', 'PDF save failed', _pdf_err)
+
         self._executor.submit(_assess)
+
+    def _save_nsa_report_pdf(self, report: list, critical: int, grade: str):
+        """Persist a finished NSA security assessment to a PDF report.
+
+        Runs on the executor (reportlab build + file I/O must not touch the
+        main thread). Auto-writes to the Documents/DownpourReports folder so
+        the audit always leaves a durable artifact - no save dialog needed
+        (the user already clicked 'Full Assessment').
+        """
+        import os as _os
+        _docs: Any = _os.path.join(_os.path.expanduser('~'), 'Documents',
+                                   'DownpourReports')
+        try:
+            _os.makedirs(_docs, exist_ok=True)
+        except Exception:
+            _docs = _os.path.expanduser('~')
+        import datetime as _dt
+        _ts: Any = _dt.datetime.now().strftime('%Y%m%d_%H%M%S')
+        _path: Any = _os.path.join(_docs, f'downpour_nsa_report_{_ts}.pdf')
+
+        from reportlab.lib.pagesizes import LETTER
+        from reportlab.lib.units import inch
+        from reportlab.lib import colors as _rc
+        from reportlab.platypus import (SimpleDocTemplate, Paragraph,
+                                        Spacer, Table, TableStyle)
+        from reportlab.lib.styles import getSampleStyleSheet
+        _doc = SimpleDocTemplate(
+            _path, pagesize=LETTER,
+            leftMargin=0.75*inch, rightMargin=0.75*inch,
+            topMargin=0.75*inch, bottomMargin=0.75*inch,
+            title='Downpour NSA-Style Security Assessment',
+            author='Downpour v29 Titanium')
+        _styles = getSampleStyleSheet()
+        _elems: list = []
+        _h = _styles['Title']; _h.fontSize = 18; _h.textColor = _rc.HexColor('#0f766e')
+        _elems.append(Paragraph('Downpour NSA-Style Security Assessment', _h))
+        _sub = _styles['Normal']; _sub.fontSize = 9; _sub.textColor = _rc.HexColor('#667')
+        _elems.append(Paragraph(
+            f'Grade {grade}  |  {critical} critical issue(s)  |  '
+            f'{len(report)-critical}/{len(report)} passed  |  '
+            f'Generated {_dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}',
+            _sub))
+        _elems.append(Spacer(1, 0.15*inch))
+
+        _pass_col: Any = _rc.HexColor('#0f2e22')
+        _fail_col: Any = _rc.HexColor('#3a1420')
+        _cell = _styles['BodyText']; _cell.fontSize = 8.5
+        _head = _styles['BodyText']; _head.fontSize = 8.5
+        _head.textColor = _rc.white; _head.fontName = 'Helvetica-Bold'
+        _data: list = [[Paragraph(x, _head) for x in
+                        ('Status', 'Check', 'Detail')]]
+        for _line in report:
+            _icon: Any = _line[:4]
+            _body: Any = _line[4:].strip()
+            _name, _, _detail = _body.partition(' - ')
+            _data.append([
+                Paragraph('[OK]' if '[OK]' in _icon else '[FAIL]', _cell),
+                Paragraph(_name, _cell),
+                Paragraph(_detail, _cell),
+            ])
+        _tbl = Table(_data, repeatRows=1, hAlign='LEFT')
+        _tbl.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), _rc.HexColor('#1e2537')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), _rc.white),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('GRID', (0, 0), (-1, -1), 0.3, _rc.HexColor('#333')),
+            ('FONTSIZE', (0, 0), (-1, -1), 8.5),
+            ('LEFTPADDING', (0, 0), (-1, -1), 5),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1),
+             [_rc.HexColor('#11131f'), _rc.HexColor('#161928')]),
+        ]))
+        _elems.append(_tbl)
+        _doc.build(_elems)
+
+        def _notify():
+            _mb_govt: Any = __import__('tkinter.messagebox', fromlist=['showinfo'])
+            _mb_govt.showinfo(
+                'NSA Report Saved',
+                f'Full assessment PDF written to:\n{_path}')
+        try:
+            self.after(0, lambda: _notify() if self.winfo_exists() else None)
+        except Exception:
+            pass
 
     # ==========================================================================
     #  BACKGROUND LOOPS & AUTO-START

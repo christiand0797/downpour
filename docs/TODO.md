@@ -1,5 +1,5 @@
 # TODO / Current State — Downpour v29 Titanium
-# Last verified: 2026-08-13 (v29.21, Performance tab controls + keyless infra OSINT)
+# Last verified: 2026-08-13 (v29.22, real PDF export for security reports)
 
 **READ THIS FIRST if you are a new agent picking up this project.**
 This file was badly stale (dated April 2026) until this rewrite. `_WORKLOG.md`
@@ -10,7 +10,7 @@ authoritative history. This file is the current-state snapshot + what's left.
 
 ## Verified Current State (as of this rewrite)
 
-- `downpour_v29_titanium.py`: ~50,500 lines, 738 methods in the main `downpour`
+- `downpour_v29_titanium.py`: ~50,750 lines, 740 methods in the main `downpour`
   class, **0 duplicate method names** (verify with the AST script below before
   and after any edit session — this has caught real bugs multiple times)
 - Full project: 58 Python files, 0 syntax errors
@@ -200,7 +200,12 @@ multiple sessions. Summary for future agents so this doesn't get re-done:
       stops the icon. Fixes the real bug where `minimize_to_tray` withdrew
       the window with no way to restore it.
 - [ ] Dark mode detection for Windows 11 integration
-- [ ] Export-to-PDF for security reports
+- [x] Export-to-PDF for security reports — DONE v29.22: `_export_pdf_report`
+      is a generic reportlab writer (save dialog + executor build). The
+      compliance "Export PDF Report" stub now dumps the real audit tree, and
+      the NSA Full Assessment auto-persists to
+      `~/Documents/DownpourReports/downpour_nsa_report_<ts>.pdf` instead of
+      only firing alerts. reportlab verified installed + live-tested.
 - [ ] `gpu_detector_fix.py` referenced by `enhanced_security_dashboard.py`
       doesn't exist — import is guarded so not a crash, just a missing
       optional feature
