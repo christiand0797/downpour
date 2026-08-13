@@ -170,3 +170,26 @@ class TestExecutorPostBack:
         idx = src.index('def _proc_loop')
         chunk = src[idx: idx + 6000]
         assert 'except RuntimeError' in chunk
+
+
+# --------------------------------------------------------------------------
+# Dark title bar / system-theme detection (v29.26)
+# --------------------------------------------------------------------------
+
+class TestDarkTitlebar:
+    def test_apply_dark_titlebar_never_raises(self):
+        """The method must be safely callable with no window (bare instance)."""
+        inst = make_instance()
+        inst.winfo_id = lambda: 0  # stub: no real window
+        inst._apply_dark_titlebar()
+        assert getattr(inst, '_system_dark_theme', None) is not None
+
+    def test_dwm_attrs_tried(self):
+        """Method tries both DWMWA attrs 20 (Win11) and 19 (Win10)."""
+        src = open(os.path.join(os.path.dirname(__file__),
+                                '..', 'downpour_v29_titanium.py'),
+                   encoding='utf-8', errors='replace').read()
+        idx = src.index('def _apply_dark_titlebar')
+        end = src.index('def _update_load_progress', idx)
+        chunk = src[idx:end]
+        assert 'for _attr in (20, 19)' in chunk

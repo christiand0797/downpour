@@ -1,5 +1,5 @@
 # TODO / Current State — Downpour v29 Titanium
-# Last verified: 2026-08-13 (v29.25, first unit tests + FP fingerprint fix)
+# Last verified: 2026-08-13 (v29.26, Windows 11 immersive dark title bar)
 
 **READ THIS FIRST if you are a new agent picking up this project.**
 This file was badly stale (dated April 2026) until this rewrite. `_WORKLOG.md`
@@ -10,14 +10,15 @@ authoritative history. This file is the current-state snapshot + what's left.
 
 ## Verified Current State (as of this rewrite)
 
-- `downpour_v29_titanium.py`: ~50,800 lines, 740 methods in the main `downpour`
+- `downpour_v29_titanium.py`: ~50,850 lines, 741 methods in the main `downpour`
   class, **0 duplicate method names** (verify with the AST script below before
   and after any edit session — this has caught real bugs multiple times)
 - `gpu_detector_fix.py` shipped in v29.24 (was a dangling import in
   `enhanced_security_dashboard.py`).
 - `tests/test_thread_safety.py` added in v29.25 — 16 pytest cases covering the
   FP-suppression flow, `_queue_alert` rate limit, and the executor post-back
-  pattern. Run: `Python312\python.exe -m pytest tests -q`.
+  pattern. Run: `Python312\python.exe -m pytest tests -q`. (18 tests as of
+  v29.26 with the dark-titlebar cases.)
 - Full project: 58 Python files, 0 syntax errors
 - **Main-thread DB-freeze rule (v29.14)**: every `self.db.*` / `count_intel()`
   reached from a main-thread `after()` loop or a one-shot startup callback must
@@ -216,7 +217,12 @@ multiple sessions. Summary for future agents so this doesn't get re-done:
       into `_auto_start`; `_on_close` now alerts + minimizes; `_shutdown`
       stops the icon. Fixes the real bug where `minimize_to_tray` withdrew
       the window with no way to restore it.
-- [ ] Dark mode detection for Windows 11 integration
+- [x] Dark mode detection for Windows 11 integration — DONE v29.26:
+      `_apply_dark_titlebar()` sets DWMWA_USE_IMMERSIVE_DARK_MODE (attr 20
+      Win11 / 19 Win10) on the real top-level HWND and stores
+      `_system_dark_theme` from the `AppsUseLightTheme` registry value.
+      Live-verified rc=0 on a real window. Called at loading reveal + after
+      final title set.
 - [x] Export-to-PDF for security reports — DONE v29.22: `_export_pdf_report`
       is a generic reportlab writer (save dialog + executor build). The
       compliance "Export PDF Report" stub now dumps the real audit tree, and

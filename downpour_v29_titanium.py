@@ -21089,6 +21089,7 @@ class downpour(tk.Tk):
             self.lift()
             self.focus_force()
             self.attributes("-topmost", True)
+            self._apply_dark_titlebar()
             import tkinter as _tk2
             # FIX: fill entire window with dark bg - no white flash
             _lf: Any = _tk2.Frame(self, bg="#0a0a1a")
@@ -21954,6 +21955,42 @@ class downpour(tk.Tk):
     #  UI BUILD
     # --------------------------------------------------------------------------
 
+    def _apply_dark_titlebar(self):
+        """Apply Windows 11 immersive dark title bar + detect system theme.
+
+        Downpour is an inherently dark app; a light title bar looks broken.
+        DWMWA_USE_IMMERSIVE_DARK_MODE (attr 20 on Win11 / 19 on Win10) makes
+        the native title bar and window frame dark to match. Also reads the
+        system theme (AppsUseLightTheme registry) and stores it so settings
+        could offer theme-follow later. Pure ctypes, never raises.
+        """
+        try:
+            import ctypes as _ct
+            import ctypes.wintypes as _wint
+            _hwnd: Any = _ct.windll.user32.GetParent(self.winfo_id())
+            if not _hwnd:
+                _hwnd = self.winfo_id()
+            _dark: Any = _ct.c_int(1)
+            # Try Win11 attr (20) then Win10 attr (19); ignore failures.
+            for _attr in (20, 19):
+                try:
+                    _ct.windll.dwmapi.DwmSetWindowAttribute(
+                        _hwnd, _attr, _ct.byref(_dark), _ct.sizeof(_dark))
+                except Exception:
+                    continue
+            # Detect system theme (Windows 10/11 "Apps can use light theme").
+            try:
+                import winreg as _wr
+                _k: Any = _wr.OpenKey(
+                    _wr.HKEY_CURRENT_USER,
+                    r'Software\Microsoft\Windows\CurrentVersion\Themes\Personalize')
+                _v, _ = _wr.QueryValueEx(_k, 'AppsUseLightTheme')
+                self._system_dark_theme = (int(_v) == 0)
+            except Exception:
+                self._system_dark_theme = True  # default: assume dark
+        except Exception:
+            self._system_dark_theme = True
+
     def _update_load_progress(self, tab_name: str, idx: int, total: int):
         """Update the loading progress bar during tab construction."""
         try:
@@ -21998,6 +22035,7 @@ class downpour(tk.Tk):
             self.lift()
             self.focus_force()
             self.after(1000, lambda: self.attributes("-topmost", False))
+            self._apply_dark_titlebar()
         except Exception:
             pass
         # -- Responsive root grid ---------------------------------------------

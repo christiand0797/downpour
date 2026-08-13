@@ -1,5 +1,30 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.26 Titanium — Windows 11 Immersive Dark Title Bar + Theme Detection
+
+Session goal: clear the "dark mode detection for Windows 11" TODO. Downpour
+is inherently dark-themed; on Windows 11 the native title bar defaulted to
+the system light chrome, which looked broken against the void-black UI.
+
+- **`_apply_dark_titlebar()`** — new helper that
+  - sets `DWMWA_USE_IMMERSIVE_DARK_MODE` on the real top-level HWND (attr 20
+    on Win11, falling back to attr 19 on Win10; found via `GetParent` of
+    `winfo_id`, the same pattern verified live), and
+  - reads `AppsUseLightTheme` from
+    `HKCU\...\Themes\Personalize` and stores `self._system_dark_theme` so a
+    future settings toggle can follow the system theme.
+  - Pure ctypes, every step wrapped, never raises.
+- Called twice: at the loading-screen reveal and again after the final title
+  is set (defensive if the window handle changes).
+- Live-verified: `DwmSetWindowAttribute` returns rc=0 (success) on a real
+  top-level window for both attrs; the registry read reports the current
+  machine is in dark theme (`AppsUseLightTheme=0`).
+- 2 new unit tests added (18 total): the method is callable on a bare
+  instance without raising, and the Win11/Win10 attr-fallback loop is
+  present.
+- Verified: `py_compile` OK; all 18 tests pass; project-wide AST 0 failures.
+  Invariant: main `downpour` class **741 methods, 0 duplicate method names**.
+
 ## v29.25 Titanium — First Unit Tests + FP-Fingerprint Normalization Fix
 
 Session goal: start closing the "no unit tests exist" TODO item with a

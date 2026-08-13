@@ -2,6 +2,21 @@
 
 ## Branch: main
 
+## Session 2026-08-13f — v29.26: Windows 11 immersive dark title bar
+- ✅ **Gap**: "dark mode detection for Windows 11" TODO — the app is dark but
+  the native title bar used system light chrome.
+- ✅ **`_apply_dark_titlebar()`** — sets DWMWA_USE_IMMERSIVE_DARK_MODE (attr
+  20 Win11 / 19 Win10 fallback) on the real top-level HWND (`GetParent` of
+  `winfo_id`), and reads `AppsUseLightTheme` registry → `_system_dark_theme`.
+  All ctypes, fully wrapped, never raises.
+- ✅ Called at loading reveal + after final title set.
+- ✅ Live-verified: DwmSetWindowAttribute rc=0 on a real window (both attrs);
+  current machine reads dark theme (AppsUseLightTheme=0).
+- ✅ 2 new unit tests (18 total). py_compile OK; main file **741 methods /
+  0 dupes**; project AST **0 failures**.
+
+## Branch: main
+
 ## Session 2026-08-13e — v29.25: first unit tests + FP fingerprint fix
 - ✅ **Gap**: TODO item "Unit tests for thread-safety mechanisms (none exist)"
   finally started. `tests/test_thread_safety.py` (pytest): 16 tests for
