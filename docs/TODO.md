@@ -1,5 +1,5 @@
 # TODO / Current State — Downpour v29 Titanium
-# Last verified: 2026-08-12 (v29.19, OSINT multi-lookup email classification fix)
+# Last verified: 2026-08-12 (v29.20, system tray icon)
 
 **READ THIS FIRST if you are a new agent picking up this project.**
 This file was badly stale (dated April 2026) until this rewrite. `_WORKLOG.md`
@@ -182,11 +182,15 @@ multiple sessions. Summary for future agents so this doesn't get re-done:
 
 - [ ] Unit tests for thread-safety mechanisms (none exist — all verification
       so far has been manual compile + AST + live functional testing)
-- [ ] System tray minimize support — pystray IS installed and working on
+- [x] System tray minimize support — pystray IS installed and working on
       Python 3.12, but no tray icon code is wired into the running app
       (a `downpour_tray.py`-style module was drafted in an early session but
       never actually shipped to this machine — check if it's worth reviving
-      or just building fresh, since a lot has changed since then)
+      or just building fresh, since a lot has changed since then). DONE
+      v29.20: `_setup_tray_icon` / `_tray_restore` / `_tray_toggle` wired
+      into `_auto_start`; `_on_close` now alerts + minimizes; `_shutdown`
+      stops the icon. Fixes the real bug where `minimize_to_tray` withdrew
+      the window with no way to restore it.
 - [ ] Dark mode detection for Windows 11 integration
 - [ ] Export-to-PDF for security reports
 - [ ] `gpu_detector_fix.py` referenced by `enhanced_security_dashboard.py`

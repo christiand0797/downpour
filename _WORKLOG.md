@@ -2,6 +2,26 @@
 
 ## Branch: main
 
+## Session 2026-08-12g — v29.20: system tray icon (restore path)
+- ✅ **Bug**: `minimize_to_tray` config + `_on_close`'s `withdraw()` existed,
+  but NO tray icon was ever created — closing the window hid the app with no
+  way to restore it (the TODO's "tray never shipped" item).
+- ✅ **`_setup_tray_icon()`** — builds a pystray `Icon` (PIL-drawn 64x64
+  shield) with Show / Minimize / Exit menu actions, `run_detached()` so it
+  owns its own thread and never blocks the Tk loop. Wired into `_auto_start`
+  at 8s. Guards on `PYSTRAY_AVAILABLE` + already-running.
+- ✅ **`_tray_restore()`** — main-thread deiconify/lift/focus (with brief
+  topmost flash so it appears above other windows).
+- ✅ **`_tray_toggle()`** — hide/show toggle for the menu item.
+- ✅ **`_on_close`** — now fires a `[TRAY]` alert on minimize so the user
+  knows where the app went.
+- ✅ **`_shutdown`** — stops `_tray_icon` before tearing down Tk.
+- ✅ Verified: pystray API surface live-checked (`run_detached`/`stop`/menu/
+  PIL icon all OK); py_compile OK; main file **733 methods / 0 dupes**;
+  project AST **0 failures**.
+
+## Branch: main
+
 ## Session 2026-08-12f — v29.19: OSINT multi-lookup email classification fix
 - ✅ **Bug**: `_osint_multi_lookup` had no email branch — emails fell into the
   domain `else`, producing broken links (`dom = ioc.split('/')[0]` →

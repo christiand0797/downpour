@@ -1,5 +1,29 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.20 Titanium — System Tray Icon
+
+Session goal: ship the system-tray minimize/restore feature the config always
+promised. The `minimize_to_tray` setting and `_on_close()`'s `withdraw()`
+existed, but **no tray icon was ever created** — closing the window just hid
+the app with no way to bring it back.
+
+- **`_setup_tray_icon()`** — creates a pystray `Icon` (PIL-drawn 64×64
+  shield in the app's teal-on-void palette) with `Show Downpour` /
+  `Minimize / Hide` / `Exit Downpour` menu actions. Runs via
+  `run_detached()` so the icon owns its own thread and never blocks the Tk
+  main loop. Wired into `_auto_start` (8 s) behind `PYSTRAY_AVAILABLE` and
+  an already-running guard.
+- **`_tray_restore()`** — main-thread deiconify/lift/focus_force with a
+  brief `-topmost` flash so the window appears above other apps.
+- **`_tray_toggle()`** — hide/show toggle backing the menu item.
+- **`_on_close`** — now emits a `[TRAY]` alert telling the user the app
+  minimized rather than exiting silently.
+- **`_shutdown`** — stops the tray icon before tearing down Tk.
+- Verified: the installed pystray API surface (`Icon.run_detached`,
+  `Icon.stop`, `MenuItem`, PIL image construction) live-checked on Python
+  3.12; `py_compile` OK; project-wide AST 0 failures. Invariant: main
+  `downpour` class **733 methods, 0 duplicate method names**.
+
 ## v29.19 Titanium — OSINT Multi-Lookup Email Classification Fix
 
 Session goal: fix the OSINT4ALL multi-lookup dispatcher's indicator-type

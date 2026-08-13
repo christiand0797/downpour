@@ -33295,6 +33295,9 @@ Verification Status:
         # Load FP-suppression cache (executor read of fp_suppressions)
         self.after(6_000, self._fp_load_cache)
 
+        # System tray icon (restores the window that _on_close withdraws)
+        self.after(8_000, self._setup_tray_icon)
+
         # Status pills (one-shot UI refresh)
         self.after(10_000, self._refresh_status_pills)
 
@@ -39855,9 +39858,93 @@ Verification Status:
             base: Any = _ncpu * 2
         return max(4, min(base, 256))
 
+    def _setup_tray_icon(self):
+        """Create the system-tray icon that lets the user restore the app.
+
+        The minimize_to_tray config + _on_close's withdraw() existed but no
+        tray icon was ever created — closing the window just made the app
+        unreachable. This builds a pystray Icon (run_detached so it owns its
+        own thread, never blocks the Tk loop) with Show / Exit actions that
+        marshal Tk calls back onto the main thread via self.after(0).
+        """
+        if not (PYSTRAY_AVAILABLE and TrayIcon is not None):
+            return
+        if getattr(self, '_tray_icon', None) is not None:
+            return
+        try:
+            # Build a small 16x16 icon from PIL (solid shield-like square)
+            img: Any = None
+            try:
+                from PIL import Image, ImageDraw
+                img = Image.new('RGBA', (64, 64), (10, 14, 20, 255))
+                d: Any = ImageDraw.Draw(img)
+                d.rectangle([10, 10, 54, 54], fill=(0, 229, 255, 255))
+                d.polygon([(32, 16), (46, 26), (42, 44), (32, 50), (22, 44), (18, 26)],
+                          fill=(10, 14, 20, 255))
+            except Exception:
+                img = None
+
+            def _restore():
+                try:
+                    self.after(0, self._tray_restore)
+                except Exception:
+                    pass
+
+            def _toggle():
+                try:
+                    self.after(0, self._tray_toggle)
+                except Exception:
+                    pass
+
+            def _exit():
+                try:
+                    self.after(0, self._shutdown)
+                except Exception:
+                    pass
+
+            menu: Any = TrayMenuItem('Show Downpour', _restore, default=True)
+            menu2: Any = TrayMenuItem('Minimize / Hide', _toggle)
+            menu3: Any = TrayMenuItem('Exit Downpour', _exit)
+            icon: Any = TrayIcon('downpour', img, 'Downpour v29 Titanium',
+                                 menu=(menu, menu2, menu3))
+            icon.run_detached()
+            self._tray_icon = icon
+            self._queue_alert('[TRAY] System tray icon active '
+                              '(closing the window minimizes instead of exiting)',
+                              Colors.GAUGE_TEAL)
+        except Exception as e:
+            error_logger.log('Tray', 'Failed to start tray icon', e)
+            self._tray_icon = None
+
+    def _tray_restore(self):
+        """Main-thread: show and focus the main window from the tray."""
+        try:
+            self.deiconify()
+            self.lift()
+            self.focus_force()
+            try: self.attributes('-topmost', True)
+            except Exception: pass
+            self.after(250, lambda: self.attributes('-topmost', False))
+        except Exception:
+            pass
+
+    def _tray_toggle(self):
+        """Main-thread: hide or show the window (tray menu toggle)."""
+        try:
+            if self.state() == 'withdrawn' or not self.winfo_viewable():
+                self._tray_restore()
+            else:
+                self.withdraw()
+                self._queue_alert('[TRAY] Hidden to system tray', Colors.GAUGE_TEAL)
+        except Exception:
+            pass
+
     def _on_close(self):
         if self.cfg.get('general', 'minimize_to_tray') and PYSTRAY_AVAILABLE:
             self.withdraw()
+            self._queue_alert('[TRAY] Downpour minimized to tray '
+                              '(double-click the icon to restore)',
+                              Colors.GAUGE_TEAL)
         else:
             self._shutdown()
 
@@ -39872,6 +39959,14 @@ Verification Status:
             pass
         try: self._stop_event.set()
         except Exception: pass
+        # Stop the tray icon before tearing down Tk (FIX-v29.20)
+        try:
+            icon = getattr(self, '_tray_icon', None)
+            if icon is not None:
+                icon.stop()
+                self._tray_icon = None
+        except Exception:
+            pass
         # FIX-M4: Stop all five Aegis monitoring threads before destroying the Tk window.
         # Without explicit .stop() calls the daemon threads kept running after mainloop()
         # returned, attempting DB writes on a closed connection -> OperationalError spam
