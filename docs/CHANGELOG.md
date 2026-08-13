@@ -1,5 +1,33 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.16 Titanium — DB-Backed False-Positive Auto-Suppression
+
+Session goal: replace the ephemeral "Mark FP" (which only flipped an in-memory
+status and re-fired every session) with a persisted, DB-backed suppression
+that auto-suppresses repeated nuisance alerts after N confirmed-clean cycles.
+
+- **`fp_suppressions` table** — `fingerprint TEXT PK`, `confirmed`,
+  `suppressed`, `first_seen`, `last_seen`, `sample_msg`.
+- **`_fp_fingerprint(msg)`** — stable alert key: category bracket + normalized
+  body (ports/IPs → `*N*`, hashes → `*H*`, collapsed whitespace). Same
+  nuisance alert across sessions collapses to one key.
+- **Hot path stays DB-free**: `_fp_load_cache()` populates an in-memory dict
+  on the executor at startup; `_queue_alert` only does a dict lookup via
+  `_fp_is_suppressed(msg)` before a known-FP alert reaches the UI. No
+  main-thread DB work (consistent with the v29.14 freeze rule).
+- **Auto-suppress**: `_fp_confirm(msg)` persists each Mark-FP (executor
+  write, `first_seen` preserved via COALESCE) and flips `suppressed` once
+  `confirmed >= _FP_SUPPRESS_THRESHOLD` (3). Fires a green `[FP] Auto-suppressed`
+  alert so the operator sees the drop.
+- **`_threats_mark_fp`** now calls `_fp_confirm` — FP status is persisted
+  across sessions instead of vanishing at exit.
+- **`_threats_fp_manager`** — modal blocklist UI: lists active suppressions
+  (fingerprint + confirm count), `Re-arm Selected` (`_fp_unsuppress`),
+  `Clear All` (`_fp_clear_all`). New `🤫 FP Blocklist` button in the Threats
+  tab toolbar.
+- Invariant: main `downpour` class **730 methods, 0 duplicate method names**;
+  `py_compile` OK; project-wide AST 0 failures.
+
 ## v29.15 Titanium — Feed Health Dashboard (Intel Tab)
 
 Session goal: surface the `feed_status` DB data (written by

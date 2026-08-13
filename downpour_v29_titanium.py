@@ -5374,6 +5374,14 @@ class Database:
                 CREATE TABLE IF NOT EXISTS feed_status
                     (feed_name TEXT PRIMARY KEY, last_update TEXT, records_added INTEGER,
                      error_message TEXT);
+                -- FIX-v29.16: DB-backed false-positive auto-suppression.
+                -- fingerprint = normalized alert key (category + indicator);
+                -- confirmed = times the user marked this alert FP;
+                -- suppressed = auto-set when confirmed >= threshold (default 3).
+                CREATE TABLE IF NOT EXISTS fp_suppressions
+                    (fingerprint TEXT PRIMARY KEY, confirmed INTEGER DEFAULT 0,
+                     suppressed INTEGER DEFAULT 0, first_seen TEXT,
+                     last_seen TEXT, sample_msg TEXT);
                 CREATE TABLE IF NOT EXISTS canary_files
                     (path TEXT PRIMARY KEY, hash TEXT, deployed_at TEXT);
                 CREATE TABLE IF NOT EXISTS network_events
@@ -21831,6 +21839,9 @@ class downpour(tk.Tk):
             self._threat_log_idx: int = 0
             self._threat_log_dirty: bool = False  # flag: refresh tab on next drain
             self._alerted_dedup: dict = {}   # msg_prefix -> last_time, for deduplication
+            # DB-backed false-positive auto-suppression (FIX-v29.16)
+            self._fp_cache: dict = {}        # fingerprint -> {'confirmed': n, 'suppressed': bool}
+            self._fp_cache_loaded: bool = False
             
             # Adaptive interval state (updated by adapt_to_load every 60s)
             if hasattr(self, '_hw_profile'):
@@ -33265,6 +33276,9 @@ Verification Status:
         # Feed-health column: first paint after startup (reads feed_status)
         self.after(5_000, self._refresh_feed_health)
 
+        # Load FP-suppression cache (executor read of fp_suppressions)
+        self.after(6_000, self._fp_load_cache)
+
         # Status pills (one-shot UI refresh)
         self.after(10_000, self._refresh_status_pills)
 
@@ -33967,11 +33981,137 @@ Verification Status:
         if len(self._alerted_dedup) > 200:
             cutoff: Any = now - 60.0  # FIX-v28p16: match dedup window
             self._alerted_dedup = {k: v for k, v in self._alerted_dedup.items() if v > cutoff}
+        # FIX-v29.16: drop known false positives before they reach the UI.
+        # Memory-only check (cache loaded at startup) — no DB on this path.
+        if self._fp_is_suppressed(msg):
+            return
         # FIX-v28p21: Run MITRE tagging here (bg thread, not main thread)
         if color in (Colors.GAUGE_RED, Colors.GAUGE_ORANGE):
             try: msg = self._tag_mitre(msg)
             except Exception: pass
         self._pending_alerts.append((msg, color))
+
+    # ------------------------------------------------------------------------
+    #  DB-backed false-positive auto-suppression (FIX-v29.16)
+    #  fingerprint = normalized alert key (bracket category + indicator body).
+    #  Loading / writes happen on the executor; the hot path (_queue_alert)
+    #  only does a dict lookup.
+    # ------------------------------------------------------------------------
+    _FP_SUPPRESS_THRESHOLD: Any = 3   # confirmed-FP count before auto-suppress
+
+    def _fp_fingerprint(self, msg: str) -> str:
+        """Build a stable FP key from an alert message.
+
+        Normalizes away timestamps, ports, per-host detail so repeated
+        nuisance alerts for the same category+indicator collapse to one key:
+        '[BOTNET] C2 45.88.48.238' and '[BOTNET] C2 45.88.48.238 :443' both
+        map to the same fingerprint.
+        """
+        try:
+            import re as _re
+            text: Any = msg.strip()
+            # Keep the bracketed category, normalize the rest
+            m: Any = _re.match(r'(\[[A-Z0-9_\-]+\])\s*(.*)', text, _re.I)
+            cat: Any = (m.group(1).upper() if m else '[GEN]')
+            body: Any = (m.group(2) if m else text).lower()
+            body: Any = _re.sub(r'\s+', ' ', body)
+            body: Any = _re.sub(r'[:\.]?\d{1,5}\b', ' *N*', body)      # ports/ids
+            body: Any = _re.sub(r'\b[0-9a-f]{8,}\b', ' *H*', body)      # hashes
+            # Trim to a stable prefix (drop trailing CPU%/mem numbers etc.)
+            return f"{cat}:{body[:64]}"
+        except Exception:
+            return msg[:64]
+
+    def _fp_load_cache(self):
+        """Async: load fp_suppressions into memory off the main thread."""
+        def _load():
+            try:
+                rows: Any = self.db.execute(
+                    "SELECT fingerprint, confirmed, suppressed FROM fp_suppressions")
+                cache: Any = {}
+                for fp, confirmed, suppressed in rows:
+                    cache[fp] = {'confirmed': confirmed or 0,
+                                 'suppressed': bool(suppressed)}
+                self.after(0, lambda c=cache: self._fp_cache_update(c))
+            except Exception:
+                pass
+        try:
+            self._executor.submit(_load)
+        except Exception:
+            pass
+
+    def _fp_cache_update(self, cache: dict):
+        """Main-thread: swap in the loaded suppression cache."""
+        self._fp_cache = cache
+        self._fp_cache_loaded = True
+
+    def _fp_is_suppressed(self, msg: str) -> bool:
+        """Hot-path suppression check — memory only, no DB."""
+        try:
+            if not self._fp_cache_loaded:
+                return False
+            fp: Any = self._fp_fingerprint(msg)
+            e: Any = self._fp_cache.get(fp)
+            return bool(e and e.get('suppressed'))
+        except Exception:
+            return False
+
+    def _fp_confirm(self, msg: str):
+        """Persist a user FP confirmation; auto-suppress at threshold.
+
+        Runs on the executor so the main thread never waits on db._lock.
+        On reaching the threshold the fingerprint flips to suppressed, so
+        future occurrences of the same alert are dropped in _queue_alert.
+        """
+        def _persist():
+            try:
+                fp: Any = self._fp_fingerprint(msg)
+                from datetime import datetime as _dt
+                now: Any = _dt.now().isoformat()
+                row: Any = self.db.execute(
+                    "SELECT confirmed, suppressed FROM fp_suppressions WHERE fingerprint=?",
+                    (fp,))
+                confirmed: Any = (row[0][0] + 1) if row else 1
+                already: Any = bool(row[0][1]) if row else False
+                suppress: Any = already or (confirmed >= self._FP_SUPPRESS_THRESHOLD)
+                self.db.execute(
+                    "INSERT OR REPLACE INTO fp_suppressions "
+                    "(fingerprint, confirmed, suppressed, first_seen, last_seen, sample_msg) "
+                    "VALUES (?,?,?,"
+                    "COALESCE((SELECT first_seen FROM fp_suppressions WHERE fingerprint=?),?),"
+                    "?, ?)",
+                    (fp, confirmed, 1 if suppress else 0, fp,
+                     row[0][2] if row else now, now, msg[:120]))
+                if hasattr(self.db, 'commit'):
+                    self.db.commit()  # type: ignore[attr-defined]
+                self.after(0, lambda f=fp, s=suppress: self._fp_cache_set(f, s))
+                if suppress:
+                    self._queue_alert(
+                        f'[FP] Auto-suppressed: {msg[:50]}...', Colors.GAUGE_GREEN)
+            except Exception:
+                pass
+        try:
+            self._executor.submit(_persist)
+        except Exception:
+            pass
+
+    def _fp_cache_set(self, fp: str, suppressed: bool):
+        """Main-thread: flip a fingerprint's suppressed flag in the cache."""
+        try:
+            e: Any = self._fp_cache.get(fp) or {'confirmed': 0, 'suppressed': False}
+            e['confirmed'] = e.get('confirmed', 0) + 1
+            e['suppressed'] = suppressed
+            self._fp_cache[fp] = e
+        except Exception:
+            pass
+
+    def _fp_list_active(self) -> List[dict]:
+        """Return currently-suppressed fingerprints for UI display."""
+        try:
+            return [{'fp': k, **v}
+                    for k, v in self._fp_cache.items() if v.get('suppressed')]
+        except Exception:
+            return []
 
     _alert_rate_count: Any = 0
     _alert_rate_reset: Any = 0.0
@@ -48485,7 +48625,9 @@ Verification Status:
 
         # Row 1 continued — Triage
         _btn(bar, '[OK] Mark FP',         self._threats_mark_fp,
-             C.GAUGE_GREEN,  'Mark selected as false positive')
+             C.GAUGE_GREEN,  'Mark selected as false positive (auto-suppresses after 3 confirms)')
+        _btn(bar, '🤫 FP Blocklist',      self._threats_fp_manager,
+             C.GAUGE_TEAL,   'View / clear DB-backed auto-suppressed alerts')
         _btn(bar, '🗑 Dismiss',         self._threats_dismiss_selected,
              C.TEXT_DIM,     'Dismiss / acknowledge selected threats')
         _btn(bar, '🗑 Clear All',       self._threats_clear_all,
@@ -48894,7 +49036,117 @@ Verification Status:
     def _threats_mark_fp(self):
         for entry in self._threats_selected_entries():
             entry['status'] = 'FP'
+            # FIX-v29.16: persist the confirmation so the same nuisance alert
+            # is auto-suppressed in future sessions (DB write off-thread)
+            self._fp_confirm(entry.get('description', ''))
         self._threats_tab_refresh()
+
+    def _threats_fp_manager(self):
+        """Modal manager for the DB-backed FP suppression list.
+
+        Lists fingerprints currently auto-suppressed (or past the threshold)
+        and lets the user un-suppress one or clear the whole table.
+        """
+        import tkinter as tk
+        from tkinter import messagebox as mb
+        win: Any = tk.Toplevel(self)
+        win.title('FP Suppression Blocklist')
+        win.configure(bg=Colors.BG_VOID)
+        win.geometry('640x460')
+        tk.Label(win, text='🤫 Auto-suppressed alerts  (re-armed after N confirms)',
+                 font = ('Consolas', 10, 'bold'), fg=Colors.GAUGE_TEAL,
+                 bg = Colors.BG_VOID).pack(anchor='w', padx=10, pady=(10, 4))
+        sup: Any = self._fp_list_active()
+        if not sup:
+            tk.Label(win, text='No active suppressions.',
+                     font = ('Consolas', 9), fg=Colors.TEXT_DIM,
+                     bg = Colors.BG_VOID).pack(anchor='w', padx=14, pady=20)
+            tk.Button(win, text='Close', font=('Consolas', 9), fg=Colors.GAUGE_TEAL,
+                      bg = Colors.GLASS_CARD, relief='flat', command=win.destroy
+                      ).pack(anchor='e', padx=10, pady=8)
+            return
+        wrap: Any = tk.Frame(win, bg=Colors.BG_VOID)
+        wrap.pack(fill='both', expand=True, padx=10, pady=6)
+        cols: Any = ('Fingerprint', 'Confirms')
+        tree: Any = ttk.Treeview(wrap, style='Titan.Treeview', columns=cols,
+                                 show='headings', height=12)
+        tree.heading('Fingerprint', text='Fingerprint')
+        tree.heading('Confirms', text='Confirms')
+        tree.column('Fingerprint', width=460)
+        tree.column('Confirms', width=80, anchor='center')
+        tree.tag_configure('fp', foreground=Colors.GAUGE_RED)
+        vsb: Any = ttk.Scrollbar(wrap, orient='vertical', command=tree.yview,
+                                 style='Tab.Vertical.TScrollbar')
+        tree.configure(yscrollcommand=vsb.set)
+        tree.grid(row=0, column=0, sticky='nsew')
+        vsb.grid(row=0, column=1, sticky='ns')
+        wrap.grid_rowconfigure(0, weight=1)
+        wrap.grid_columnconfigure(0, weight=1)
+        for item in sup:
+            tree.insert('', 'end', values=(item.get('fp', ''), item.get('confirmed', 0)),
+                        tags=('fp',))
+        btns: Any = tk.Frame(win, bg=Colors.BG_VOID)
+        btns.pack(fill='x', padx=10, pady=8)
+        def _unsuppress():
+            sel: Any = tree.selection()
+            if not sel:
+                mb.showinfo('FP Blocklist', 'Select a fingerprint to re-arm.')
+                return
+            vals: Any = tree.item(sel[0], 'values')
+            fp: Any = vals[0] if vals else ''
+            if not fp:
+                return
+            self._fp_unsuppress(fp)
+            self._fp_cache.pop(fp, None)
+            tree.delete(sel[0])
+            if not tree.get_children(''):
+                win.destroy()
+                self._queue_alert(f'[FP] Re-armed alert: {fp[:40]}', Colors.GAUGE_TEAL)
+        def _clear_all():
+            if mb.askyesno('FP Blocklist',
+                           'Remove ALL auto-suppressions?\n'
+                           'This permanently re-enables those alerts.',
+                           icon = 'warning'):
+                self._fp_clear_all()
+                win.destroy()
+        tk.Button(btns, text='Re-arm Selected', font=('Consolas', 9),
+                  fg = Colors.GAUGE_YELLOW, bg=Colors.GLASS_CARD, relief='flat',
+                  command=_unsuppress).pack(side='left', padx=3)
+        tk.Button(btns, text='Clear All', font=('Consolas', 9),
+                  fg = Colors.GAUGE_RED, bg=Colors.GLASS_CARD, relief='flat',
+                  command=_clear_all).pack(side='left', padx=3)
+        tk.Button(btns, text='Close', font=('Consolas', 9), fg=Colors.GAUGE_TEAL,
+                  bg = Colors.GLASS_CARD, relief='flat', command=win.destroy
+                  ).pack(side='right', padx=3)
+
+    def _fp_unsuppress(self, fp: str):
+        """Persistently re-enable a fingerprint (executor write)."""
+        def _w():
+            try:
+                self.db.execute(
+                    "UPDATE fp_suppressions SET suppressed=0 WHERE fingerprint=?", (fp,))
+                if hasattr(self.db, 'commit'):
+                    self.db.commit()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        try:
+            self._executor.submit(_w)
+        except Exception:
+            pass
+
+    def _fp_clear_all(self):
+        """Persistently clear the whole suppression table (executor write)."""
+        def _w():
+            try:
+                self.db.execute("DELETE FROM fp_suppressions")
+                if hasattr(self.db, 'commit'):
+                    self.db.commit()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        try:
+            self._executor.submit(_w)
+        except Exception:
+            pass
 
     def _threats_dismiss_selected(self):
         for entry in self._threats_selected_entries():

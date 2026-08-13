@@ -2,6 +2,33 @@
 
 ## Branch: main
 
+## Session 2026-08-12c — v29.16: DB-backed false-positive auto-suppression
+- ✅ **`fp_suppressions` table** (fingerprint PK, confirmed, suppressed,
+  first_seen, last_seen, sample_msg) in the DB schema DDL.
+- ✅ **`_fp_fingerprint(msg)`** — normalizes an alert into a stable key:
+  bracket category kept, body lowercased, ports/IPs→`*N*`, hashes→`*H*`,
+  whitespace collapsed, trimmed to 64 chars. Verified collisions: same
+  IP+port → same key, distinct ports → distinct keys, hashes stable.
+- ✅ **`_fp_load_cache()` / `_fp_cache_update()`** — loads `fp_suppressions`
+  into an in-memory dict on the executor at startup (6s in `_auto_start`);
+  `_queue_alert` hot path only does a dict lookup, no DB on main thread.
+- ✅ **`_fp_is_suppressed(msg)`** in `_queue_alert` — drops known-FP alerts
+  before they reach the UI.
+- ✅ **`_fp_confirm(msg)`** — persists a Mark-FP confirmation (executor
+  write); auto-suppresses at `_FP_SUPPRESS_THRESHOLD = 3` confirms, fires a
+  `[FP] Auto-suppressed` alert, keeps `first_seen` via COALESCE. Verified in
+  isolation: confirms 1-2 no-op, 3rd flips suppressed=True, 4th dropped.
+- ✅ **`_threats_mark_fp`** now calls `_fp_confirm` (persisted, not just an
+  in-memory status flip).
+- ✅ **`_threats_fp_manager`** modal — lists active suppressions (fingerprint
+  + confirm count), `Re-arm Selected` (`_fp_unsuppress`), `Clear All`
+  (`_fp_clear_all`), both executor writes. New `🤫 FP Blocklist` button in
+  the Threats tab toolbar.
+- ✅ Verified: py_compile OK; main file **730 methods / 0 dupes**; project
+  AST **0 failures**.
+
+## Branch: main
+
 ## Session 2026-08-12b — v29.15: Feed health dashboard in Intel tab
 - ✅ **`_refresh_feed_health()`** — async reader: `intel.get_feed_status()`
   (`feed_status` table: feed_name / last_update / records_added / error)

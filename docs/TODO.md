@@ -1,5 +1,5 @@
 # TODO / Current State — Downpour v29 Titanium
-# Last verified: 2026-08-12 (v29.15, feed health dashboard in Intel tab)
+# Last verified: 2026-08-12 (v29.16, DB-backed false-positive auto-suppression)
 
 **READ THIS FIRST if you are a new agent picking up this project.**
 This file was badly stale (dated April 2026) until this rewrite. `_WORKLOG.md`
@@ -10,7 +10,7 @@ authoritative history. This file is the current-state snapshot + what's left.
 
 ## Verified Current State (as of this rewrite)
 
-- `downpour_v29_titanium.py`: ~49,500 lines, 720 methods in the main `downpour`
+- `downpour_v29_titanium.py`: ~49,600 lines, 730 methods in the main `downpour`
   class, **0 duplicate method names** (verify with the AST script below before
   and after any edit session — this has caught real bugs multiple times)
 - Full project: 58 Python files, 0 syntax errors
@@ -89,10 +89,14 @@ for node in ast.walk(tree):
       Intel-tab feed Status column now shows `[OK]`/`[FAIL]`/`[STALE]`/
       `[PENDING]` with color tags via `_refresh_feed_health` (executor) +
       `_apply_feed_health` (main).
-- [ ] **Sophisticated false-positive suppression** — currently hardcoded
+- [x] **Sophisticated false-positive suppression** — currently hardcoded
       whitelists in places; a DB-backed auto-suppression (track alert
       frequency per indicator, auto-suppress after N confirmed-clean cycles)
-      would reduce alert fatigue.
+      would reduce alert fatigue. FIXED v29.16: `fp_suppressions` table +
+      `_fp_fingerprint` normalization + `_fp_confirm` (auto-suppress at 3
+      confirms) + `_fp_is_suppressed` in the `_queue_alert` hot path +
+      `_threats_fp_manager` blocklist UI (re-arm / clear). Mark-FP is now
+      persisted across sessions.
 - [x] **Main-thread DB freeze in status pills** — FIXED v29.13: the 10s
       `_refresh_status_pills` threat-count query ran on the main thread and
       could block on `db._lock` held by background bulk inserts. Now runs on
