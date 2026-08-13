@@ -2,6 +2,21 @@
 
 ## Branch: main
 
+## Session 2026-08-12e — v29.18: slow-feed result-timeout tuning
+- ✅ Investigated the `fut.result(timeout=30)` in `update_all`: empirically
+  confirmed with a 60s-slow feed test that `as_completed` only yields
+  finished futures, so the 30s timeout never fired and MITRE CTI (48MB)
+  already counted as OK. The old 30s was therefore misleading AND a latent
+  bug — any refactor to a plain `futures` loop would have falsely failed
+  every slow feed.
+- ✅ Raised to `timeout=150` with a documented budget comment (3x15s download
+  attempts + backoff + 120s multiprocess parse = worst case) so it's
+  defense-in-depth, not a slow-feed killer.
+- ✅ Verified: py_compile OK; main file **730 methods / 0 dupes**; project
+  AST **0 failures**.
+
+## Branch: main
+
 ## Session 2026-08-12d — v29.17: feed fetch retry with backoff
 - ✅ `_fetch_feed` upgraded from 2 immediate attempts to **3 attempts with
   backoff** `(0s, 2s, 6s)` — transient timeouts / 5xx / flaky certs recover

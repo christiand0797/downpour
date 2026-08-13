@@ -1,5 +1,23 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.18 Titanium — Slow-Feed Result-Timeout Tuning
+
+Session goal: verify and fix the per-feed result timeout so slow-but-healthy
+feeds (MITRE CTI is 48 MB) are never misreported as failed.
+
+- Empirically tested the `fut.result(timeout=30)` under `as_completed` with a
+  60 s-slow feed: `as_completed` only yields finished futures, so the 30 s
+  timeout was a no-op for in-flight feeds — they completed at 60 s and were
+  counted OK. This also means the 30 s value was a **latent bug**: a future
+  refactor to a plain `futures` loop would have instantly failed every slow
+  feed.
+- Raised the budget to **`timeout=150`** with a documented worst-case
+  derivation (3 × 15 s download attempts + backoff + 120 s multiprocess parse)
+  so it functions as genuine defense-in-depth without becoming a
+  slow-feed killer.
+- Invariant: main `downpour` class **730 methods, 0 duplicate method names**;
+  `py_compile` OK; project-wide AST 0 failures.
+
 ## v29.17 Titanium — Feed Fetch Retry with Backoff
 
 Session goal: stop marking feeds as failed on a single transient network

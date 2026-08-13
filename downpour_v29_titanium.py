@@ -12806,7 +12806,16 @@ class ThreatIntelEngine:
                        for item in feeds_list}
             for fut in as_completed(futures):
                 try:
-                    status, _, _ = fut.result(timeout=30)
+                    # FIX-v29.18: as_completed yields only finished futures, so
+                    # this timeout never fires for slow-but-successful feeds
+                    # (MITRE CTI is 48 MB and can take 60s+). The 150s budget
+                    # is a defense-in-depth guard that matches the worst-case
+                    # per-feed pipeline: 3x15s download attempts + backoff +
+                    # 120s multiprocess parse. It must never be lower, or a
+                    # refactor to a plain futures loop would falsely fail slow
+                    # feeds. Genuine failures still surface via the exception
+                    # handler below.
+                    status, _, _ = fut.result(timeout=150)
                 except Exception as e:
                     status, _, _ = 'err', futures[fut], str(e)
                 with _lock:
