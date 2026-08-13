@@ -1,5 +1,25 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.24 Titanium — GPUDetector Module Shipped (fixes missing import)
+
+Session goal: resolve the long-standing TODO item where
+`enhanced_security_dashboard.py` imported `gpu_detector_fix` but the module
+never existed — the import was guarded so it silently degraded, disabling GPU
+info in the dashboard forever.
+
+- **`gpu_detector_fix.py`** (new module): `GPUDetector.get_gpu_info()` returns
+  the exact dict schema the dashboard consumes (`name/usage/memory_used/
+  memory_total/memory_percent/temperature/fan_speed/power_draw/clock_speed/
+  memory_clock/driver_version/available/gpu_count/multi_gpu`).
+- Layered detection, first success wins: NVML (via `nvidia_ml_py`, with
+  `pynvml` fallback) → `nvidia-smi` CLI → GPUtil → WMI. Every path wrapped;
+  runtime failures degrade to `available: False` and can never raise into the
+  importer.
+- Self-test CLI included (`python gpu_detector_fix.py`).
+- Live-verified on the RTX 3050: `available=True`, `NVIDIA GeForce RTX 3050`,
+  33% usage, 557/8192 MB VRAM, 38 degC via NVML; dashboard imports +
+  instantiates cleanly. Project-wide AST still 0 failures across all files.
+
 ## v29.23 Titanium — Per-Process GPU Attribution in Processes Tab
 
 Session goal: make the GPU actually show up in live process monitoring. The

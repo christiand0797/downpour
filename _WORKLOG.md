@@ -2,6 +2,23 @@
 
 ## Branch: main
 
+## Session 2026-08-13d — v29.24: GPUDetector module shipped
+- ✅ **Bug**: `enhanced_security_dashboard.py` imports `gpu_detector_fix`
+  (`from gpu_detector_fix import GPUDetector`) but the module never existed —
+  guarded import silently degraded GPU info in that dashboard forever.
+- ✅ Created **`gpu_detector_fix.py`**: `GPUDetector.get_gpu_info()` returning
+  the exact dict schema the dashboard reads (`available/name/usage/
+  memory_used/memory_total/memory_percent/temperature/fan_speed/power_draw/
+  clock_speed/memory_clock/driver_version/gpu_count/multi_gpu`).
+- ✅ Layered detection: NVML (nvidia_ml_py → pynvml) → nvidia-smi CLI →
+  GPUtil → WMI. All paths wrapped; always returns a dict, never raises.
+- ✅ Live-verified: RTX 3050 via NVML (33%, 557/8192MB, 38C); dashboard
+  AST parses and imports GPUDetector cleanly. Project AST **0 failures**.
+- ✅ README: added feature rows for tray, perf-tab, PDF export, GPU
+  attribution, keyless infra OSINT.
+
+## Branch: main
+
 ## Session 2026-08-13c — v29.23: per-process GPU attribution
 - ✅ **Gap**: GPU gauges worked (NVML) but the Processes tab had no per-process
   GPU visibility — couldn't tell which PIDs were GPU-accelerated.

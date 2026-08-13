@@ -1,5 +1,5 @@
 # TODO / Current State — Downpour v29 Titanium
-# Last verified: 2026-08-13 (v29.23, per-process GPU attribution in Processes tab)
+# Last verified: 2026-08-13 (v29.24, GPUDetector module shipped)
 
 **READ THIS FIRST if you are a new agent picking up this project.**
 This file was badly stale (dated April 2026) until this rewrite. `_WORKLOG.md`
@@ -13,6 +13,8 @@ authoritative history. This file is the current-state snapshot + what's left.
 - `downpour_v29_titanium.py`: ~50,800 lines, 740 methods in the main `downpour`
   class, **0 duplicate method names** (verify with the AST script below before
   and after any edit session — this has caught real bugs multiple times)
+- `gpu_detector_fix.py` shipped in v29.24 (was a dangling import in
+  `enhanced_security_dashboard.py`).
 - Full project: 58 Python files, 0 syntax errors
 - **Main-thread DB-freeze rule (v29.14)**: every `self.db.*` / `count_intel()`
   reached from a main-thread `after()` loop or a one-shot startup callback must
@@ -211,9 +213,12 @@ multiple sessions. Summary for future agents so this doesn't get re-done:
       the NSA Full Assessment auto-persists to
       `~/Documents/DownpourReports/downpour_nsa_report_<ts>.pdf` instead of
       only firing alerts. reportlab verified installed + live-tested.
-- [ ] `gpu_detector_fix.py` referenced by `enhanced_security_dashboard.py`
-      doesn't exist — import is guarded so not a crash, just a missing
-      optional feature
+- [x] `gpu_detector_fix.py` referenced by `enhanced_security_dashboard.py`
+      didn't exist — import was guarded so not a crash, just a missing
+      optional feature. FIXED v29.24: shipped `gpu_detector_fix.py` with a
+      `GPUDetector.get_gpu_info()` matching the dashboard's expected schema
+      (NVML → nvidia-smi CLI → GPUtil → WMI layered fallback; always returns
+      a dict, never raises). Live-verified returning real RTX 3050 stats.
 
 ## Known Limitations (architectural, not "TODO" — document, don't chase)
 

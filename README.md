@@ -72,6 +72,11 @@ LAUNCH_V29_TITANIUM.bat
 | 🌍 **Domain Investigation** | crt.sh certificate-transparency subdomain discovery (Certspotter fallback), Domain OSINT Stack deep-links (ViewDNS/DNSDumpster/MXToolbox/Wappalyzer/Netlas/ZoomEye/FullHunt + archives), email-security SPF/DMARC/DKIM DNS check |
 | 🔑 **Pwned Passwords Check** | HIBP k-anonymity hash-range lookup (no API key — only 5 SHA-1 chars sent); alerts if a password appears in breach corpora |
 | 🛡️ **DDoS Shield v30** | Auto-block flooders, rate monitor, block-all, export report, purge — persistent 24h-TTL blocklist restored at startup |
+| 🧭 **Keyless Infra OSINT** | IPinfo.io ASN/geo/anycast/bogon, BGPView BGP routing graph (IP + ASN), HackerTarget reverse-IP/GeoIP/DNS/ASN recon — no API keys (v29.21) |
+| ⚡ **Live Performance Tab** | Pause/resume monitoring, 2-30s interval slider, 28 sparkline gauges, per-core bars, top-CPU process table, live health score (v29.21) |
+| 📄 **PDF Report Export** | Compliance audit + NSA-style assessment export to real PDFs (reportlab); NSA report auto-persists to Documents/DownpourReports (v29.22) |
+| 🎮 **Per-Process GPU Attribution** | Processes tab shows which PIDs run on the GPU (nvidia-smi compute-apps) with VRAM when readable (v29.23) |
+| 🖥️ **System Tray** | pystray minimize-to-tray with Show/Hide/Exit menu (v29.20) |
 | 🌧️ **Rain Overlay** | Animated rain that intensifies with threat level |
 
 ---
