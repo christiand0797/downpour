@@ -2,6 +2,19 @@
 
 ## Branch: main
 
+## Session 2026-08-12d — v29.17: feed fetch retry with backoff
+- ✅ `_fetch_feed` upgraded from 2 immediate attempts to **3 attempts with
+  backoff** `(0s, 2s, 6s)` — transient timeouts / 5xx / flaky certs recover
+  instead of the feed being marked failed for the whole cycle. Last-attempt
+  errors still recorded in `self._feed_errors` → `feed_status`.
+- ✅ Cross-checked the periodic path: `_intel_auto_loop` re-runs `update_all`
+  when due (default 6h) and checks every 10 min, so a feed that fails the
+  3-attempt backoff still retries on the next scheduled cycle.
+- ✅ Verified: py_compile OK; main file **730 methods / 0 dupes**; project
+  AST **0 failures**.
+
+## Branch: main
+
 ## Session 2026-08-12c — v29.16: DB-backed false-positive auto-suppression
 - ✅ **`fp_suppressions` table** (fingerprint PK, confirmed, suppressed,
   first_seen, last_seen, sample_msg) in the DB schema DDL.

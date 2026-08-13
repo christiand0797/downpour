@@ -12692,7 +12692,12 @@ class ThreatIntelEngine:
         _safe_url: Any = url
         if _safe_url.startswith('http://') and _host not in _HTTP_OK:
             _safe_url: Any = 'https://' + _safe_url[7:]
-        for attempt in range(2):
+        # FIX-v29.17: retry with backoff — attempt 1 immediate, then 2s / 6s
+        # sleeps so transient network failures (timeouts, 5xx, flaky certs)
+        # recover instead of the feed being skipped for the whole cycle.
+        _BACKOFF: Any = (0, 2, 6)
+        import time as _tb
+        for attempt in range(3):
             try:
                 req: Any = urllib.request.Request(_safe_url, headers=headers)
                 kw: Any = {'timeout': 15}
@@ -12707,8 +12712,10 @@ class ThreatIntelEngine:
                     if self._verify_download(raw, name):
                         return raw
             except Exception as e:
-                if attempt == 0:
-                    pass  # immediate retry, no sleep
+                if attempt < len(_BACKOFF) - 1:
+                    self._feed_errors[name] = str(e)
+                    try: _tb.sleep(_BACKOFF[attempt])
+                    except Exception: pass
                 else:
                     self._feed_errors[name] = str(e)
         return None

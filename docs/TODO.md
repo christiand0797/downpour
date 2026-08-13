@@ -1,5 +1,5 @@
 # TODO / Current State — Downpour v29 Titanium
-# Last verified: 2026-08-12 (v29.16, DB-backed false-positive auto-suppression)
+# Last verified: 2026-08-12 (v29.17, feed fetch retry with backoff)
 
 **READ THIS FIRST if you are a new agent picking up this project.**
 This file was badly stale (dated April 2026) until this rewrite. `_WORKLOG.md`
@@ -157,6 +157,9 @@ multiple sessions. Summary for future agents so this doesn't get re-done:
 - [ ] **Per-feed timeout tuning** — some feeds (MITRE CTI is 48MB) take a
       while; consider a "slow feeds" queue so they don't block faster ones.
 - [ ] **Feed auto-retry with backoff** — currently just skips on failure.
+      DONE v29.17: `_fetch_feed` now retries 3x with (0s, 2s, 6s) backoff;
+      `_intel_auto_loop` still re-runs failed feeds on the next scheduled
+      cycle (checks every 10 min).
 - [ ] Consider consolidating the OSINT lookup buttons (VT/AbuseIPDB/Shodan/
       Censys/Netlas/GreyNoise/Pulsedive/ONYPHE/urlscan/ThreatFox/URLhaus/OTX/
       MalwareBazaar/EmailRep/HIBP/crt.sh/Wayback/CyberChef/HudsonRock — that's

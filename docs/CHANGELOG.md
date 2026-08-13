@@ -1,5 +1,21 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.17 Titanium — Feed Fetch Retry with Backoff
+
+Session goal: stop marking feeds as failed on a single transient network
+error. The old code retried twice *immediately* with no delay, which meant a
+flaky feed (timeout, 5xx, expired cert) got skipped for the whole cycle.
+
+- **`_fetch_feed`**: 3 attempts with backoff `(0s, 2s, 6s)` — attempt 1 is
+  immediate (unchanged behavior), then 2s and 6s sleeps so transient
+  failures recover. Last-attempt errors still flow into `self._feed_errors`
+  → `feed_status` so the Feed Health column (v29.15) reports them.
+- Periodic path confirmed: `_intel_auto_loop` (checks every 10 min) re-runs
+  `update_all` when the 6h interval is due, so feeds that exhaust all 3
+  attempts retry on the next scheduled cycle anyway.
+- Invariant: main `downpour` class **730 methods, 0 duplicate method names**;
+  `py_compile` OK; project-wide AST 0 failures.
+
 ## v29.16 Titanium — DB-Backed False-Positive Auto-Suppression
 
 Session goal: replace the ephemeral "Mark FP" (which only flipped an in-memory
