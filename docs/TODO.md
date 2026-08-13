@@ -1,5 +1,5 @@
 # TODO / Current State — Downpour v29 Titanium
-# Last verified: 2026-08-12 (v29.18, slow-feed result-timeout tuning)
+# Last verified: 2026-08-12 (v29.19, OSINT multi-lookup email classification fix)
 
 **READ THIS FIRST if you are a new agent picking up this project.**
 This file was badly stale (dated April 2026) until this rewrite. `_WORKLOG.md`
@@ -166,12 +166,17 @@ multiple sessions. Summary for future agents so this doesn't get re-done:
       DONE v29.17: `_fetch_feed` now retries 3x with (0s, 2s, 6s) backoff;
       `_intel_auto_loop` still re-runs failed feeds on the next scheduled
       cycle (checks every 10 min).
-- [ ] Consider consolidating the OSINT lookup buttons (VT/AbuseIPDB/Shodan/
+- [x] Consider consolidating the OSINT lookup buttons (VT/AbuseIPDB/Shodan/
       Censys/Netlas/GreyNoise/Pulsedive/ONYPHE/urlscan/ThreatFox/URLhaus/OTX/
       MalwareBazaar/EmailRep/HIBP/crt.sh/Wayback/CyberChef/HudsonRock — that's
       19+ separate inline lookups added across v29.1–v29.13) into a single
       "Lookup Everywhere" dispatcher that opens the relevant subset based on
       indicator type, rather than one button per service. Getting unwieldy.
+      DONE v29.19: `_osint_multi_lookup` is that dispatcher and now
+      classifies email/IP/hash/domain correctly (email branch was the missing
+      piece — emails previously fell through to the domain branch and broke).
+      Single-service buttons intentionally kept for keyless inline lookups;
+      "OSINT Stack" button on Intel tab + network tab is the consolidated path.
 
 ## LOW PRIORITY
 

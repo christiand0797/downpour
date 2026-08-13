@@ -1,5 +1,25 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.19 Titanium — OSINT Multi-Lookup Email Classification Fix
+
+Session goal: fix the OSINT4ALL multi-lookup dispatcher's indicator-type
+detection so emails are handled (they were silently producing broken deep
+links by being routed through the domain branch).
+
+- **`_osint_multi_lookup`**: added `is_email` detection (checked before
+  IP/hash/domain) with a purpose-built email source stack — Have I Been
+  Pwned account, Hudson Rock (Cavalier) email, EmailRep.io, DeHashed,
+  Hunter.io, plus domain-of-email cross-checks (VirusTotal, crt.sh) and a
+  Google search. The unconditional HIBP breach link was folded into the
+  domain branch since it is now part of the email stack too.
+- Classification verified against 8 representative inputs (IPv4, SHA1,
+  SHA256, email, bare domain, full URL, plain text) — all dispatch to the
+  correct branch.
+- A stray duplicate `elif is_hash` block introduced during the first edit was
+  caught by the AST duplicate-method/syntax audit and removed.
+- Invariant: main `downpour` class **730 methods, 0 duplicate method names**;
+  `py_compile` OK; project-wide AST 0 failures.
+
 ## v29.18 Titanium — Slow-Feed Result-Timeout Tuning
 
 Session goal: verify and fix the per-feed result timeout so slow-but-healthy

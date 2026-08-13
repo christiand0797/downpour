@@ -2,6 +2,22 @@
 
 ## Branch: main
 
+## Session 2026-08-12f — v29.19: OSINT multi-lookup email classification fix
+- ✅ **Bug**: `_osint_multi_lookup` had no email branch — emails fell into the
+  domain `else`, producing broken links (`dom = ioc.split('/')[0]` →
+  `test@example.com`).
+- ✅ Added `is_email` detection (before IP/hash/domain) with an email source
+  stack: HIBP account, Hudson Rock email, EmailRep.io, DeHashed, Hunter.io,
+  VT domain-of-domain, crt.sh, Google. Removed the now-redundant
+  unconditional HIBP breach link (folded into domain branch).
+- ✅ Verified classification with 8 cases (IP/hash/email/domain/URL/all pass),
+  and removed a leftover duplicated `elif is_hash` block my first edit
+  created (AST caught it, compile + audit clean after).
+- ✅ Verified: py_compile OK; main file **730 methods / 0 dupes**; project
+  AST **0 failures**.
+
+## Branch: main
+
 ## Session 2026-08-12e — v29.18: slow-feed result-timeout tuning
 - ✅ Investigated the `fut.result(timeout=30)` in `update_all`: empirically
   confirmed with a 60s-slow feed test that `as_completed` only yields

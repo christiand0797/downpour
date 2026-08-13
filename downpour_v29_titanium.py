@@ -37697,8 +37697,24 @@ Verification Status:
 
         is_ip: Any = bool(re.match(r'^\d{1,3}(\.\d{1,3}){3}$', ioc))
         is_hash: Any = bool(re.match(r'^[0-9a-fA-F]{32,64}$', ioc))
+        is_email: Any = ('@' in ioc and '.' in ioc.split('@')[-1])
         links: Any = []
-        if is_ip:
+        if is_email:
+            # FIX-v29.19: emails previously fell into the domain branch and
+            # produced broken links (dom = "test@example.com").
+            email: Any = ioc.lower()
+            dom: Any = email.split('@')[-1]
+            links = [
+                ('Have I Been Pwned', f'https://haveibeenpwned.com/account/{email}'),
+                ('Hudson Rock',      f'https://cavalier.hudsonrock.com/email/{email}'),
+                ('EmailRep.io',      f'https://emailrep.io/{email}'),
+                ('DeHashed',         f'https://dehashed.com/search?query={email}'),
+                ('Hunter.io',        f'https://hunter.io/search/{email}'),
+                ('VirusTotal',       f'https://www.virustotal.com/gui/domain/{dom}'),
+                ('crt.sh CT',        f'https://crt.sh/?q=%25.{dom}'),
+                ('Google',           f'https://www.google.com/search?q=%22{email}%22'),
+            ]
+        elif is_ip:
             links = [
                 ('VirusTotal',   f'https://www.virustotal.com/gui/ip-address/{ioc}/detection'),
                 ('AbuseIPDB',    f'https://www.abuseipdb.com/check/{ioc}'),
@@ -37739,12 +37755,8 @@ Verification Status:
                 ('Wappalyzer',       f'https://www.wappalyzer.com/technologies/{dom}'),
                 ('Netlas.io',        f'https://app.netlas.io/host/?q={dom}'),
                 ('Hudson Rock',      f'https://cavalier.hudsonrock.com/{dom}'),
+                ('Have I Been Pwned', f'https://haveibeenpwned.com/breaches'),
             ]
-        # Every IOC type can still check its breach exposure.
-        links.append(('Have I Been Pwned',
-                      f'https://haveibeenpwned.com/breaches'))
-        self._queue_alert(f'[OSINT] Multi-lookup {ioc} across '
-                          f'{len(links)} indicator sources', Colors.GAUGE_PURPLE)
         opened: Any = 0
         for name, url in links:
             try:
