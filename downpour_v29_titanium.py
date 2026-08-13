@@ -16972,7 +16972,7 @@ class HardwareMonitor:
         self._last_gc = time.time()
         self._cache: Dict[str, Any] = {}
         self._last_update = 0.0
-        self._interval = 2.0  # FIX-v28p18: 2s for responsive HW bar
+        self._interval = 0.5  # SPRINT1: 2x refresh rate  # FIX-v28p18: 2s for responsive HW bar
         self._lock = threading.Lock()
         self._bg_running = False
         # Prime cpu_percent  -  first call always returns 0.0
@@ -17306,6 +17306,25 @@ class HardwareMonitor:
                     stats['cpu_temp'] = round((t.CurrentTemperature - 2732) / 10.0, 1)
                     break
             except Exception: pass
+
+        # SPRINT1: Top-10 processes by CPU %
+        try:
+            _procs_raw = []
+            for p in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent', 'status']):
+                try:
+                    info = p.info
+                    _procs_raw.append({
+                        'pid': info.get('pid', 0),
+                        'name': info.get('name', '') or '',
+                        'cpu_percent': info.get('cpu_percent', 0) or 0,
+                        'memory_percent': round(info.get('memory_percent', 0) or 0, 2),
+                        'status': info.get('status', '') or '',
+                    })
+                except Exception:
+                    pass
+            stats['top_procs'] = sorted(_procs_raw, key=lambda x: x['cpu_percent'], reverse=True)[:15]
+        except Exception:
+            stats['top_procs'] = []
 
         self._cache = stats
         return stats
@@ -21499,6 +21518,10 @@ class downpour(tk.Tk):
             self._perf_canvases = {}
             self._perf_gauge_meta = {}
             self._perf_data_received = False
+            # SPRINT1: Per-gauge history ring buffers (30 samples each) for sparklines
+            self._perf_history: dict = {}  # key -> collections.deque(maxlen=30)
+            self._perf_paused: bool = False  # Pause/resume gauge updates
+            self._perf_interval_ms: int = 500  # Live-adjustable update interval
             self._lock = threading.Lock()
             self._scan_stop = threading.Event()
             self._files_scanned = 0
@@ -21865,7 +21888,7 @@ class downpour(tk.Tk):
                 self._adaptive_hw_ms   = max(2000, self._hw_profile.hw_loop_interval_ms)
                 self._adaptive_prc_ms  = 60_000  # FIX-v28p16: 60s (was 10s)
                 # FIX-v28p9: perf gauges every 2s min (was 250ms = 4x/sec gauge redraws!)
-                self._adaptive_prf_ms  = max(1000, self._hw_profile.perf_interval_ms)  # FIX-v28p18: 1s for responsive gauges
+                self._adaptive_prf_ms  = max(500, self._hw_profile.perf_interval_ms)  # FIX-v28p18: 1s for responsive gauges
                 self._adaptive_feed_ms = self._hw_profile.feed_refresh_ms
             else:
                 # Fallback defaults
@@ -23593,6 +23616,12 @@ class downpour(tk.Tk):
             ("ONYPHE",         lambda: self._osint_onyphe_lookup(self._get_net_selected_ip()),
              Colors.GAUGE_ORANGE,
              "ONYPHE passive attack-surface lookup — inline with API key, else opens the page"),
+            ("IPinfo",          lambda: self._osint_ipinfo_lookup(self._get_net_selected_ip()),
+             Colors.GAUGE_CYAN,
+             "IPinfo.io ASN/GeoIP lookup — keyless, shows ASN org, hostname, anycast, bogon"),
+            ("BGPView",         lambda: self._osint_bgpview_lookup(self._get_net_selected_ip()),
+             Colors.GAUGE_TEAL,
+             "BGPView.io BGP routing lookup — keyless, shows upstream ASNs, announced prefixes"),
             ("Copy IP",        self._copy_selected_ip,    Colors.TEXT_DIM,
              "Copy the selected remote IP address to the clipboard"),
             ("Geo-Locate",     self._geolocate_ip,        Colors.GAUGE_PURPLE,
@@ -23639,10 +23668,10 @@ class downpour(tk.Tk):
         tree_f.grid_rowconfigure(0, weight=1)
         tree_f.grid_columnconfigure(0, weight=1)
 
-        cols: Any = ('PID','Process','Local Addr','Remote IP','Port','Status','Threat','Country')
+        cols: Any = ('PID','Process','Proto','Local Addr','Remote IP','Port','Status','Duration','Threat','Country')
         self._net_tree = ttk.Treeview(tree_f, style='Titan.Treeview', columns=cols, show='headings', selectmode='browse')
-        widths: Any = {'PID':50,'Process':130,'Local Addr':130,'Remote IP':130,
-                  'Port':55,'Status':90,'Threat':140,'Country':80}
+        widths: Any = {'PID':50,'Process':120,'Proto':50,'Local Addr':130,'Remote IP':130,
+                  'Port':55,'Status':85,'Duration':75,'Threat':130,'Country':80}
         for col in cols:
             self._net_tree.heading(col, text=col,
                 command = lambda c=col: self._sort_tree(self._net_tree, c))
@@ -23936,6 +23965,9 @@ class downpour(tk.Tk):
             ("Shodan",               lambda: self._osint_shodan_lookup(self._get_intel_entry_value())),
             ("GreyNoise",            lambda: self._osint_greynoise_lookup(self._get_intel_entry_value())),
             ("Hudson Rock",          lambda: self._osint_hudsonrock_lookup(self._get_intel_entry_value())),
+            ("IPinfo",               lambda: self._osint_ipinfo_lookup(self._get_intel_entry_value())),
+            ("BGPView",              lambda: self._osint_bgpview_lookup(self._get_intel_entry_value())),
+            ("HackerTarget",         lambda: self._osint_hacktarget_lookup(self._get_intel_entry_value())),
             ("CyberChef Decode",     lambda: self._intel_cyberchef()),
             ("Export Report",        lambda: self._intel_export_report()),
             ("[MISP] Import IOCs",   lambda: self._intel_import_misp()),
@@ -27210,6 +27242,87 @@ Verification Status:
                   fg = Colors.GAUGE_TEAL, bg=Colors.GLASS_CARD, relief='flat',
                   command = _perf_refresh_now).grid(row=0, column=2, padx=8, pady=6)
 
+        # SPRINT1: Pause/Resume button
+        self._perf_pause_btn_var: Any = tk.StringVar(value='⏸ Pause')
+        def _toggle_perf_pause():
+            self._perf_paused = not getattr(self, '_perf_paused', False)
+            self._perf_pause_btn_var.set('▶ Resume' if self._perf_paused else '⏸ Pause')
+            fg = Colors.GAUGE_ORANGE if self._perf_paused else Colors.GAUGE_GREEN
+            _perf_pause_btn.configure(fg=fg)
+        _perf_pause_btn: Any = tk.Button(
+            hdr, textvariable=self._perf_pause_btn_var, font=('Consolas', 8),
+            fg=Colors.GAUGE_GREEN, bg=Colors.GLASS_CARD, relief='flat',
+            command=_toggle_perf_pause)
+        _perf_pause_btn.grid(row=0, column=3, padx=4, pady=6)
+
+        # SPRINT1: Interval slider label + scale
+        tk.Label(hdr, text='Interval:', font=('Consolas', 7),
+                 fg=Colors.TEXT_DIM, bg=Colors.GLASS_PANEL).grid(row=0, column=4, padx=(12,2), pady=6)
+        self._perf_interval_var: Any = tk.IntVar(value=500)
+        def _on_interval_change(val):
+            self._perf_interval_ms = int(float(val))
+            _interval_lbl.configure(text=f'{self._perf_interval_ms}ms')
+        _perf_slider: Any = tk.Scale(
+            hdr, from_=250, to=3000, orient='horizontal', variable=self._perf_interval_var,
+            command=_on_interval_change, length=120, showvalue=False,
+            bg=Colors.GLASS_PANEL, fg=Colors.GAUGE_TEAL, troughcolor=Colors.GLASS_CARD,
+            highlightthickness=0, sliderlength=14, bd=0, relief='flat')
+        _perf_slider.grid(row=0, column=5, padx=2, pady=6)
+        _interval_lbl: Any = tk.Label(hdr, text='500ms', font=('Consolas', 7),
+                                      fg=Colors.GAUGE_TEAL, bg=Colors.GLASS_PANEL, width=6)
+        _interval_lbl.grid(row=0, column=6, padx=2, pady=6)
+
+        # SPRINT1: Live mini-metric pills (CPU/RAM/GPU/NET) in header right side
+        _pill_frame: Any = tk.Frame(hdr, bg=Colors.GLASS_PANEL)
+        _pill_frame.grid(row=0, column=7, padx=16, pady=4, sticky='e')
+        hdr.grid_columnconfigure(7, weight=1)
+        self._perf_pill_cpu  = tk.Label(_pill_frame, text='CPU  0%',  width=10,
+                                         font=('Consolas', 8, 'bold'), fg=Colors.GAUGE_TEAL,
+                                         bg=Colors.GLASS_CARD, relief='flat', padx=4)
+        self._perf_pill_cpu.pack(side='left', padx=2)
+        self._perf_pill_ram  = tk.Label(_pill_frame, text='RAM  0%',  width=10,
+                                         font=('Consolas', 8, 'bold'), fg=Colors.GAUGE_BLUE,
+                                         bg=Colors.GLASS_CARD, relief='flat', padx=4)
+        self._perf_pill_ram.pack(side='left', padx=2)
+        self._perf_pill_gpu  = tk.Label(_pill_frame, text='GPU  0%',  width=10,
+                                         font=('Consolas', 8, 'bold'), fg=Colors.GAUGE_PURPLE,
+                                         bg=Colors.GLASS_CARD, relief='flat', padx=4)
+        self._perf_pill_gpu.pack(side='left', padx=2)
+        self._perf_pill_net  = tk.Label(_pill_frame, text='NET ↑0 ↓0', width=14,
+                                         font=('Consolas', 8, 'bold'), fg=Colors.GAUGE_GREEN,
+                                         bg=Colors.GLASS_CARD, relief='flat', padx=4)
+        self._perf_pill_net.pack(side='left', padx=2)
+        self._perf_pill_disk = tk.Label(_pill_frame, text='DISK R:0 W:0', width=16,
+                                         font=('Consolas', 8, 'bold'), fg=Colors.GAUGE_ORANGE,
+                                         bg=Colors.GLASS_CARD, relief='flat', padx=4)
+        self._perf_pill_disk.pack(side='left', padx=2)
+
+        # SPRINT1: System Health Score pill in perf header
+        self._perf_health_pill = tk.Label(_pill_frame, text='HEALTH --',  width=12,
+                                          font=('Consolas', 8, 'bold'), fg='#00ff88',
+                                          bg=Colors.GLASS_CARD, relief='flat', padx=4)
+        self._perf_health_pill.pack(side='left', padx=2)
+
+        # SPRINT1: Export snapshot button
+        def _perf_export_csv():
+            """Export current perf snapshot to CSV on desktop."""
+            import csv, datetime, os
+            try:
+                s2: Any = self.hw.get_stats()
+                ts = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+                path = os.path.join(os.path.expanduser('~'), 'Desktop', f'downpour_perf_{ts}.csv')
+                with open(path, 'w', newline='') as f:
+                    w = csv.writer(f)
+                    w.writerow(['metric', 'value'])
+                    for k, v in sorted(s2.items()):
+                        w.writerow([k, v])
+                self._set_status(f'Exported perf snapshot → {path}')
+            except Exception as e:
+                self._set_status(f'Export failed: {e}')
+        tk.Button(hdr, text='💾 Export CSV', font=('Consolas', 8),
+                  fg=Colors.GAUGE_ORANGE, bg=Colors.GLASS_CARD, relief='flat',
+                  command=_perf_export_csv).grid(row=0, column=8, padx=8, pady=6)
+
         # -- Scrollable gauge grid ---------------------------------------------
         # Outer scroll container
         _perf_scroll_canvas: Any = tk.Canvas(p, bg=Colors.BG_VOID, highlightthickness=0)
@@ -27250,10 +27363,10 @@ Verification Status:
             ('GPU TEMP',        'gpu_temp',        100, ' degC',  'temp'),
             ('GPU FAN',         'gpu_fan',         100, '%',   'cyan'),
             # Row 3  -  Disk & Net
-            ('DISK READ',       'disk_read_rate',  500, 'MB/s','blue'),
-            ('DISK WRITE',      'disk_write_rate', 500, 'MB/s','blue'),
-            ('NET UP',          'net_send_rate',  1024, 'KB/s','green'),
-            ('NET DOWN',        'net_recv_rate',  1024, 'KB/s','green'),
+            ('DISK READ',       'disk_read_rate',  7000, 'MB/s','blue'),
+            ('DISK WRITE',      'disk_write_rate', 7000, 'MB/s','blue'),
+            ('NET UP',          'net_send_rate',  102400, 'KB/s','green'),
+            ('NET DOWN',        'net_recv_rate',  102400, 'KB/s','green'),
             # Row 4  -  System
             ('PROCESSES',       'process_count',  1000, '',    'cyan'),
             ('THREADS',         'thread_count',   5000, '',    'blue'),
@@ -27301,6 +27414,40 @@ Verification Status:
         self._core_bars = []
         self._core_bar_labels = []
 
+        # SPRINT1: Top-10 CPU process table
+        import tkinter.ttk as ttk
+        _proc_row_base = len(GAUGES)//COLS + 3
+        tk.Label(grid_frame, text='TOP PROCESSES BY CPU %', font=('Consolas', 9, 'bold'),
+                 fg=Colors.GAUGE_ORANGE, bg=Colors.BG_VOID).grid(
+                 row=_proc_row_base, column=0, columnspan=4,
+                 sticky='w', padx=10, pady=(14,4))
+        _proc_cols = ('pid', 'name', 'cpu%', 'mem%', 'status')
+        _proc_frame = tk.Frame(grid_frame, bg=Colors.BG_VOID)
+        _proc_frame.grid(row=_proc_row_base+1, column=0, columnspan=4, sticky='ew', padx=10, pady=(0,14))
+        # Style the treeview
+        _proc_style = ttk.Style()
+        _proc_style.configure('Perf.Treeview',
+                              background=Colors.BG_VOID, fieldbackground=Colors.BG_VOID,
+                              foreground='#ccccee', rowheight=18,
+                              font=('Consolas', 8))
+        _proc_style.configure('Perf.Treeview.Heading',
+                              background=Colors.GLASS_CARD, foreground=Colors.GAUGE_TEAL,
+                              font=('Consolas', 8, 'bold'))
+        self._perf_proc_tree = ttk.Treeview(
+            _proc_frame, columns=_proc_cols, show='headings',
+            height=10, style='Perf.Treeview', selectmode='browse')
+        for col, w, anchor in [('pid',60,'e'),('name',200,'w'),('cpu%',70,'e'),('mem%',70,'e'),('status',90,'w')]:
+            self._perf_proc_tree.heading(col, text=col.upper())
+            self._perf_proc_tree.column(col, width=w, anchor=anchor, stretch=(col=='name'))
+        _proc_vsb = ttk.Scrollbar(_proc_frame, orient='vertical', command=self._perf_proc_tree.yview)
+        self._perf_proc_tree.configure(yscrollcommand=_proc_vsb.set)
+        self._perf_proc_tree.pack(side='left', fill='x', expand=True)
+        _proc_vsb.pack(side='right', fill='y')
+        # Tag coloring
+        self._perf_proc_tree.tag_configure('high', foreground=Colors.GAUGE_RED)
+        self._perf_proc_tree.tag_configure('med',  foreground=Colors.GAUGE_ORANGE)
+        self._perf_proc_tree.tag_configure('low',  foreground='#aaaacc')
+
         # -- Start update loop -------------------------------------------------
         # FIX: moved to _auto_start — after() in tab builder fires during repaint
         # self.after(2500, self._perf_loop)
@@ -27327,6 +27474,84 @@ Verification Status:
 
     # FIX-v28p18: Cache font check result (was calling tkfont.families() per gauge per frame)
     _cascadia_font_available: Any = None  # class-level cache
+
+    def _draw_sparkline(self, canvas, size: int, history: list, max_val: float, scheme: str):
+        """SPRINT1: Draw a 30-point rolling sparkline at the very bottom of a gauge canvas.
+
+        Renders a mini line chart in the last 18px of the canvas height, showing
+        historical trend. Points are color-coded by current scheme.
+        """
+        if not history or max_val <= 0:
+            return
+        try:
+            import tkinter as _tk
+            # Sparkline area: last 16px of canvas height (below gauge label)
+            W = size          # canvas width
+            H_TOP = size + 16  # y-start of sparkline strip (just below label)
+            H_BOT = size + 28  # y-end (bottom of canvas)
+            H = H_BOT - H_TOP  # height of sparkline strip
+
+            # Background strip
+            canvas.create_rectangle(4, H_TOP, W-4, H_BOT,
+                                     fill='#06080f', outline='#1a2030', width=1)
+
+            # Normalize values
+            pts = [min(max(v, 0), max_val) / max_val for v in history]
+            n = len(pts)
+            if n < 2:
+                return
+
+            # Color based on latest value
+            latest = pts[-1]
+            scheme_colors = {
+                'heat': '#ff4444' if latest > 0.75 else ('#ffaa00' if latest > 0.5 else '#44ff88'),
+                'temp': '#ff4444' if latest > 0.8 else ('#ffaa00' if latest > 0.6 else '#00d4ff'),
+                'blue': Colors.GAUGE_BLUE,
+                'cyan': Colors.GAUGE_CYAN,
+                'green': Colors.GAUGE_GREEN,
+                'teal': Colors.GAUGE_TEAL,
+                'purple': Colors.GAUGE_PURPLE,
+                'orange': Colors.GAUGE_ORANGE,
+                'red': Colors.GAUGE_RED,
+                'yellow': Colors.GAUGE_YELLOW,
+                'pink': Colors.GAUGE_PINK,
+            }
+            color = scheme_colors.get(scheme, Colors.GAUGE_TEAL)
+
+            # Draw fill polygon (area under sparkline)
+            step = (W - 8) / max(n - 1, 1)
+            coords_fill = [4, H_BOT]
+            for idx, p in enumerate(pts):
+                x = 4 + idx * step
+                y = H_BOT - int(p * (H - 2))
+                coords_fill.extend([x, y])
+            coords_fill.extend([4 + (n-1) * step, H_BOT])
+            if len(coords_fill) >= 6:
+                # Dim fill
+                fill_hex = color + '44' if len(color) == 7 else color
+                try:
+                    canvas.create_polygon(coords_fill, fill=color, stipple='gray25',
+                                          outline='', smooth=False)
+                except Exception:
+                    pass
+
+            # Draw sparkline itself
+            coords_line = []
+            for idx, p in enumerate(pts):
+                x = 4 + idx * step
+                y = H_BOT - int(p * (H - 2)) - 1
+                coords_line.extend([x, y])
+            if len(coords_line) >= 4:
+                canvas.create_line(coords_line, fill=color, width=1,
+                                   smooth=True, capstyle='round', joinstyle='round')
+
+            # Dot at latest value
+            last_x = 4 + (n-1) * step
+            last_y = H_BOT - int(pts[-1] * (H - 2)) - 1
+            canvas.create_oval(last_x-2, last_y-2, last_x+2, last_y+2,
+                                fill=color, outline='')
+        except Exception:
+            pass  # Never crash the gauge draw
 
     def _draw_gauge(self, canvas, size, label, value, max_val, unit, scheme):
         """Draw HD modern arc gauge with optimized rendering."""
@@ -27451,8 +27676,12 @@ Verification Status:
                            font = _small_font, fill=Colors.TEXT_DIM, anchor='w')
 
     def _perf_loop(self):
-        """Schedule background stats fetch; UI update happens in callback."""
+        """Schedule background stats fetch at adaptive interval; respects pause."""
         if not self.winfo_exists():
+            return
+        if getattr(self, '_perf_paused', False):
+            # Still reschedule so we resume immediately on un-pause
+            self._orig_after(500, self._perf_loop)
             return
         def _fetch_and_update():
             try:
@@ -27462,7 +27691,8 @@ Verification Status:
             except Exception as e:
                 error_logger.log('PerfFetch', 'Stats error', e)
         self._executor.submit(_fetch_and_update)
-        self._orig_after(self._adaptive_prf_ms, self._perf_loop)
+        interval = getattr(self, '_perf_interval_ms', 500)
+        self._orig_after(interval, self._perf_loop)
 
     def _update_perf_ui(self, s: dict):
         """Apply fetched stats to gauge canvases  -  runs on main thread."""
@@ -27489,8 +27719,18 @@ Verification Status:
                 val: Any = s.get(key, 0) or 0
                 # Battery -1 means no battery  -  show 0
                 if key == 'battery_percent' and val < 0:
-                    val: Any = 0
+                    val: Any = 0  # no battery present
                 self._draw_gauge(canvas, 170, label, val, maxv, unit, scheme)
+                # SPRINT1: Update history ring for sparkline
+                if not hasattr(self, '_perf_history'):
+                    import collections
+                    self._perf_history = {}
+                if key not in self._perf_history:
+                    import collections as _coll
+                    self._perf_history[key] = _coll.deque(maxlen=30)
+                self._perf_history[key].append(float(val))
+                if len(self._perf_history[key]) >= 2:
+                    self._draw_sparkline(canvas, 170, list(self._perf_history[key]), maxv, scheme)
 
             # Update per-core bars
             per_core: Any = s.get('cpu_per_core', [])
@@ -27548,6 +27788,93 @@ Verification Status:
                 gpu_name: Any = f'  |  GPU: {s.get("gpu_name","N/A")[:20]}' if s.get('gpu_name') else ''
                 self._perf_uptime_lbl.config(
                     text = f'{up_str}  |  {procs} processes{batt_str}{cpu_name}{gpu_name}')
+
+                # SPRINT1: Update live header pills
+                try:
+                    cpu_pct  = s.get('cpu_percent', 0)
+                    ram_pct  = s.get('ram_percent', 0)
+                    gpu_pct  = s.get('gpu_percent', 0)
+                    net_up   = s.get('net_send_rate', 0)
+                    net_dn   = s.get('net_recv_rate', 0)
+                    dr       = s.get('disk_read_rate', 0)
+                    dw       = s.get('disk_write_rate', 0)
+                    def _fmt_kb(v):
+                        if v >= 1024: return f'{v/1024:.1f}MB/s'
+                        return f'{v:.0f}KB/s'
+                    def _fmt_mb(v):
+                        if v >= 1000: return f'{v/1024:.1f}GB/s'
+                        return f'{v:.0f}MB/s'
+                    cpu_col = Colors.GAUGE_RED if cpu_pct > 85 else (Colors.GAUGE_ORANGE if cpu_pct > 60 else Colors.GAUGE_TEAL)
+                    ram_col = Colors.GAUGE_RED if ram_pct > 85 else (Colors.GAUGE_ORANGE if ram_pct > 70 else Colors.GAUGE_BLUE)
+                    gpu_col = Colors.GAUGE_RED if gpu_pct > 90 else (Colors.GAUGE_ORANGE if gpu_pct > 70 else Colors.GAUGE_PURPLE)
+                    if hasattr(self, '_perf_pill_cpu'):
+                        self._perf_pill_cpu.config(text=f'CPU {cpu_pct:.0f}%', fg=cpu_col)
+                        self._perf_pill_ram.config(text=f'RAM {ram_pct:.0f}%', fg=ram_col)
+                        self._perf_pill_gpu.config(text=f'GPU {gpu_pct:.0f}%', fg=gpu_col)
+                        self._perf_pill_net.config(text=f'↑{_fmt_kb(net_up)} ↓{_fmt_kb(net_dn)}')
+                        self._perf_pill_disk.config(text=f'R:{_fmt_mb(dr)} W:{_fmt_mb(dw)}')
+                except Exception:
+                    pass
+
+            # SPRINT1: Per-gauge threshold flash (red canvas border when exceeded)
+            try:
+                _THRESH = {
+                    'cpu_percent': 90, 'ram_percent': 90, 'gpu_percent': 95,
+                    'cpu_temp': 85, 'gpu_temp': 90, 'swap_percent': 80,
+                    'disk_used_percent': 95,
+                }
+                for tkey, tlimit in _THRESH.items():
+                    canvas = self._perf_canvases.get(tkey)
+                    if canvas and canvas.winfo_exists():
+                        tval = s.get(tkey, 0) or 0
+                        if tval >= tlimit:
+                            canvas.configure(highlightthickness=2, highlightbackground=Colors.GAUGE_RED)
+                        else:
+                            canvas.configure(highlightthickness=0)
+            except Exception:
+                pass
+
+            # SPRINT1: Update Top-10 CPU process table
+            try:
+                top_procs = s.get('top_procs', [])
+                if top_procs and hasattr(self, '_perf_proc_tree'):
+                    self._perf_proc_tree.delete(*self._perf_proc_tree.get_children())
+                    for proc in top_procs[:10]:
+                        pid  = proc.get('pid', '')
+                        name = proc.get('name', '')[:36]
+                        cpu  = proc.get('cpu_percent', 0)
+                        mem  = proc.get('memory_percent', 0)
+                        stat = proc.get('status', '')
+                        tag  = 'high' if cpu > 50 else ('med' if cpu > 15 else 'low')
+                        self._perf_proc_tree.insert('', 'end',
+                            values=(pid, name, f'{cpu:.1f}%', f'{mem:.1f}%', stat),
+                            tags=(tag,))
+            except Exception:
+                pass
+
+            # SPRINT1: Health Score pill — simple formula from key metrics
+            try:
+                if hasattr(self, '_perf_health_pill'):
+                    cpu_p = s.get('cpu_percent', 0) or 0
+                    ram_p = s.get('ram_percent', 0) or 0
+                    gpu_p = s.get('gpu_percent', 0) or 0
+                    dsk_p = s.get('disk_used_percent', 0) or 0
+                    tmp_c = s.get('cpu_temp', 0) or 0
+                    tmp_g = s.get('gpu_temp', 0) or 0
+                    # Penalties: each metric above threshold subtracts from 100
+                    penalty = (max(0, cpu_p - 70) * 0.4 +
+                               max(0, ram_p - 75) * 0.3 +
+                               max(0, gpu_p - 80) * 0.2 +
+                               max(0, dsk_p - 85) * 0.2 +
+                               max(0, tmp_c - 80) * 0.3 +
+                               max(0, tmp_g - 85) * 0.2)
+                    score = max(0, min(100, int(100 - penalty)))
+                    hcol  = ('#ff4444' if score < 50 else
+                             '#ff9900' if score < 75 else '#00ff88')
+                    self._perf_health_pill.config(
+                        text=f'HEALTH {score}', fg=hcol)
+            except Exception:
+                pass
 
         except Exception as e:
             error_logger.log('PerfFetch', 'Gauge update error', e)
@@ -33691,7 +34018,7 @@ Verification Status:
                 error_logger.log('NetLoop', 'Net error', e)
         self._executor.submit(do_net)
         try:
-            self._orig_after(30_000, self._net_loop)  # FIX-v28p16: was 8s
+            self._orig_after(5_000, self._net_loop)  # SPRINT2: 30s→5s for near-live updates
         except RuntimeError:
             pass  # App shutting down
 
@@ -33806,6 +34133,13 @@ Verification Status:
             if threat_cache is None:
                 threat_cache = {}
 
+            # SPRINT2: Connection start-time tracking for duration display
+            if not hasattr(self, '_conn_start_times'):
+                self._conn_start_times = {}
+            if not hasattr(self, '_rdns_cache'):
+                self._rdns_cache = {}   # ip → hostname (async filled)
+
+            now_ts = time.time()
             target: Any = {}
             for conn in conns:
                 if not conn.raddr:
@@ -33813,6 +34147,13 @@ Verification Status:
                 rip: Any = conn.raddr.ip
                 rport: Any = conn.raddr.port
                 proc_name: Any = (proc_map or {}).get(conn.pid, 'Unknown')
+                # SPRINT2: Protocol
+                proto = getattr(conn, 'type', None)
+                try:
+                    import socket as _sock
+                    proto_str = 'UDP' if proto == _sock.SOCK_DGRAM else 'TCP'
+                except Exception:
+                    proto_str = 'TCP'
                 threat: Any = ''
                 # FIX-v28p35: use pre-computed threat cache (no blocking calls on main thread)
                 if threat_cache.get(rip, False):
@@ -33821,9 +34162,35 @@ Verification Status:
                     threat: Any = f"RAT:{KnownThreats.RAT_PORTS[rport]}"
                 lip: Any = f"{conn.laddr.ip}:{conn.laddr.port}" if conn.laddr else ''
                 key: Any = f"{conn.pid}_{rip}_{rport}"
-                tag: Any = 'threat' if threat else 'normal'
-                target[key] = ((conn.pid, proc_name, lip, rip, rport,
-                                conn.status, threat, ''), tag)
+                # SPRINT2: Duration tracking
+                if key not in self._conn_start_times:
+                    self._conn_start_times[key] = now_ts
+                elapsed = now_ts - self._conn_start_times[key]
+                if elapsed < 60:
+                    dur_str = f'{int(elapsed)}s'
+                elif elapsed < 3600:
+                    dur_str = f'{int(elapsed//60)}m{int(elapsed%60)}s'
+                else:
+                    dur_str = f'{int(elapsed//3600)}h{int((elapsed%3600)//60)}m'
+                # SPRINT2: rDNS hostname (if cached)
+                rdns = self._rdns_cache.get(rip, '')
+                display_ip = f'{rdns}' if rdns and rdns != rip else rip
+                # SPRINT2: Tag by threat level
+                if threat_cache.get(rip, False):
+                    tag: Any = 'threat'
+                elif rport in KnownThreats.RAT_PORTS:
+                    tag: Any = 'suspect'
+                else:
+                    tag: Any = 'normal'
+                # SPRINT2: GeoIP flag emoji in Country (if already resolved)
+                country = ''
+                target[key] = ((conn.pid, proc_name, proto_str, lip, display_ip, rport,
+                                conn.status, dur_str, threat, country), tag)
+
+            # SPRINT2: Cleanup stale duration records for removed connections
+            stale_keys = set(self._conn_start_times.keys()) - set(target.keys())
+            for sk in stale_keys:
+                del self._conn_start_times[sk]
 
             existing: Any = set(self._net_tree.get_children())
             target_ids: Any = set(target.keys())
@@ -33840,10 +34207,30 @@ Verification Status:
                         self._net_tree.item(k, values=vals, tags=(tag,))
                 else:
                     self._net_tree.insert('', 'end', iid=k, values=vals, tags=(tag,))
+                    # SPRINT2: trigger async rDNS for new public IPs not yet cached
+                    rip2 = vals[4]  # display_ip is 4th val in new tuple
+                    if rip2 not in self._rdns_cache and not rip2.startswith(('192.168.','10.','172.','127.')):
+                        self._rdns_cache[rip2] = ''  # mark as pending
+                        self._async_rdns(rip2)
 
             self._refresh_ioc_count_display()
         except Exception as e:
             error_logger.log('NetUI', 'Update error', e)
+
+    def _async_rdns(self, ip: str):
+        """SPRINT2: Async reverse-DNS lookup — fills _rdns_cache and updates visible rows."""
+        def _do():
+            try:
+                import socket as _s
+                hostname = _s.gethostbyaddr(ip)[0]
+                short = hostname[:28] if len(hostname) > 28 else hostname
+            except Exception:
+                short = ip
+            self._rdns_cache[ip] = short
+        try:
+            self._executor.submit(_do)
+        except Exception:
+            pass
 
     def _refresh_ioc_count_display(self):
         """Update the IOC-count stat label without blocking the main thread.
@@ -37729,6 +38116,8 @@ Verification Status:
                 ('urlscan.io',   f'https://urlscan.io/api/v1/search/?q=ip%3A{ioc}'),
                 ('Pulsedive',    f'https://pulsedive.com/indicator/?ioc={ioc}'),
                 ('ONYPHE',       f'https://www.onyphe.io/search?q=ip%3A{ioc}'),
+                ('IPinfo',       f'https://ipinfo.io/{ioc}'),
+                ('BGPView',      f'https://bgpview.io/ip/{ioc}'),
             ]
         elif is_hash:
             links = [
@@ -39059,6 +39448,210 @@ Verification Status:
                               'Opening the public search instead.'))
                 webbrowser.open(f'https://www.onyphe.io/search?q=ip%3A{ioc}')
         self._executor.submit(_do)
+
+    def _osint_ipinfo_lookup(self, ioc: str):
+        """Keyless IPinfo.io enrichment for an IP address.
+
+        IPinfo.io Lite provides unlimited free lookups with no API key.
+        Returns ASN, org, country, city, hostname and anycast flag.
+        Used for ASN attribution and infrastructure context - a different
+        reconnaissance lens than abuse-scoring tools (OSINT4ALL guide:
+        Shodan=exposed services, Censys=cert pivots, SecurityTrails=DNS
+        history, IPinfo=ASN/routing attribution).
+        """
+        import webbrowser
+        import tkinter.messagebox as mb
+        ioc = (ioc or '').strip()
+        if not ioc:
+            mb.showinfo('IPinfo', 'No indicator to check.')
+            return
+        if not re.match(r'^\d{1,3}(\.\d{1,3}){3}$', ioc):
+            mb.showinfo('IPinfo', f'IPinfo needs an IP address (got: {ioc!r}).')
+            return
+
+        def _do():
+            try:
+                import urllib.request as _ur
+                import json as _j
+                req: Any = _ur.Request(
+                    f'https://ipinfo.io/{ioc}/json',
+                    headers={'User-Agent': 'Downpour-SecuritySuite/29',
+                             'Accept': 'application/json'})
+                with _ur.urlopen(req, timeout=10) as r:
+                    d: Any = _j.loads(r.read().decode())
+                lines: Any = [
+                    f"IP:        {d.get('ip', ioc)}",
+                    f"Hostname:  {d.get('hostname', 'none')}",
+                    f"Org/ASN:   {d.get('org', 'unknown')}",
+                    f"Country:   {d.get('country', '?')}",
+                    f"Region:    {d.get('region', '?')}",
+                    f"City:      {d.get('city', '?')}",
+                ]
+                if d.get('anycast'):
+                    lines.append('Anycast:   YES (shared anycast IP)')
+                if d.get('bogon'):
+                    lines.append('[!] BOGON: reserved/private IP range')
+                rep: Any = '\n'.join(lines)
+                is_bogon: Any = bool(d.get('bogon'))
+                self.after(0, lambda: mb.showinfo('IPinfo.io ASN/GeoIP', rep))
+                col: Any = Colors.GAUGE_ORANGE if is_bogon else Colors.GAUGE_TEAL
+                self._queue_alert(
+                    f'[OSINT] IPinfo {ioc}: {d.get("org", "unknown org")} '
+                    f'/ {d.get("country", "?")}', col)
+            except Exception as e:
+                self.after(0, lambda _e=str(e): mb.showwarning(
+                    'IPinfo', f'Lookup failed ({_e[:120]}).\n'
+                              'Opening the web page instead.'))
+                webbrowser.open(f'https://ipinfo.io/{ioc}')
+        self._executor.submit(_do)
+
+    def _osint_bgpview_lookup(self, ioc: str):
+        """Keyless BGPView.io BGP routing + ASN lookup.
+
+        BGPView free API returns upstream ASNs, prefixes announced and
+        peer relationships - maps the routing infrastructure of an IP,
+        complementing IPinfo (which gives org/ASN) with the actual BGP
+        routing graph (who peers with it, what prefixes it announces).
+        No API key required; ideal for infrastructure attribution.
+        """
+        import webbrowser
+        import tkinter.messagebox as mb
+        ioc = (ioc or '').strip()
+        if not ioc:
+            mb.showinfo('BGPView', 'No indicator to check.')
+            return
+        is_ip: Any = bool(re.match(r'^\d{1,3}(\.\d{1,3}){3}$', ioc))
+        is_asn: Any = bool(re.match(r'^(?:AS)?\d+$', ioc, re.IGNORECASE))
+        if not is_ip and not is_asn:
+            mb.showinfo('BGPView', f'BGPView needs an IP or ASN number (got: {ioc!r}).')
+            return
+
+        def _do():
+            try:
+                import urllib.request as _ur
+                import json as _j
+                if is_ip:
+                    url: Any = f'https://api.bgpview.io/ip/{ioc}'
+                else:
+                    asn_num: Any = re.sub(r'(?i)^AS', '', ioc)
+                    url = f'https://api.bgpview.io/asn/{asn_num}'
+                req: Any = _ur.Request(url,
+                    headers={'User-Agent': 'Downpour-SecuritySuite/29',
+                             'Accept': 'application/json'})
+                with _ur.urlopen(req, timeout=12) as r:
+                    d: Any = _j.loads(r.read().decode())
+                status: Any = d.get('status', '')
+                if status != 'ok':
+                    raise RuntimeError(f"BGPView API returned status={status!r}")
+                data: Any = d.get('data', {})
+                if is_ip:
+                    pfxs: Any = data.get('prefixes', [])
+                    rir: Any = data.get('rir_allocation', {})
+                    lines: Any = [f'IP:       {ioc}',
+                                  f'RIR:      {rir.get("rir_name", "?")}',
+                                  f'Alloc:    {rir.get("prefix", "?")} '
+                                  f'(since {rir.get("date_allocated", "?")})'
+                                 ]
+                    for p in pfxs[:4]:
+                        asn_d: Any = p.get('asn', {})
+                        lines.append(
+                            f'  Prefix: {p.get("prefix","?")} '
+                            f'| ASN: {asn_d.get("asn","?")} '
+                            f'| {asn_d.get("name","?")} '
+                            f'({asn_d.get("country_code","?")})'
+                        )
+                    if len(pfxs) > 4:
+                        lines.append(f'  ... and {len(pfxs)-4} more prefixes')
+                else:
+                    lines = [
+                        f'ASN:      AS{data.get("asn","?")}',
+                        f'Name:     {data.get("name","?")}',
+                        f'Desc:     {data.get("description_short","?")}',
+                        f'Country:  {data.get("country_code","?")}',
+                        f'Website:  {data.get("website","none")}',
+                        f'Peers:    {len(data.get("peers", []))} upstream ASNs',
+                    ]
+                rep: Any = '\n'.join(lines)
+                self.after(0, lambda: mb.showinfo('BGPView BGP Routing', rep))
+                self._queue_alert(
+                    f'[OSINT] BGPView {ioc}: {len(pfxs if is_ip else data.get("peers",[]))} '
+                    f'prefix/peer entries', Colors.GAUGE_CYAN)
+            except Exception as e:
+                self.after(0, lambda _e=str(e): mb.showwarning(
+                    'BGPView', f'Lookup failed ({_e[:120]}).\n'
+                               'Opening the web page instead.'))
+                path: Any = f'ip/{ioc}' if is_ip else f'asn/{re.sub(r"(?i)^AS","",ioc)}'
+                webbrowser.open(f'https://bgpview.io/{path}')
+        self._executor.submit(_do)
+
+    def _osint_hacktarget_lookup(self, ioc: str):
+        """Keyless HackerTarget multi-recon: reverse-IP, ASN, host lookup.
+
+        HackerTarget provides free (no key) APIs for host recon, reverse
+        IP lookup, GeoIP, and ASN info — useful for infrastructure mapping.
+        Dispatches based on indicator type: IPs get reverse-IP + geoip;
+        domains get DNS lookup + reverse-IP; ASNs get ASN lookup.
+        Rate-limited by HackerTarget (50/day free), so results are cached.
+        """
+        import webbrowser
+        import tkinter.messagebox as mb
+        ioc = (ioc or '').strip()
+        if not ioc:
+            mb.showinfo('HackerTarget', 'No indicator to check.')
+            return
+        is_ip: Any = bool(re.match(r'^\d{1,3}(\.\d{1,3}){3}$', ioc))
+        is_asn: Any = bool(re.match(r'^(?:AS)?\d+$', ioc, re.IGNORECASE))
+
+        def _fetch(url: str) -> str:
+            import urllib.request as _ur
+            req: Any = _ur.Request(url,
+                headers={'User-Agent': 'Downpour-SecuritySuite/29'})
+            with _ur.urlopen(req, timeout=12) as r:
+                return r.read().decode('utf-8', errors='replace')
+
+        def _do():
+            try:
+                lines: Any = [f'Indicator: {ioc}', '']
+                if is_ip:
+                    geo: Any = _fetch(f'https://api.hackertarget.com/geoip/?q={ioc}')
+                    lines.append('[GeoIP]')
+                    lines.extend(geo.strip().splitlines()[:8])
+                    lines.append('')
+                    rev: Any = _fetch(f'https://api.hackertarget.com/reverseiplookup/?q={ioc}')
+                    rev_lines: Any = [l for l in rev.strip().splitlines() if l.strip()][:6]
+                    lines.append(f'[Reverse IP - {len(rev_lines)} hosts]')
+                    lines.extend(rev_lines)
+                    if 'error' in rev.lower() or 'rate' in rev.lower():
+                        lines.append('(rate-limited - try again later)')
+                elif is_asn:
+                    asn_num: Any = re.sub(r'(?i)^AS', '', ioc)
+                    asn_data: Any = _fetch(
+                        f'https://api.hackertarget.com/aslookup/?q=AS{asn_num}')
+                    lines.append('[ASN Info]')
+                    lines.extend(asn_data.strip().splitlines()[:10])
+                else:  # domain
+                    dns_data: Any = _fetch(
+                        f'https://api.hackertarget.com/dnslookup/?q={ioc}')
+                    lines.append('[DNS Records]')
+                    lines.extend(dns_data.strip().splitlines()[:10])
+                    lines.append('')
+                    rev: Any = _fetch(
+                        f'https://api.hackertarget.com/reverseiplookup/?q={ioc}')
+                    rev_lines = [l for l in rev.strip().splitlines() if l.strip()][:5]
+                    lines.append(f'[Reverse-IP Cohosted - {len(rev_lines)}]')
+                    lines.extend(rev_lines)
+                rep: Any = '\n'.join(lines)
+                self.after(0, lambda: mb.showinfo('HackerTarget Recon', rep))
+                self._queue_alert(
+                    f'[OSINT] HackerTarget {ioc}: recon complete',
+                    Colors.GAUGE_TEAL)
+            except Exception as e:
+                self.after(0, lambda _e=str(e): mb.showwarning(
+                    'HackerTarget', f'Recon failed ({_e[:120]}).\n'
+                                    'Opening HackerTarget instead.'))
+                webbrowser.open(f'https://hackertarget.com/network-tools/')
+        self._executor.submit(_do)
+
 
     def _check_pwned_password(self, pw: str) -> int:
         """HIBP Pwned Passwords k-anonymity check (no API key required).
@@ -40716,6 +41309,15 @@ Verification Status:
         _tbtn(tools_f, '[WEB] urlscan.io Search',    self._dns_adv_urlscan)
         _tbtn(tools_f, '[BREACH] Infostealer Check', self._dns_adv_hudsonrock)
         _tbtn(tools_f, '[WEB] Domain OSINT Stack',   self._dns_adv_domain_osint)
+        _tbtn(tools_f, '[NET] HackerTarget Recon',
+              lambda: self._osint_hacktarget_lookup(
+                  self._dns_adv_domain_var.get().strip()))
+        _tbtn(tools_f, '[ASN] BGPView Routing',
+              lambda: self._osint_bgpview_lookup(
+                  self._dns_adv_domain_var.get().strip()))
+        _tbtn(tools_f, '[NET] IPinfo ASN Lookup',
+              lambda: self._osint_ipinfo_lookup(
+                  self._dns_adv_domain_var.get().strip()))
 
         # Column 2: Security Tests
         sec_f: Any = tk.Frame(main_f, bg=Colors.GLASS_CARD)

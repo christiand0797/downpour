@@ -2,6 +2,30 @@
 
 ## Branch: main
 
+## Session 2026-08-13a — v29.21: Performance tab live controls + keyless infra OSINT
+- ✅ Checkpointed the uncommitted sprint (perf controls + 3 keyless OSINT
+  lookups) as v29.21.
+- ✅ **Performance tab**: `_toggle_perf_pause` (pause/resume monitoring without
+  losing state), `_on_interval_change` (2-30s slider, applies live to adaptive
+  intervals), `_draw_sparkline` (real sparklines on perf canvases, re-rendered
+  on interval change).
+- ✅ **`_osint_ipinfo_lookup`** — keyless IPinfo.io ASN/geo/anycast/bogon
+  attribution. Live-verified: `8.8.8.8` → `AS15169 Google LLC / US`.
+- ✅ **`_osint_bgpview_lookup`** — keyless BGPView BGP routing graph for IPs and
+  ASNs. NOTE: `api.bgpview.io` DNS fails on this network (possibly blocked);
+  verified the code's web-page fallback path handles it.
+- ✅ **`_osint_hacktarget_lookup`** — keyless HackerTarget multi-recon
+  (reverse-IP, GeoIP, DNS, ASN). Live-verified both endpoints.
+- ✅ **Bug fixed**: all 6 HackerTarget URLs used `api.hacktarget.com` (no `er`) —
+  nonexistent host, DNS-fail. Corrected to `api.hackertarget.com` /
+  `hackertarget.com`. Caught by live-testing each endpoint before commit.
+- ✅ All three OSINT lookups wired into Network tab, Intel tab, DNS Advanced
+  Tools via `_executor` + `after(0)` post-back.
+- ✅ Verified: py_compile OK; main file **738 methods / 0 dupes**; project AST
+  **0 failures**; keyless endpoints live-tested.
+
+## Branch: main
+
 ## Session 2026-08-12g — v29.20: system tray icon (restore path)
 - ✅ **Bug**: `minimize_to_tray` config + `_on_close`'s `withdraw()` existed,
   but NO tray icon was ever created — closing the window hid the app with no

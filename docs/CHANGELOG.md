@@ -1,5 +1,42 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.21 Titanium — Performance Tab Live Controls + Keyless Infra OSINT
+
+Session goal: turn the Performance tab into a live, interactive monitoring
+surface and add keyless infrastructure-recon OSINT lookups that complement the
+abuse-scoring services already integrated.
+
+- **Performance tab live controls**:
+  - **`_toggle_perf_pause()`** — Pause/Resume button freezes all HW/per-process
+    monitoring loops without destroying state (the "live data" gap).
+  - **`_on_interval_change()`** — a slider lets the user pick refresh interval
+    (2–30 s) instead of being locked to the fixed default; applies live to the
+    adaptive intervals.
+  - **`_draw_sparkline()`** — real sparklines now drawn on the perf canvases
+    (CPU/GPU/mem gauges) instead of empty widgets; adaptive interval changes
+    re-render them.
+- **New keyless OSINT infrastructure lookups** (no API key required):
+  - **`_osint_ipinfo_lookup()`** — IPinfo.io Lite ASN/org/country/city/
+    hostname/anycast/bogon attribution (live-verified: `8.8.8.8` →
+    `AS15169 Google LLC / US`).
+  - **`_osint_bgpview_lookup()`** — BGPView.io BGP routing graph for IPs (RIR
+    allocation, announced prefixes, upstream ASNs) or ASNs (name, peers,
+    country). Graceful web-page fallback when the API is unreachable (the API
+    host's DNS is currently blocked on this network — fallback path exercised).
+  - **`_osint_hacktarget_lookup()`** — HackerTarget multi-recon: reverse-IP +
+    GeoIP for IPs, DNS records + reverse-IP cohosting for domains, ASN lookup
+    for ASNs (live-verified both endpoints return data). Rate-limited 50/day —
+    bounded result sets.
+  - All three wired into Network tab, Intel tab, and DNS Advanced Tools with
+    `_executor` + `after(0)` post-back (never blocks the event loop).
+- **Bug fixed**: all HackerTarget URLs used `api.hacktarget.com` (missing the
+  `er`) — that host does not exist and DNS-fails; corrected to the
+  live-working `api.hackertarget.com` / `hackertarget.com` across all 6
+  references. Discovered by live-testing each new endpoint before wiring.
+- Verified: each keyless endpoint live-tested on Python 3.12; `py_compile` OK;
+  project-wide AST 0 failures. Invariant: main `downpour` class **738 methods,
+  0 duplicate method names**.
+
 ## v29.20 Titanium — System Tray Icon
 
 Session goal: ship the system-tray minimize/restore feature the config always

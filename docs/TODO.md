@@ -1,5 +1,5 @@
 # TODO / Current State — Downpour v29 Titanium
-# Last verified: 2026-08-12 (v29.20, system tray icon)
+# Last verified: 2026-08-13 (v29.21, Performance tab controls + keyless infra OSINT)
 
 **READ THIS FIRST if you are a new agent picking up this project.**
 This file was badly stale (dated April 2026) until this rewrite. `_WORKLOG.md`
@@ -10,7 +10,7 @@ authoritative history. This file is the current-state snapshot + what's left.
 
 ## Verified Current State (as of this rewrite)
 
-- `downpour_v29_titanium.py`: ~49,600 lines, 730 methods in the main `downpour`
+- `downpour_v29_titanium.py`: ~50,500 lines, 738 methods in the main `downpour`
   class, **0 duplicate method names** (verify with the AST script below before
   and after any edit session — this has caught real bugs multiple times)
 - Full project: 58 Python files, 0 syntax errors
@@ -129,6 +129,14 @@ multiple sessions. Summary for future agents so this doesn't get re-done:
       gap in the OSINT4ALL cybersecurity use-case page; the remaining listed
       tools there (Shodan/Censys/Netlas, urlscan/VT/OTX, CyberChef/MISP,
       HIBP/EmailRep) are all already integrated.
+- [x] **Infrastructure attribution (IP/ASN routing)** — v29.21 added three
+      keyless lookups: `_osint_ipinfo_lookup` (IPinfo.io ASN/geo/anycast/
+      bogon), `_osint_bgpview_lookup` (BGPView.io routing graph for IP + ASN),
+      `_osint_hacktarget_lookup` (HackerTarget reverse-IP/GeoIP/DNS/ASN).
+      These fill the "routing/ASN attribution" lens the OSINT4ALL
+      Shodan-vs-Censys-vs-SecurityTrails guide frames as distinct from the
+      abuse-scoring tools. NOTE: `api.bgpview.io` DNS is blocked on this
+      network — the BGPView button exercises its web-page fallback here.
 - [x] **Mitaka** (browser-extension indicator pivoting) — reviewed; it is a
       Chrome/Firefox extension, not an API/web service, so there is no
       programmatic surface to integrate. Not a fit — don't re-evaluate.
