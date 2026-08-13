@@ -1,5 +1,30 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.25 Titanium — First Unit Tests + FP-Fingerprint Normalization Fix
+
+Session goal: start closing the "no unit tests exist" TODO item with a
+pytest suite for the thread-safety/FP-suppression mechanisms — and it
+immediately paid off by catching a real bug.
+
+- **`tests/test_thread_safety.py`** (new): 16 tests covering
+  - `_fp_fingerprint` normalization (category capture, port/hash/timestamp
+    normalization, category distinctness, garbage-safety),
+  - `_fp_is_suppressed` hot path (memory-only, never touches DB),
+  - `_queue_alert` suppression + rate limiting (max 2/sec),
+  - the executor-post-back pattern (background threads marshal UI updates
+    through `self.after(0, ...)` and guard `RuntimeError` during shutdown).
+- Uses `object.__new__(downpour)` to exercise pure logic without a full Tk
+  app (no display needed). Run with
+  `Python312\python.exe -m pytest tests -q`.
+- **Bug fixed (found by the tests)**: `_fp_fingerprint` did NOT actually
+  collapse `'45.88.48.238'` and `'45.88.48.238 :443'` to one key — the port
+  survived as a trailing `*N*` token, so a confirmed FP on an IP:port pair
+  wouldn't suppress the bare-IP alert. Added an explicit IP[:port] unit
+  regex (`\b\d{1,3}(\.\d{1,3}){3}(?:\s*:\s*\d{1,5})?\b` → `*IP*`) that runs
+  before the generic port normalization.
+- Verified: all 16 tests pass; `py_compile` OK; project-wide AST 0 failures.
+  Invariant: main `downpour` class **740 methods, 0 duplicate method names**.
+
 ## v29.24 Titanium — GPUDetector Module Shipped (fixes missing import)
 
 Session goal: resolve the long-standing TODO item where

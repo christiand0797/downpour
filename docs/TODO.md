@@ -1,5 +1,5 @@
 # TODO / Current State — Downpour v29 Titanium
-# Last verified: 2026-08-13 (v29.24, GPUDetector module shipped)
+# Last verified: 2026-08-13 (v29.25, first unit tests + FP fingerprint fix)
 
 **READ THIS FIRST if you are a new agent picking up this project.**
 This file was badly stale (dated April 2026) until this rewrite. `_WORKLOG.md`
@@ -15,6 +15,9 @@ authoritative history. This file is the current-state snapshot + what's left.
   and after any edit session — this has caught real bugs multiple times)
 - `gpu_detector_fix.py` shipped in v29.24 (was a dangling import in
   `enhanced_security_dashboard.py`).
+- `tests/test_thread_safety.py` added in v29.25 — 16 pytest cases covering the
+  FP-suppression flow, `_queue_alert` rate limit, and the executor post-back
+  pattern. Run: `Python312\python.exe -m pytest tests -q`.
 - Full project: 58 Python files, 0 syntax errors
 - **Main-thread DB-freeze rule (v29.14)**: every `self.db.*` / `count_intel()`
   reached from a main-thread `after()` loop or a one-shot startup callback must
@@ -197,6 +200,13 @@ multiple sessions. Summary for future agents so this doesn't get re-done:
 
 - [ ] Unit tests for thread-safety mechanisms (none exist — all verification
       so far has been manual compile + AST + live functional testing)
+      PARTIAL v29.25: `tests/test_thread_safety.py` (pytest) added with 16
+      tests for `_fp_fingerprint`/`_fp_is_suppressed`/`_queue_alert`
+      suppression + rate limit, and the executor `after(0)` post-back
+      pattern. Immediately caught a real bug: IP:port fingerprints did NOT
+      collapse (fixed with an IP[:port] unit regex). Uses
+      `object.__new__(downpour)` so no display needed. Extend coverage to
+      other hot paths as new logic lands.
 - [x] System tray minimize support — pystray IS installed and working on
       Python 3.12, but no tray icon code is wired into the running app
       (a `downpour_tray.py`-style module was drafted in an early session but

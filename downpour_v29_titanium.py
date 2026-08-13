@@ -34675,6 +34675,12 @@ Verification Status:
             cat: Any = (m.group(1).upper() if m else '[GEN]')
             body: Any = (m.group(2) if m else text).lower()
             body: Any = _re.sub(r'\s+', ' ', body)
+            # IP[:port] as a unit FIRST (dotted quad + optional :port) so
+            # '45.88.48.238' and '45.88.48.238 :443' collapse to one key.
+            # Without this the port became a trailing *N* token and the two
+            # fingerprints differed - caught by tests/test_thread_safety.py.
+            body: Any = _re.sub(
+                r'\b\d{1,3}(\.\d{1,3}){3}(?:\s*:\s*\d{1,5})?\b', ' *IP* ', body)
             body: Any = _re.sub(r'[:\.]?\d{1,5}\b', ' *N*', body)      # ports/ids
             body: Any = _re.sub(r'\b[0-9a-f]{8,}\b', ' *H*', body)      # hashes
             # Trim to a stable prefix (drop trailing CPU%/mem numbers etc.)

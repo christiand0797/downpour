@@ -2,6 +2,25 @@
 
 ## Branch: main
 
+## Session 2026-08-13e — v29.25: first unit tests + FP fingerprint fix
+- ✅ **Gap**: TODO item "Unit tests for thread-safety mechanisms (none exist)"
+  finally started. `tests/test_thread_safety.py` (pytest): 16 tests for
+  `_fp_fingerprint`, `_fp_is_suppressed`, `_queue_alert` suppression +
+  rate limit, and the executor `after(0)` post-back pattern.
+- ✅ Uses `object.__new__(downpour)` so pure logic runs without a full Tk
+  app. `Python312\python.exe -m pytest tests -q` → 16 passed.
+- ✅ **Bug caught + fixed**: `_fp_fingerprint('... 45.88.48.238 :443')` did
+  NOT equal `_fp_fingerprint('... 45.88.48.238')` — the port became a
+  trailing `*N*` token, so an IP:port FP confirmation couldn't suppress the
+  bare-IP alert (and vice-versa). Added an IP[:port] unit regex
+  `\b\d{1,3}(\.\d{1,3}){3}(?:\s*:\s*\d{1,5})?\b` → `*IP*` before the generic
+  port strip. The docstring claimed this collapsed; the tests proved it
+  didn't. (This is exactly why the "no tests" item existed.)
+- ✅ Verified: 16/16 pass; py_compile OK; main file **740 methods / 0 dupes**;
+  project AST **0 failures**.
+
+## Branch: main
+
 ## Session 2026-08-13d — v29.24: GPUDetector module shipped
 - ✅ **Bug**: `enhanced_security_dashboard.py` imports `gpu_detector_fix`
   (`from gpu_detector_fix import GPUDetector`) but the module never existed —
