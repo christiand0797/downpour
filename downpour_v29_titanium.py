@@ -23837,6 +23837,10 @@ class downpour(tk.Tk):
         self._intel_tree.tag_configure('clearnet',  foreground=Colors.GAUGE_TEAL)
         self._intel_tree.tag_configure('gov',       foreground=Colors.GAUGE_BLUE)
         self._intel_tree.tag_configure('community', foreground=Colors.GAUGE_ORANGE)
+        # Feed-health over-ride tags (applied on top of the category tag)
+        self._intel_tree.tag_configure('feed_err',   foreground=Colors.GAUGE_RED)
+        self._intel_tree.tag_configure('feed_stale', foreground=Colors.GAUGE_YELLOW)
+        self._intel_feed_stale_days: Any = 3
         
         # Grid layout for proper scrolling
         self._intel_tree.grid(row=0, column=0, sticky='nsew')
@@ -33258,6 +33262,9 @@ Verification Status:
         # Feed refresh loop (lightweight UI update, 30s interval)
         self.after(20_000, self._feed_refresh_loop)
 
+        # Feed-health column: first paint after startup (reads feed_status)
+        self.after(5_000, self._refresh_feed_health)
+
         # Status pills (one-shot UI refresh)
         self.after(10_000, self._refresh_status_pills)
 
@@ -33456,6 +33463,8 @@ Verification Status:
                     # also hold during bulk inserts — calling it on the main thread can
                     # block for many seconds. Run it via the shared executor helper.
                     self._refresh_ioc_count_display()
+            # Feed-health status column refresh (off-thread DB read)
+            self._refresh_feed_health()
         except Exception:
             pass
         self._orig_after(self._adaptive_feed_ms, self._feed_refresh_loop)
@@ -35045,7 +35054,92 @@ Verification Status:
                 self._set_status(self.intel.status),
             ])
             self.after(0, self._refresh_ioc_count_display)
+            self.after(0, self._refresh_feed_health)
         self._executor.submit(do)
+
+    def _refresh_feed_health(self):
+        """Async: load per-feed health from feed_status on the executor.
+
+        The feed_status table (feed_name / last_update / records_added /
+        error_message) is written by ThreatIntelEngine.update_all but nothing
+        in the UI surfaced it — the Intel tab Status column stayed "Pending"
+        forever. Queries run off-thread (same db._lock rule as the other DB
+        reads); the main thread only applies the rendered rows.
+        """
+        def _load():
+            try:
+                rows: Any = self.intel.get_feed_status()
+                self.after(0, lambda r=rows: self._apply_feed_health(r))
+            except Exception:
+                pass
+        try:
+            self._executor.submit(_load)
+        except Exception:
+            pass
+
+    def _apply_feed_health(self, rows):
+        """Main-thread: refresh Intel-tab feed Status column from feed_status.
+
+        Row colors: healthy feeds keep their dark-web/clearnet/gov/community
+        tag; failed feeds get a red over-ride tag, stale/never-updated feeds
+        an orange one. The status text shows IOC count + last-update time.
+        """
+        try:
+            tree: Any = getattr(self, '_intel_tree', None)
+            if tree is None or not getattr(self, '_intel_feed_stale_days', 0):
+                return
+            from datetime import timedelta
+            max_age = datetime.now() - timedelta(days=self._intel_feed_stale_days)
+            status: Any = {}
+            for r in rows:
+                status[r.get('name', '')] = r
+            updated: Any = False
+            for iid in tree.get_children(''):
+                name: Any = iid
+                row: Any = status.get(name)
+                try:
+                    base_tag: Any = tree.item(iid, 'tags')
+                    base_tag = base_tag[0] if base_tag else 'clearnet'
+                except Exception:
+                    base_tag = 'clearnet'
+                if row is None:
+                    tree.set(id=iid, column='Status',
+                             value='[PENDING] not updated yet')
+                    tree.item(iid, tags=('feed_stale',))
+                    updated = True
+                    continue
+                err: Any = row.get('error') or ''
+                last_up: Any = row.get('updated') or ''
+                count: Any = row.get('count') or 0
+                try:
+                    last_dt: Any = datetime.fromisoformat(last_up)
+                    last_str: Any = last_dt.strftime('%m-%d %H:%M')
+                    stale: Any = last_dt < max_age
+                except Exception:
+                    last_str = '?'
+                    stale = True
+                if err:
+                    tree.set(id=iid, column='Status',
+                             value=f'[FAIL] {str(err)[:48]}')
+                    tree.item(iid, tags=('feed_err',))
+                elif stale:
+                    tree.set(id=iid, column='Status',
+                             value=f'[STALE] {count:,} IOCs  -  {last_str}')
+                    tree.item(iid, tags=(base_tag, 'feed_stale'))
+                else:
+                    tree.set(id=iid, column='Status',
+                             value=f'[OK] {count:,} IOCs  -  {last_str}')
+                    tree.item(iid, tags=(base_tag,))
+                updated = True
+            if updated:
+                errored: Any = sum(1 for r in rows if r.get('error'))
+                ok: Any = sum(1 for r in rows
+                              if not r.get('error') and r.get('count'))
+                self._intel_status.config(
+                    text=f"Feed health: {ok:,} ok  /  {errored:,} failed  /  "
+                         f"{len(rows):,} tracked")
+        except Exception:
+            pass
 
     def _quick_file_scan(self):
         path: Any = filedialog.askdirectory(title="Select folder to scan", initialdir=os.path.expanduser('~'))

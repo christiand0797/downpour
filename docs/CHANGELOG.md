@@ -1,5 +1,33 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.15 Titanium — Feed Health Dashboard (Intel Tab)
+
+Session goal: surface the `feed_status` DB data (written by
+`ThreatIntelEngine.update_all`) in the UI — the Intel-tab feed Status column
+had stayed on "Pending" forever even though last-update / records-added /
+error data was already in the database.
+
+- **`_refresh_feed_health()`** — executor-based reader; calls
+  `intel.get_feed_status()` off the main thread (same `db._lock` rule as the
+  v29.14 cleanup) and marshals rows back via `after(0)`.
+- **`_apply_feed_health(rows)`** — main-thread renderer:
+  - `[OK] 12,345 IOCs - MM-DD HH:MM` — keeps the dark-web/clearnet/gov/community
+    category tag for row color.
+  - `[FAIL] <error>` — red `feed_err` tag over-rides the category color so
+    broken feeds stand out.
+  - `[STALE] 1,234 IOCs - MM-DD HH:MM` — yellow `feed_stale` tag when the last
+    update is older than `_intel_feed_stale_days` (default 3).
+  - `[PENDING] not updated yet` — feed exists but `feed_status` has no row.
+  - Updates the `_intel_status` label with a live `ok / failed / tracked`
+    summary.
+- **Wiring**: `_feed_refresh_loop` (periodic, 30s), `_update_intel_now`
+  (immediately after a manual feed refresh), and a one-shot first paint in
+  `_auto_start` (5s).
+- New tag setups `feed_err` / `feed_stale` + `_intel_feed_stale_days = 3`
+  registered in `_build_intel_tab`.
+- Invariant: main `downpour` class **720 methods, 0 duplicate method names**;
+  `py_compile` OK; project-wide AST 0 failures.
+
 ## v29.14 Titanium — Main-Thread DB Freeze Cleanup (round 2)
 
 Session goal: eliminate the remaining main-thread DB-blocking call sites so no

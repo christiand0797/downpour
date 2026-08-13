@@ -2,6 +2,24 @@
 
 ## Branch: main
 
+## Session 2026-08-12b — v29.15: Feed health dashboard in Intel tab
+- ✅ **`_refresh_feed_health()`** — async reader: `intel.get_feed_status()`
+  (`feed_status` table: feed_name / last_update / records_added / error)
+  runs on `self._executor`, rows marshaled back via `after(0)`.
+- ✅ **`_apply_feed_health(rows)`** — main-thread updater colors the Intel-tab
+  feed Status column (which sat on "Pending" forever despite real DB data):
+  `[OK] N IOCs - hh:mm` (keeps darkweb/clearnet/gov/community tag),
+  `[FAIL] err` (red `feed_err` over-ride), `[STALE]` >3 days (yellow
+  `feed_stale`), `[PENDING]` when feed_status has no row. Also sets the
+  `_intel_status` summary label to `ok / failed / tracked` counts.
+- ✅ Wired: `_feed_refresh_loop` periodic, `_update_intel_now` post-update,
+  and a one-shot first paint in `_auto_start` (5s). Adds `feed_err`/
+  `feed_stale` tag configs + `_intel_feed_stale_days = 3` in `_build_intel_tab`.
+- ✅ Verified: py_compile OK; main file **720 methods / 0 dupes**; project AST
+  **0 failures**.
+
+## Branch: main
+
 ## Session 2026-08-12a — v29.14: main-thread DB freeze cleanup (v31p2)
 - ✅ **Freeze fix round 2**: audited every `count_intel()` / `SELECT COUNT(*)`
   call site for main-thread risk. Eliminated 5+ remaining main-thread DB blocks:

@@ -1,5 +1,5 @@
 # TODO / Current State — Downpour v29 Titanium
-# Last verified: 2026-08-12 (v29.14, main-thread DB freeze cleanup round 2)
+# Last verified: 2026-08-12 (v29.15, feed health dashboard in Intel tab)
 
 **READ THIS FIRST if you are a new agent picking up this project.**
 This file was badly stale (dated April 2026) until this rewrite. `_WORKLOG.md`
@@ -10,7 +10,7 @@ authoritative history. This file is the current-state snapshot + what's left.
 
 ## Verified Current State (as of this rewrite)
 
-- `downpour_v29_titanium.py`: ~49,400 lines, 718 methods in the main `downpour`
+- `downpour_v29_titanium.py`: ~49,500 lines, 720 methods in the main `downpour`
   class, **0 duplicate method names** (verify with the AST script below before
   and after any edit session — this has caught real bugs multiple times)
 - Full project: 58 Python files, 0 syntax errors
@@ -84,8 +84,11 @@ for node in ast.walk(tree):
 - [ ] **GPU utilization** — gpu_executor pool exists (50% cores reserved) but
       no CUDA workloads actually run on it. RTX 3050 sits idle. Would need
       cupy/tensorflow wiring for ML-based detection to actually use it.
-- [ ] **Feed health dashboard UI tab** — `feed_status` DB table has real data
-      (from the OSINT/threat-feed work), no UI surfaces it yet.
+- [x] **Feed health dashboard UI tab** — `feed_status` DB table has real data
+      (from the OSINT/threat-feed work), no UI surfaces it yet. FIXED v29.15:
+      Intel-tab feed Status column now shows `[OK]`/`[FAIL]`/`[STALE]`/
+      `[PENDING]` with color tags via `_refresh_feed_health` (executor) +
+      `_apply_feed_health` (main).
 - [ ] **Sophisticated false-positive suppression** — currently hardcoded
       whitelists in places; a DB-backed auto-suppression (track alert
       frequency per indicator, auto-suppress after N confirmed-clean cycles)
