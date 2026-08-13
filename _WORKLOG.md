@@ -17,8 +17,8 @@
   `_intel_threat_web_stack()` — keyless browser deep-links for the OSINT4ALL
   curated threat-intel sources that expose no unkeyed JSON API: Cisco Talos,
   Hybrid Analysis, PhishTank, ANY.RUN, Joe Sandbox. IOC percent-encoded.
-- ✅ New tests: `tests/test_thread_safety.py::TestThreatWebStack` (10 new
-  tests, 33 total). Verified: 33/33 pass, py_compile OK, project AST 0
+- ✅ New tests: `tests/test_thread_safety.py::TestThreatWebStack` (5 new
+  tests, 23 total). Verified: 23/23 pass, py_compile OK, project AST 0
   failures.
 
 ## Branch: main
