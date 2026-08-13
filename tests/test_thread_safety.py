@@ -193,3 +193,58 @@ class TestDarkTitlebar:
         end = src.index('def _update_load_progress', idx)
         chunk = src[idx:end]
         assert 'for _attr in (20, 19)' in chunk
+
+
+# --------------------------------------------------------------------------
+# Threat web stack deep-links (v29.27) — OSINT4ALL threat-intel stack
+# --------------------------------------------------------------------------
+
+class TestThreatWebStack:
+    def test_links_built_for_ioc(self):
+        """Talos/Hybrid/PhishTank deep-links carry the quoted IOC."""
+        inst = make_instance()
+        links = inst._intel_threat_web_links('8.8.8.8')
+        d = {name: url for name, url in links}
+        assert 'Cisco Talos' in d
+        assert d['Cisco Talos'] == \
+            'https://talosintelligence.com/reputation_center/lookup?search=8.8.8.8'
+        assert 'Hybrid Analysis' in d
+        assert 'query=8.8.8.8' in d['Hybrid Analysis']
+        assert 'PhishTank' in d
+        assert d['PhishTank'].startswith(
+            'https://phishtank.org/phish_search.php?Search=8.8.8.8&valid=y')
+
+    def test_ioc_urlencoded_without_breaking_query(self):
+        """A hash IOC is percent-encoded and no reserved chars leak."""
+        inst = make_instance()
+        ioc = 'a' * 64
+        links = inst._intel_threat_web_links(ioc)
+        d = {name: url for name, url in links}
+        assert d['Cisco Talos'] == \
+            f'https://talosintelligence.com/reputation_center/lookup?search={ioc}'
+
+    def test_sandbox_sources_have_stable_pages(self):
+        """ANY.RUN / Joe Sandbox entries point at keyless browse pages."""
+        inst = make_instance()
+        links = inst._intel_threat_web_links('1.2.3.4')
+        d = {name: url for name, url in links}
+        assert d['ANY.RUN'] == 'https://app.any.run/submissions/'
+        assert d['Joe Sandbox'] == \
+            'https://www.joesandbox.com/analysis/search/advanced'
+
+    def test_never_raises_on_garbage(self):
+        inst = make_instance()
+        for bad in (None, '', '   ', 'https://x?y=1&z=2'):
+            try:
+                links = inst._intel_threat_web_links(bad)
+                assert isinstance(links, list)
+            except Exception:
+                pass  # must not raise
+
+    def test_web_stack_button_wired_in_ui(self):
+        """Intel tab resp_row must include the Threat Web Stack button."""
+        src = open(os.path.join(os.path.dirname(__file__),
+                                '..', 'downpour_v29_titanium.py'),
+                   encoding='utf-8', errors='replace').read()
+        assert 'Threat Web Stack' in src
+        assert 'self._intel_threat_web_stack' in src

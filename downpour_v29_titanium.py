@@ -24006,6 +24006,7 @@ class downpour(tk.Tk):
             ("IPinfo",               lambda: self._osint_ipinfo_lookup(self._get_intel_entry_value())),
             ("BGPView",              lambda: self._osint_bgpview_lookup(self._get_intel_entry_value())),
             ("HackerTarget",         lambda: self._osint_hacktarget_lookup(self._get_intel_entry_value())),
+            ("Threat Web Stack",     lambda: self._intel_threat_web_stack()),
             ("CyberChef Decode",     lambda: self._intel_cyberchef()),
             ("Export Report",        lambda: self._intel_export_report()),
             ("[MISP] Import IOCs",   lambda: self._intel_import_misp()),
@@ -33844,6 +33845,22 @@ Verification Status:
         except Exception:
             pass
 
+        # v29: Performance tab live-data loop. This was written (interval
+        # slider, pause/resume, adaptive self.after() rescheduling) but the
+        # initial kickoff call was left commented out, so the entire "live"
+        # Performance tab never actually updated after its first paint —
+        # found by grepping for every reference to _perf_loop and noticing
+        # it only ever called *itself* recursively, with zero external
+        # trigger. Unlike the process/network/security monitors (which are
+        # deliberately manual-start, since they take real actions), the
+        # Performance tab is read-only system-health telemetry with no side
+        # effects, so it makes sense for it to be live from launch like the
+        # alert drainer above, not gated behind a button click.
+        try:
+            self.after(2000, self._perf_loop)
+        except Exception as e:
+            error_logger.log('AutoStart', 'Failed to schedule _perf_loop', e)
+
         # Wire AEGIS alert callbacks (just wiring, no starting)
         def _aegis_alert(msg: str, level: str = 'HIGH'):
             color: Any = (Colors.GAUGE_RED if level == 'CRITICAL' else
@@ -38620,6 +38637,52 @@ Verification Status:
         webbrowser.open(url)
         self._queue_alert('[OSINT] Opened CyberChef with the selected value '
                           'for decoding', Colors.GAUGE_PURPLE)
+
+    def _intel_threat_web_links(self, ioc: str) -> list:
+        """Build keyless browser deep-links for the current IOC.
+
+        Covers the OSINT4ALL Threat Intelligence & Indicator Triage stack
+        entries that expose no public (unkeyed) JSON API — Cisco Talos,
+        Hybrid Analysis, PhishTank, ANY.RUN and Joe Sandbox are all
+        browser-first reputation/sandbox sources reachable via stable
+        deep-link URLs with no API key or vetting step.
+        """
+        import urllib.parse as _up
+        q: Any = _up.quote(ioc, safe='')
+        return [
+            ('Cisco Talos',     f'https://talosintelligence.com/reputation_center/lookup?search={q}'),
+            ('Hybrid Analysis', f'https://www.hybrid-analysis.com/search?query={q}'),
+            ('PhishTank',       f'https://phishtank.org/phish_search.php?Search={q}&valid=y'),
+            ('ANY.RUN',         'https://app.any.run/submissions/'),
+            ('Joe Sandbox',     'https://www.joesandbox.com/analysis/search/advanced'),
+        ]
+
+    def _intel_threat_web_stack(self):
+        """Open the browser-based threat-triage stack for the current IOC.
+
+        Talos / Hybrid Analysis / PhishTank / ANY.RUN / Joe Sandbox are the
+        OSINT4ALL curated threat-intelligence sources that have no publicly
+        documented unkeyed JSON API, so they are reached as keyless browser
+        deep-links. This complements the inline API-based lookups already in
+        the Threat Response button row.
+        """
+        import webbrowser
+        ioc: Any = self._get_intel_entry_value()
+        if not ioc:
+            messagebox.showinfo("Threat Web Stack",
+                                "Enter an IP, hash, domain or URL to check first")
+            return
+        links: list = self._intel_threat_web_links(ioc)
+        opened: Any = 0
+        for name, url in links:
+            try:
+                webbrowser.open_new_tab(url)
+                opened += 1
+            except Exception:
+                pass
+        self._queue_alert(f'[OSINT] Threat web stack opened for {ioc} '
+                          f'({opened}/{len(links)} sources)',
+                          Colors.GAUGE_PURPLE)
 
     def _osint_wayback_check(self, url_or_domain: str):
         """Wayback Machine availability check (evidence-preservation stack).

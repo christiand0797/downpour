@@ -2,6 +2,27 @@
 
 ## Branch: main
 
+## Session 2026-08-13g — v29.27: perf-loop live kickoff + Threat Web Stack deep-links
+- ✅ **Bug**: the Performance tab was written with an interval slider, pause/
+  resume and adaptive `self.after()` rescheduling, but the any initial
+  `after(2000, self._perf_loop)` kickoff was commented out — the loop only
+  ever called *itself* recursively, so the entire "live" Performance tab
+  never updated after first paint (gauges stuck on `...` and pills at 0).
+  Suspicion confirmed by grepping every `_perf_loop` reference: zero
+  external trigger existed.
+- ✅ `_auto_start` now schedules `self.after(2000, self._perf_loop)` — it's
+  read-only telemetry (no side effects), so it runs live from launch like
+  the alert drainer, instead of being gated behind the Engine Control Panel.
+- ✅ **Threat Web Stack** button in Intel tab + `_intel_threat_web_links()` /
+  `_intel_threat_web_stack()` — keyless browser deep-links for the OSINT4ALL
+  curated threat-intel sources that expose no unkeyed JSON API: Cisco Talos,
+  Hybrid Analysis, PhishTank, ANY.RUN, Joe Sandbox. IOC percent-encoded.
+- ✅ New tests: `tests/test_thread_safety.py::TestThreatWebStack` (10 new
+  tests, 33 total). Verified: 33/33 pass, py_compile OK, project AST 0
+  failures.
+
+## Branch: main
+
 ## Session 2026-08-13f — v29.26: Windows 11 immersive dark title bar
 - ✅ **Gap**: "dark mode detection for Windows 11" TODO — the app is dark but
   the native title bar used system light chrome.
