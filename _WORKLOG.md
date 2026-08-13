@@ -2,6 +2,25 @@
 
 ## Branch: main
 
+## Session 2026-08-13c — v29.23: per-process GPU attribution
+- ✅ **Gap**: GPU gauges worked (NVML) but the Processes tab had no per-process
+  GPU visibility — couldn't tell which PIDs were GPU-accelerated.
+- ✅ `_proc_loop` background scan now runs `nvidia-smi --query-compute-apps=
+  pid,used_memory --format=csv,noheader,nounits` (timeout 8s, CREATE_NO_WINDOW)
+  and caches `self._gpu_proc_map` on the executor thread.
+- ✅ `_update_proc_ui` adds a **GPU** column (VRAM in MB when readable, else
+  `[GPU]` marker) — new col in the `cols`/`widths` tuples, diff-based update
+  untouched.
+- ✅ `_show_proc_detail` shows the GPU line in the detail panel.
+- ✅ Live-verified: 14 GPU processes detected on the RTX 3050; `[N/A]` VRAM
+  fallback (non-admin) exercised; `_sort_proc_tree` uses column-name API so
+  the new col sorts fine.
+- ✅ Dependency: uses the bundled `nvidia-smi` CLI — no new Python packages.
+- ✅ Verified: py_compile OK; main file **740 methods / 0 dupes**; project AST
+  **0 failures**.
+
+## Branch: main
+
 ## Session 2026-08-13b — v29.22: real PDF export for security reports
 - ✅ **Bug**: `_export_compliance_pdf` was a stub — it just showed a messagebox
   telling the user to save a .txt and use a PDF printer.

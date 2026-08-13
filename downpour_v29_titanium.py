@@ -23451,11 +23451,11 @@ class downpour(tk.Tk):
         tree_frame.grid_rowconfigure(0, weight=1)
         tree_frame.grid_columnconfigure(0, weight=1)
 
-        cols: Any = ('PID', 'Name', 'Risk', 'Reasons', 'Connections', 'Memory', 'C2')
+        cols: Any = ('PID', 'Name', 'Risk', 'Reasons', 'Connections', 'Memory', 'C2', 'GPU')
         self._proc_tree = ttk.Treeview(tree_frame, style='Titan.Treeview', columns=cols,
                                         show = 'headings', selectmode='browse')
         widths: Any = {'PID':55,'Name':160,'Risk':55,'Reasons':260,
-                  'Connections':80,'Memory':75,'C2':110}
+                  'Connections':80,'Memory':75,'C2':110,'GPU':70}
         for col in cols:
             self._proc_tree.heading(col, text=col,
                 command = lambda c=col: self._sort_proc_tree(c))
@@ -34141,6 +34141,26 @@ Verification Status:
                     self._processes = procs
                 threats: Any = [p for p in procs if p.is_suspicious]
 
+                # v29.22: GPU per-process attribution via nvidia-smi compute-apps
+                # (runs in this background scan thread - never blocks the UI).
+                try:
+                    gpu_proc_map: Any = {}
+                    import subprocess as _gsp
+                    _gout: Any = _gsp.run(
+                        ['nvidia-smi', '--query-compute-apps=pid,used_memory',
+                         '--format=csv,noheader,nounits'],
+                        capture_output=True, text=True, timeout=8,
+                        creationflags=0x08000000)
+                    if _gout.returncode == 0 and _gout.stdout.strip():
+                        for _line in _gout.stdout.splitlines():
+                            _parts: Any = [x.strip() for x in _line.split(',')]
+                            if len(_parts) >= 2 and _parts[0].isdigit():
+                                _vram: Any = _parts[1].replace('[N/A]', '').strip()
+                                gpu_proc_map[int(_parts[0])] = _vram
+                    self._gpu_proc_map = gpu_proc_map
+                except Exception:
+                    self._gpu_proc_map = getattr(self, '_gpu_proc_map', {})
+
                 # v29: LOLBAS abuse check — runs on every live scan cycle,
                 # not gated behind the manual "Run Threat Hunt" button.
                 # Rate-limited via _lolbas_seen so the same PID+name combo
@@ -34298,14 +34318,20 @@ Verification Status:
             flt: Any = self._proc_filter.get().lower() if hasattr(self, '_proc_filter') else ''
             # Build target dict: pid -> row values
             target: Any = {}
+            gpu_map: Any = getattr(self, '_gpu_proc_map', {})
             for p in procs:
                 if flt and flt not in p.name.lower() and flt not in str(p.pid):
                     continue
                 reasons: Any = '; '.join(p.risk_reasons[:3])
                 tag: Any = 'danger' if p.risk_score >= 70 else ('warn' if p.risk_score >= 40 else 'ok')
+                gpu_txt: Any = ''
+                if p.pid in gpu_map:
+                    _v: Any = gpu_map[p.pid]
+                    gpu_txt = f'{_v}MB' if str(_v).isdigit() else '[GPU]'
                 target[str(p.pid)] = (
                     (p.pid, p.name, p.risk_score, reasons,
-                     f"{len(p.connections)} conn", f"{p.memory_mb:.1f}MB", p.c2_framework),
+                     f"{len(p.connections)} conn", f"{p.memory_mb:.1f}MB", p.c2_framework,
+                     gpu_txt),
                     tag)
 
             # Current rows in tree
@@ -35690,6 +35716,16 @@ Verification Status:
         proc: Any = next((p for p in self._processes if p.pid == pid), None)
         if not proc:
             return
+        gpu_txt: Any = ''
+        try:
+            _gm: Any = getattr(self, '_gpu_proc_map', {})
+            if pid in _gm:
+                _v: Any = _gm[pid]
+                gpu_txt = f'{_v}MB VRAM' if str(_v).isdigit() else '[GPU active]'
+            else:
+                gpu_txt = 'not on GPU'
+        except Exception:
+            gpu_txt = 'n/a'
         detail: Any = (
             f"PID:     {proc.pid}\n"
             f"Name:    {proc.name}\n"
@@ -35698,6 +35734,7 @@ Verification Status:
             f"Parent:  {proc.parent_name} ({proc.parent_pid})\n"
             f"Memory:  {proc.memory_mb:.1f} MB\n"
             f"CPU:     {proc.cpu_percent:.1f}%\n"
+            f"GPU:     {gpu_txt}\n"
             f"Cmdline: {proc.cmdline[:100] or 'N/A'}\n\n"
             f"Risk Score: {proc.risk_score}/100\n"
             f"Reasons:\n"

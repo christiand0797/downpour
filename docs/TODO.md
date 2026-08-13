@@ -1,5 +1,5 @@
 # TODO / Current State — Downpour v29 Titanium
-# Last verified: 2026-08-13 (v29.22, real PDF export for security reports)
+# Last verified: 2026-08-13 (v29.23, per-process GPU attribution in Processes tab)
 
 **READ THIS FIRST if you are a new agent picking up this project.**
 This file was badly stale (dated April 2026) until this rewrite. `_WORKLOG.md`
@@ -10,7 +10,7 @@ authoritative history. This file is the current-state snapshot + what's left.
 
 ## Verified Current State (as of this rewrite)
 
-- `downpour_v29_titanium.py`: ~50,750 lines, 740 methods in the main `downpour`
+- `downpour_v29_titanium.py`: ~50,800 lines, 740 methods in the main `downpour`
   class, **0 duplicate method names** (verify with the AST script below before
   and after any edit session — this has caught real bugs multiple times)
 - Full project: 58 Python files, 0 syntax errors
@@ -81,9 +81,14 @@ for node in ast.walk(tree):
 
 ## HIGH PRIORITY — Real, Verified Gaps
 
-- [ ] **GPU utilization** — gpu_executor pool exists (50% cores reserved) but
-      no CUDA workloads actually run on it. RTX 3050 sits idle. Would need
-      cupy/tensorflow wiring for ML-based detection to actually use it.
+- [ ] **GPU ML workloads** — gpu_executor pool exists (50% cores reserved) but
+      no CUDA ML workloads run on it. Would need cupy/tensorflow wiring (both
+      NOT installed; only CPU `torch 2.10.0+cpu`). PARTIAL v29.23: per-process
+      GPU attribution added — the Processes tab now shows which PIDs run on
+      the GPU (via `nvidia-smi --query-compute-apps`, VRAM MB or `[GPU]` marker
+      when non-admin) and `_show_proc_detail` reports it. GPU *monitoring*
+      (util/temp/mem gauges) has worked since v28 via NVML. What remains is
+      actually *running compute* on the GPU, which requires the CUDA toolchain.
 - [x] **Feed health dashboard UI tab** — `feed_status` DB table has real data
       (from the OSINT/threat-feed work), no UI surfaces it yet. FIXED v29.15:
       Intel-tab feed Status column now shows `[OK]`/`[FAIL]`/`[STALE]`/

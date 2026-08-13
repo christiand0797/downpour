@@ -1,5 +1,30 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.23 Titanium — Per-Process GPU Attribution in Processes Tab
+
+Session goal: make the GPU actually show up in live process monitoring. The
+GPU *monitoring* gauges already worked (NVML), but the Processes tab had no
+idea which PIDs were running on the GPU — the `gpu_executor` TODO noted the
+RTX 3050 being "idle" with no per-process visibility.
+
+- **`_proc_loop`** now probes `nvidia-smi --query-compute-apps=pid,used_memory`
+  on the background scan thread (never the main thread) and caches the result
+  in `self._gpu_proc_map`.
+- **`_update_proc_ui`** appends a **GPU** column to every process row: shows
+  `NNNMB` VRAM when permissions allow, else `[GPU]` — so you can instantly see
+  which processes are GPU-accelerated vs CPU-only.
+- **`_show_proc_detail`** shows the GPU line (`NNNMB VRAM` / `[GPU active]` /
+  `not on GPU`) in the right-hand detail panel.
+- Verified live: `nvidia-smi --query-compute-apps` returns 14 GPU processes on
+  this RTX 3050 box; the exact parse code (csv, noheader, nounits, fallback
+  for `[N/A]` VRAM under non-admin) exercised and works. Column added with
+  minwidth + sort via the existing `_sort_proc_tree` column-name API so
+  nothing positionally breaks.
+- Dependency: uses the NVIDIA driver's bundled `nvidia-smi` CLI — no new
+  Python packages.
+- Verified: `py_compile` OK; project-wide AST 0 failures. Invariant: main
+  `downpour` class **740 methods, 0 duplicate method names**.
+
 ## v29.22 Titanium — Real PDF Export for Security Reports
 
 Session goal: fix the fake "PDF export" (a stub messagebox) and the
