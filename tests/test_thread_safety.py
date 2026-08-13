@@ -248,3 +248,47 @@ class TestThreatWebStack:
                    encoding='utf-8', errors='replace').read()
         assert 'Threat Web Stack' in src
         assert 'self._intel_threat_web_stack' in src
+
+
+# --------------------------------------------------------------------------
+# Performance tab v29.28 — gauge layout, adaptive scale, live process table
+# --------------------------------------------------------------------------
+
+class TestPerfTabV2928:
+    def _src(self) -> str:
+        return open(os.path.join(os.path.dirname(__file__),
+                                 '..', 'downpour_v29_titanium.py'),
+                    encoding='utf-8', errors='replace').read()
+
+    def test_gauge_label_not_under_sparkline(self):
+        """The dark sparkline box must NOT cover the gauge label."""
+        src = self._src()
+        # Gauge label now drawn at size+8 (was size+18, which sat INSIDE the
+        # sparkline strip at size+14..size+29 → black box covered the label).
+        assert 'size+8' in src
+        # The sparkline strip still lives in the band below the label band.
+        assert "'#06080f'" in src
+
+    def test_rate_gauges_adaptively_scaled(self):
+        """DISK/NET rate gauges derive a dynamic ceiling from history."""
+        src = self._src()
+        assert '_rate_keys' in src
+        assert 'dyn_max' in src
+        assert 'self._perf_gauge_meta[key] = (maxv, unit, scheme, label)' in src
+
+    def test_perf_loop_kicked_off_from_autostart(self):
+        """The perf loop must be scheduled from _auto_start (fixed dead tab)."""
+        src = self._src()
+        assert 'self.after(2000, self._perf_loop)' in src
+
+    def test_perf_proc_table_has_gpu_column(self):
+        """Top-processes table lists per-process GPU VRAM when available."""
+        src = self._src()
+        assert "'gpu'" in src          # columns tuple contains gpu
+        assert 'gpu_map' in src        # gpu attribution used
+        assert "top_procs[:12]" in src
+
+    def test_mousewheel_scoped_to_perf_tab(self):
+        """bind_all wheel scroll must not hijack other tabs."""
+        src = self._src()
+        assert 'winfo_containing' in src

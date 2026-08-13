@@ -2,6 +2,32 @@
 
 ## Branch: main
 
+## Session 2026-08-13h — v29.28: Performance tab overhaul (layout + live data)
+- ✅ **Bug (the "black box covering half of them")**: `_draw_gauge` drew the
+  gauge label at y=`size+18` but `_draw_sparkline` renders a dark fill box at
+  `size+14..size+29` and is drawn AFTER the gauge — the box covered the label
+  on every gauge. Label now renders at `size+8` (its own reserved band above
+  the sparkline strip).
+- ✅ **Adaptive gauge ceilings**: DISK/NET rate gauges shipped with static
+  ceilings (7000 MB/s, 102400 KB/s) so needles stayed pinned at 0 for any
+  realistic traffic. Now `_rate_keys` derive a dynamic ceiling from observed
+  history (`ceil(peak*1.4/100)*100`), updated in `_perf_gauge_meta` so both
+  needle and sparkline scale together. Gauge never flickers between frames.
+- ✅ **GPU column in perf process table**: same `_gpu_proc_map` attribution as
+  the Processes tab (VRAM MB when readable) — 12 rows now shown.
+- ✅ **Live network + disk tables**: new "LIVE NETWORK INTERFACES" (per-NIC
+  send/recv KB/s + link speed, UP/DOWN color) and "DISK PARTITIONS" (used%
+  with warn/full coloring) treeviews fed from existing `nic_stats` /
+  `disk_partitions` stats — real-time, no new deps.
+- ✅ **Bug**: `_perf_scroll_canvas.bind_all('<MouseWheel>')` hijacked wheel
+  scroll for ALL tabs after the perf tab was built. Now checks
+  `winfo_containing()` so only hovers over the perf grid scroll it.
+- ✅ **Tooltips**: Refresh Now / Pause/Resume / Export CSV header buttons.
+- ✅ New tests: `TestPerfTabV2928` (5 tests, 28 total). Verified: 28/28 pass,
+  py_compile OK, AST OK.
+
+## Branch: main
+
 ## Session 2026-08-13g — v29.27: perf-loop live kickoff + Threat Web Stack deep-links
 - ✅ **Bug**: the Performance tab was written with an interval slider, pause/
   resume and adaptive `self.after()` rescheduling, but the any initial

@@ -27416,9 +27416,11 @@ Verification Status:
                     error_logger.log('PerfRefresh', 'Force refresh error', e)
             self._executor.submit(_do)
 
-        tk.Button(hdr, text='🔄 Refresh Now', font=('Consolas', 8),
+        _refresh_btn: Any = tk.Button(hdr, text='🔄 Refresh Now', font=('Consolas', 8),
                   fg = Colors.GAUGE_TEAL, bg=Colors.GLASS_CARD, relief='flat',
-                  command = _perf_refresh_now).grid(row=0, column=2, padx=8, pady=6)
+                  command = _perf_refresh_now)
+        _refresh_btn.grid(row=0, column=2, padx=8, pady=6)
+        self._tooltip(_refresh_btn, 'Force an immediate stats refresh')
 
         # SPRINT1: Pause/Resume button
         self._perf_pause_btn_var: Any = tk.StringVar(value='⏸ Pause')
@@ -27432,6 +27434,7 @@ Verification Status:
             fg=Colors.GAUGE_GREEN, bg=Colors.GLASS_CARD, relief='flat',
             command=_toggle_perf_pause)
         _perf_pause_btn.grid(row=0, column=3, padx=4, pady=6)
+        self._tooltip(_perf_pause_btn, 'Freeze / resume live gauge updates (state is kept)')
 
         # SPRINT1: Interval slider label + scale
         tk.Label(hdr, text='Interval:', font=('Consolas', 7),
@@ -27497,9 +27500,32 @@ Verification Status:
                 self._set_status(f'Exported perf snapshot → {path}')
             except Exception as e:
                 self._set_status(f'Export failed: {e}')
-        tk.Button(hdr, text='💾 Export CSV', font=('Consolas', 8),
+        _export_btn: Any = tk.Button(hdr, text='💾 Export CSV', font=('Consolas', 8),
                   fg=Colors.GAUGE_ORANGE, bg=Colors.GLASS_CARD, relief='flat',
-                  command=_perf_export_csv).grid(row=0, column=8, padx=8, pady=6)
+                  command=_perf_export_csv)
+        _export_btn.grid(row=0, column=8, padx=8, pady=6)
+        self._tooltip(_export_btn, 'Export the current perf snapshot as CSV to Desktop')
+
+        # v29.28: live RAM/Disk/CPU-temp/Network detail row (updates every tick)
+        _summary_row: Any = tk.Frame(hdr, bg=Colors.GLASS_PANEL)
+        _summary_row.grid(row=1, column=0, columnspan=9, sticky='ew', padx=14, pady=(0,4))
+        self._perf_ram_lbl = tk.Label(_summary_row, text='RAM -- / -- GB', width=20,
+                                       font=('Consolas', 8), fg=Colors.GAUGE_BLUE, bg=Colors.GLASS_PANEL)
+        self._perf_ram_lbl.pack(side='left', padx=4)
+        self._perf_disk_lbl = tk.Label(_summary_row, text='DISK --%', width=14,
+                                        font=('Consolas', 8), fg=Colors.GAUGE_ORANGE, bg=Colors.GLASS_PANEL)
+        self._perf_disk_lbl.pack(side='left', padx=4)
+        self._perf_temp_lbl = tk.Label(_summary_row, text='CPU TEMP --', width=14,
+                                        font=('Consolas', 8), fg=Colors.GAUGE_RED, bg=Colors.GLASS_PANEL)
+        self._perf_temp_lbl.pack(side='left', padx=4)
+        self._perf_net_lbl = tk.Label(_summary_row, text='NET ⬆ -- ⬇ --', width=24,
+                                       font=('Consolas', 8), fg=Colors.GAUGE_GREEN, bg=Colors.GLASS_PANEL)
+        self._perf_net_lbl.pack(side='left', padx=4)
+        self._perf_last_upd_lbl = tk.Label(_summary_row, text='Updated: --:--:--', width=22,
+                                            font=('Consolas', 8), fg=Colors.TEXT_DIM, bg=Colors.GLASS_PANEL)
+        self._perf_last_upd_lbl.pack(side='left', padx=4)
+        self._tooltip(_summary_row,
+                      'Live RAM / Disk / CPU temp / Network totals — update every monitoring tick.')
 
         # -- Scrollable gauge grid ---------------------------------------------
         # Outer scroll container
@@ -27520,6 +27546,18 @@ Verification Status:
         _perf_scroll_canvas.bind('<Configure>', _perf_on_resize)
         grid_frame.bind('<Configure>', _perf_on_frame_configure)
         def _perf_mousewheel(event):
+            # Only scroll the perf canvas when the pointer is actually inside it —
+            # bind_all otherwise hijacks wheel scrolling for the whole app.
+            try:
+                w = event.widget
+                if w is None or _perf_scroll_canvas.winfo_toplevel() != w.winfo_toplevel():
+                    return
+                inside: Any = _perf_scroll_canvas.winfo_containing(
+                    event.x_root, event.y_root)
+                if inside is None or not str(inside).startswith(str(grid_frame)):
+                    return
+            except Exception:
+                return
             _perf_scroll_canvas.yview_scroll(int(-1*(event.delta/120)), 'units')
         _perf_scroll_canvas.bind_all('<MouseWheel>', _perf_mousewheel)
 
@@ -27574,7 +27612,7 @@ Verification Status:
             cell.grid(row=row, column=col, sticky='nsew', padx=4, pady=4)
             grid_frame.grid_columnconfigure(col, weight=1)
 
-            c: Any = tk.Canvas(cell, width=SIZE, height=SIZE+30,
+            c: Any = tk.Canvas(cell, width=SIZE, height=SIZE+52,
                           bg = Colors.BG_VOID, highlightthickness=0)  # FIX-v28p18: match parent bg
             c.pack()
             self._perf_canvases[key] = c
@@ -27599,7 +27637,7 @@ Verification Status:
                  fg=Colors.GAUGE_ORANGE, bg=Colors.BG_VOID).grid(
                  row=_proc_row_base, column=0, columnspan=4,
                  sticky='w', padx=10, pady=(14,4))
-        _proc_cols = ('pid', 'name', 'cpu%', 'mem%', 'status')
+        _proc_cols = ('pid', 'name', 'cpu%', 'mem%', 'gpu', 'status')
         _proc_frame = tk.Frame(grid_frame, bg=Colors.BG_VOID)
         _proc_frame.grid(row=_proc_row_base+1, column=0, columnspan=4, sticky='ew', padx=10, pady=(0,14))
         # Style the treeview
@@ -27614,7 +27652,7 @@ Verification Status:
         self._perf_proc_tree = ttk.Treeview(
             _proc_frame, columns=_proc_cols, show='headings',
             height=10, style='Perf.Treeview', selectmode='browse')
-        for col, w, anchor in [('pid',60,'e'),('name',200,'w'),('cpu%',70,'e'),('mem%',70,'e'),('status',90,'w')]:
+        for col, w, anchor in [('pid',60,'e'),('name',200,'w'),('cpu%',70,'e'),('mem%',70,'e'),('gpu',60,'e'),('status',90,'w')]:
             self._perf_proc_tree.heading(col, text=col.upper())
             self._perf_proc_tree.column(col, width=w, anchor=anchor, stretch=(col=='name'))
         _proc_vsb = ttk.Scrollbar(_proc_frame, orient='vertical', command=self._perf_proc_tree.yview)
@@ -27625,6 +27663,95 @@ Verification Status:
         self._perf_proc_tree.tag_configure('high', foreground=Colors.GAUGE_RED)
         self._perf_proc_tree.tag_configure('med',  foreground=Colors.GAUGE_ORANGE)
         self._perf_proc_tree.tag_configure('low',  foreground='#aaaacc')
+
+        # v29.28: actionable row — kill selected process / clear table
+        _proc_action_row: Any = _proc_row_base + 2
+        _proc_actions: Any = tk.Frame(grid_frame, bg=Colors.BG_VOID)
+        _proc_actions.grid(row=_proc_action_row, column=0, columnspan=4,
+                           sticky='ew', padx=10, pady=(0,4))
+        _perf_kill_btn = tk.Button(
+            _proc_actions, text='🚫 Kill Selected', font=('Consolas', 8, 'bold'),
+            fg=Colors.GAUGE_RED, bg=Colors.GLASS_CARD, relief='flat',
+            activebackground=Colors.GLASS_LIGHT, activeforeground=Colors.GAUGE_RED,
+            cursor='hand2', command=self._perf_kill_process)
+        _perf_kill_btn.pack(side='left', padx=2, pady=2)
+        self._tooltip(_perf_kill_btn,
+                      'Kill the process highlighted in the table above. Always asks first.')
+        _perf_clear_btn = tk.Button(
+            _proc_actions, text='🗑 Clear Table', font=('Consolas', 8, 'bold'),
+            fg=Colors.TEXT_DIM, bg=Colors.GLASS_CARD, relief='flat',
+            activebackground=Colors.GLASS_LIGHT, activeforeground=Colors.TEXT_LIGHT,
+            cursor='hand2',
+            command=lambda: self._perf_proc_tree.delete(*self._perf_proc_tree.get_children()))
+        _perf_clear_btn.pack(side='left', padx=2, pady=2)
+        self._tooltip(_perf_clear_btn, 'Clear the current rows (live updates will re-populate).')
+        _perf_count_lbl = tk.Label(_proc_actions, text='', font=('Consolas', 8),
+                                   fg=Colors.TEXT_DIM, bg=Colors.BG_VOID)
+        _perf_count_lbl.pack(side='left', padx=8, pady=2)
+        self._perf_count_lbl = _perf_count_lbl
+
+        # -- Live network interface table ------------------------------------
+        _net_row_base = _proc_row_base + 3
+        tk.Label(grid_frame, text='LIVE NETWORK INTERFACES', font=('Consolas', 9, 'bold'),
+                 fg = Colors.GAUGE_GREEN, bg=Colors.BG_VOID).grid(
+                 row=_net_row_base, column=0, columnspan=4,
+                 sticky='w', padx=10, pady=(14,4))
+        _net_cols = ('int', 'state', 'sent', 'recv', 'link')
+        _net_frame = tk.Frame(grid_frame, bg=Colors.BG_VOID)
+        _net_frame.grid(row=_net_row_base+1, column=0, columnspan=4,
+                        sticky='ew', padx=10, pady=(0,14))
+        _net_style = ttk.Style()
+        _net_style.configure('PerfNet.Treeview',
+                             background=Colors.BG_VOID, fieldbackground=Colors.BG_VOID,
+                             foreground='#ccccee', rowheight=18,
+                             font=('Consolas', 8))
+        _net_style.configure('PerfNet.Treeview.Heading',
+                             background=Colors.GLASS_CARD, foreground=Colors.GAUGE_GREEN,
+                             font=('Consolas', 8, 'bold'))
+        self._perf_net_tree = ttk.Treeview(
+            _net_frame, columns=_net_cols, show='headings',
+            height=4, style='PerfNet.Treeview', selectmode='browse')
+        for col, w, anchor in [('int',120,'w'),('state',70,'w'),('sent',110,'e'),('recv',110,'e'),('link',80,'e')]:
+            self._perf_net_tree.heading(col, text=col.upper())
+            self._perf_net_tree.column(col, width=w, anchor=anchor, stretch=(col=='int'))
+        _net_vsb = ttk.Scrollbar(_net_frame, orient='vertical', command=self._perf_net_tree.yview)
+        self._perf_net_tree.configure(yscrollcommand=_net_vsb.set)
+        self._perf_net_tree.pack(side='left', fill='x', expand=True)
+        _net_vsb.pack(side='right', fill='y')
+        self._perf_net_tree.tag_configure('up', foreground=Colors.GAUGE_GREEN)
+        self._perf_net_tree.tag_configure('down', foreground=Colors.GAUGE_RED)
+
+        # -- Live disk partition table ---------------------------------------
+        _disk_row_base = _net_row_base + 2
+        tk.Label(grid_frame, text='DISK PARTITIONS', font=('Consolas', 9, 'bold'),
+                 fg = Colors.GAUGE_ORANGE, bg=Colors.BG_VOID).grid(
+                 row=_disk_row_base, column=0, columnspan=4,
+                 sticky='w', padx=10, pady=(14,4))
+        _disk_cols = ('drive', 'used%', 'used', 'total', 'free')
+        _disk_frame = tk.Frame(grid_frame, bg=Colors.BG_VOID)
+        _disk_frame.grid(row=_disk_row_base+1, column=0, columnspan=4,
+                         sticky='ew', padx=10, pady=(0,10))
+        _disk_style = ttk.Style()
+        _disk_style.configure('PerfDisk.Treeview',
+                              background=Colors.BG_VOID, fieldbackground=Colors.BG_VOID,
+                              foreground='#ccccee', rowheight=18,
+                              font=('Consolas', 8))
+        _disk_style.configure('PerfDisk.Treeview.Heading',
+                              background=Colors.GLASS_CARD, foreground=Colors.GAUGE_ORANGE,
+                              font=('Consolas', 8, 'bold'))
+        self._perf_disk_tree = ttk.Treeview(
+            _disk_frame, columns=_disk_cols, show='headings',
+            height=4, style='PerfDisk.Treeview', selectmode='browse')
+        for col, w, anchor in [('drive',140,'w'),('used%',70,'e'),('used',90,'e'),('total',90,'e'),('free',90,'e')]:
+            self._perf_disk_tree.heading(col, text=col.upper())
+            self._perf_disk_tree.column(col, width=w, anchor=anchor, stretch=(col=='drive'))
+        _disk_vsb = ttk.Scrollbar(_disk_frame, orient='vertical', command=self._perf_disk_tree.yview)
+        self._perf_disk_tree.configure(yscrollcommand=_disk_vsb.set)
+        self._perf_disk_tree.pack(side='left', fill='x', expand=True)
+        _disk_vsb.pack(side='right', fill='y')
+        self._perf_disk_tree.tag_configure('ok',   foreground='#aaaacc')
+        self._perf_disk_tree.tag_configure('warn', foreground=Colors.GAUGE_ORANGE)
+        self._perf_disk_tree.tag_configure('full', foreground=Colors.GAUGE_RED)
 
         # -- Start update loop -------------------------------------------------
         # FIX: moved to _auto_start — after() in tab builder fires during repaint
@@ -27656,17 +27783,22 @@ Verification Status:
     def _draw_sparkline(self, canvas, size: int, history: list, max_val: float, scheme: str):
         """SPRINT1: Draw a 30-point rolling sparkline at the very bottom of a gauge canvas.
 
-        Renders a mini line chart in the last 18px of the canvas height, showing
+        Renders a mini line chart in the last 16px of the canvas height, showing
         historical trend. Points are color-coded by current scheme.
+
+        v29.28: sparkline zone moved to y = size+26 .. size+42 and canvas height
+        raised to size+52 so the strip can never overlap the gauge **label** which
+        sits at size+18 — previously the dark strip (y 186-198) painted over the
+        label text (y 188) producing the "black box covering half of them" bug.
         """
         if not history or max_val <= 0:
             return
         try:
             import tkinter as _tk
-            # Sparkline area: last 16px of canvas height (below gauge label)
+            # Sparkline area: bottom 16px of canvas height (below gauge label)
             W = size          # canvas width
-            H_TOP = size + 16  # y-start of sparkline strip (just below label)
-            H_BOT = size + 28  # y-end (bottom of canvas)
+            H_TOP = size + 26  # y-start of sparkline strip (below label)
+            H_BOT = size + 42  # y-end (bottom of canvas)
             H = H_BOT - H_TOP  # height of sparkline strip
 
             # Background strip
@@ -27731,12 +27863,18 @@ Verification Status:
         except Exception:
             pass  # Never crash the gauge draw
 
-    def _draw_gauge(self, canvas, size, label, value, max_val, unit, scheme):
-        """Draw HD modern arc gauge with optimized rendering."""
+    def _draw_gauge(self, canvas, size, label, value, max_val, unit, scheme, delta=None):
+        """Draw HD modern arc gauge with optimized rendering.
+
+        delta (optional): signed difference vs the previous sample. When
+        provided, a small ▲/▼ trend marker is drawn in the top-right corner
+        so the user can see *which direction* the metric moved last tick
+        without reading numbers (v29.28).
+        """
         import math
         canvas.delete('all')
         # FIX-v28p20: Fill bg immediately to prevent black flash
-        canvas.create_rectangle(0, 0, size+10, size+40,
+        canvas.create_rectangle(0, 0, size+10, size+60,
                                 fill = Colors.BG_VOID, outline='')
         cx: Any = size // 2
         cy: Any = size // 2 + 10
@@ -27839,7 +27977,11 @@ Verification Status:
                            font = ('Cascadia Code', 9) if _cascadia_available else ('Consolas', 9), fill=Colors.TEXT_LIGHT, anchor='center')
 
         # -- Enhanced label with better typography --------------------------------
-        canvas.create_text(cx, size+18, text=label,
+        # FIX-v29p28: label was drawn at size+18, but the sparkline strip renders
+        # at size+14..size+29 and is drawn AFTER the gauge — its dark fill box
+        # covered the label ("black box over half the gauges"). Label now sits
+        # ABOVE the sparkline strip in its own reserved band.
+        canvas.create_text(cx, size+8, text=label,
                            font = ('Cascadia Code', 9, 'bold') if _cascadia_available else ('Consolas', 9, 'bold'), fill=Colors.TEXT_LIGHT, anchor='center')
 
         # -- Enhanced min/max labels ---------------------------------------------
@@ -27852,6 +27994,22 @@ Verification Status:
                            font = _small_font, fill=Colors.TEXT_DIM, anchor='e')
         canvas.create_text(end_x+2, end_y+2, text=str(max_val),
                            font = _small_font, fill=Colors.TEXT_DIM, anchor='w')
+
+        # v29.28: trend marker (▲ rising / ▼ falling) top-right, never collides
+        if delta is not None:
+            try:
+                thresh: Any = max(0.5, max_val * 0.01)
+                if delta > thresh:
+                    canvas.create_text(size-12, 12, text='▲', font=('Consolas', 9, 'bold'),
+                                       fill=Colors.GAUGE_GREEN, anchor='ne')
+                elif delta < -thresh:
+                    canvas.create_text(size-12, 12, text='▼', font=('Consolas', 9, 'bold'),
+                                       fill=Colors.GAUGE_RED, anchor='ne')
+                else:
+                    canvas.create_text(size-12, 12, text='•', font=('Consolas', 9, 'bold'),
+                                       fill=Colors.TEXT_DIM, anchor='ne')
+            except Exception:
+                pass
 
     def _perf_loop(self):
         """Schedule background stats fetch at adaptive interval; respects pause."""
@@ -27889,7 +28047,30 @@ Verification Status:
             if any(s.get(k, 0) for k in ('cpu_percent', 'ram_percent', 'process_count',
                                            'uptime_seconds', 'ram_total_gb', 'cpu_cores')):
                 self._perf_data_received = True
+            # v29.28: dynamic max scaling so size gauges adapt to the real machine
+            # (a 128 GB box shouldn't keep RAM USED pinned on a 64 GB scale).
+            try:
+                ram_t: Any = s.get('ram_total_gb', 0) or 0
+                if ram_t > 0:
+                    ram_max = int(math.ceil(ram_t / 8.0) * 8.0)
+                    for _rk in ('ram_used_gb', 'ram_avail_gb'):
+                        if ram_max > self._perf_gauge_meta[_rk][0]:
+                            _mm, _uu, _ss, _ll = self._perf_gauge_meta[_rk]
+                            self._perf_gauge_meta[_rk] = (ram_max, _uu, _ss, _ll)
+                cf: Any = s.get('cpu_freq_mhz', 0) or 0
+                if cf > 0:
+                    cf_max = int(math.ceil(cf * 1.25 / 500.0) * 500.0)
+                    if cf_max > self._perf_gauge_meta['cpu_freq_mhz'][0]:
+                        _mm, _uu, _ss, _ll = self._perf_gauge_meta['cpu_freq_mhz']
+                        self._perf_gauge_meta['cpu_freq_mhz'] = (cf_max, _uu, _ss, _ll)
+            except Exception:
+                pass
+            # v29.28: previous-sample tracking for per-gauge ▲/▼ trend markers
+            if not hasattr(self, '_perf_prev'):
+                self._perf_prev: Any = {}
             # Update each gauge canvas
+            _rate_keys: Any = ('disk_read_rate', 'disk_write_rate',
+                               'net_send_rate', 'net_recv_rate')
             for key, canvas in self._perf_canvases.items():
                 if not canvas.winfo_exists():
                     continue
@@ -27898,7 +28079,31 @@ Verification Status:
                 # Battery -1 means no battery  -  show 0
                 if key == 'battery_percent' and val < 0:
                     val: Any = 0  # no battery present
-                self._draw_gauge(canvas, 170, label, val, maxv, unit, scheme)
+                # Adaptive ceiling: rate gauges ship with static ceilings that
+                # pin the needle at 0 for any real-world traffic. Derive a
+                # dynamic ceiling from observed history (smoothly growing, no
+                # flicker) so DISK/NET needles stay readable.
+                if key in _rate_keys:
+                    if not hasattr(self, '_perf_history'):
+                        import collections as _coll0
+                        self._perf_history = {}
+                    if key not in self._perf_history:
+                        import collections as _coll1
+                        self._perf_history[key] = _coll1.deque(maxlen=30)
+                    self._perf_history[key].append(float(val))
+                    if len(self._perf_history[key]) >= 5:
+                        import math as _m
+                        peak: Any = max(self._perf_history[key])
+                        if peak > 0:
+                            dyn_max: Any = _m.ceil(peak * 1.4 / 100.0) * 100.0
+                            if dyn_max > 0 and dyn_max != maxv:
+                                maxv = dyn_max
+                                self._perf_gauge_meta[key] = (maxv, unit, scheme, label)
+                _delta: Any = 0.0
+                if key in self._perf_prev:
+                    _delta = float(val) - self._perf_prev[key]
+                self._perf_prev[key] = float(val)
+                self._draw_gauge(canvas, 170, label, val, maxv, unit, scheme, delta=_delta)
                 # SPRINT1: Update history ring for sparkline
                 if not hasattr(self, '_perf_history'):
                     import collections
@@ -27964,8 +28169,12 @@ Verification Status:
                 batt_str: Any = f'  |  Battery: {battery:.0f}%{"[ZAP]" if s.get("battery_plugged") else "[BAT]"}' if battery >= 0 else ''
                 cpu_name: Any = f'  |  CPU: {s.get("cpu_cores_physical",0)}C/{s.get("cpu_cores",0)}T'
                 gpu_name: Any = f'  |  GPU: {s.get("gpu_name","N/A")[:20]}' if s.get('gpu_name') else ''
+                ram_used: Any = s.get('ram_used_gb', 0) or 0
+                ram_tot: Any = s.get('ram_total_gb', 0) or 0
+                disk_pct: Any = s.get('disk_used_percent', 0) or 0
                 self._perf_uptime_lbl.config(
-                    text = f'{up_str}  |  {procs} processes{batt_str}{cpu_name}{gpu_name}')
+                    text = f'{up_str}  |  {procs} processes{batt_str}{cpu_name}{gpu_name}'
+                           f'  |  RAM {ram_used:.1f}/{ram_tot:.0f}GB  |  Disk {disk_pct:.0f}%')
 
                 # SPRINT1: Update live header pills
                 try:
@@ -27994,6 +28203,27 @@ Verification Status:
                 except Exception:
                     pass
 
+                # v29.28: live detail row (RAM / Disk / CPU temp / Net totals / last-updated)
+                try:
+                    if hasattr(self, '_perf_ram_lbl'):
+                        self._perf_ram_lbl.config(
+                            text=f'RAM {s.get("ram_used_gb",0) or 0:.1f} / {s.get("ram_total_gb",0) or 0:.0f} GB')
+                        self._perf_ram_lbl.config(fg=ram_col)
+                        self._perf_disk_lbl.config(
+                            text=f'DISK {s.get("disk_used_percent",0) or 0:.0f}% used')
+                        self._perf_disk_lbl.config(fg=Colors.GAUGE_RED if (s.get('disk_used_percent',0) or 0) > 90 else Colors.GAUGE_ORANGE)
+                        self._perf_temp_lbl.config(
+                            text=f'CPU {s.get("cpu_temp",0) or 0:.0f}°/GPU {s.get("gpu_temp",0) or 0:.0f}°')
+                        self._perf_temp_lbl.config(fg=Colors.GAUGE_RED if (s.get('cpu_temp',0) or 0) > 80 else Colors.GAUGE_ORANGE)
+                        self._perf_net_lbl.config(
+                            text=f'NET ⬆{_fmt_kb(net_up)} ⬇{_fmt_kb(net_dn)}')
+                        import datetime as _dts
+                        self._perf_last_upd_lbl.config(
+                            text=f'Updated: {_dts.datetime.now().strftime("%H:%M:%S")}',
+                            fg=Colors.GAUGE_GREEN)
+                except Exception:
+                    pass
+
             # SPRINT1: Per-gauge threshold flash (red canvas border when exceeded)
             try:
                 _THRESH = {
@@ -28015,18 +28245,55 @@ Verification Status:
             # SPRINT1: Update Top-10 CPU process table
             try:
                 top_procs = s.get('top_procs', [])
+                gpu_map: Any = getattr(self, '_gpu_proc_map', {})
                 if top_procs and hasattr(self, '_perf_proc_tree'):
                     self._perf_proc_tree.delete(*self._perf_proc_tree.get_children())
-                    for proc in top_procs[:10]:
+                    _shown = 0
+                    for proc in top_procs[:12]:
+                        _shown += 1
                         pid  = proc.get('pid', '')
                         name = proc.get('name', '')[:36]
                         cpu  = proc.get('cpu_percent', 0)
                         mem  = proc.get('memory_percent', 0)
                         stat = proc.get('status', '')
                         tag  = 'high' if cpu > 50 else ('med' if cpu > 15 else 'low')
+                        gpu_txt: Any = ''
+                        if pid in gpu_map:
+                            _gv: Any = gpu_map[pid]
+                            gpu_txt = f'{_gv}MB' if str(_gv).isdigit() else 'GPU'
                         self._perf_proc_tree.insert('', 'end',
-                            values=(pid, name, f'{cpu:.1f}%', f'{mem:.1f}%', stat),
+                            values=(pid, name, f'{cpu:.1f}%', f'{mem:.1f}%', gpu_txt, stat),
                             tags=(tag,))
+                    if hasattr(self, '_perf_count_lbl'):
+                        tot: Any = s.get('process_count', 0) or 0
+                        self._perf_count_lbl.config(text=f'showing {_shown} of {tot} processes')
+                # Live NIC table
+                nic_list: Any = s.get('nic_stats', [])
+                if nic_list and hasattr(self, '_perf_net_tree'):
+                    self._perf_net_tree.delete(*self._perf_net_tree.get_children())
+                    for nic in nic_list[:8]:
+                        tag_n = 'up' if nic.get('up', False) else 'down'
+                        self._perf_net_tree.insert('', 'end',
+                            values=(nic.get('name', ''),
+                                    'UP' if nic.get('up', False) else 'DOWN',
+                                    f"{nic.get('recv_rate', 0):.1f} KB/s",
+                                    f"{nic.get('send_rate', 0):.1f} KB/s",
+                                    f"{nic.get('speed_mbps', 0)} Mbps"),
+                            tags=(tag_n,))
+                # Live disk partition table
+                part_list: Any = s.get('disk_partitions', [])
+                if part_list and hasattr(self, '_perf_disk_tree'):
+                    self._perf_disk_tree.delete(*self._perf_disk_tree.get_children())
+                    for part in part_list[:8]:
+                        upct: Any = part.get('used_pct', 0)
+                        tag_d = 'full' if upct >= 95 else ('warn' if upct >= 80 else 'ok')
+                        self._perf_disk_tree.insert('', 'end',
+                            values=(part.get('mount', ''),
+                                    f'{upct:.1f}%',
+                                    f"{part.get('used_gb', 0):.1f} GB",
+                                    f"{part.get('total_gb', 0):.1f} GB",
+                                    f"{part.get('free_gb', 0):.1f} GB"),
+                            tags=(tag_d,))
             except Exception:
                 pass
 
@@ -28057,20 +28324,66 @@ Verification Status:
         except Exception as e:
             error_logger.log('PerfFetch', 'Gauge update error', e)
 
-    def _update_perf_ui_header(self, s: dict):
-        """Update the uptime/GPU header label."""
+    def _perf_kill_process(self):
+        """v29.28: Kill the process selected in the Performance tab top-N table.
+
+        Terminates on the executor thread (never blocks the UI); the click
+        always asks first because killing a PID is a real system action.
+        """
+        if not hasattr(self, '_perf_proc_tree'):
+            return
+        sel = self._perf_proc_tree.selection()
+        if not sel:
+            self._set_status('Select a process row first, then click Kill Selected.')
+            return
         try:
-            uptime: Any = s.get('uptime_seconds', 0)
-            h = int(uptime // 3600); m = int((uptime % 3600) // 60); d = h // 24; h = h % 24
-            procs: Any = s.get('process_count', 0)
-            battery: Any = s.get('battery_percent', -1)
-            batt_str: Any = f'  |  [BAT]{battery:.0f}%{"[ZAP]" if s.get("battery_plugged") else ""}' if battery >= 0 else ''
-            gpu_name: Any = s.get('gpu_name', '')
-            gpu_str: Any = f'  |  GPU: {gpu_name}  {s.get("gpu_percent",0):.0f}%  {s.get("gpu_temp",0):.0f} degC' if gpu_name else ''
-            self._perf_uptime_lbl.config(
-                text = f'Uptime: {d}d {h:02d}h {m:02d}m  |  {procs} procs{batt_str}{gpu_str}')
+            vals: Any = self._perf_proc_tree.item(sel[0], 'values')
+            pid: Any = str(vals[0])
+            name: Any = str(vals[1])
         except Exception:
-            pass
+            return
+        if not pid.isdigit():
+            self._set_status('Selected row has no valid PID.')
+            return
+        if not messagebox.askyesno(
+                'Kill Process',
+                f'Terminate PID {pid}  ({name})?\n\n'
+                'This will end the process now. Unsaved work in it will be lost.',
+                icon='warning'):
+            return
+
+        def _do():
+            try:
+                import psutil as _psutil
+                _proc: Any = _psutil.Process(int(pid))
+                _nm: Any = _proc.name()
+                _proc.terminate()
+                try:
+                    _proc.wait(timeout=5)
+                except Exception:
+                    pass
+                alive = True
+                try:
+                    alive = _psutil.pid_exists(int(pid)) and _psutil.Process(int(pid)).status() != _psutil.STATUS_ZOMBIE
+                except Exception:
+                    alive = False
+                def _done():
+                    if alive:
+                        self._queue_alert(f'[KILL] {_nm} (PID {pid}) — ignore timeout, verify in Processes tab', Colors.GAUGE_ORANGE)
+                    else:
+                        self._queue_alert(f'[KILL] Terminated {_nm} (PID {pid})', Colors.GAUGE_GREEN)
+                try:
+                    self.after(0, _done)
+                except Exception:
+                    pass
+            except Exception as e:
+                def _fail():
+                    self._queue_alert(f'[KILL] Failed to terminate PID {pid}: {e}', Colors.GAUGE_RED)
+                try:
+                    self.after(0, _fail)
+                except Exception:
+                    pass
+        self._executor.submit(_do)
 
     def _harden_analyze(self):
         self._set_status("Running security analysis...")
