@@ -83,6 +83,8 @@ _audit_*.json
 _diag_*.py
 _find_*.ps1
 _check_*.ps1
+zz_*.ps1
+zz_*.py
 _python_paths.txt
 test.txt
 

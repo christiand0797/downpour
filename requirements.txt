@@ -1,33 +1,46 @@
 # Downpour v29 Titanium - Dependencies
-# Install: pip install -r requirements.txt --break-system-packages
+# Install: pip install -r requirements.txt
 #
-# NOTE: Python 3.15.0a6 (alpha) — no pre-built wheels for C extension packages.
-# All packages below are guarded by try/except ImportError; the app runs
-# without them. Install with pip install <package> once cp315 wheels exist.
+# Tested with Python 3.12 (recommended) and 3.15.0a6 (alpha).
+# All packages below are guarded by try/except ImportError in the app —
+# it still runs if any optional one is missing, with graceful feature
+# degradation. Recommended install command (from LAUNCH_DOWNPOUR.bat):
+#
+#   pip install psutil requests cryptography watchdog nvidia-ml-py colorama \
+#     wmi pywin32 scikit-learn yara-python pillow dnspython netifaces joblib \
+#     tqdm pyperclip reportlab pystray matplotlib GPUtil
 
-# Core dependencies (native .py or pure-Python, always installable)
-psutil>=5.9.0
-nvidia-ml-py>=12.0.0
-cryptography>=41.0.0
-requests>=2.31.0
-dnspython>=2.4.0
-netifaces>=0.11.0
-scapy>=2.5.0
-wmi>=1.5.1
-pywin32>=306
-colorama>=0.4.6
-watchdog>=3.0.0
+# ── Core dependencies (used by every run, keep always present) ──────────────
+psutil>=5.9.0            # system metrics (CPU/RAM/disk/net/processes)
+nvidia-ml-py>=12.0.0     # GPU telemetry via NVML (falls back to GPUtil / nvidia-smi)
+cryptography>=41.0.0     # quarantine encryption, hashing
+requests>=2.31.0         # threat feeds, OSINT lookups, intel updates
+dnspython>=2.4.0         # DNS advanced tools
+netifaces>=0.11.0        # interface enumeration fallback
+scapy>=2.5.0             # network scanning / packet analysis
+wmi>=1.5.1               # CPU temp, AV status, WMI sensors
+pywin32>=306             # win32 registry, services, process APIs
+colorama>=0.4.6          # terminal colors
+watchdog>=3.0.0          # file integrity monitoring (FIM)
+numpy>=1.24.0            # ML / behavioral analysis backend
 
-# Optional — system tray icon (requires C compiler on Python 3.15 alpha)
+# ── Optional (feature toggles, graceful fallback when missing) ──────────────
+# System tray icon + restore window
 pystray>=0.19.0
-
-# Optional — image processing & charts (requires C compiler on Python 3.15 alpha)
-# pillow>=10.0.0
-# matplotlib>=3.7.0
-
-# ML/AI dependencies (optional - graceful fallback if missing)
-numpy>=1.24.0
-# scikit-learn>=1.3.0     # requires C compiler on Python 3.15 alpha
-
-# Pattern matching (optional - graceful fallback if missing)
-# yara-python>=4.3.0      # requires C compiler on Python 3.15 alpha
+# Floating widgets, tray icon rendering, image analysis
+pillow>=10.0.0
+# Real PDF export for security / compliance reports
+reportlab>=4.0.0
+# Charting / matplotlib-backed analytics (uses Agg backend, headless-safe)
+matplotlib>=3.7.0
+# ML behavior scoring (isolated forest / random forest) — falls back to
+# heuristic scoring when absent
+scikit-learn>=1.3.0
+# Pattern matching signatures (fallback: regex engine)
+yara-python>=4.3.0
+# GPU fallback path when nvidia-ml-py is unavailable
+GPUtil>=1.4.0
+# Misc helpers used by cleanup / clipboard / progress paths
+joblib>=1.3.0
+tqdm>=4.65.0
+pyperclip>=1.8.0
