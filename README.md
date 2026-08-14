@@ -3,14 +3,15 @@
 > **Work in progress** — Personal antivirus, anti-malware, anti-RAT, and comprehensive Windows threat-defense platform built in Python with a full Tkinter GUI.
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v29%20Titanium-blue?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/version-v29.36%20Titanium-blue?style=for-the-badge" />
   <img src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078d7?style=for-the-badge&logo=windows" />
   <img src="https://img.shields.io/badge/python-3.12%20recommended-yellow?style=for-the-badge&logo=python" />
   <img src="https://img.shields.io/badge/status-active%20WIP-brightgreen?style=for-the-badge" />
   <img src="https://img.shields.io/badge/YARA%20rules-104-red?style=for-the-badge" />
   <img src="https://img.shields.io/badge/threat%20feeds-34%2B-orange?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/MITRE%20techniques-81-purple?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/MITRE%20techniques-85%2B-purple?style=for-the-badge" />
   <img src="https://img.shields.io/badge/tabs-27-teal?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/tests-55%2B%20passing-brightgreen?style=for-the-badge" />
 </p>
 
 ---
@@ -82,9 +83,16 @@ LAUNCH_V29_TITANIUM.bat
 | 🛡️ **Risk-confirmation gates** | Destructive actions (kill process / block IP / quarantine / suspend / root-cause) now always ask before executing (v29.29) |
 | 🌓 **Windows 11 dark title bar** | Immersive dark mode applied to the real top-level HWND + system-theme detection (v29.26) |
 | 🌐 **Live DNS Overview** | DNS tab overview panel + threat score auto-refresh (60s throttled, busy-guard protected) (v29.32) |
-| 💬 **Tooltips everywhere** | Every button in the Threats, Dashboard, Intel, DNS, and remaining tabs now has hover help (v29.31 / v29.33 / v29.34) |
+| 💬 **Tooltips everywhere** | Every button in the Threats, Dashboard, Intel, DNS, WiFi, IoT, USB, Timeline, VPN, Hunt, Sandbox, Settings, and all remaining tabs now has hover help (v29.31–v29.35) |
 | 🖥️ **System Tray** | pystray minimize-to-tray with Show/Hide/Exit menu (v29.20) |
 | 🌧️ **Rain Overlay** | Animated rain that intensifies with threat level |
+| 📶 **WiFi Security Analyzer** | Real-time WiFi network scanner with SSID/BSSID/signal/auth/cipher/band, evil-twin detection, security scoring (WPA3=100/WPA2=75/WEP=10/Open=0), saved password reveal, DNS leak test (v29.35) |
+| 📱 **IoT Device Discovery** | Ping-sweep subnet scanner with MAC/vendor lookup, Mozi/Kimwolf botnet signature check, per-device block/unblock via netsh firewall rules, risk coloring (Critical/High/Medium/Low) (v29.35) |
+| 🔌 **USB Guard** | Live USB device enumeration, Windows registry history scan, per-device whitelist with persistent save, alert log, monitor toggle with OS event hooks (v29.35) |
+| 🕐 **Security Event Timeline** | Windows Security event log viewer (up to 2000 events), MITRE-aligned attack pattern detection (brute force / lateral movement / persistence), HTML export, quick-filter buttons per event ID (v29.35) |
+| 📊 **60-Second History Chart** | Rolling sparkline timeline canvas in the Performance tab showing CPU%, RAM%, GPU%, and combined NET KB/s over the last 60 samples in real-time (v29.36) |
+| 🚨 **Perf Threshold Alerts** | Auto-fires alerts into the main feed when CPU>90%, RAM>90%, CPU temp>85°C, GPU temp>85°C, Disk>95%, Swap>80% — with 120s cooldown to prevent spam; also detects CPU spikes >40% in one sample (v29.36) |
+| ⚡ **Alert Rate Meter** | Status bar badge showing how many alerts fired in the last 60 seconds (⚡ N/min) with color coding: green→orange→red (v29.36) |
 
 ---
 
@@ -104,7 +112,7 @@ The launcher installs all dependencies automatically on first run.
 
 ```
 downpour/
-├── downpour_v29_titanium.py      ← Main application (51,700+ lines)
+├── downpour_v29_titanium.py      ← Main application (51,800+ lines, 1,720+ methods)
 ├── LAUNCH_V29_TITANIUM.bat       ← v29 launcher (use this)
 ├── LAUNCH_DOWNPOUR.bat           ← v28 launcher (kept as backup)
 ├── requirements.txt
@@ -181,12 +189,19 @@ Detects: **Mimikatz, CobaltStrike, Metasploit, Empire, PoshC2, AsyncRAT, NjRAT, 
 
 See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for full details.
 
+**v29.36** (latest): 60-second CPU/RAM/GPU/NET history timeline chart, performance threshold auto-alerts (CPU/RAM/Temp/Disk spike detection with 120s cooldown), alert rate meter in the status bar (⚡ N/min), 5 new passing tests.
+
+**v29.35**: Completed Phase 3 tooltip sweep — all 113 buttons across every tab now have hover help. Added WiFi Security Analyzer, IoT Device Discovery, USB Guard, and Security Event Timeline tabs with full functionality.
+
+**v29.34**: Full tooltip sweep across Threats, Dashboard, Scanner, DNS, Firewall, Hardening, Processes, Hunt, and remaining tabs (41 buttons covered in one session).
+
+**v29.33**: Tooltip support added to all 5 DNS button-factory helpers (~30 DNS buttons), complete per-button help text for all DNS sub-tabs.
+
+**v29.32**: Live DNS Overview panel now auto-refreshes (60s throttle, busy-guard, 180s stuck-fetch reset).
+
+**v29.28–v29.31**: Gauge label/sparkline overlap fix, adaptive DISK/NET ceilings, GPU column in process table, live NIC + partition tables, warm history sampling, scoped mousewheel.
+
 **v29 highlights:** 10 critical bug fixes from live crash logs, one-click Remediate All, 104 YARA rules, 85+ MITRE techniques, six-file FIM integrity checks, COM crash eliminated, auto-remediate toggle, threat detail panel, IR report generator, proactive threat hunt engine (LOLBAS/persistence/BYOVD/canaries), and a live CISA KEV feed with rate-limit-safe enrichment.
-
----
-
-## ⚠️ Disclaimer
-
 Personal project, work in progress. Not a replacement for enterprise security software. Some features make real system changes (firewall rules, registry edits, Defender exclusions). Use at your own risk.
 
 ---
