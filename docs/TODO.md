@@ -212,9 +212,20 @@ multiple sessions. Summary for future agents so this doesn't get re-done:
 
 ## MEDIUM PRIORITY
 
-- [ ] **Tab overlap on small windows** — Notebook still wraps on narrow
-      windows despite scroll arrows. A custom horizontal-scroll canvas would
-      fix this properly.
+- [ ] **Tab overlap on small windows** — PARTIAL v29.37: found the root
+      cause — `self.minsize(1024, 650)` in `_build_ui` was silently
+      overriding the adaptive hardware-profile minsize computed earlier in
+      init, and 1024px isn't enough horizontal room for ~24+ notebook tabs.
+      Raised to `minsize(1280, 700)` — below even the smallest common laptop
+      resolution (1366x768) — which reduces wrapping on real displays. This
+      is a floor-raise, NOT the full fix: `ttk.Notebook` has no native
+      horizontal-scroll for its tab strip, so wrapping can still occur on a
+      genuinely tiny/unusual window. The real fix is replacing the native
+      tab strip with a custom scrollable canvas widget — left undone
+      because it can't be visually verified without live-rendering the GUI
+      (no screenshot/render capability in this environment). If picking
+      this up: verify by actually launching the app and resizing the
+      window, not just by reading the code.
 - [ ] **Per-feed timeout tuning** — some feeds (MITRE CTI is 48MB) take a
       while; consider a "slow feeds" queue so they don't block faster ones.
       RESOLVED v29.18: feeds already run in parallel (ThreadPoolExecutor +

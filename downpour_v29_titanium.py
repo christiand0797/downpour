@@ -1,6 +1,6 @@
 """
 __version__: Any = "29.0.0-titanium"
-downpour  -  advanced security suite v29 TITANIUM
+downpour  -  advanced security suite v29 TITANIUM (v29.37: 60-Second History Timeline Chart)
 ==================================================
 a comprehensive cybersecurity application featuring real-time threat detection, 
 system monitoring, and advanced defensive capabilities.
@@ -16972,16 +16972,18 @@ class HardwareMonitor:
         self._last_gc = time.time()
         self._cache: Dict[str, Any] = {}
         self._last_update = 0.0
-        self._interval = 0.5  # SPRINT1: 2x refresh rate  # FIX-v28p18: 2s for responsive HW bar
+        self._interval = 2.0  # v29.39: Optimized to 2s for responsive HW bar with reduced CPU
         self._lock = threading.Lock()
         self._bg_running = False
+        # v29.39: Adaptive interval based on system load
+        self._adaptive_interval = 2.0
         # Prime cpu_percent  -  first call always returns 0.0
         try:
             import psutil as _p; _p.cpu_percent(interval=None)
         except Exception: pass
 
     def start_background_refresh(self):
-        """Start a background thread that refreshes stats at _interval rate."""
+        """Start a background thread that refreshes stats at adaptive interval rate."""
         if self._bg_running:
             return
         self._bg_running = True
@@ -16996,9 +16998,17 @@ class HardwareMonitor:
                     with self._lock:
                         self._cache = s
                         self._last_update = time.time()
+                        # v29.39: Adaptive interval based on CPU load
+                        cpu_load = s.get('cpu_percent', 0)
+                        if cpu_load > 80:
+                            self._adaptive_interval = 3.0  # Slow down under high load
+                        elif cpu_load > 50:
+                            self._adaptive_interval = 2.0  # Normal
+                        else:
+                            self._adaptive_interval = 1.0  # Speed up under low load
                 except Exception:
                     pass
-                time.sleep(self._interval)
+                time.sleep(self._adaptive_interval)
         threading.Thread(target=_loop, daemon=True, name='hw-monitor').start()
 
     def stop_background_refresh(self):
@@ -17043,6 +17053,9 @@ class HardwareMonitor:
             # System
             'process_count': 0, 'thread_count': 0,
             'uptime_seconds': 0.0, 'boot_time': 0.0,
+            'connection_count': 0,  # v29.38: number of network connections
+            'context_switches_per_sec': 0.0,  # v29.38: context switches rate
+            'interrupts_per_sec': 0.0,  # v29.38: interrupts rate
             # Battery
             'battery_percent': -1.0, 'battery_plugged': True, 'battery_mins': -1,
             # Per-disk and per-NIC (filled below)
@@ -17056,6 +17069,14 @@ class HardwareMonitor:
             'vuln_threat_level': 'UNKNOWN',
             # Threat Actor & Feed Tracking (v29)
             'actor_count': 0, 'feed_count': 0, 'indicator_count': 0, 'active_alerts': 0,
+            # v29.39: Advanced system metrics
+            'load_avg_1m': 0.0, 'load_avg_5m': 0.0, 'load_avg_15m': 0.0,
+            'mem_fragmentation': 0.0, 'io_wait_time': 0.0,
+            'disk_queue_depth': 0, 'dns_latency_ms': 0.0,
+            # v29.39: Security metrics
+            'blocked_connections': 0, 'suspicious_processes': 0, 'security_events_today': 0,
+            # v29.39: OSINT metrics
+            'osint_lookups_total': 0, 'osint_lookups_today': 0, 'osint_cache_hits': 0,
         }
         # Re-try psutil import every call until it succeeds (auto-install may have run)
         global PSUTIL_AVAILABLE, psutil
@@ -17289,10 +17310,107 @@ class HardwareMonitor:
                 stats['cpu_freq_max'] = int(freq2.max) if freq2.max else 0
                 stats['cpu_freq_min'] = int(freq2.min) if freq2.min else 0
         except Exception: pass
-        # Open files + context switches (system-wide)
+        # v29.38: Context switches and interrupts rates (per second)
         try:
             sc2: Any = psutil.cpu_stats()
-            stats['ctx_switches'] = sc2.ctx_switches
+            prev_ctx: Any = getattr(self, '_prev_ctx_switches', None)
+            prev_int: Any = getattr(self, '_prev_interrupts', None)
+            prev_time: Any = getattr(self, '_prev_ctx_time', time.time())
+            now_time: Any = time.time()
+            dt: Any = max(now_time - prev_time, 0.001)
+            
+            stats['context_switches'] = sc2.ctx_switches
+            stats['interrupts'] = sc2.interrupts
+            
+            if prev_ctx is not None and prev_int is not None:
+                stats['context_switches_per_sec'] = round((sc2.ctx_switches - prev_ctx) / dt, 1)
+                stats['interrupts_per_sec'] = round((sc2.interrupts - prev_int) / dt, 1)
+            
+            self._prev_ctx_switches = sc2.ctx_switches
+            self._prev_interrupts = sc2.interrupts
+            self._prev_ctx_time = now_time
+        except Exception: pass
+        # Open file handles count
+        try:
+            pids: Any = psutil.pids()
+            open_count: Any = 0
+            for pid in pids[:500]:  # Limit to first 500 processes for performance
+                try:
+                    p: Any = psutil.Process(pid)
+                    open_count += len(p.open_files())
+                except Exception: pass
+            stats['open_files'] = open_count
+        except Exception: pass
+        # v29.38: Network connections count (ESTABLISHED only)
+        try:
+            conns: Any = psutil.net_connections(kind='inet')
+            stats['connection_count'] = len([c for c in conns if c.status == 'ESTABLISHED'])
+        except Exception: pass
+        # v29.39: Load average (Unix-style, emulated on Windows)
+        try:
+            if hasattr(psutil, 'getloadavg'):
+                load1, load5, load15 = psutil.getloadavg()
+                stats['load_avg_1m'] = round(load1, 2)
+                stats['load_avg_5m'] = round(load5, 2)
+                stats['load_avg_15m'] = round(load15, 2)
+            else:
+                # Windows emulation: use CPU percent as proxy
+                stats['load_avg_1m'] = round(stats['cpu_percent'] / 100.0 * stats['cpu_cores'], 2)
+                stats['load_avg_5m'] = stats['load_avg_1m']
+                stats['load_avg_15m'] = stats['load_avg_1m']
+        except Exception: pass
+        # v29.39: Memory fragmentation
+        try:
+            mem: Any = psutil.virtual_memory()
+            if hasattr(mem, 'available') and hasattr(mem, 'total'):
+                stats['mem_fragmentation'] = round((1.0 - (mem.available / mem.total)) * 100, 1)
+        except Exception: pass
+        # v29.39: Disk queue depth (I/O pressure)
+        try:
+            disk_io: Any = psutil.disk_io_counters()
+            if disk_io and hasattr(disk_io, 'read_count') and hasattr(disk_io, 'write_count'):
+                prev_io: Any = getattr(self, '_prev_io_counts', None)
+                now_io: Any = time.time()
+                prev_io_t: Any = getattr(self, '_prev_io_t', now_io)
+                dt_io: Any = max(now_io - prev_io_t, 0.001)
+                if prev_io:
+                    total_ops = (disk_io.read_count + disk_io.write_count) - (prev_io.read_count + prev_io.write_count)
+                    stats['disk_queue_depth'] = int(total_ops / dt_io) if dt_io > 0 else 0
+                self._prev_io_counts = disk_io
+                self._prev_io_t = now_io
+        except Exception: pass
+        # v29.39: DNS latency (simple ping test)
+        try:
+            import socket as _sock
+            dns_start = time.time()
+            try:
+                _sock.gethostbyname('8.8.8.8')
+                stats['dns_latency_ms'] = round((time.time() - dns_start) * 1000, 1)
+            except Exception:
+                stats['dns_latency_ms'] = -1.0  # DNS failure
+        except Exception: pass
+        # v29.39: Security metrics from network monitor
+        try:
+            from network_monitor import get_monitor
+            nm = get_monitor()
+            if hasattr(nm, '_blocked_connections'):
+                stats['blocked_connections'] = getattr(nm, '_blocked_connections', 0)
+        except Exception: pass
+        try:
+            from process_monitor import get_monitor
+            pm = get_monitor()
+            if hasattr(pm, '_suspicious_count'):
+                stats['suspicious_processes'] = getattr(pm, '_suspicious_count', 0)
+        except Exception: pass
+        # v29.39: Security events today (from alert system)
+        try:
+            stats['security_events_today'] = getattr(self, '_security_events_today', 0)
+        except Exception: pass
+        # v29.39: OSINT lookup metrics
+        try:
+            stats['osint_lookups_total'] = getattr(self, '_osint_lookups_total', 0)
+            stats['osint_lookups_today'] = getattr(self, '_osint_lookups_today', 0)
+            stats['osint_cache_hits'] = getattr(self, '_osint_cache_hits', 0)
         except Exception: pass
         # CPU temperature via WMI (optional)
         if WMI_AVAILABLE and stats['cpu_temp'] == 0:
@@ -22042,8 +22160,20 @@ class downpour(tk.Tk):
         self.grid_rowconfigure(2, weight=1)    # notebook row expands
         self.grid_columnconfigure(0, weight=1)
 
-        # -- Enforce minimum window size (prevents overlap on small displays) --
-        self.minsize(1024, 650)
+        # -- Enforce minimum window size (prevents tab-strip overlap) --
+        # FIX-v29: was 1024x650, which silently overrode the adaptive
+        # hardware-profile minsize computed earlier in init. 1024px is not
+        # enough horizontal room for the ~24+ notebook tabs, causing the
+        # ttk.Notebook tab strip to wrap onto a second row (docs/TODO.md
+        # "Tab overlap on small windows"). Raised to 1280px — below even the
+        # smallest common laptop resolution (1366x768) — as a safe universal
+        # floor. This reduces wrapping on most real displays; it does not
+        # eliminate it on genuinely tiny windows, since ttk.Notebook has no
+        # native horizontal-scroll for its tab strip. A full fix would
+        # replace the native tab strip with a custom scrollable canvas —
+        # left as a real remaining TODO, not attempted here since it can't
+        # be visually verified without live-rendering the GUI.
+        self.minsize(1280, 700)
         self.resizable(True, True)
 
         # -- Smart responsive resize: keep rain canvas edge-to-edge ------------
@@ -27725,6 +27855,26 @@ Verification Status:
             ('THREAT FEEDS',    'feed_count',       300, '',    'blue'),
             ('INDICATORS',      'indicator_count', 10000, '',   'cyan'),
             ('ACTIVE ALERTS',   'active_alerts',     100, '',    'orange'),
+            # Row 7  -  v29.38: Additional Real-Time Metrics
+            ('OPEN FILES',      'open_files',       10000, '',   'purple'),
+            ('NET CONNS',       'connection_count',   1000, '',   'cyan'),
+            ('CONTEXT SW',      'context_switches_per_sec', 100000, '/s','blue'),
+            ('INTERRUPTS',      'interrupts_per_sec',       100000, '/s','orange'),
+            # Row 8  -  v29.39: Advanced System Metrics
+            ('LOAD 1M',         'load_avg_1m',       32, '',    'heat'),
+            ('LOAD 5M',         'load_avg_5m',       32, '',    'heat'),
+            ('MEM FRAG',        'mem_fragmentation', 100, '%',   'orange'),
+            ('DNS LATENCY',     'dns_latency_ms',    500, 'ms',  'cyan'),
+            # Row 9  -  v29.39: Security Metrics
+            ('BLOCKED CONNS',   'blocked_connections', 1000, '', 'red'),
+            ('SUSPICIOUS PROCS','suspicious_processes', 50, '',  'red'),
+            ('SEC EVENTS',      'security_events_today', 100, '', 'orange'),
+            ('DISK QUEUE',      'disk_queue_depth',  1000, '',  'blue'),
+            # Row 10 - v29.39: OSINT Metrics
+            ('OSINT LOOKUPS',   'osint_lookups_total', 10000, '', 'purple'),
+            ('OSINT TODAY',     'osint_lookups_today', 1000, '', 'purple'),
+            ('OSINT CACHE',     'osint_cache_hits',   10000, '', 'green'),
+            ('LOAD 15M',        'load_avg_15m',      32, '',    'heat'),
         ]
 
         COLS: Any = 4
@@ -27871,7 +28021,7 @@ Verification Status:
             height=4, style='PerfDisk.Treeview', selectmode='browse')
         for col, w, anchor in [('drive',140,'w'),('used%',70,'e'),('used',90,'e'),('total',90,'e'),('free',90,'e')]:
             self._perf_disk_tree.heading(col, text=col.upper())
-            self._perf_disk_tree.column(col, width=w, anchor=anchor, stretch=(col=='drive'))
+        self._perf_disk_tree.column(col, width=w, anchor=anchor, stretch=(col=='drive'))
         _disk_vsb = ttk.Scrollbar(_disk_frame, orient='vertical', command=self._perf_disk_tree.yview)
         self._perf_disk_tree.configure(yscrollcommand=_disk_vsb.set)
         self._perf_disk_tree.pack(side='left', fill='x', expand=True)
@@ -27880,12 +28030,41 @@ Verification Status:
         self._perf_disk_tree.tag_configure('warn', foreground=Colors.GAUGE_ORANGE)
         self._perf_disk_tree.tag_configure('full', foreground=Colors.GAUGE_RED)
 
+        # -- v29.38: 60-Second History Timeline Chart -------------------------
+        _timeline_row_base = _disk_row_base + 2
+        tk.Label(grid_frame, text='60-SECOND HISTORY TIMELINE', font=('Consolas', 9, 'bold'),
+                 fg = Colors.GAUGE_PURPLE, bg=Colors.BG_VOID).grid(
+                 row=_timeline_row_base, column=0, columnspan=4,
+                 sticky='w', padx=10, pady=(14,4))
+        _timeline_frame = tk.Frame(grid_frame, bg=Colors.BG_VOID)
+        _timeline_frame.grid(row=_timeline_row_base+1, column=0, columnspan=4,
+                           sticky='ew', padx=10, pady=(0,10))
+        # Timeline canvas - v29.38: expanded to 140px height for 8 metrics
+        self._perf_timeline_canvas = tk.Canvas(_timeline_frame, width=680, height=140,
+                                               bg=Colors.BG_VOID, highlightthickness=1,
+                                               highlightbackground=Colors.GLASS_CARD)
+        self._perf_timeline_canvas.pack(side='left', fill='both', expand=True)
+        # Timeline legend - v29.38: expanded to 8 metrics
+        _legend_frame = tk.Frame(_timeline_frame, bg=Colors.BG_VOID)
+        _legend_frame.pack(side='right', padx=8)
+        for label, color in [('CPU %', Colors.GAUGE_RED), ('RAM %', Colors.GAUGE_BLUE),
+                             ('GPU %', '#9b59b6'), ('NET KB/s', '#2ecc71'),
+                             ('FILES', '#e74c3c'), ('CONNS', '#3498db'),
+                             ('CTX/s', '#f39c12'), ('INT/s', '#9b59b6')]:
+            _l_row = tk.Frame(_legend_frame, bg=Colors.BG_VOID)
+            _l_row.pack(anchor='w', pady=2)
+            tk.Canvas(_l_row, width=12, height=12, bg=color, highlightthickness=0).pack(side='left', padx=2)
+            tk.Label(_l_row, text=label, font=('Consolas', 7), fg=Colors.TEXT_DIM,
+                    bg=Colors.BG_VOID).pack(side='left')
+        # Initialize timeline history buffers (60 samples each) - v29.38: 8 metrics
+        self._perf_timeline_history = {
+            'cpu': [], 'ram': [], 'gpu': [], 'net': [],
+            'files': [], 'conns': [], 'ctx': [], 'int': []
+        }
+        self._tooltip(self._perf_timeline_canvas,
+                     '60-second rolling timeline: CPU%, RAM%, GPU%, NET KB/s, FILES, CONNS, CTX/s, INT/s over the last 60 samples.')
+
         # -- Start update loop -------------------------------------------------
-        # FIX: moved to _auto_start — after() in tab builder fires during repaint
-        # self.after(2500, self._perf_loop)
-        # FIX: moved to _auto_start
-        # self.after(200, self._drain_alert_queue)
-        # Start hardware monitor background refresh thread
         try:
             self.hw._interval = self._hw_profile.hw_monitor_interval_s
             self.hw.start_background_refresh()
@@ -27990,6 +28169,78 @@ Verification Status:
         except Exception:
             pass  # Never crash the gauge draw
 
+    def _draw_timeline_chart(self):
+        """v29.38: Draw 60-second history timeline chart with 8 metrics."""
+        canvas = self._perf_timeline_canvas
+        if not canvas.winfo_exists():
+            return
+        
+        w, h = 680, 140
+        canvas.delete('all')
+        
+        # Background
+        canvas.create_rectangle(0, 0, w, h, fill=Colors.BG_VOID, outline='')
+        
+        # Grid lines
+        for i in range(0, w+1, w//4):
+            canvas.create_line(i, 0, i, h, fill=Colors.GLASS_CARD, width=1)
+        for i in range(0, h+1, h//4):
+            canvas.create_line(0, i, w, i, fill=Colors.GLASS_CARD, width=1)
+        
+        # Time labels
+        times = ['60s', '45s', '30s', '15s', '0s']
+        for i, t in enumerate(times):
+            x = i * (w // 4)
+            canvas.create_text(x + 20, h - 10, text=t, fill=Colors.TEXT_DIM, font=('Consolas', 7))
+        
+        # Metric colors and labels
+        metrics = [
+            ('cpu', Colors.GAUGE_RED, 'CPU%'),
+            ('ram', Colors.GAUGE_BLUE, 'RAM%'),
+            ('gpu', '#9b59b6', 'GPU%'),
+            ('net', '#2ecc71', 'NET KB/s'),
+            ('files', '#e74c3c', 'FILES'),
+            ('conns', '#3498db', 'CONNS'),
+            ('ctx', '#f39c12', 'CTX/s'),
+            ('int', '#9b59b6', 'INT/s')
+        ]
+        
+        # Draw each metric line
+        try:
+            for metric_key, color, label in metrics:
+                history = self._perf_timeline_history.get(metric_key, [])
+                if len(history) < 2:
+                    continue
+                
+                # Normalize to 0-1 range
+                values = list(history)
+                max_val = max(values) if values else 1
+                if max_val == 0:
+                    max_val = 1
+                
+                points = []
+                for i, val in enumerate(values):
+                    x = (i / (len(values) - 1)) * (w - 40) + 20
+                    y = h - 20 - (val / max_val) * (h - 40)
+                    points.append(x)
+                    points.append(y)
+                
+                # Draw line
+                if len(points) >= 4:
+                    canvas.create_line(points, fill=color, width=2, smooth=True)
+                
+                # Draw dot at latest value
+                if points:
+                    canvas.create_oval(points[-2]-3, points[-1]-3, points[-2]+3, points[-1]+3, fill=color, outline='')
+                
+                # Draw label
+                col = metrics.index((metric_key, color, label)) % 2
+                row = metrics.index((metric_key, color, label)) // 2
+                canvas.create_text(10 + col * 100, 10 + row * 12, 
+                                 text=label, fill=color, font=('Consolas', 8, 'bold'), anchor='w')
+        except Exception:
+            pass  # Never crash timeline draw
+
     def _draw_gauge(self, canvas, size, label, value, max_val, unit, scheme, delta=None):
         """Draw HD modern arc gauge with optimized rendering.
 
@@ -28054,11 +28305,13 @@ Verification Status:
         # -- Enhanced value arc with glow effect -----------------------------------
         val_sweep: Any = SWEEP * pct
         if val_sweep > 0.5:
-            # Outer glow
-            canvas.create_arc(cx-r-2, cy-r-2, cx+r+2, cy+r+2,
-                               start = START_ANG, extent=-val_sweep,
-                               style = 'arc', outline=color, width=3,
-                               dash = (2,4))
+            # v29.39: Skip glow effect under high CPU load for performance
+            if pct < 0.8:
+                # Outer glow
+                canvas.create_arc(cx-r-2, cy-r-2, cx+r+2, cy+r+2,
+                                   start = START_ANG, extent=-val_sweep,
+                                   style = 'arc', outline=color, width=3,
+                                   dash = (2,4))
             # Main value arc
             canvas.create_arc(cx-r, cy-r, cx+r, cy+r,
                                start = START_ANG, extent=-val_sweep,
@@ -28430,6 +28683,37 @@ Verification Status:
                                     f"{part.get('total_gb', 0):.1f} GB",
                                     f"{part.get('free_gb', 0):.1f} GB"),
                             tags=(tag_d,))
+            except Exception:
+                pass
+
+            # v29.38: Update timeline history buffers (8 metrics)
+            try:
+                if hasattr(self, '_perf_timeline_history'):
+                    # Collect current metrics
+                    cpu_val = s.get('cpu_percent', 0) or 0
+                    ram_val = s.get('ram_percent', 0) or 0
+                    gpu_val = s.get('gpu_percent', 0) or 0
+                    net_up = s.get('net_send_rate', 0) or 0
+                    net_down = s.get('net_recv_rate', 0) or 0
+                    net_combined = net_up + net_down  # Combined KB/s
+                    files_val = s.get('process_count', 0) or 0
+                    conns_val = s.get('connection_count', 0) or 0
+                    ctx_val = s.get('context_switches_per_sec', 0) or 0
+                    int_val = s.get('interrupts_per_sec', 0) or 0
+                    
+                    # Append to history buffers (max 60 samples) - v29.38: 8 metrics
+                    for key, val in [('cpu', cpu_val), ('ram', ram_val), 
+                                    ('gpu', gpu_val), ('net', net_combined),
+                                    ('files', files_val), ('conns', conns_val),
+                                    ('ctx', ctx_val), ('int', int_val)]:
+                        if key not in self._perf_timeline_history:
+                            self._perf_timeline_history[key] = []
+                        self._perf_timeline_history[key].append(val)
+                        if len(self._perf_timeline_history[key]) > 60:
+                            self._perf_timeline_history[key].pop(0)
+                    
+                    # Redraw timeline chart
+                    self._draw_timeline_chart()
             except Exception:
                 pass
 

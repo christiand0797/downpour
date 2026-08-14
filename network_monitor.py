@@ -37,6 +37,8 @@ v29 ENHANCEMENTS:
 - Lateral movement detection
 - Exfiltration pattern analysis
 - Protocol anomaly detection
+- v29.39: Integration with GreyNoise, AbuseIPDB, Shodan, Censys for enhanced IP reputation
+- v29.39: Real-time OSINT lookup integration for connection analysis
 
 ================================================================================
 """
@@ -89,6 +91,10 @@ class NetworkMonitor:
         
         # Track connections per process
         self.connection_history = defaultdict(list)
+        
+        # v29.39: OSINT reputation cache to reduce API calls
+        self._osint_cache = {}
+        self._osint_cache_ttl = 300  # 5 minutes cache TTL
         
         # v29: Known malicious IPs from threat intelligence feeds
         self.malicious_ips = set([
@@ -292,6 +298,139 @@ class NetworkMonitor:
             logging.debug(f"Error checking IP {ip} against KEV: {e}")
 
         return result
+    
+    # v29.39: Enhanced OSINT integration for IP reputation
+    
+    def check_osint_reputation(self, ip: str) -> dict:
+        """
+        Check IP reputation against multiple OSINT sources.
+        
+        v29.39: Integrates with GreyNoise, AbuseIPDB, Shodan, and Censys
+        for comprehensive IP reputation analysis.
+        Uses caching to reduce API calls.
+        
+        Parameters:
+        - ip: IP address string
+        
+        Returns:
+        - dict with keys: greynoise (dict), abuseipdb (dict), shodan (dict),
+                censys (dict), composite_score (0-100), threat_level (str)
+        """
+        # v29.39: Check cache first
+        current_time = time.time()
+        if ip in self._osint_cache:
+            cached_data, cache_time = self._osint_cache[ip]
+            if current_time - cache_time < self._osint_cache_ttl:
+                return cached_data
+        
+        result = {
+            'greynoise': {'noise': False, 'classification': 'unknown'},
+            'abuseipdb': {'abuse_confidence': 0, 'reports': 0},
+            'shodan': {'open_ports': [], 'vulns': 0},
+            'censys': {'services': [], 'risk_score': 0},
+            'composite_score': 0,
+            'threat_level': 'UNKNOWN'
+        }
+        
+        try:
+            from threat_intelligence import ThreatIntelligenceManager
+            ti = ThreatIntelligenceManager()
+            
+            # Check GreyNoise
+            if ti.api_keys.get('greynoise'):
+                try:
+                    headers = {'Accept': 'application/json'}
+                    if _REQUESTS_AVAILABLE:
+                        resp = requests.get(
+                            f"https://api.greynoise.io/v3/community/ip/{ip}",
+                            headers=headers, timeout=5
+                        )
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            result['greynoise'] = {
+                                'noise': data.get('noise', False),
+                                'classification': data.get('classification', 'unknown'),
+                                'name': data.get('name', ''),
+                                'link': data.get('link', '')
+                            }
+                except Exception:
+                    pass
+            
+            # Check AbuseIPDB
+            if ti.api_keys.get('abuseipdb'):
+                try:
+                    headers = {'Key': ti.api_keys['abuseipdb']}
+                    if _REQUESTS_AVAILABLE:
+                        resp = requests.get(
+                            f"https://api.abuseipdb.com/api/v2/check",
+                            headers=headers, params={'ipAddress': ip, 'maxAgeInDays': 90},
+                            timeout=5
+                        )
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            result['abuseipdb'] = {
+                                'abuse_confidence': data.get('data', {}).get('abuseConfidenceScore', 0),
+                                'reports': data.get('data', {}).get('totalReports', 0),
+                                'last_reported': data.get('data', {}).get('lastReportedAt', '')
+                            }
+                except Exception:
+                    pass
+            
+            # Check Shodan
+            if ti.api_keys.get('shodan'):
+                shodan_data = ti.check_shodan_ip(ip)
+                if 'error' not in shodan_data:
+                    result['shodan'] = {
+                        'open_ports': shodan_data.get('ports', []),
+                        'vulns': len(shodan_data.get('vulns', [])),
+                        'isp': shodan_data.get('isp', ''),
+                        'org': shodan_data.get('org', '')
+                    }
+            
+            # Check Censys
+            if ti.api_keys.get('censys'):
+                censys_data = ti.check_censys_ip(ip)
+                if 'error' not in censys_data:
+                    result['censys'] = {
+                        'services': censys_data.get('result', {}).get('services', []),
+                        'risk_score': censys_data.get('result', {}).get('risk_score', 0)
+                    }
+            
+            # Calculate composite threat score (0-100)
+            score = 0
+            if result['greynoise']['noise']:
+                score += 30
+            if result['greynoise']['classification'] == 'malicious':
+                score += 20
+            score += min(result['abuseipdb']['abuse_confidence'], 25)
+            score += min(result['abuseipdb']['reports'] * 2, 15)
+            score += min(result['shodan']['vulns'] * 5, 20)
+            score += min(result['censys']['risk_score'] * 10, 20)
+            result['composite_score'] = min(score, 100)
+            
+            # Determine threat level
+            if result['composite_score'] >= 70:
+                result['threat_level'] = 'CRITICAL'
+            elif result['composite_score'] >= 50:
+                result['threat_level'] = 'HIGH'
+            elif result['composite_score'] >= 30:
+                result['threat_level'] = 'MEDIUM'
+            elif result['composite_score'] >= 10:
+                result['threat_level'] = 'LOW'
+            else:
+                result['threat_level'] = 'SAFE'
+            
+            # v29.39: Cache the result
+            self._osint_cache[ip] = (result, current_time)
+            # Clean old cache entries periodically
+            if len(self._osint_cache) > 1000:
+                self._osint_cache = {k: v for k, v in self._osint_cache.items()
+                                     if current_time - v[1] < self._osint_cache_ttl}
+                
+        except Exception as e:
+            logging.debug(f"Error checking OSINT reputation for {ip}: {e}")
+        
+        return result
 
     def check_connection(self, conn, proc_name: str):
         """
@@ -332,6 +471,23 @@ class NetworkMonitor:
                     True,
                     "CRITICAL",
                     reason
+                )
+            
+            # v29.39: Check OSINT reputation for enhanced threat detection
+            osint_rep = self.check_osint_reputation(remote_ip)
+            if osint_rep['composite_score'] >= 50:
+                threat_level = osint_rep['threat_level']
+                reason_parts = [f"OSINT reputation: {threat_level} (score: {osint_rep['composite_score']})"]
+                if osint_rep['greynoise']['noise']:
+                    reason_parts.append(f"GreyNoise: {osint_rep['greynoise']['classification']}")
+                if osint_rep['abuseipdb']['reports'] > 0:
+                    reason_parts.append(f"AbuseIPDB: {osint_rep['abuseipdb']['reports']} reports")
+                if osint_rep['shodan']['vulns'] > 0:
+                    reason_parts.append(f"Shodan: {osint_rep['shodan']['vulns']} vulns")
+                return (
+                    True,
+                    threat_level if threat_level in ['CRITICAL', 'HIGH', 'MEDIUM'] else 'MEDIUM',
+                    ', '.join(reason_parts)
                 )
             
             # Check for suspicious ports

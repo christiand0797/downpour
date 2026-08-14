@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-PROCESS MONITORING MODULE v29
+PROCESS MONITORING MODULE v29.39
 """
-__version__ = "29.0.0"
+__version__ = "29.39.0"
 import os
 import logging
 logger = logging.getLogger(__name__)
@@ -78,6 +78,10 @@ class ProcessMonitor:
         self.known_processes = {}
         self.process_history = defaultdict(list)
         
+        # v29.39: Process cache to reduce repeated psutil calls
+        self._process_cache = {}
+        self._process_cache_ttl = 10  # 10 seconds cache
+        
         # Legitimate system processes (exact names)
         self.system_processes = {
             'System', 'smss.exe', 'csrss.exe', 'wininit.exe',
@@ -107,6 +111,13 @@ class ProcessMonitor:
             'reg add',  # Modifying registry
             'schtasks /create',  # Creating scheduled tasks
             '/start hidden',  # Starting hidden processes
+            # v29.39: Additional suspicious patterns
+            'invoke-expression',  # PowerShell execution
+            'iex',  # PowerShell invoke-expression alias
+            'downloadstring',  # PowerShell download
+            'webclient',  # .NET web download
+            'http://',  # Direct HTTP in command line (suspicious)
+            'https://',  # Direct HTTPS in command line (suspicious)
         ]
         
         # Suspicious locations for executables
@@ -271,6 +282,18 @@ class ProcessMonitor:
             low_thread_procs = {'notepad.exe', 'calc.exe', 'mspaint.exe', 'write.exe'}
             if name in low_thread_procs and num_threads > 30:
                 reasons.append(f"{name} has {num_threads} threads (expected <10, possible injection)")
+        except Exception:
+            pass
+
+        # v29.39: 5. Suspended main thread (process hollowing signature)
+        try:
+            proc = psutil.Process(pid)
+            threads = proc.threads()
+            if threads:
+                # Check if main thread is suspended
+                # Note: psutil doesn't directly expose thread status on Windows
+                # This is a placeholder for future enhancement with Win32 API
+                _ = threads[0]  # Placeholder for main thread analysis
         except Exception:
             pass
 
