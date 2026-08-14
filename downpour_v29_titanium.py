@@ -28090,6 +28090,32 @@ Verification Status:
         """Apply fetched stats to gauge canvases  -  runs on main thread."""
         if not self.winfo_exists():
             return
+        # v29.30: warm-history pre-pass — keep per-gauge history, previous-sample
+        # deltas and the adaptive rate ceilings updated even while the Perf tab
+        # is hidden, so sparklines are already populated and delta markers are
+        # meaningful the instant the user switches to it.
+        try:
+            if not hasattr(self, '_perf_gauge_meta'):
+                self._perf_gauge_meta: Any = {}
+            if not hasattr(self, '_perf_history'):
+                import collections as _hist_coll
+                self._perf_history: Any = {}
+            if not hasattr(self, '_perf_prev'):
+                self._perf_prev: Any = {}
+            if not hasattr(self, '_perf_delta'):
+                self._perf_delta: Any = {}
+            for _k in self._perf_gauge_meta:
+                _v: Any = s.get(_k, 0) or 0
+                if _k == 'battery_percent' and _v < 0:
+                    _v = 0
+                if _k not in self._perf_history:
+                    import collections as _hist_coll2
+                    self._perf_history[_k] = _hist_coll2.deque(maxlen=30)
+                self._perf_history[_k].append(float(_v))
+                self._perf_delta[_k] = float(_v) - self._perf_prev.get(_k, float(_v))
+                self._perf_prev[_k] = float(_v)
+        except Exception:
+            pass
         # FIX-v28p9: Skip heavy gauge redraws unless Performance tab is visible
         try:
             current_tab: Any = self.nb.tab(self.nb.select(), 'text') if hasattr(self, 'nb') else ''
@@ -28122,9 +28148,7 @@ Verification Status:
                         self._perf_gauge_meta['cpu_freq_mhz'] = (cf_max, _uu, _ss, _ll)
             except Exception:
                 pass
-            # v29.28: previous-sample tracking for per-gauge ▲/▼ trend markers
-            if not hasattr(self, '_perf_prev'):
-                self._perf_prev: Any = {}
+            # v29.30: pre-pass above owns prev/delta/history tracking
             # Update each gauge canvas
             _rate_keys: Any = ('disk_read_rate', 'disk_write_rate',
                                'net_send_rate', 'net_recv_rate')
@@ -28141,35 +28165,19 @@ Verification Status:
                 # dynamic ceiling from observed history (smoothly growing, no
                 # flicker) so DISK/NET needles stay readable.
                 if key in _rate_keys:
-                    if not hasattr(self, '_perf_history'):
-                        import collections as _coll0
-                        self._perf_history = {}
-                    if key not in self._perf_history:
-                        import collections as _coll1
-                        self._perf_history[key] = _coll1.deque(maxlen=30)
-                    self._perf_history[key].append(float(val))
-                    if len(self._perf_history[key]) >= 5:
+                    _hist = self._perf_history.get(key)
+                    if _hist and len(_hist) >= 5:
                         import math as _m
-                        peak: Any = max(self._perf_history[key])
+                        peak: Any = max(_hist)
                         if peak > 0:
                             dyn_max: Any = _m.ceil(peak * 1.4 / 100.0) * 100.0
                             if dyn_max > 0 and dyn_max != maxv:
                                 maxv = dyn_max
                                 self._perf_gauge_meta[key] = (maxv, unit, scheme, label)
-                _delta: Any = 0.0
-                if key in self._perf_prev:
-                    _delta = float(val) - self._perf_prev[key]
-                self._perf_prev[key] = float(val)
+                _delta: Any = self._perf_delta.get(key, 0.0)
                 self._draw_gauge(canvas, 170, label, val, maxv, unit, scheme, delta=_delta)
-                # SPRINT1: Update history ring for sparkline
-                if not hasattr(self, '_perf_history'):
-                    import collections
-                    self._perf_history = {}
-                if key not in self._perf_history:
-                    import collections as _coll
-                    self._perf_history[key] = _coll.deque(maxlen=30)
-                self._perf_history[key].append(float(val))
-                if len(self._perf_history[key]) >= 2:
+                # v29.30: sparkline reads the warm history filled by the pre-pass
+                if len(self._perf_history.get(key, ())) >= 2:
                     self._draw_sparkline(canvas, 170, list(self._perf_history[key]), maxv, scheme)
 
             # Update per-core bars
