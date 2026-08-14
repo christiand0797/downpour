@@ -1,6 +1,109 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.36 - 60-Second History Timeline Chart, Performance Threshold Alerts, Alert Rate Meter
+
+### Performance Tab: 60-Second History Timeline
+- Added a dedicated `tk.Canvas`-based rolling time-series chart below the disk partition table
+- Shows CPU%, RAM%, GPU%, and combined NET KB/s (scaled 0–100) over the last 60 samples
+- Color-coded lines with latest-value dots and text labels on the rightmost point
+- Per-pixel grid lines at 25%/50%/75%; X-axis shows elapsed sample count and "now" marker
+- `_draw_perf_timeline(s)` new method — calls self-initialize if deques don't exist yet
+- Timeline storage: 4 × `collections.deque(maxlen=60)` for cpu/ram/gpu/net history
+
+### Performance Threshold Alert Engine
+- New `_perf_check_thresholds(s)` method — runs on EVERY stats update regardless of which tab is visible
+- Fires `_queue_alert()` when: CPU>90%, RAM>90%, CPU temp>85°C, GPU temp>85°C, Disk>95%, Swap>80%
+- 120-second cooldown per alert key prevents spam during sustained high-load events
+- Spike detection: fires instantly if CPU jumps >40% in a single sample AND ends above 60%
+- Spike cooldown: 30 seconds
+- All thresholds/cooldowns configurable via dict constant `_THRESH`
+
+### Status Bar Alert Rate Meter
+- New `⚡ N/min` label in the status bar tracking alerts fired in the last 60 seconds
+- Color-coded: dim (0–2/min), orange (3–9/min), red (10+/min)
+- `_update_alert_rate_meter()` reschedules itself every 15s via `_orig_after`
+- `_queue_alert()` now appends a timestamp to `self._alert_timestamps` for rate tracking
+- Wired into `_auto_start()` with a 15s initial delay
+
+### Tests
+- New `TestPerfThresholdAlertsV2936` class (5 tests):
+  - `test_method_exists` — verifies both new methods exist in source
+  - `test_never_raises_on_bare_instance` — no crash on empty or full stats dict
+  - `test_cooldown_prevents_duplicate_alerts` — only 1 cpu_high alert in rapid-fire calls
+  - `test_spike_detection_fires` — 60-point jump triggers spike alert
+  - `test_draw_timeline_never_raises` — canvas draw safe on bare instance
+- All 55+ tests pass; py_compile OK
+
+---
+
+## v29.35 - Complete Tooltip Sweep + WiFi/IoT/USB/Timeline Tab Enhancements
+
+### Phase 3 Tooltip Sweep (Final)
+- Audited WiFi, IoT, USB, Timeline, VPN, Settings, Hunt, and Sandbox tabs
+- All 113+ buttons now have `_tooltip()` hover help — 0 bare buttons remain in any tab
+- Confirmed all tabs use 4-tuple `(text, cmd, color, tip)` pattern in action lists
+- Fix: test `TestTabIndicatorV2934b::test_indicator_created_before_tab_change_binding`
+  — search string updated from bare `<<NotebookTabChanged>>` to `self.nb.bind('<<NotebookTabChanged>>'`
+  to skip the comment occurrence at line ~1499 and match the actual binding call
+- 50/50 unit tests pass; py_compile OK; 1720 methods
+
+### WiFi Security Analyzer (new tab)
+- Real-time `netsh wlan` scanner populating SSID/BSSID/Signal/Auth/Cipher/Band/Score/Evil-Twin columns
+- Evil-twin detection: flags all SSIDs with more than one BSSID entry
+- Security scoring: WPA3=100, WPA2=75, WPA=45, WEP=10, Open=0
+- Color coding: green ≥70, orange ≥40, red <40; evil-twin rows magenta
+- Per-network security analysis panel (findings list: protocol weaknesses, TKIP deprecation)
+- Show Saved Passwords: decrypts Wi-Fi profiles via `netsh wlan show profile key=clear`
+- DNS Leak Test: resolves test domains + runs `nslookup` to expose split-tunnel leaks
+- Export to CSV; status bar shows network count + weak/evil-twin counts
+
+### IoT Device Discovery (new tab)
+- Ping-sweep of local subnet using `subprocess.run ping -n 1 -w 200`
+- ARP table lookup via `arp -a` for MAC address and vendor resolution
+- Mozi/Kimwolf botnet signature check via `iot_scanner.IoTDeviceScanner`
+- Port fingerprinting via TCP connect probes on common IoT ports
+- Per-device block via `netsh advfirewall firewall add rule`
+- Per-device unblock matching on rule name
+- Risk column: CRITICAL/HIGH/MEDIUM/LOW based on open ports and known-bad vendor strings
+- Real-time progress label + status indicator pill
+
+### USB Guard (new tab)
+- Live device enumeration via `wmic path Win32_USBHub get` and `Win32_USBControllerDevice`
+- Windows USB history from registry `HKLM\SYSTEM\CurrentControlSet\Enum\USB`
+- Per-device whitelist with persistent JSON save to `downpour_data/usb_whitelist.json`
+- Auto-block toggle: monitors USB insertion events via WMI `__InstanceCreationEvent`
+- Alert log panel showing all insertion/removal events with timestamps
+- Right-click context menu: whitelist / block / copy device ID
+- Sort by column, tag coloring (whitelisted=green, blocked=red, unknown=orange)
+
+### Security Event Timeline (new tab)
+- Windows Security event log via `Get-WinEvent` PowerShell (up to 2000 events)
+- 28-event-ID map including: 4624/4625 logon, 4688 process create, 4697/7045 service install,
+  4720 account create, 4698/4702 scheduled task, 4728/4732 group membership
+- Attack pattern detection: brute force (≥5 failed logins per user), lateral movement
+  (explicit-credential logon count > 3), persistence (service/task install, account creation)
+- Quick-filter radio buttons per event ID; "All Events" clears filter
+- Column sort (click header); severity tag coloring: critical=red, warning=orange, info=blue
+- Export to self-contained HTML report with dark theme
+- Detail pane shows full event message on selection
+
+---
+
+## v29.34 - Full Tooltip Sweep (All Main Tabs)
+
+- Gap audit: counted 122 `tk.Button` creations vs 72 `_tooltip` calls — 50 bare buttons
+- Added tooltips to: PANIC, ECP engine buttons, HUNT, packet-capture bar (Start/Stop/Check Rogue DHCP),
+  intel feed management (Add/Fetch/Remove/Import/Statistics), Scanner header (Run Full Scan/Fix All/Zero-Days),
+  DNS monitor (Clear/Export Log), DNS cache (View/Flush/Scan/Export), DNS blocklist (Block/Unblock/Import/Export),
+  DNSSEC (Validate/Audit), poison/system-domain/router-DNS checks, firewall Load Events,
+  GreyNoise lookup + Unblock Selected, fingerprint Re-arm/Clear All, hardening Rollback Selected
+- Tooltip count: 72 → 113; remaining 14 bare are self-explanatory Close/Cancel/❌ in modal dialogs
+- 46/46 unit tests pass; py_compile OK; 751 methods / 0 dupes
+
+---
+
 ## v29.33 - Tooltips across every DNS sub-tab
+
 
 - Upgraded the 5 DNS button-factory helpers (qbtn / srv_btn / hbtn /
   enc_btn / tbtn) to accept a tip= and bind the hover tooltip; added
