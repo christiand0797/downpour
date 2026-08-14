@@ -2,6 +2,29 @@
 
 ## Branch: main
 
+## Session 2026-08-13n — v29.34: Phase 3 tooltip sweep across all main tabs
+- ℹ️. **Gap**: Phase 3 audit counted 122 `tk.Button` creations vs only 72
+  `_tooltip` calls — 55 bare buttons across the main (non-DNS) tabs had no
+  hover help. Factory loops and dialog Close/Cancel buttons were the
+  legitimate leftovers; everything actionable still needed a tip.
+- ℹ️. **Added tooltips (41 buttons)**: PANIC, all 6 ECP engine buttons +
+  START ALL ENGINES, 4 triage buttons, Privacy Mode + Score, global HUNT,
+  packet-capture bar (Start Capture/Stop/Check Rogue DHCP), intel feed
+  management (Add Feed/Fetch Now/Remove Selected/Import from File/Feed
+  Statistics), Scanner header (RUN FULL SCAN/FIX ALL/Check Zero-Days),
+  DNS monitor (Clear/Export Log), DNS cache (View/Flush/Scan/Export), DNS
+  blocklist (Block/Unblock/Import/Export), DNSSEC (Validate/Full Audit),
+  poison/system-domain/router-DNS checks, firewall Load Events, GreyNoise
+  lookup + Unblock Selected, fingerprint Re-arm/Clear All, hardening
+  Rollback Selected.
+- ℹ️. Named every button in a `_xxx_btn: Any` var instead of `.pack()`/`.grid()`
+  on a throwaway so `self._tooltip()` can attach cleanly.
+- ℹ️. Tooltip calls 72 → 113; remaining 14 bare are self-explanatory dialog
+  Close/Cancel/❌ and factory loops (labels already describe action, and the
+  `_btn` factory at 44635 already supports `tip=`).
+- ℹ️. 46/46 tests pass; py_compile OK; 751 methods / 0 dupes; pushed
+  `c505cdf..ba41d9c`.
+
 ## Session 2026-08-13m — v29.33: tooltips across all DNS sub-tabs
 - ✅ **Gap**: the DNS tabs' button-factory helpers (`_qbtn`, `_srv_btn`,
   `_hbtn`, `_enc_btn`, `_tbtn`) had no tooltip support at all, so ~30 DNS
