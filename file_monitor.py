@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-FILE SYSTEM MONITORING MODULE v29
+FILE SYSTEM MONITORING MODULE v29.39
 """
-__version__ = "29.0.0"
+__version__ = "29.39.0"
 import os
 import logging
 import threading
@@ -47,6 +47,18 @@ class FileSystemMonitor:
         self.file_operations = defaultdict(list)
         self.operation_window = 60  # seconds
         
+        # v29.39: Real-time file anomaly tracking for Performance tab
+        self._file_modifications_hour = 0
+        self._file_creations_hour = 0
+        self._file_deletions_hour = 0
+        self._suspicious_creations_hour = 0
+        self._ransomware_activity_hour = 0
+        self._modification_history = []
+        self._creation_history = []
+        self._deletion_history = []
+        self._suspicious_creation_history = []
+        self._ransomware_history = []
+        
         # v29: Watch handles for real-time monitoring
         self._watch_handles = {}
         
@@ -90,6 +102,46 @@ class FileSystemMonitor:
             'how_to_decrypt.txt', 'your_files_are_encrypted.txt'
         ]
     
+    def _track_modification(self):
+        """Track file modification for real-time metrics."""
+        now = time.time()
+        self._modification_history.append(now)
+        # Clean up old modifications (older than 1 hour)
+        self._modification_history = [t for t in self._modification_history if now - t < 3600]
+        self._file_modifications_hour = len(self._modification_history)
+    
+    def _track_creation(self):
+        """Track file creation for real-time metrics."""
+        now = time.time()
+        self._creation_history.append(now)
+        # Clean up old creations (older than 1 hour)
+        self._creation_history = [t for t in self._creation_history if now - t < 3600]
+        self._file_creations_hour = len(self._creation_history)
+    
+    def _track_deletion(self):
+        """Track file deletion for real-time metrics."""
+        now = time.time()
+        self._deletion_history.append(now)
+        # Clean up old deletions (older than 1 hour)
+        self._deletion_history = [t for t in self._deletion_history if now - t < 3600]
+        self._file_deletions_hour = len(self._deletion_history)
+    
+    def _track_suspicious_creation(self):
+        """Track suspicious file creation for real-time metrics."""
+        now = time.time()
+        self._suspicious_creation_history.append(now)
+        # Clean up old detections (older than 1 hour)
+        self._suspicious_creation_history = [t for t in self._suspicious_creation_history if now - t < 3600]
+        self._suspicious_creations_hour = len(self._suspicious_creation_history)
+    
+    def _track_ransomware(self):
+        """Track ransomware activity for real-time metrics."""
+        now = time.time()
+        self._ransomware_history.append(now)
+        # Clean up old detections (older than 1 hour)
+        self._ransomware_history = [t for t in self._ransomware_history if now - t < 3600]
+        self._ransomware_activity_hour = len(self._ransomware_history)
+    
     def record_file_operation(self, path, operation):
         """
         Record a file operation for analysis.
@@ -105,6 +157,20 @@ class FileSystemMonitor:
             'path': path,
             'time': current_time
         })
+        
+        # v29.39: Track file operations for real-time metrics
+        if operation == 'modified':
+            self._track_modification()
+        elif operation == 'created':
+            self._track_creation()
+            # Check if suspicious extension
+            path_lower = path.lower()
+            for ext in self.suspicious_extensions:
+                if path_lower.endswith(ext):
+                    self._track_suspicious_creation()
+                    break
+        elif operation == 'deleted':
+            self._track_deletion()
         
         # Clean up old operations outside time window
         cutoff_time = current_time - timedelta(seconds=self.operation_window)
@@ -126,6 +192,8 @@ class FileSystemMonitor:
         total_modifications = len(self.file_operations['modified'])
         
         if total_modifications > self.ransomware_threshold:
+            # v29.39: Track ransomware activity for real-time metrics
+            self._track_ransomware()
             return (
                 True,
                 "Possible ransomware activity detected",
@@ -137,6 +205,8 @@ class FileSystemMonitor:
             path_lower = op['path'].lower()
             for ext in self.ransomware_extensions:
                 if path_lower.endswith(ext):
+                    # v29.39: Track ransomware activity for real-time metrics
+                    self._track_ransomware()
                     return (
                         True,
                         "Ransomware file extension detected",
@@ -147,6 +217,8 @@ class FileSystemMonitor:
         for op in self.file_operations['created']:
             filename = Path(op['path']).name.lower()
             if filename in self.ransom_note_names:
+                # v29.39: Track ransomware activity for real-time metrics
+                self._track_ransomware()
                 return (
                     True,
                     "CRITICAL: Ransom note file detected",

@@ -17584,6 +17584,12 @@ class HardwareMonitor:
             stats['sus_loc_hour'] = getattr(pm, '_suspicious_locations_hour', 0)
             stats['sus_cmd_hour'] = getattr(pm, '_suspicious_cmdlines_hour', 0)
             stats['high_cpu_hour'] = getattr(pm, '_high_cpu_processes_hour', 0)
+            # v29.39: Real-time file anomaly detection tracking
+            stats['file_mod_hour'] = getattr(fm, '_file_modifications_hour', 0)
+            stats['file_create_hour'] = getattr(fm, '_file_creations_hour', 0)
+            stats['file_delete_hour'] = getattr(fm, '_file_deletions_hour', 0)
+            stats['sus_create_hour'] = getattr(fm, '_suspicious_creations_hour', 0)
+            stats['ransom_hour'] = getattr(fm, '_ransomware_activity_hour', 0)
         except Exception: pass
         # v29.39: Real-time disk I/O metrics
         try:
@@ -28189,6 +28195,13 @@ Verification Status:
             ('SUS CMD/H',      'sus_cmd_hour',     25, '/h', 'purple'),
             # Row 30 - v29.39: Real-Time Process Anomaly Detection (continued)
             ('HIGH CPU/H',     'high_cpu_hour',    30, '/h', 'orange'),
+            # Row 31 - v29.39: Real-Time File Anomaly Detection
+            ('MOD/H',          'file_mod_hour',    100, '/h', 'blue'),
+            ('CREATE/H',       'file_create_hour', 50, '/h', 'green'),
+            ('DELETE/H',       'file_delete_hour', 20, '/h', 'red'),
+            ('SUS CREATE/H',  'sus_create_hour',  10, '/h', 'orange'),
+            # Row 32 - v29.39: Real-Time File Anomaly Detection (continued)
+            ('RANSOM/H',       'ransom_hour',      5, '/h', 'red'),
         ]
 
         COLS: Any = 4

@@ -194,6 +194,15 @@ Added additional real-time gauges to the Performance tab:
 #### Real-Time Process Anomaly Detection (Row 30)
 - **HIGH CPU/H**: High CPU processes detected in the last hour
 
+#### Real-Time File Anomaly Detection (Row 31)
+- **MOD/H**: File modifications in the last hour
+- **CREATE/H**: File creations in the last hour
+- **DELETE/H**: File deletions in the last hour
+- **SUS CREATE/H**: Suspicious file creations (executable extensions) in the last hour
+
+#### Real-Time File Anomaly Detection (Row 32)
+- **RANSOM/H**: Ransomware activity detections in the last hour
+
 ### 8. Real-Time Phishing URL Detection Tracking (v29.39)
 Added real-time phishing URL detection tracking for enhanced threat intelligence:
 
@@ -256,6 +265,19 @@ Added real-time process anomaly detection tracking for enhanced threat intellige
 - **Automatic Cleanup**: Removes detections older than 1 hour for all anomaly types
 - **Integration**: Tracks anomalies during process analysis in `analyze_process()`
 - **Performance Tab Gauges**: 5 new gauges for process anomaly visualization
+
+### 14. Real-Time File Anomaly Detection Tracking (v29.39)
+Added real-time file anomaly detection tracking for enhanced threat intelligence:
+
+- **File Modifications/Hour**: Tracks file modifications in the last hour
+- **File Creations/Hour**: Tracks file creations in the last hour
+- **File Deletions/Hour**: Tracks file deletions in the last hour
+- **Suspicious Creations/Hour**: Tracks suspicious file creations with executable extensions
+- **Ransomware Activity/Hour**: Tracks ransomware activity detections (rapid modifications, ransomware extensions, ransom notes)
+- **Automatic Cleanup**: Removes detections older than 1 hour for all anomaly types
+- **Integration**: Tracks anomalies during file operation recording in `record_file_operation()`
+- **Integration**: Tracks ransomware activity in `check_ransomware_activity()`
+- **Performance Tab Gauges**: 5 new gauges for file anomaly visualization
 
 ---
 
