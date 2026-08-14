@@ -2,9 +2,19 @@
 
 ## Branch: main
 
-# Downpour v29 Titanium — Enhancement Worklog
-
-## Branch: main
+## Session 2026-08-13m — v29.33: tooltips across all DNS sub-tabs
+- ✅ **Gap**: the DNS tabs' button-factory helpers (`_qbtn`, `_srv_btn`,
+  `_hbtn`, `_enc_btn`, `_tbtn`) had no tooltip support at all, so ~30 DNS
+  buttons showed no hover help. The generic `_btn` helpers used elsewhere
+  already took `tip=` (positional) — the DNS ones were the stragglers.
+- ✅ **Fix**: added `tip=None` + `self._tooltip(btn, tip)` to all five DNS
+  helpers, and wrote per-button help for the Overview quick-actions, Servers
+  (apply/show/reset/latency/leak), Hosts editor actions, DoH enablers, the
+  14-button Advanced tools column, 7-button Security-tests column, 7-button
+  Repair/Harden column, and the secure-provider "Load ->" button.
+- ✅ Also kept every created button reference in a named var (no more
+  `.pack()`/`.grid()` on a throwaway) so tooltips attach cleanly.
+- ✅ 46/46 tests pass; py_compile OK; pushed `1e2b193..e165e69`.
 
 ## Session 2026-08-13l — v29.32: live DNS Overview panel
 - ✅ **Bug found**: `_dns_refresh_overview` had zero callers — its build
@@ -22,8 +32,15 @@
   Full suite 46/46 pass; py_compile OK; pushed `62117b3..13b3f90`.
 
 ## Session 2026-08-13k — v29.31: tooltips for the last bare buttons
+- ✅ Scanned every `tk.Button(` assignment in the main file (script-based
+  tooltip-gap audit). Most flagged sites already bind `_tooltip`; the real
+  stragglers were 9 named buttons: Rain toggle, Storm cycle, Settings gear,
+  Widget toggle, tab-strip ◀/▶ scroll arrows, CVE "Apply Mitigation for This
+  CVE", TPM/BitLocker bypass toggle, and the DNS Live Monitor start/stop.
+- ✅ All 9 now have `_tooltip(...)` bindings with short action/state
+  explanations. `py_compile` OK; 31/31 unit tests pass.
 
-## Session 2026-08-13l — v29.30b follow-up: hasattr() recursion fix on bare instances
+## Session 2026-08-13k2 — v29.30b follow-up: hasattr() recursion fix on bare instances
 - ✅ **Bug**: the v29.30b warm-history pre-pass used `hasattr(self, '_perf_history')`
   guard clauses. On a bare `object.__new__(downpour)` test instance (no Tk
   runtime), `hasattr()` for a *missing* attribute recurses via
@@ -36,17 +53,6 @@
   `test_winfo_exists_false_returns_early` which asserted with `hasattr()`.
 - ✅ Result: 42/42 tests pass, py_compile OK, AST 750 methods / 0 dupes,
   pushed to GitHub.
-
-## Branch: main
-
-## Session 2026-08-13k — v29.31: tooltips for the last bare buttons
-- ✅ Scanned every `tk.Button(` assignment in the main file (script-based
-  tooltip-gap audit). Most flagged sites already bind `_tooltip`; the real
-  stragglers were 9 named buttons: Rain toggle, Storm cycle, Settings gear,
-  Widget toggle, tab-strip ◀/▶ scroll arrows, CVE "Apply Mitigation for This
-  CVE", TPM/BitLocker bypass toggle, and the DNS Live Monitor start/stop.
-- ✅ All 9 now have `_tooltip(...)` bindings with short action/state
-  explanations. `py_compile` OK; 31/31 unit tests pass.
 
 ## Session 2026-08-13k — v29.30b: warm Performance history (gauges never idle)
 - ✅ **Gap**: `_update_perf_ui` early-returned whenever the Perf tab wasn't

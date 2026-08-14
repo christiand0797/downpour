@@ -1,6 +1,15 @@
 # Downpour v29 Titanium — Changelog
 
-# Downpour v29 Titanium - Changelog
+## v29.33 - Tooltips across every DNS sub-tab
+
+- Upgraded the 5 DNS button-factory helpers (qbtn / srv_btn / hbtn /
+  enc_btn / tbtn) to accept a tip= and bind the hover tooltip; added
+  per-button help text to ~30 DNS buttons: Overview quick-actions,
+  Servers (apply/show/reset/latency/leak), Hosts (load/save/block/
+  import/hijack-scan/backup/restore), DoH (Win11/Cloudflare/Google/test),
+  Advanced tools column (14 lookups), Security-tests column (7) and
+  Repair/Harden column (7), plus the secure-provider loader.
+- 46/46 unit tests pass; py_compile OK.
 
 ## v29.32 - Live DNS Overview panel (throttled auto-refresh)
 
@@ -15,10 +24,6 @@
   live. Read-only telemetry, consistent with the v29.27/v29.28 live-loop
   rationale.
 - 4 new unit tests (46 total), 46/46 pass; py_compile OK.
-
-## v29.31 - Tooltips for the last bare buttons
-
-# Downpour v29 Titanium - Changelog
 
 ## v29.31 - Tooltips for the last bare buttons
 
