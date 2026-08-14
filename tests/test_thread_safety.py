@@ -446,3 +446,43 @@ class TestWarmPerfHistoryV2930b:
         assert '_perf_history' not in inst.__dict__
 
 
+# --------------------------------------------------------------------------
+# DNS Overview live refresh v29.32 — throttled auto-refresh + in-flight guard
+# --------------------------------------------------------------------------
+
+class TestDnsOverviewLiveV2932:
+    """The DNS Overview panel must refresh itself periodically instead of
+    being a dead one-shot path (its caller vanished during loop cleanup)."""
+
+    def _src(self) -> str:
+        return open(os.path.join(os.path.dirname(__file__),
+                                 '..', 'downpour_v29_titanium.py'),
+                    encoding='utf-8', errors='replace').read()
+
+    def test_overview_has_a_live_caller(self):
+        """_dns_refresh_overview must be reachable, not just defined."""
+        src = self._src()
+        assert src.count('_dns_refresh_overview(') >= 2   # def + at least one call
+
+    def test_overview_loop_wired_into_auto_start(self):
+        src = self._src()
+        assert 'self._dns_overview_loop' in src
+        assert 'after(4000, self._dns_refresh_overview)' in src
+
+    def test_overview_loop_never_raises_on_bare_instance(self):
+        inst = make_instance()
+        try:
+            inst._dns_overview_loop()
+        except Exception as e:  # pragma: no cover
+            raise AssertionError(f'_dns_overview_loop raised: {e}')
+
+    def test_overview_refresh_sets_busy_guard(self):
+        """Starting a refresh must raise the in-flight guard."""
+        import unittest.mock as um
+        inst = make_instance()
+        with um.patch.object(inst, '_dns_run_cmd', return_value=''):
+            with um.patch('threading.Thread'):
+                inst._dns_refresh_overview()
+        assert inst._dns_overview_busy is True
+
+

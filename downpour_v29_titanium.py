@@ -34268,6 +34268,16 @@ Verification Status:
         except Exception as e:
             error_logger.log('AutoStart', 'Failed to schedule _hw_loop', e)
 
+        # v29.32: DNS Overview panel is read-only telemetry too — refresh it
+        # once shortly after launch, then keep it live via a throttled loop
+        # (the tab self-guards until the DNS tab exists; the loop skips work
+        # while the tab is hidden).
+        try:
+            self.after(4000, self._dns_refresh_overview)
+            self.after(5000, self._dns_overview_loop)
+        except Exception as e:
+            error_logger.log('AutoStart', 'Failed to schedule DNS overview loop', e)
+
         # v29.28: Network-tab bandwidth summary visible as soon as the tab is
         # opened — the daemon poller only writes widgets when they exist.
         try:
@@ -42316,6 +42326,12 @@ Verification Status:
 
     def _dns_refresh_overview(self):
         """Populate the DNS overview tab."""
+        # v29.32: in-flight guard so the auto-refresh loop never overlaps a fetch
+        try:
+            self._dns_overview_busy = True
+            self._dns_overview_busy_since = time.time()
+        except Exception:
+            pass
         def _fetch():
             lines: Any = []
             threat_score: Any = 0
@@ -42437,8 +42453,50 @@ Verification Status:
                     self._dns_threat_detail_var.set(issue_text)
                 if hasattr(self, '_dns_status_lbl'):
                     self._dns_status_lbl.configure(fg=score_color)
-            self.after(0, _update_dns_ui)
+                self._dns_overview_busy = False
+                self._dns_overview_last_refresh = time.time()
+            try:
+                self.after(0, _update_dns_ui)
+            except Exception:
+                self._dns_overview_busy = False
         threading.Thread(target=_fetch, daemon=True, name='DNS-Overview').start()
+
+    def _dns_overview_loop(self):
+        """v29.32: keep the DNS Overview panel live — throttled 60s refresh.
+
+        Read-only telemetry (same rationale as the perf/hw live loops): the
+        overview pane only ever REPLACES its text widget, so a periodic
+        refresh is safe. Skipped while the DNS tab is hidden, and never
+        overlaps a fetch already in flight.
+        """
+        try:
+            vis: bool = False
+            if self.winfo_exists() and hasattr(self, 'nb'):
+                try:
+                    _t: Any = self.nb.tab(self.nb.select(), 'text')
+                    vis = 'DNS' in (_t or '')
+                except Exception:
+                    pass
+            now: Any = time.time()
+            # Safety: if a fetch ever got stuck, break the busy flag after 180s.
+            if (getattr(self, '_dns_overview_busy', False) and
+                    now - getattr(self, '_dns_overview_busy_since', 0) > 180):
+                self._dns_overview_busy = False
+            last: Any = getattr(self, '_dns_overview_last_refresh', 0)
+            if vis and not getattr(self, '_dns_overview_busy', False) and now - last > 60:
+                try:
+                    self._dns_refresh_overview()
+                except Exception:
+                    self._dns_overview_busy = False
+        except Exception:
+            pass
+        try:
+            self._orig_after(60_000, self._dns_overview_loop)
+        except Exception:
+            try:
+                self.after(60_000, self._dns_overview_loop)
+            except Exception:
+                pass
 
     def _dns_flush_cache(self):
         def _do():
