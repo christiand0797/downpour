@@ -1,5 +1,5 @@
 # TODO / Current State — Downpour v29 Titanium
-# Last verified: 2026-08-13 (v29.26, Windows 11 immersive dark title bar)
+# Last verified: 2026-08-13 (v29.29, risk-confirmation gates + perf tab overhaul)
 
 **READ THIS FIRST if you are a new agent picking up this project.**
 This file was badly stale (dated April 2026) until this rewrite. `_WORKLOG.md`
@@ -10,7 +10,7 @@ authoritative history. This file is the current-state snapshot + what's left.
 
 ## Verified Current State (as of this rewrite)
 
-- `downpour_v29_titanium.py`: ~50,850 lines, 741 methods in the main `downpour`
+- `downpour_v29_titanium.py`: ~47,865 lines, 744 methods in the main `downpour`
   class, **0 duplicate method names** (verify with the AST script below before
   and after any edit session — this has caught real bugs multiple times)
 - `gpu_detector_fix.py` shipped in v29.24 (was a dangling import in
@@ -18,7 +18,9 @@ authoritative history. This file is the current-state snapshot + what's left.
 - `tests/test_thread_safety.py` added in v29.25 — 16 pytest cases covering the
   FP-suppression flow, `_queue_alert` rate limit, and the executor post-back
   pattern. Run: `Python312\python.exe -m pytest tests -q`. (18 tests as of
-  v29.26 with the dark-titlebar cases.)
+  v29.26 with the dark-titlebar cases; **31 tests as of v29.29** — added
+  `TestPerfTabV2928` gauge/sparkline/ceiling cases, `TestThreatWebStack` intel
+  deep-link builder cases, and `TestRiskConfirmation` `_confirm_risk` cases.)
 - Full project: 58 Python files, 0 syntax errors
 - **Main-thread DB-freeze rule (v29.14)**: every `self.db.*` / `count_intel()`
   reached from a main-thread `after()` loop or a one-shot startup callback must
@@ -122,6 +124,35 @@ for node in ast.walk(tree):
       `_ddos_shield`, `_ddos_rate_monitor_ui`, `_ddos_block_all_flooders`,
       `_ddos_export_report`) genuinely exist. Confirmed complete, not
       aspirational.
+
+## v29.27–v29.29 Session (2026-08-13) — Performance tab + hardening
+
+- [x] **Performance tab live loop fixed** — `_perf_loop` had zero external
+      trigger (its kickoff `after()` was commented out), so the tab was a dead
+      UI shell. v29.27 wired `_auto_start` → `after(2000, self._perf_loop)`.
+- [x] **Perf gauges: label no longer covered by sparkline** — label was drawn
+      at `size+18` which sat inside the sparkline strip's `size+14..size+29`
+      band (rendered as a filled "black box"). v29.28 moved label to `size+8`.
+- [x] **Adaptive gauge ceilings for rate gauges** — DISK/NET rate gauges
+      previously used static max (7000 MB/s / 102400 KB/s) so the needle sat
+      at ~0 for real traffic. v29.28 derives `dyn_max = ceil(peak*1.4/100)*100`
+      from each gauge's history and stores it back into `_perf_gauge_meta` so
+      needle + sparkline scale together.
+- [x] **Perf waterfall: GPU column** — per-process table now shows GPU
+      attribution via `_gpu_proc_map` (NVML compute-apps).
+- [x] **Perf tab: live tables** — new "LIVE NETWORK INTERFACES" and "DISK
+      PARTITIONS" treeviews fed from HardwareMonitor public stats.
+- [x] **Mousewheel scoping fix** — `bind_all('<MouseWheel>')` was hijacking
+      every widget's scroll; v29.28 guards with `winfo_containing()`.
+- [x] **Intel tab "Threat Web Stack"** — keyless browser deep-links to Cisco
+      Talos, Hybrid Analysis, PhishTank, ANY.RUN, Joe Sandbox (from OSINT4ALL
+      triage stack mining).
+- [x] **`_confirm_risk()` gates** — v29.29 adds a shared confirmation helper
+      (always `askyesno`, headless-safe, returns `bool`) now wired into Threat
+      Action Panel (Block All IPs / Kill PIDs / Quarantine / Suspend / Root
+      Cause) and Threats-tab Kill Selected.
+- [x] **Tooltip sweep** — Intel Threat Response row (31 buttons) + Dashboard
+      quick-actions row now show tooltips (`_resp_tips` pattern + hand2).
 
 ## OSINT4ALL Research — Status
 
