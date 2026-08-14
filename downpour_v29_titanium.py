@@ -9862,6 +9862,8 @@ class SecureThreatIntelligenceDownloader:
                 'blocklist_de':  'https://lists.blocklist.de/lists/all.txt',
                 # FIX: added full blocklist variant used by downloader
                 'blocklist_de_all': 'https://lists.blocklist.de/lists/all.txt',
+                'ipsum':         'https://raw.githubusercontent.com/stamparm/ipsum/master/ipsum.txt',
+                'tor_exit_nodes': 'https://check.torproject.org/torbulkexitlist',
             },
             # -- YARA RULES ---------------------------------------------------------
             'yara_rules': {
@@ -9872,6 +9874,7 @@ class SecureThreatIntelligenceDownloader:
             'cve_databases': {
                 'cisa_kev': 'https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json',
                 'nvd_cve': 'https://nvd.nist.gov/feeds/json/cve/1.1/',
+                'nvd_cve_v2': 'https://services.nvd.nist.gov/rest/json/cves/2.0?resultsPerPage=20&pubStartDate={start}&pubEndDate={end}',
                 'exploitdb': 'https://www.exploit-db.com/download.csv'
             },
             # -- MISP COMMUNITY -------------------------------------------------------
@@ -39694,6 +39697,48 @@ Verification Status:
                f"Actions:\n- Block via firewall?\n- Geo-locate?\n- Copy to clipboard?")
         if messagebox.askyesno("IP Lookup", msg + "\n\nBlock this IP now?"):
             self._executor.submit(lambda: self._do_block_ip(ip))
+
+    def _fetch_epss_score(self, cve_id: str) -> Optional[dict]:
+        """Fetch EPSS exploit probability score for a CVE from FIRST.org (free, keyless).
+        
+        Returns dict with 'epss' (float 0.0-1.0), 'percentile' (float 0.0-1.0),
+        and 'date' (str), or None on failure.
+        """
+        try:
+            import urllib.request, json
+            url = f'https://api.first.org/data/v1/epss?cve={cve_id}'
+            req = urllib.request.Request(url, headers={'User-Agent': 'Downpour/29.40'})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode())
+                if data.get('data'):
+                    entry = data['data'][0]
+                    return {
+                        'epss': float(entry.get('epss', 0)),
+                        'percentile': float(entry.get('percentile', 0)),
+                        'date': entry.get('date', ''),
+                    }
+        except Exception:
+            pass
+        return None
+
+    def _fetch_osv_vulns(self, package_name: str, ecosystem: str = 'PyPI') -> list:
+        """Query Google OSV for vulnerabilities affecting a package."""
+        try:
+            import urllib.request, json
+            payload = json.dumps({
+                'package': {'name': package_name, 'ecosystem': ecosystem}
+            }).encode()
+            req = urllib.request.Request(
+                'https://api.osv.dev/v1/query',
+                data=payload,
+                headers={'Content-Type': 'application/json', 'User-Agent': 'Downpour/29.40'},
+                method='POST'
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode())
+                return data.get('vulns', [])
+        except Exception:
+            return []
 
     def _osint_abuseipdb_lookup(self, ioc: str):
         """Live AbuseIPDB reputation check for an IP.
