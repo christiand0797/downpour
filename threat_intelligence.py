@@ -1457,6 +1457,79 @@ class ThreatIntelligenceManager:
         finally:
             conn.close()
     
+    # v29.39: Feed health monitoring and alerting
+    
+    def check_feed_health(self) -> dict:
+        """
+        Check health status of all configured feeds.
+        
+        Returns:
+        - dict with feed health status: {feed_name: {'status': 'ok'|'stale'|'error', 'last_update': timestamp, 'message': str}}
+        """
+        health_report = {}
+        current_time = time.time()
+        
+        for feed_name, feed_config in self.feeds.items():
+            if not feed_config['enabled']:
+                health_report[feed_name] = {'status': 'disabled', 'last_update': 0, 'message': 'Feed disabled'}
+                continue
+            
+            last_update = feed_config.get('last_update', 0)
+            update_interval = feed_config.get('update_interval', 3600)
+            
+            # Check if feed is stale (not updated within 3x interval)
+            if last_update == 0:
+                status = 'never_updated'
+                message = 'Feed has never been updated'
+            elif current_time - last_update > (update_interval * 3):
+                status = 'stale'
+                message = f'Feed not updated for {int((current_time - last_update) / 60)} minutes'
+            else:
+                status = 'ok'
+                message = f'Last updated {int((current_time - last_update) / 60)} minutes ago'
+            
+            health_report[feed_name] = {
+                'status': status,
+                'last_update': last_update,
+                'message': message
+            }
+        
+        return health_report
+    
+    def get_feed_alerts(self) -> list:
+        """
+        Get alerts for feeds that need attention.
+        
+        Returns:
+        - list of alert dicts: [{'feed': name, 'severity': 'warning'|'critical', 'message': str}]
+        """
+        alerts = []
+        health = self.check_feed_health()
+        
+        for feed_name, feed_health in health.items():
+            if feed_health['status'] == 'stale':
+                alerts.append({
+                    'feed': feed_name,
+                    'severity': 'warning',
+                    'message': f"{feed_name}: {feed_health['message']}"
+                })
+            elif feed_health['status'] == 'never_updated':
+                alerts.append({
+                    'feed': feed_name,
+                    'severity': 'critical',
+                    'message': f"{feed_name}: {feed_health['message']}"
+                })
+        
+        # Check for high error rate
+        if self.stats.get('update_failures', 0) > 5:
+            alerts.append({
+                'feed': 'global',
+                'severity': 'warning',
+                'message': f"High feed error rate: {self.stats['update_failures']} failures"
+            })
+        
+        return alerts
+    
     def update_all_feeds(self):
         """Update all configured threat intelligence feeds."""
         total_iocs = 0

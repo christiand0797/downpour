@@ -312,6 +312,15 @@ class ProcessMonitor:
         - (suspicion_score: int, alerts: list)
         """
         try:
+            pid = proc.pid
+            
+            # v29.39: Check cache first
+            current_time = time.time()
+            if pid in self._process_cache:
+                cached_data, cache_time = self._process_cache[pid]
+                if current_time - cache_time < self._process_cache_ttl:
+                    return cached_data
+            
             # Get process information
             proc_info = {
                 'pid': proc.pid,
@@ -329,7 +338,9 @@ class ProcessMonitor:
             
             # Skip whitelisted processes
             if proc_info['name'] in self.whitelist:
-                return (0, [], proc_info)
+                result = (0, [], proc_info)
+                self._process_cache[pid] = (result, current_time)
+                return result
 
             # Skip known safe system processes
             if proc_info['name'] in self.system_processes:
@@ -337,7 +348,9 @@ class ProcessMonitor:
                 if proc_info['exe']:
                     exe_lower = proc_info['exe'].lower()
                     if 'system32' in exe_lower or 'windows' in exe_lower:
-                        return (0, [], proc_info)
+                        result = (0, [], proc_info)
+                        self._process_cache[pid] = (result, current_time)
+                        return result
             
             score = 0
             alerts = []
@@ -374,7 +387,15 @@ class ProcessMonitor:
             except Exception:
                 pass
             
-            return (score, alerts, proc_info)
+            result = (score, alerts, proc_info)
+            # v29.39: Cache the result
+            self._process_cache[pid] = (result, current_time)
+            # Clean old cache entries periodically
+            if len(self._process_cache) > 500:
+                self._process_cache = {k: v for k, v in self._process_cache.items()
+                                     if current_time - v[1] < self._process_cache_ttl}
+            
+            return result
             
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             return (0, [], {})

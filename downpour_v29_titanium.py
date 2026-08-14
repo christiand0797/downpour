@@ -17412,6 +17412,19 @@ class HardwareMonitor:
             stats['osint_lookups_today'] = getattr(self, '_osint_lookups_today', 0)
             stats['osint_cache_hits'] = getattr(self, '_osint_cache_hits', 0)
         except Exception: pass
+        # v29.39: OSINT feed status metrics from threat intelligence
+        try:
+            from threat_intelligence import ThreatIntelligenceManager
+            ti = ThreatIntelligenceManager()
+            stats['feed_threatwinds'] = ti.feeds.get('threatwinds', {}).get('last_update', 0) > 0 and 1 or 0
+            stats['feed_darkapi_urlhaus'] = ti.feeds.get('darkapi_urlhaus', {}).get('last_update', 0) > 0 and 1 or 0
+            stats['feed_darkapi_malware'] = ti.feeds.get('darkapi_malwarebazaar', {}).get('last_update', 0) > 0 and 1 or 0
+            stats['feed_threatbook'] = ti.feeds.get('threatbook_ioc', {}).get('last_update', 0) > 0 and 1 or 0
+            stats['feed_threatradar'] = ti.feeds.get('threatradar', {}).get('last_update', 0) > 0 and 1 or 0
+            stats['feed_updates_total'] = ti.stats.get('feeds_updated', 0)
+            stats['feed_errors_total'] = ti.stats.get('update_failures', 0)
+            stats['ioc_total_count'] = ti.stats.get('total_iocs', 0)
+        except Exception: pass
         # CPU temperature via WMI (optional)
         if WMI_AVAILABLE and stats['cpu_temp'] == 0:
             try:
@@ -27875,6 +27888,16 @@ Verification Status:
             ('OSINT TODAY',     'osint_lookups_today', 1000, '', 'purple'),
             ('OSINT CACHE',     'osint_cache_hits',   10000, '', 'green'),
             ('LOAD 15M',        'load_avg_15m',      32, '',    'heat'),
+            # Row 11 - v29.39: New OSINT Feed Status
+            ('THREATWINDS',     'feed_threatwinds',   1000, '', 'blue'),
+            ('DARKAPI URL',     'feed_darkapi_urlhaus', 1000, '', 'cyan'),
+            ('DARKAPI MAL',     'feed_darkapi_malware', 1000, '', 'cyan'),
+            ('THREATBOOK',      'feed_threatbook',    1000, '', 'purple'),
+            # Row 12 - v29.39: Additional OSINT Feed Status
+            ('THREATRADAR',     'feed_threatradar',   1000, '', 'orange'),
+            ('FEED UPDATES',    'feed_updates_total', 100, '', 'green'),
+            ('FEED ERRORS',     'feed_errors_total',  50, '', 'red'),
+            ('IOC TOTAL',       'ioc_total_count',    50000, '', 'teal'),
         ]
 
         COLS: Any = 4
