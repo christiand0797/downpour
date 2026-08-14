@@ -22806,19 +22806,29 @@ class downpour(tk.Tk):
         btn_row: Any = tk.Frame(p, bg=Colors.BG_VOID)
         btn_row.grid(row=0, column=0, columnspan=2, sticky='ew', padx=8, pady=4)
         buttons: Any = [
-            ("🎮 Gaming Mode",   self._activate_gaming_mode,  Colors.GAUGE_GREEN),
-            ("🔬 Scan Now",       self._scan_processes_now,    Colors.GAUGE_BLUE),
-            ("🌐 Update Intel",   self._update_intel_now,      Colors.GAUGE_TEAL),
-            ("📂 Quick Scan",     self._quick_file_scan,       Colors.GAUGE_PURPLE),
-            ("[SHIELD] Harden",         lambda: self._select_tab(self._tab_hardening), Colors.GAUGE_GREEN),
-            ("[LOCK] Ransomware",     lambda: self._select_tab(self._tab_ransomware), Colors.GAUGE_ORANGE),
-            ("[ALERT] PANIC",          self._panic_button,          Colors.GAUGE_RED),
+            ("🎮 Gaming Mode",   self._activate_gaming_mode,  Colors.GAUGE_GREEN,
+             "Suspend heavy background scans for lower latency / FPS"),
+            ("🔬 Scan Now",       self._scan_processes_now,    Colors.GAUGE_BLUE,
+             "Run an immediate process + threat scan"),
+            ("🌐 Update Intel",   self._update_intel_now,      Colors.GAUGE_TEAL,
+             "Refresh all threat-intelligence feeds now"),
+            ("📂 Quick Scan",     self._quick_file_scan,       Colors.GAUGE_PURPLE,
+             "Quick-scan a folder or file for known threats"),
+            ("[SHIELD] Harden",         lambda: self._select_tab(self._tab_hardening), Colors.GAUGE_GREEN,
+             "Open the Security Hardening panel"),
+            ("[LOCK] Ransomware",     lambda: self._select_tab(self._tab_ransomware), Colors.GAUGE_ORANGE,
+             "Open the Ransomware Protection panel"),
+            ("[ALERT] PANIC",          self._panic_button,          Colors.GAUGE_RED,
+             "FULL EMERGENCY LOCKDOWN — isolates network, kills suspicious processes, captures forensics"),
         ]
-        for i, (txt, cmd, col) in enumerate(buttons):
-            tk.Button(btn_row, text=txt, font=('Consolas', 9, 'bold'),
+        for i, (txt, cmd, col, tip) in enumerate(buttons):
+            _qb: Any = tk.Button(btn_row, text=txt, font=('Consolas', 9, 'bold'),
                       fg = col, bg=Colors.GLASS_CARD, relief='flat',
                       activebackground = Colors.GLASS_LIGHT, padx=8,
-                      command = cmd).pack(side='left', padx=3, pady=3)
+                      cursor = 'hand2',
+                      command = cmd)
+            _qb.pack(side='left', padx=3, pady=3)
+            self._tooltip(_qb, tip)
 
         # v29: separator then high-level one-click response buttons
         tk.Frame(btn_row, bg=Colors.TEXT_DIM, width=1, height=26).pack(
@@ -23986,6 +23996,39 @@ class downpour(tk.Tk):
                  fg = Colors.GAUGE_RED, bg=Colors.BG_VOID).pack(anchor='w', padx=10, pady=(10,2))
         resp_row: Any = tk.Frame(p, bg=Colors.BG_VOID)
         resp_row.pack(fill='x', padx=8, pady=2)
+        _resp_tips: Any = {
+            "🚫 Block IP Now":    "Add the current IOC IP to the Windows Firewall block list",
+            "📋 Copy IOC":        "Copy the current IOC to the clipboard",
+            "🔍 Whois Lookup":    "WHOIS registration lookup for the current domain/IP",
+            "📡 Reverse DNS":     "PTR reverse-DNS lookup for the current IP",
+            "GeoIP Lookup":      "Geographic / ASN attribution for the current IP",
+            "OSINT Stack":       "Open the curated OSINT stack deep-links for this IOC",
+            "Pulsedive":         "Pulsedive risk-scored IOC search (key or page fallback)",
+            "ONYPHE":            "ONYPHE internet-exposure & threat search (key or page fallback)",
+            "Censys":            "Censys Search v2 host view (API ID + secret)",
+            "Netlas":            "Netlas host / ASN / services lookup (Bearer key)",
+            "EmailRep":          "EmailRep.io email reputation (key or page fallback)",
+            "Wayback Check":     "Wayback Machine availability (no-key; no history = phishing flag)",
+            "urlscan Submit":    "Submit the URL to urlscan.io for analysis (key)",
+            "urlscan Search":    "Search urlscan.io public scans for this IOC (no key)",
+            "MalwareBazaar":     "MalwareBazaar hash lookup (free Auth-Key)",
+            "URLhaus":           "URLhaus malicious-URL / payload search (free Auth-Key)",
+            "ThreatFox":         "ThreatFox IOC search (malware family / confidence)",
+            "AlienVault OTX":    "AlienVault OTX pulses for IP/domain/hash (keyless)",
+            "AbuseIPDB":         "AbuseIPDB reputation & abuse reports (key or page)",
+            "Shodan":            "Shodan host / search lookup (key or page)",
+            "GreyNoise":         "GreyNoise Community noise-vs-targeted triage (key)",
+            "Hudson Rock":       "Hudson Rock infostealer breach context (keyless)",
+            "IPinfo":            "IPinfo.io ASN / geo / anycast attribution (keyless)",
+            "BGPView":           "BGPView BGP routing graph for IP/ASN (keyless)",
+            "HackerTarget":      "HackerTarget reverse-IP / GeoIP / DNS / ASN recon (keyless)",
+            "Threat Web Stack":  "Browser deep-links: Talos / Hybrid Analysis / PhishTank / ANY.RUN / Joe Sandbox",
+            "CyberChef Decode":  "GCHQ CyberChef with the current IOC pre-loaded",
+            "Export Report":     "Export the current intel assessment to a report",
+            "[MISP] Import IOCs": "Import a MISP event / STIX bundle / IOC text file",
+            "[MISP] Export Event": "Export the IOC database as a MISP-format JSON event",
+            "[HIGH] Submit to VirusTotal": "Submit the current file/hash/URL to VirusTotal",
+        }
         for btn_txt, btn_cmd in [
             ("🚫 Block IP Now",         lambda: self._intel_block_ip()),
             ("📋 Copy IOC",             lambda: self._intel_copy_ioc()),
@@ -24019,9 +24062,16 @@ class downpour(tk.Tk):
             ("[MISP] Export Event",  lambda: self._intel_export_misp()),
             ("[HIGH] Submit to VirusTotal", lambda: self._intel_submit_vt()),
         ]:
-            tk.Button(resp_row, text=btn_txt, font=('Consolas', 8),
+            _btn = tk.Button(resp_row, text=btn_txt, font=('Consolas', 8),
                       fg = Colors.GAUGE_ORANGE, bg=Colors.GLASS_CARD, relief='flat',
-                      command = btn_cmd).pack(side='left', padx=3, pady=2)
+                      cursor = 'hand2',
+                      activebackground = Colors.GLASS_LIGHT,
+                      activeforeground = Colors.GAUGE_ORANGE,
+                      command = btn_cmd)
+            _btn.pack(side='left', padx=3, pady=2)
+            tip: Any = _resp_tips.get(btn_txt)
+            if tip:
+                self._tooltip(_btn, tip)
 
         # -- Custom Database Manager -------------------------------------------
         db_frame: Any = tk.LabelFrame(p, text="  📦 Custom Feed / Database Manager  ",
