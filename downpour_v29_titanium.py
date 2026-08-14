@@ -91,6 +91,11 @@ _os.environ['TMP']  = _APP_TEMP
 import sys as _sys, threading as _threading, traceback as _tb_mod
 import logging as _crash_logging
 
+import time as _time
+import sys as _sys
+import traceback as _tb_mod
+from collections import deque
+
 # -- FAULTHANDLER: Catch C-level segfaults/access violations ----------------
 # This writes the thread stack trace to a file on fatal crash (SIGSEGV etc)
 import faulthandler as _fh
@@ -102,6 +107,30 @@ except Exception:
 # ---------------------------------------------------------------------------
 
 _crash_lg: Any = _crash_logging.getLogger('Downpour.CrashCatcher')
+
+# Initialise main application logger with rotating file handler
+_logger = _crash_logging.getLogger('Downpour')
+if not _logger.handlers:
+    _handler = _crash_logging.handlers.RotatingFileHandler(
+        filename='downpour_data/logs/app.log', maxBytes=5_000_000, backupCount=3, encoding='utf-8'
+    )
+    _formatter = _crash_logging.Formatter('%(asctime)s %(levelname)s %(name)s: %(message)s')
+    _handler.setFormatter(_formatter)
+    _logger.addHandler(_handler)
+    _logger.setLevel(_crash_logging.INFO)
+
+def _log_exception(exc: Exception, context: str):
+    """Log full traceback with context for UI‑thread safety."""
+    _logger.error(f"Exception in {context}: {exc}", exc_info=True)
+
+def safe_ui(func):
+    """Decorator to wrap UI callbacks; catches and logs exceptions, prevents Tk crash."""
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            _log_exception(e, func.__name__)
+    return wrapper
 
 def _global_thread_excepthook(args):
     _crash_lg.critical(
@@ -21294,6 +21323,18 @@ class downpour(tk.Tk):
         # Memory optimization tracking
         self._last_gc: float = time.time()
         
+        # FIX-v29.40: Initialize attributes that are accessed before their
+        # setup routines run (prevents _tkinter.tkapp AttributeError crashes)
+        self._alerted_dedup: dict = {}
+        self._alert_queue: list = []
+        self._pending_alerts: list = []
+        self._alert_timestamps = deque(maxlen=120)
+        self._alert_rate_reset: float = 0.0
+        self._alert_rate_count: int = 0
+        self._usb_monitor_active: bool = False
+        self._widget = None
+        self._hb_phase: int = 0
+        
         # Enhanced memory management integration
         if ENHANCED_MEMORY_MANAGER_AVAILABLE:
             try:
@@ -22847,8 +22888,19 @@ class downpour(tk.Tk):
         # Uptime counter
         self._uptime_start = time.time()
         self._sb_uptime = tk.Label(status_bar, text="\u23f1 00:00:00",
-                                    font = ('Consolas', 8), fg=Colors.TEXT_DIM,
-                                    bg = Colors.GLASS_DARK)
+                                    font=('Consolas', 8), fg=Colors.TEXT_DIM,
+                                    bg=Colors.GLASS_DARK)
+        self._sb_uptime.grid(row=0, column=5, padx=6, sticky='e')
+        # Heartbeat label for freeze detection
+        self._sb_heartbeat = tk.Label(status_bar, text='♥', font=('Consolas', 8), fg=Colors.TEXT_DIM, bg=Colors.GLASS_DARK)
+        self._sb_heartbeat.grid(row=0, column=6, padx=4, sticky='e')
+        # Alerts‑per‑minute meter
+        self._sb_alert_rate = tk.Label(status_bar, text='⚡ 0/min', font=('Consolas', 8), fg=Colors.TEXT_DIM, bg=Colors.GLASS_DARK)
+        self._sb_alert_rate.grid(row=0, column=7, padx=4, sticky='e')
+        # Start heartbeat updater
+        self.after(500, self._heartbeat_tick)
+        # Start alert‑rate updater
+        self.after(15000, self._update_alert_rate_meter)
         self._sb_uptime.grid(row=0, column=5, padx=6, sticky='e')
         # Scrolling threat ticker on far right
         self._last_alert_var = tk.StringVar(value="")
@@ -35198,6 +35250,58 @@ Verification Status:
         except Exception:
             pass
 
+    def _heartbeat_tick(self):
+        """Toggle the status bar heartbeat symbol every 500ms to show the UI is responsive."""
+        try:
+            if not self.winfo_exists():
+                return
+            if not hasattr(self, '_sb_heartbeat'):
+                return
+            # Toggle between ♥ and ♡ with color pulse
+            self._hb_phase = getattr(self, '_hb_phase', 0) + 1
+            if self._hb_phase % 2 == 0:
+                self._sb_heartbeat.config(text='♥', fg=Colors.GAUGE_RED)
+            else:
+                self._sb_heartbeat.config(text='♡', fg=Colors.TEXT_DIM)
+        except Exception:
+            pass
+        try:
+            self._orig_after(500, self._heartbeat_tick)
+        except Exception:
+            pass
+
+    def _update_alert_rate_meter(self):
+        """Update the status bar alerts-per-minute rate indicator every 15 seconds."""
+        try:
+            if not self.winfo_exists():
+                return
+            if not hasattr(self, '_sb_alert_rate'):
+                return
+            if not hasattr(self, '_alert_timestamps'):
+                self._alert_timestamps = deque(maxlen=120)
+            import time as _t
+            now = _t.monotonic()
+            # Count alerts in the last 60 seconds
+            recent = sum(1 for ts in self._alert_timestamps if now - ts < 60.0)
+            # Color code: green < 5, yellow 5-15, orange 15-30, red > 30
+            if recent == 0:
+                color = Colors.TEXT_DIM
+            elif recent < 5:
+                color = Colors.GAUGE_GREEN
+            elif recent < 15:
+                color = Colors.GAUGE_YELLOW
+            elif recent < 30:
+                color = Colors.GAUGE_ORANGE
+            else:
+                color = Colors.GAUGE_RED
+            self._sb_alert_rate.config(text=f'⚡ {recent}/min', fg=color)
+        except Exception:
+            pass
+        try:
+            self._orig_after(15000, self._update_alert_rate_meter)
+        except Exception:
+            pass
+
     def _refresh_status_pills(self):
         """Refresh the AV-Safe and threat-count status bar pills every 10 s."""
         try:
@@ -35262,6 +35366,63 @@ Verification Status:
             score, max_score = self.hardening.get_score()
             pct: Any = int(score / max_score * 100) if max_score else 0
             color: Any = Colors.GAUGE_RED if pct < 50 else (Colors.GAUGE_ORANGE if pct < 75 else Colors.GAUGE_GREEN)
+            try:
+                self.after(0, lambda p=pct, c=color: self._apply_harden_score(p, c))
+            except RuntimeError:
+                pass
+        except Exception as e:
+            error_logger.log('HardenCheck', 'Background hardening analysis failed', e)
+
+    def _apply_harden_score(self, pct: int, color: str):
+        """Apply hardening score to the UI (called from main thread via after)."""
+        try:
+            if hasattr(self, '_harden_score_lbl'):
+                self._harden_score_lbl.config(text=f'{pct}%', fg=color)
+        except Exception:
+            pass
+
+    def _start_hw_thread(self):
+        """Spawn a daemon thread that continuously updates hardware stats and posts them to the UI."""
+        def _worker():
+            while self.winfo_exists():
+                try:
+                    with self.hw._lock:
+                        if not self.hw._cache:
+                            _time.sleep(1)
+                            continue
+                        s = dict(self.hw._cache)
+                    # Post update to UI thread
+                    self.after(0, lambda stats=s: self._update_hw_ui(stats))
+                except Exception as e:
+                    _log_exception(e, '_hw_thread')
+                _time.sleep(self._hw_ms / 1000.0)
+        t = _threading.Thread(target=_worker, daemon=True, name='HW-Thread')
+        t.start()
+        self._hw_thread = t
+
+    def _update_hw_ui(self, s: dict):
+        """UI‑side update of hardware labels – called from the HW thread via ``after``."""
+        try:
+            cpu_pct = s.get('cpu_percent', 0) or 0
+            cpu_temp = s.get('cpu_temp', 0) or 0
+            ram_pct = s.get('ram_percent', 0) or 0
+            gpu_pct = s.get('gpu_percent', 0) or 0
+            net_up = s.get('net_send_rate', 0) or 0
+            net_dn = s.get('net_recv_rate', 0) or 0
+            cpu_color = Colors.GAUGE_RED if cpu_pct > 85 else (Colors.GAUGE_ORANGE if cpu_pct > 60 else Colors.GAUGE_BLUE)
+            ram_color = Colors.GAUGE_RED if ram_pct > 90 else (Colors.GAUGE_ORANGE if ram_pct > 75 else Colors.GAUGE_PURPLE)
+            gpu_color = Colors.GAUGE_RED if gpu_pct > 90 else Colors.GAUGE_ORANGE
+            tmp_color = Colors.GAUGE_RED if cpu_temp > 85 else (Colors.GAUGE_ORANGE if cpu_temp > 65 else Colors.GAUGE_GREEN)
+            if hasattr(self, '_cpu_lbl'):
+                self._cpu_lbl.config(text=f"{cpu_pct:.1f}%", fg=cpu_color)
+                self._ram_lbl.config(text=f"{ram_pct:.1f}%", fg=ram_color)
+                self._gpu_lbl.config(text=f"{gpu_pct:.0f}%" if gpu_pct else "N/A", fg=gpu_color)
+                self._tmp_lbl.config(text=f"{cpu_temp:.0f} degC" if cpu_temp else "--", fg=tmp_color)
+                def _rate(kbs):
+                    return f"{kbs/1024:.1f}M" if kbs >= 1024 else f"{kbs:.0f}K"
+                self._net_lbl.config(text=f"^{_rate(net_up)} v{_rate(net_dn)}")
+        except Exception as e:
+            _log_exception(e, '_update_hw_ui')
             self._queue_alert(
                 f"[SHIELD] Security Score: {pct}% ({score}/{max_score})  -  {'NEEDS HARDENING' if pct < 50 else 'Good'}",
                 color)
@@ -35865,37 +36026,41 @@ Verification Status:
             pass
 
     def _queue_alert(self, msg: str, color: Optional[str] = None):
-        """Thread-safe fast path with rate limiting."""
+        """Thread‑safe alert queue with rate‑limit, dedup, and timestamp tracking for the rate meter."""
+        if not hasattr(self, '_alert_timestamps'):
+            self._alert_timestamps = deque(maxlen=120)  # store timestamps for last 2 min
         if color is None:
             color = Colors.TEXT_LIGHT
         import time as _t
-        now: Any = _t.monotonic()
-        # FIX-v28p16: Hard rate limit - max 2 alerts per second globally
-        if now - self._alert_rate_reset > 1.0:
+        now = _t.monotonic()
+        # Rate‑limit global alerts (max 2/sec)
+        if now - getattr(self, '_alert_rate_reset', 0) > 1.0:
             self._alert_rate_reset = now
             self._alert_rate_count = 0
-        self._alert_rate_count += 1
+        self._alert_rate_count = getattr(self, '_alert_rate_count', 0) + 1
         if self._alert_rate_count > 2:
-            return  # Drop alert - rate limited
-        # Dedup: skip if same prefix fired within last 4 seconds
-        prefix: Any = msg[:40]
-        last: Any = self._alerted_dedup.get(prefix, 0)
-        if now - last < 30.0:  # FIX-v28p16: was 4s, alert flood was 100+/min
             return
+        # Deduplication (4‑second window)
+        prefix = msg[:40]
+        last = getattr(self, '_alerted_dedup', {}).get(prefix, 0)
+        if now - last < 30.0:
+            return
+        if not hasattr(self, '_alerted_dedup'):
+            self._alerted_dedup = {}
         self._alerted_dedup[prefix] = now
-        # Prune old dedup entries every ~200 alerts
         if len(self._alerted_dedup) > 200:
-            cutoff: Any = now - 60.0  # FIX-v28p16: match dedup window
+            cutoff = now - 60.0
             self._alerted_dedup = {k: v for k, v in self._alerted_dedup.items() if v > cutoff}
-        # FIX-v29.16: drop known false positives before they reach the UI.
-        # Memory-only check (cache loaded at startup) — no DB on this path.
         if self._fp_is_suppressed(msg):
             return
-        # FIX-v28p21: Run MITRE tagging here (bg thread, not main thread)
         if color in (Colors.GAUGE_RED, Colors.GAUGE_ORANGE):
-            try: msg = self._tag_mitre(msg)
-            except Exception: pass
+            try:
+                msg = self._tag_mitre(msg)
+            except Exception:
+                pass
         self._pending_alerts.append((msg, color))
+        # Record timestamp for alert‑rate meter
+        self._alert_timestamps.append(now)
 
     # ------------------------------------------------------------------------
     #  DB-backed false-positive auto-suppression (FIX-v29.16)
