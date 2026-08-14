@@ -143,6 +143,82 @@ Added additional real-time gauges to the Performance tab:
 - **ACTIVE ACTORS**: Currently active threat actors
 - **ACTIVITY SCORE**: Calculated activity score (0-100)
 
+#### Real-Time File Threat Detection (Row 22)
+- **FILE THREATS/H**: File threat detections in the last hour
+- **TOTAL FILE THRT**: Cumulative file threat count
+- **MALWARE DETECT**: Malware hash detections
+- **HASH LOOKUPS**: IOC hash lookups performed
+
+#### OSINT Feed Health Monitoring (Row 23)
+- **FEED ALERTS**: Active feed health alerts
+- **STALE FEEDS**: Count of stale feeds (not updated in 3x interval)
+- **HEALTHY FEEDS**: Count of healthy feeds (updated within threshold)
+- **FEED ERRORS**: Cumulative feed update failures
+
+#### Real-Time Phishing URL Detection (Row 24)
+- **PHISH URLs/H**: Phishing URL detections in the last hour
+- **TOTAL PHISH**: Cumulative phishing URL count
+- **PHISH RATE**: Phishing detection rate percentage
+- **PHISH SCORE**: Calculated phishing threat score (0-100)
+
+#### Real-Time C2 Server Detection (Row 25)
+- **C2 SERVERS/H**: C2 server detections in the last hour
+- **TOTAL C2**: Cumulative C2 server count
+- **C2 RATE**: C2 detection rate percentage
+- **C2 SCORE**: Calculated C2 threat score (0-100)
+
+#### Real-Time Suspicious DNS Query Detection (Row 26)
+- **SUS DNS/H**: Suspicious DNS queries in the last hour
+- **TOTAL SUS DNS**: Cumulative suspicious DNS query count
+- **DNS RATE**: Suspicious DNS detection rate percentage
+- **DNS SCORE**: Calculated DNS threat score (0-100)
+
+#### Real-Time Malware Hash Detection (Row 27)
+- **MALWARE/H**: Malware hash detections in the last hour
+- **TOTAL MALWARE**: Cumulative malware hash count
+- **MALWARE RATE**: Malware detection rate percentage
+- **MALWARE SCORE**: Calculated malware threat score (0-100)
+
+### 8. Real-Time Phishing URL Detection Tracking (v29.39)
+Added real-time phishing URL detection tracking for enhanced threat intelligence:
+
+- **Phishing URLs/Hour**: Tracks phishing URL detections in the last hour
+- **Total Phishing URLs**: Cumulative count of phishing URLs detected
+- **Phishing History**: Maintains timestamp history for hourly calculations
+- **Automatic Cleanup**: Removes detections older than 1 hour
+- **PhishTank Integration**: Tracks detections from PhishTank feed updates
+- **Performance Tab Gauges**: 4 new gauges for phishing URL visualization
+
+### 9. Real-Time C2 Server Detection Tracking (v29.39)
+Added real-time C2 (Command and Control) server detection tracking for enhanced threat intelligence:
+
+- **C2 Servers/Hour**: Tracks C2 server detections in the last hour
+- **Total C2 Servers**: Cumulative count of C2 servers detected
+- **C2 History**: Maintains timestamp history for hourly calculations
+- **Automatic Cleanup**: Removes detections older than 1 hour
+- **Tag-Based Detection**: Tracks IPs/domains tagged with C2-related keywords
+- **Performance Tab Gauges**: 4 new gauges for C2 server visualization
+
+### 10. Real-Time Suspicious DNS Query Tracking (v29.39)
+Added real-time suspicious DNS query tracking for enhanced threat intelligence:
+
+- **Suspicious DNS/Hour**: Tracks suspicious DNS queries in the last hour
+- **Total Suspicious DNS**: Cumulative count of suspicious DNS queries detected
+- **DNS History**: Maintains timestamp history for hourly calculations
+- **Automatic Cleanup**: Removes queries older than 1 hour
+- **Tag-Based Detection**: Tracks domains tagged with DNS-related keywords (DNS, DGA, tunnel)
+- **Performance Tab Gauges**: 4 new gauges for suspicious DNS visualization
+
+### 11. Real-Time Malware Hash Detection Tracking (v29.39)
+Added real-time malware hash detection tracking for enhanced threat intelligence:
+
+- **Malware Hashes/Hour**: Tracks malware hash detections in the last hour
+- **Total Malware Hashes**: Cumulative count of malware hashes detected
+- **Malware History**: Maintains timestamp history for hourly calculations
+- **Automatic Cleanup**: Removes detections older than 1 hour
+- **Integration**: Tracks detections when adding malware hashes to database
+- **Performance Tab Gauges**: 4 new gauges for malware hash visualization
+
 ---
 
 ## API Configuration

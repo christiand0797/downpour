@@ -110,6 +110,31 @@ class ThreatIntelligenceManager:
         self._feed_history = {}  # feed_name -> list of (timestamp, ioc_count) tuples
         self._max_history_points = 100  # Keep last 100 data points per feed
         
+        # v29.39: Real-time file threat detection tracking
+        self._file_threats_hour = 0
+        self._file_threat_history = []  # Timestamps of file threat detections for hourly calculation
+        self._total_file_threats = 0
+        
+        # v29.39: Real-time phishing URL detection tracking
+        self._phishing_urls_hour = 0
+        self._phishing_url_history = []  # Timestamps of phishing URL detections for hourly calculation
+        self._total_phishing_urls = 0
+        
+        # v29.39: Real-time C2 server detection tracking
+        self._c2_servers_hour = 0
+        self._c2_server_history = []  # Timestamps of C2 server detections for hourly calculation
+        self._total_c2_servers = 0
+        
+        # v29.39: Real-time suspicious DNS query tracking
+        self._suspicious_dns_hour = 0
+        self._suspicious_dns_history = []  # Timestamps of suspicious DNS queries for hourly calculation
+        self._total_suspicious_dns = 0
+        
+        # v29.39: Real-time malware hash detection tracking
+        self._malware_hashes_hour = 0
+        self._malware_hash_history = []  # Timestamps of malware hash detections for hourly calculation
+        self._total_malware_hashes = 0
+        
         # Initialize local database
         self.db_path = Path("threat_intel.db")
         self.init_database()
@@ -276,6 +301,51 @@ class ThreatIntelligenceManager:
         # Clean up old IOC hits (older than 1 hour)
         self._ioc_hit_history = [t for t in self._ioc_hit_history if now - t < 3600]
         self._ioc_hits_last_hour = len(self._ioc_hit_history)
+    
+    def _track_phishing_url(self):
+        """Track phishing URL detection for real-time metrics."""
+        now = time.time()
+        self._phishing_url_history.append(now)
+        # Clean up old detections (older than 1 hour)
+        self._phishing_url_history = [t for t in self._phishing_url_history if now - t < 3600]
+        self._phishing_urls_hour = len(self._phishing_url_history)
+        self._total_phishing_urls += 1
+    
+    def _track_c2_server(self):
+        """Track C2 server detection for real-time metrics."""
+        now = time.time()
+        self._c2_server_history.append(now)
+        # Clean up old detections (older than 1 hour)
+        self._c2_server_history = [t for t in self._c2_server_history if now - t < 3600]
+        self._c2_servers_hour = len(self._c2_server_history)
+        self._total_c2_servers += 1
+    
+    def _track_suspicious_dns(self):
+        """Track suspicious DNS query for real-time metrics."""
+        now = time.time()
+        self._suspicious_dns_history.append(now)
+        # Clean up old queries (older than 1 hour)
+        self._suspicious_dns_history = [t for t in self._suspicious_dns_history if now - t < 3600]
+        self._suspicious_dns_hour = len(self._suspicious_dns_history)
+        self._total_suspicious_dns += 1
+    
+    def _track_malware_hash(self):
+        """Track malware hash detection for real-time metrics."""
+        now = time.time()
+        self._malware_hash_history.append(now)
+        # Clean up old detections (older than 1 hour)
+        self._malware_hash_history = [t for t in self._malware_hash_history if now - t < 3600]
+        self._malware_hashes_hour = len(self._malware_hash_history)
+        self._total_malware_hashes += 1
+    
+    def _track_file_threat(self):
+        """Track file threat detection for real-time metrics."""
+        now = time.time()
+        self._file_threat_history.append(now)
+        # Clean up old file threats (older than 1 hour)
+        self._file_threat_history = [t for t in self._file_threat_history if now - t < 3600]
+        self._file_threats_hour = len(self._file_threat_history)
+        self._total_file_threats += 1
         
     def init_database(self):
         """Initialize SQLite database for storing threat intelligence."""
@@ -495,6 +565,8 @@ class ThreatIntelligenceManager:
                     if url and url.startswith('http'):
                         phish_tags = ['phishing']
                         self.add_malicious_url(url, 'phishtank', 'phishing', phish_tags)
+                        # v29.39: Track phishing URL detection for real-time metrics
+                        self._track_phishing_url()
                         iocs_added += 1
                         
                 except Exception as e:
@@ -562,6 +634,10 @@ class ThreatIntelligenceManager:
             
             # v29.39: Track IOC hit for real-time metrics
             self._track_ioc_hit()
+            
+            # v29.39: Track C2 server if tagged as such
+            if tags and any('c2' in tag.lower() or 'command' in tag.lower() or 'control' in tag.lower() for tag in tags):
+                self._track_c2_server()
 
         except Exception as e:
             logging.error(f"Error adding malicious IP {ip}: {e}")
@@ -590,6 +666,14 @@ class ThreatIntelligenceManager:
             
             # v29.39: Track IOC hit for real-time metrics
             self._track_ioc_hit()
+            
+            # v29.39: Track C2 server if tagged as such
+            if tags and any('c2' in tag.lower() or 'command' in tag.lower() or 'control' in tag.lower() for tag in tags):
+                self._track_c2_server()
+            
+            # v29.39: Track suspicious DNS if tagged as such
+            if tags and any('dns' in tag.lower() or 'dga' in tag.lower() or 'tunnel' in tag.lower() for tag in tags):
+                self._track_suspicious_dns()
 
         except Exception as e:
             logging.error(f"Error adding malicious domain {domain}: {e}")
@@ -633,6 +717,12 @@ class ThreatIntelligenceManager:
 
             conn.commit()
             self.malware_hashes.add(file_hash)
+            
+            # v29.39: Track file threat for real-time metrics
+            self._track_file_threat()
+            
+            # v29.39: Track malware hash for real-time metrics
+            self._track_malware_hash()
 
         except Exception as e:
             logging.error(f"Error adding malware hash {file_hash}: {e}")

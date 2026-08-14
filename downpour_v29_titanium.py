@@ -17538,6 +17538,42 @@ class HardwareMonitor:
             stats['active_actors'] = len(getattr(vs, '_threat_actors_detected', set()))
             stats['activity_score'] = min(100, getattr(vs, '_threat_actor_activity_hour', 0) * 10)
         except Exception: pass
+        # v29.39: Real-time file threat detection tracking
+        try:
+            from threat_intelligence import ThreatIntelligenceManager
+            ti = ThreatIntelligenceManager()
+            stats['file_threats_hour'] = getattr(ti, '_file_threats_hour', 0)
+            stats['total_file_threats'] = getattr(ti, '_total_file_threats', 0)
+            stats['malware_detected'] = len(getattr(ti, 'malware_hashes', set()))
+            stats['hash_lookups'] = getattr(ti, '_ioc_hits_last_hour', 0)
+            # v29.39: OSINT feed health monitoring
+            health = ti.check_feed_health()
+            alerts = ti.get_feed_alerts()
+            stats['feed_alerts'] = len(alerts)
+            stats['stale_feeds'] = sum(1 for h in health.values() if h['status'] == 'stale')
+            stats['healthy_feeds'] = sum(1 for h in health.values() if h['status'] == 'ok')
+            stats['feed_errors'] = getattr(ti.stats, 'update_failures', 0) if hasattr(ti, 'stats') else 0
+            # v29.39: Real-time phishing URL detection tracking
+            stats['phish_urls_hour'] = getattr(ti, '_phishing_urls_hour', 0)
+            stats['total_phish'] = getattr(ti, '_total_phishing_urls', 0)
+            stats['phish_rate'] = min(100, getattr(ti, '_phishing_urls_hour', 0) * 2) if getattr(ti, '_phishing_urls_hour', 0) > 0 else 0
+            stats['phish_score'] = min(100, getattr(ti, '_total_phishing_urls', 0) // 5)
+            # v29.39: Real-time C2 server detection tracking
+            stats['c2_servers_hour'] = getattr(ti, '_c2_servers_hour', 0)
+            stats['total_c2'] = getattr(ti, '_total_c2_servers', 0)
+            stats['c2_rate'] = min(100, getattr(ti, '_c2_servers_hour', 0) * 5) if getattr(ti, '_c2_servers_hour', 0) > 0 else 0
+            stats['c2_score'] = min(100, getattr(ti, '_total_c2_servers', 0) * 2)
+            # v29.39: Real-time suspicious DNS query tracking
+            stats['sus_dns_hour'] = getattr(ti, '_suspicious_dns_hour', 0)
+            stats['total_sus_dns'] = getattr(ti, '_total_suspicious_dns', 0)
+            stats['dns_rate'] = min(100, getattr(ti, '_suspicious_dns_hour', 0)) if getattr(ti, '_suspicious_dns_hour', 0) > 0 else 0
+            stats['dns_score'] = min(100, getattr(ti, '_total_suspicious_dns', 0) // 10)
+            # v29.39: Real-time malware hash detection tracking
+            stats['malware_hour'] = getattr(ti, '_malware_hashes_hour', 0)
+            stats['total_malware'] = getattr(ti, '_total_malware_hashes', 0)
+            stats['malware_rate'] = min(100, getattr(ti, '_malware_hashes_hour', 0) * 2) if getattr(ti, '_malware_hashes_hour', 0) > 0 else 0
+            stats['malware_score'] = min(100, getattr(ti, '_total_malware_hashes', 0) // 5)
+        except Exception: pass
         # v29.39: Real-time disk I/O metrics
         try:
             disk_io = psutil.disk_io_counters()
@@ -28100,6 +28136,36 @@ Verification Status:
             ('TOTAL ACTORS',   'total_actors',      25, '', 'orange'),
             ('ACTIVE ACTORS',  'active_actors',     20, '', 'red'),
             ('ACTIVITY SCORE', 'activity_score',    100, '', 'purple'),
+            # Row 22 - v29.39: Real-time File Threat Detection
+            ('FILE THREATS/H', 'file_threats_hour', 100, '/h', 'red'),
+            ('TOTAL FILE THRT', 'total_file_threats', 1000, '', 'orange'),
+            ('MALWARE DETECT', 'malware_detected',   50, '', 'red'),
+            ('HASH LOOKUPS',   'hash_lookups',      200, '', 'purple'),
+            # Row 23 - v29.39: OSINT Feed Health Monitoring
+            ('FEED ALERTS',    'feed_alerts',       10, '', 'red'),
+            ('STALE FEEDS',    'stale_feeds',       10, '', 'orange'),
+            ('HEALTHY FEEDS',  'healthy_feeds',     15, '', 'green'),
+            ('FEED ERRORS',    'feed_errors',       20, '', 'purple'),
+            # Row 24 - v29.39: Real-Time Phishing URL Detection
+            ('PHISH URLs/H',   'phish_urls_hour',   50, '/h', 'red'),
+            ('TOTAL PHISH',    'total_phish',       500, '', 'orange'),
+            ('PHISH RATE',     'phish_rate',       100, '%', 'red'),
+            ('PHISH SCORE',    'phish_score',      100, '', 'purple'),
+            # Row 25 - v29.39: Real-Time C2 Server Detection
+            ('C2 SERVERS/H',   'c2_servers_hour',   20, '/h', 'red'),
+            ('TOTAL C2',       'total_c2',          50, '', 'orange'),
+            ('C2 RATE',        'c2_rate',          100, '%', 'red'),
+            ('C2 SCORE',       'c2_score',         100, '', 'purple'),
+            # Row 26 - v29.39: Real-Time Suspicious DNS Query Detection
+            ('SUS DNS/H',      'sus_dns_hour',     100, '/h', 'red'),
+            ('TOTAL SUS DNS',  'total_sus_dns',    1000, '', 'orange'),
+            ('DNS RATE',       'dns_rate',         100, '%', 'red'),
+            ('DNS SCORE',      'dns_score',        100, '', 'purple'),
+            # Row 27 - v29.39: Real-Time Malware Hash Detection
+            ('MALWARE/H',      'malware_hour',     50, '/h', 'red'),
+            ('TOTAL MALWARE',  'total_malware',    500, '', 'orange'),
+            ('MALWARE RATE',   'malware_rate',     100, '%', 'red'),
+            ('MALWARE SCORE',  'malware_score',    100, '', 'purple'),
         ]
 
         COLS: Any = 4
