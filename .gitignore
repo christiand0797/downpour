@@ -54,6 +54,7 @@ _legacy_launchers/
 downpour_v2[0-8]_*.py
 downpour_v28*.py
 PUSH_TO_GITHUB.bat
+push_to_github.ps1
 push_log.txt
 
 # ─── Helper scripts (don't commit) ───────────────────────────────────────────
