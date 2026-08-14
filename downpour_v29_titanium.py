@@ -34685,6 +34685,18 @@ Verification Status:
         # so startup never blocks on db._lock)
         self.after(500, self._refresh_ioc_count_display)
 
+        # v29.39: Feed health monitoring — check every 30 minutes for stale/failed feeds
+        try:
+            self.after(10_000, self._scheduled_feed_health_check)
+        except Exception as e:
+            error_logger.log('AutoStart', 'Failed to schedule feed health check', e)
+
+        # v29.39: Automatic feed updates — update feeds every hour
+        try:
+            self.after(15_000, self._scheduled_feed_update)
+        except Exception as e:
+            error_logger.log('AutoStart', 'Failed to schedule feed update', e)
+
         # Feed refresh loop (lightweight UI update, 30s interval)
         self.after(20_000, self._feed_refresh_loop)
 
@@ -34710,6 +34722,55 @@ Verification Status:
         """Run security assessment on startup and reschedule every 6 hours."""
         self._run_nsa_security_report()
         self.after(6 * 3600 * 1000, self._scheduled_nsa_check)  # 6 hours
+    
+    # v29.39: Feed health monitoring integration
+    
+    def _scheduled_feed_health_check(self):
+        """Check OSINT feed health and alert on issues every 30 minutes."""
+        try:
+            if not self.winfo_exists():
+                return
+            
+            from threat_intelligence import ThreatIntelligenceManager
+            ti = ThreatIntelligenceManager()
+            
+            alerts = ti.get_feed_alerts()
+            
+            for alert in alerts:
+                severity = alert.get('severity', 'warning')
+                message = alert.get('message', '')
+                
+                if severity == 'critical':
+                    self._queue_alert(f"[FEED CRITICAL] {message}", Colors.GAUGE_RED)
+                elif severity == 'warning':
+                    self._queue_alert(f"[FEED WARNING] {message}", Colors.GAUGE_ORANGE)
+            
+            # Reschedule every 30 minutes
+            self.after(30 * 60 * 1000, self._scheduled_feed_health_check)
+            
+        except Exception as e:
+            error_logger.log('FeedHealthCheck', 'failed', e)
+    
+    def _scheduled_feed_update(self):
+        """Automatically update OSINT feeds every hour."""
+        try:
+            if not self.winfo_exists():
+                return
+            
+            from threat_intelligence import ThreatIntelligenceManager
+            ti = ThreatIntelligenceManager()
+            
+            # Update all feeds (they internally check if update is needed)
+            ti.update_all_feeds()
+            
+            # Refresh IOC count display
+            self._refresh_ioc_count_display()
+            
+            # Reschedule every hour
+            self.after(60 * 60 * 1000, self._scheduled_feed_update)
+            
+        except Exception as e:
+            error_logger.log('FeedUpdate', 'failed', e)
 
     def _update_health_score(self):
         """Compute real-time security health score (0-100) from multiple signals."""
