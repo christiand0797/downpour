@@ -119,6 +119,8 @@ class TestQueueAlertSuppression:
         inst._alert_rate_count = 0
         inst._alerted_dedup = {}
         inst._pending_alerts = []
+        from collections import deque
+        inst._alert_timestamps = deque(maxlen=120)
         inst._fp_cache_loaded = True
         inst._fp_cache = {}
         return inst

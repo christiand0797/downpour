@@ -36030,17 +36030,18 @@ Verification Status:
 
     def _queue_alert(self, msg: str, color: Optional[str] = None):
         """Thread‑safe alert queue with rate‑limit, dedup, and timestamp tracking for the rate meter."""
-        if not hasattr(self, '_alert_timestamps'):
+        if '_alert_timestamps' not in self.__dict__:
             self._alert_timestamps = deque(maxlen=120)  # store timestamps for last 2 min
         if color is None:
             color = Colors.TEXT_LIGHT
         import time as _t
         now = _t.monotonic()
         # Rate‑limit global alerts (max 2/sec)
-        if now - getattr(self, '_alert_rate_reset', 0) > 1.0:
+        last_reset = self.__dict__.get('_alert_rate_reset', 0)
+        if now - last_reset > 1.0:
             self._alert_rate_reset = now
             self._alert_rate_count = 0
-        self._alert_rate_count = getattr(self, '_alert_rate_count', 0) + 1
+        self._alert_rate_count = self.__dict__.get('_alert_rate_count', 0) + 1
         if self._alert_rate_count > 2:
             return
         # Deduplication (4‑second window)
