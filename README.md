@@ -74,8 +74,15 @@ LAUNCH_V29_TITANIUM.bat
 | 🛡️ **DDoS Shield v30** | Auto-block flooders, rate monitor, block-all, export report, purge — persistent 24h-TTL blocklist restored at startup |
 | 🧭 **Keyless Infra OSINT** | IPinfo.io ASN/geo/anycast/bogon, BGPView BGP routing graph (IP + ASN), HackerTarget reverse-IP/GeoIP/DNS/ASN recon — no API keys (v29.21) |
 | ⚡ **Live Performance Tab** | Pause/resume monitoring, 2-30s interval slider, 28 sparkline gauges, per-core bars, top-CPU process table, live health score (v29.21) |
+| ⚡ **Perf tab v29.28 overhaul** | Gauge label/sparkline overlap fixed, adaptive DISK/NET rate ceilings (needles readable on real traffic), GPU column in the top-process table, live NIC + disk-partition tables, scoped mousewheel |
+| 🔄 **Warm perf history** | Gauges keep sampling + sparkline history/deltas and adaptive ceilings keep learning even while the Perf tab is hidden (v29.30b) |
 | 📄 **PDF Report Export** | Compliance audit + NSA-style assessment export to real PDFs (reportlab); NSA report auto-persists to Documents/DownpourReports (v29.22) |
 | 🎮 **Per-Process GPU Attribution** | Processes tab shows which PIDs run on the GPU (nvidia-smi compute-apps) with VRAM when readable (v29.23) |
+| 🌐 **Browser-extension scan** | One-click scan of all installed browsers' extensions for risky manifest permissions (tabs/cookies/webRequest/debugger/clipboardRead/…) + matches browsers against the live CISA KEV catalog (v29.30) |
+| 🛡️ **Risk-confirmation gates** | Destructive actions (kill process / block IP / quarantine / suspend / root-cause) now always ask before executing (v29.29) |
+| 🌓 **Windows 11 dark title bar** | Immersive dark mode applied to the real top-level HWND + system-theme detection (v29.26) |
+| 🌐 **Live DNS Overview** | DNS tab overview panel + threat score auto-refresh (60s throttled, busy-guard protected) (v29.32) |
+| 💬 **Tooltips everywhere** | Every button in the Threats, Dashboard, Intel, DNS, and remaining tabs now has hover help (v29.31 / v29.33) |
 | 🖥️ **System Tray** | pystray minimize-to-tray with Show/Hide/Exit menu (v29.20) |
 | 🌧️ **Rain Overlay** | Animated rain that intensifies with threat level |
 
@@ -97,7 +104,7 @@ The launcher installs all dependencies automatically on first run.
 
 ```
 downpour/
-├── downpour_v29_titanium.py      ← Main application (49,000+ lines)
+├── downpour_v29_titanium.py      ← Main application (51,000+ lines)
 ├── LAUNCH_V29_TITANIUM.bat       ← v29 launcher (use this)
 ├── LAUNCH_DOWNPOUR.bat           ← v28 launcher (kept as backup)
 ├── requirements.txt
@@ -126,7 +133,8 @@ downpour/
 | `network_monitor.py` | Live connection analysis |
 | `file_scanner.py` | YARA + hash scan engine |
 | `usb_protection.py` | USB device monitoring and blocking |
-| `browser_protection.py` | Extension audit, history analysis |
+| `browser_protection.py` | Extension audit, history analysis — **consolidated inline into the main app v29.30** (`_scan_browser_extensions`), kept as standalone reference |
+| `advanced_device_profiler.py` | Device/privilege profiler — **declined for wiring** (evasion/bypass-capability oriented); not part of the shipped feature set |
 | `vulnerability_scanner.py` | CVE-aligned vulnerability assessment |
 | `system_hardening.py` | DISA-STIG automated hardening |
 | `emergency_response.py` | Incident response automation |
