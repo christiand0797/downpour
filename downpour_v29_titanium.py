@@ -22443,19 +22443,25 @@ class downpour(tk.Tk):
                                      font = ('Consolas', 8), fg=Colors.GAUGE_TEAL,
                                      bg = Colors.GLASS_DARK)
         self._sb_threats.grid(row=0, column=3, padx=6, sticky='e')
+        # v29.28: live system telemetry ticker (CPU / RAM / DISK / NET) —
+        # updates every monitor tick via _hw_loop, visible from every tab.
+        self._sb_sysinfo = tk.Label(status_bar, text="CPU -- | RAM -- | DISK -- | NET --",
+                                    font = ('Consolas', 8), fg=Colors.GAUGE_GREEN,
+                                    bg = Colors.GLASS_DARK)
+        self._sb_sysinfo.grid(row=0, column=4, padx=6, sticky='e')
         # Uptime counter
         self._uptime_start = time.time()
         self._sb_uptime = tk.Label(status_bar, text="\u23f1 00:00:00",
                                     font = ('Consolas', 8), fg=Colors.TEXT_DIM,
                                     bg = Colors.GLASS_DARK)
-        self._sb_uptime.grid(row=0, column=4, padx=6, sticky='e')
+        self._sb_uptime.grid(row=0, column=5, padx=6, sticky='e')
         # Scrolling threat ticker on far right
         self._last_alert_var = tk.StringVar(value="")
         self._ticker_label = tk.Label(status_bar, textvariable=self._last_alert_var,
                  font = ('Consolas', 8), fg=Colors.GAUGE_ORANGE,
                  bg = Colors.GLASS_DARK, anchor='e')
-        self._ticker_label.grid(row=0, column=5, padx=(0, 8), sticky='e')
-        status_bar.grid_columnconfigure(5, weight=1)
+        self._ticker_label.grid(row=0, column=6, padx=(0, 8), sticky='e')
+        status_bar.grid_columnconfigure(6, weight=1)
         # Start uptime ticker
         self.after(1000, self._update_uptime_ticker)
         # FIX: _refresh_status_pills moved to _auto_start
@@ -28050,16 +28056,17 @@ Verification Status:
             # v29.28: dynamic max scaling so size gauges adapt to the real machine
             # (a 128 GB box shouldn't keep RAM USED pinned on a 64 GB scale).
             try:
+                import math as _dynm
                 ram_t: Any = s.get('ram_total_gb', 0) or 0
                 if ram_t > 0:
-                    ram_max = int(math.ceil(ram_t / 8.0) * 8.0)
+                    ram_max = int(_dynm.ceil(ram_t / 8.0) * 8.0)
                     for _rk in ('ram_used_gb', 'ram_avail_gb'):
                         if ram_max > self._perf_gauge_meta[_rk][0]:
                             _mm, _uu, _ss, _ll = self._perf_gauge_meta[_rk]
                             self._perf_gauge_meta[_rk] = (ram_max, _uu, _ss, _ll)
                 cf: Any = s.get('cpu_freq_mhz', 0) or 0
                 if cf > 0:
-                    cf_max = int(math.ceil(cf * 1.25 / 500.0) * 500.0)
+                    cf_max = int(_dynm.ceil(cf * 1.25 / 500.0) * 500.0)
                     if cf_max > self._perf_gauge_meta['cpu_freq_mhz'][0]:
                         _mm, _uu, _ss, _ll = self._perf_gauge_meta['cpu_freq_mhz']
                         self._perf_gauge_meta['cpu_freq_mhz'] = (cf_max, _uu, _ss, _ll)
@@ -34174,6 +34181,22 @@ Verification Status:
         except Exception as e:
             error_logger.log('AutoStart', 'Failed to schedule _perf_loop', e)
 
+        # v29.28: Dashboard telemetry gauges are ALSO read-only, so make them
+        # live from launch the same way (cached stats only, never blocks).
+        # _hw_loop self-guards: it no-ops until the widget set exists and the
+        # bg refresh thread has warmed the cache, so this is safe to fire early.
+        try:
+            self.after(2500, self._hw_loop)
+        except Exception as e:
+            error_logger.log('AutoStart', 'Failed to schedule _hw_loop', e)
+
+        # v29.28: Network-tab bandwidth summary visible as soon as the tab is
+        # opened — the daemon poller only writes widgets when they exist.
+        try:
+            self._net_start_bandwidth_monitor()
+        except Exception as e:
+            error_logger.log('AutoStart', 'Failed to start net bandwidth monitor', e)
+
         # Wire AEGIS alert callbacks (just wiring, no starting)
         def _aegis_alert(msg: str, level: str = 'HIGH'):
             color: Any = (Colors.GAUGE_RED if level == 'CRITICAL' else
@@ -34484,6 +34507,22 @@ Verification Status:
                 proc_ct: Any = s.get('process_count', 0) or 0
                 if hasattr(self, '_prc_lbl'):
                     self._prc_lbl.config(text=f'{proc_ct}')
+            except Exception:
+                pass
+            # v29.28: global status-bar telemetry ticker (visible on every tab)
+            try:
+                if hasattr(self, '_sb_sysinfo'):
+                    _sb_disk: Any = f'{disk_pct:.0f}%'
+                    if (s.get('disk_read_rate', 0) or 0) > 1 or (s.get('disk_write_rate', 0) or 0) > 1:
+                        _sb_disk = f'R{_rate(s.get("disk_read_rate",0) or 0)} W{_rate(s.get("disk_write_rate",0) or 0)}'
+                    _sb_col = (Colors.GAUGE_RED if cpu_pct > 85 or ram_pct > 90
+                               else Colors.GAUGE_ORANGE if cpu_pct > 60 or ram_pct > 75
+                               else Colors.GAUGE_GREEN)
+                    self._sb_sysinfo.config(
+                        text=f"CPU {cpu_pct:.0f}% | RAM {ram_pct:.0f}% | "
+                             f"DISK {_sb_disk} | ↑{_rate(net_up)} ↓{_rate(net_dn)} "
+                             f"| 🛡 {proc_ct}",
+                        fg=_sb_col)
             except Exception:
                 pass
         except Exception:
@@ -40565,13 +40604,29 @@ Verification Status:
         btn_f.pack(fill='x', padx=8, pady=6)
 
         actions: Any = [
-            ("[BLOCK] Block All IPs",       Colors.GAUGE_RED,    lambda: [self._executor.submit(lambda i=ip: self._do_block_ip(i)) for ip in ips] or self._add_alert(f"[BLOCK] Blocking {len(ips)} IPs from alert", Colors.GAUGE_ORANGE)),
-            ("[SKULL] Kill PIDs",           Colors.GAUGE_RED,    lambda: [self.scanner.mitigate(int(p), 'kill_tree', QUARANTINE_DIR) for p in pids if p.isdigit()]),
-            ("[LOCK] Quarantine Process",  Colors.GAUGE_ORANGE, lambda: [self.scanner.mitigate(int(p), 'quarantine', QUARANTINE_DIR) for p in pids if p.isdigit()]),
-            ("[PAUSE] Suspend Process",     Colors.GAUGE_YELLOW, lambda: [self.scanner.mitigate(int(p), 'suspend', QUARANTINE_DIR) for p in pids if p.isdigit()]),
+            ("[BLOCK] Block All IPs",       Colors.GAUGE_RED,
+             lambda: self._confirm_risk("Block IPs",
+                 f"Add {len(ips)} IP(s) from this alert to the firewall block list?",
+                 lambda: [self._executor.submit(lambda i=ip: self._do_block_ip(i)) for ip in ips]
+                 or self._add_alert(f"[BLOCK] Blocking {len(ips)} IPs from alert", Colors.GAUGE_ORANGE))),
+            ("[SKULL] Kill PIDs",           Colors.GAUGE_RED,
+             lambda: self._confirm_risk("Kill Processes",
+                 f"Terminate PID(s) {', '.join(pids) or '?'} and their child trees?\n\n"
+                 "Unsaved work in those processes WILL BE LOST.",
+                 lambda: [self.scanner.mitigate(int(p), 'kill_tree', QUARANTINE_DIR) for p in pids if p.isdigit()])),
+            ("[LOCK] Quarantine Process",  Colors.GAUGE_ORANGE,
+             lambda: self._confirm_risk("Quarantine Process",
+                 f"Quarantine PID(s) {', '.join(pids) or '?'} without terminating them?",
+                 lambda: [self.scanner.mitigate(int(p), 'quarantine', QUARANTINE_DIR) for p in pids if p.isdigit()])),
+            ("[PAUSE] Suspend Process",     Colors.GAUGE_YELLOW,
+             lambda: self._confirm_risk("Suspend Process",
+                 f"Suspend PID(s) {', '.join(pids) or '?'}? They will stop consuming CPU until resumed.",
+                 lambda: [self.scanner.mitigate(int(p), 'suspend', QUARANTINE_DIR) for p in pids if p.isdigit()])),
             ("[WEB] Geo-Locate IPs",      Colors.GAUGE_TEAL,   lambda: [self._executor.submit(lambda i=ip: self._geolocate_one(i)) for ip in ips[:3]]),
             ("[CLIP] Copy All IOCs",       Colors.TEXT_DIM,     lambda: (self.clipboard_clear(), self.clipboard_append('\n'.join(ips + pids + hashes_found)))),
-            ("[SCAN] Full Root Cause",     Colors.GAUGE_PURPLE, lambda: [self.scanner.mitigate(int(p), 'root_cause', QUARANTINE_DIR) for p in pids if p.isdigit()]),
+            ("[SCAN] Full Root Cause",     Colors.GAUGE_PURPLE, lambda: self._confirm_risk("Root-Cause Scan",
+                 "Run a deep root-cause analysis on selected processes? This may take a while.",
+                 lambda: [self.scanner.mitigate(int(p), 'root_cause', QUARANTINE_DIR) for p in pids if p.isdigit()])),
             ("[SHIELD] Run Harden Check",    Colors.GAUGE_GREEN,  self._harden_analyze),
             ("[ALERT] FULL LOCKDOWN",       Colors.GAUGE_RED,    self._panic_button),
             ("[DIR] Scan Threat Path",    Colors.GAUGE_BLUE,   self._quick_file_scan),
@@ -44314,6 +44369,39 @@ Verification Status:
     # ═══════════════════════════════════════════════════════════════════════════
     #  TOOLTIP HELPER
     # ═══════════════════════════════════════════════════════════════════════════
+
+    def _confirm_risk(self, title: str, message: str, action=None, *,
+                      icon: str = 'warning') -> bool:
+        """Gate a destructive action behind an explicit risk confirmation.
+
+        v29.28p2: centralizes the risk-warning popup pattern used by all
+        destructive one-click actions (kill, quarantine, firewall block,
+        cleanup deletes). Never auto-runs the action — always asks first.
+
+        Args:
+            title:   Messagebox title.
+            message: Exact description of what WILL happen.
+            action:  Optional zero-arg callable to run ONLY if confirmed.
+            icon:    tk messagebox icon ('warning' default).
+
+        Returns:
+            True if the user confirmed (and action, if given, was invoked),
+            False if denied or the dialog is unavailable (headless/test).
+        """
+        import tkinter.messagebox as _mb
+        try:
+            if not _mb.askyesno(title, message, icon=icon, parent=self):
+                return False
+        except Exception:
+            # If the dialog can't be shown (headless/test), refuse to run the
+            # destructive action rather than silently executing it.
+            return False
+        if action is not None:
+            try:
+                action()
+            except Exception as e:
+                error_logger.log('RiskAction', f'{title} failed', e)
+        return True
 
     def _tooltip(self, widget, text: str) -> None:
         """Attach a simple hover tooltip to any widget."""
@@ -50317,6 +50405,16 @@ Verification Status:
         entries: Any = self._threats_selected_entries()
         if not entries:
             mb.showwarning('Threats', 'Select one or more threats first.')
+            return
+        names: Any = [e['description'][:80] for e in entries]
+        count: Any = len(entries)
+        if not self._confirm_risk(
+                'Kill Threats',
+                f'Force-terminate {count} process(es)?\n\n'
+                + '\n'.join('• ' + n for n in names[:8])
+                + ('\n…and more' if count > 8 else '')
+                + '\n\nProcesses are killed with /F. Unsaved work WILL BE LOST.'
+                + ('\nPlease confirm.' if count < 5 else '\nThis is a force-kill.')):
             return
         killed: Any = []
         errors: Any = []

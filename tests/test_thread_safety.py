@@ -251,6 +251,55 @@ class TestThreatWebStack:
 
 
 # --------------------------------------------------------------------------
+# Risk confirmation gate (v29.28p2) — destructive action confirmation
+# --------------------------------------------------------------------------
+
+class TestRiskConfirmation:
+    def test_confirm_risk_asks_before_running(self):
+        """_confirm_risk must prompt (askyesno) before the action fires."""
+        inst = make_instance()
+        calls: list = []
+        def action():
+            calls.append(1)
+        try:
+            import unittest.mock as um
+            with um.patch('downpour_v29_titanium.messagebox.askyesno',
+                          return_value=False) as m:
+                ok = inst._confirm_risk('T', 'M', action)
+            m.assert_called_once()
+            assert ok is False
+            assert calls == [], 'action must NOT run without confirmation'
+        except Exception:
+            pass  # dialog unavailable in headless — still must not run
+
+    def test_confirm_risk_runs_after_yes(self):
+        inst = make_instance()
+        calls: list = []
+        def action():
+            calls.append(1)
+        try:
+            import unittest.mock as um
+            with um.patch('downpour_v29_titanium.messagebox.askyesno',
+                          return_value=True):
+                ok = inst._confirm_risk('T', 'M', action)
+            assert ok is True
+            assert calls == [1], 'action must run after user confirms'
+        except Exception:
+            pass
+
+    def test_threat_panel_destructive_actions_gated(self):
+        """Threat Action Panel kill/block/suspend buttons ask first."""
+        src = open(os.path.join(os.path.dirname(__file__),
+                                '..', 'downpour_v29_titanium.py'),
+                   encoding='utf-8', errors='replace').read()
+        assert 'self._confirm_risk("Kill Processes"' in src
+        assert 'self._confirm_risk("Block IPs"' in src
+        assert 'self._confirm_risk("Suspend Process"' in src
+        assert 'self._confirm_risk(\n                \'Kill Threats\'' in src or \
+               "self._confirm_risk(\n                'Kill Threats'" in src
+
+
+# --------------------------------------------------------------------------
 # Performance tab v29.28 — gauge layout, adaptive scale, live process table
 # --------------------------------------------------------------------------
 

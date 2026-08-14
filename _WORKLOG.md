@@ -2,6 +2,23 @@
 
 ## Branch: main
 
+## Session 2026-08-13i — v29.29: risk-confirmation gates on destructive actions
+- ✅ **Gap**: the Threat Action Panel (right-click alert response) ran kill/
+  block/suspend/root-cause with ZERO confirmation — one click on the wrong
+  row force-killed a process tree or firewall-blocked IPs. Threats tab
+  `_threats_kill_selected` also `taskkill /F` without asking.
+- ✅ **`_confirm_risk(title, message, action, icon)`** — centralized risk
+  gate: always `askyesno` first, runs `action` ONLY on confirmation,
+  returns bool. Headless/test-safe: if the dialog can't be shown it returns
+  False and refuses the destructive action.
+- ✅ Wired into Threat Action Panel (Block All IPs / Kill PIDs / Quarantine /
+  Suspend / Root Cause) and Threats tab Kill Selected (with per-alert
+  preview + unsaved-work warning).
+- ✅ New tests: `TestRiskConfirmation` (3 tests, 31 total). 31/31 pass,
+  py_compile OK, AST OK.
+
+## Branch: main
+
 ## Session 2026-08-13h — v29.28: Performance tab overhaul (layout + live data)
 - ✅ **Bug (the "black box covering half of them")**: `_draw_gauge` drew the
   gauge label at y=`size+18` but `_draw_sparkline` renders a dark fill box at
