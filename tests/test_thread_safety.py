@@ -447,6 +447,52 @@ class TestWarmPerfHistoryV2930b:
 
 
 # --------------------------------------------------------------------------
+# Tab-position indicator v29.34b — the label was referenced but never created
+# --------------------------------------------------------------------------
+
+class TestTabIndicatorV2934b:
+    """The notebook tab-position readout (FIX-v28p18) referenced
+    `self._tab_indicator` but nothing ever created it, so every update threw
+    AttributeError inside a swallow-it `except`. The label must now exist."""
+
+    def _src(self) -> str:
+        return open(os.path.join(os.path.dirname(__file__),
+                                 '..', 'downpour_v29_titanium.py'),
+                    encoding='utf-8', errors='replace').read()
+
+    def test_indicator_label_is_instantiated(self):
+        src = self._src()
+        # The label must be created (with the exact attr name) before the
+        # <<NotebookTabChanged>> binding so the first tab change shows it.
+        assert 'self._tab_indicator = tk.Label' in src
+        # And the update method must exist to populate it.
+        assert 'def _update_tab_indicator(self):' in src
+
+    def test_indicator_created_before_tab_change_binding(self):
+        src = self._src()
+        # Scope to the _build_ui notebook-frame section (the first
+        # <<NotebookTabChanged>> in the file is a lazy-builder binding from a
+        # different method and must not be compared against).
+        nb_idx = src.index('_nb_frame: Any = tk.Frame(self, bg=Colors.BG_VOID)')
+        nb_src = src[nb_idx:]
+        assert 'self._tab_indicator = tk.Label' in nb_src, \
+            'tab indicator must be created inside the notebook frame build'
+        lbl_pos = nb_src.index('self._tab_indicator = tk.Label')
+        bind_pos = nb_src.index("self.nb.bind('<<NotebookTabChanged>>")
+        assert lbl_pos < bind_pos, \
+            'tab indicator must be created before the tab-change binding'
+
+    def test_update_never_raises_on_bare_instance(self):
+        inst = make_instance()
+        inst._update_tab_indicator()  # noqa: SLF001 — bare-instance safety
+
+    def test_update_skips_silently_without_notebook(self):
+        inst = make_instance()
+        inst._tab_indicator = None
+        inst._update_tab_indicator()  # must not raise
+
+
+# --------------------------------------------------------------------------
 # DNS Overview live refresh v29.32 — throttled auto-refresh + in-flight guard
 # --------------------------------------------------------------------------
 
