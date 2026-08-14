@@ -341,3 +341,54 @@ class TestPerfTabV2928:
         """bind_all wheel scroll must not hijack other tabs."""
         src = self._src()
         assert 'winfo_containing' in src
+
+
+# --------------------------------------------------------------------------
+# Browser Security Scan v29.30 — inline extension manifest risk scoring
+# --------------------------------------------------------------------------
+
+class TestBrowserScanV2930:
+    def _src(self) -> str:
+        return open(os.path.join(os.path.dirname(__file__),
+                                 '..', 'downpour_v29_titanium.py'),
+                    encoding='utf-8', errors='replace').read()
+
+    def test_browser_scan_wired_into_threats_toolbar(self):
+        """Threats toolbar has a Browser Scan button."""
+        src = self._src()
+        assert 'Browser Scan' in src
+        assert 'self._browser_scan_ui' in src
+
+    def test_suspicious_permissions_covered(self):
+        """Core high-risk extension permissions must be flagged."""
+        inst = make_instance()
+        perms = inst._EXT_SUSPICIOUS_PERMS
+        for p in ('tabs', 'cookies', 'webRequest', 'debugger',
+                  'desktopCapture', 'clipboardRead', '<all_urls>'):
+            assert p in perms, f'missing suspicious permission: {p}'
+
+    def test_browser_dirs_include_major_browsers(self):
+        inst = make_instance()
+        dirs = inst._browser_ext_dir()
+        for b in ('Chrome', 'Edge', 'Firefox', 'Brave'):
+            assert b in dirs, f'missing browser path: {b}'
+        assert 'Firefox' in dirs
+
+    def test_scan_never_raises_on_empty_env(self):
+        """Scanning must degrade gracefully with no browsers installed."""
+        import unittest.mock as um
+        inst = make_instance()
+        with um.patch.object(inst, '_browser_ext_dir',
+                             return_value={'Chrome': ''}):
+            out = inst._scan_browser_extensions(notify=False)
+        assert out == []
+
+    def test_kev_browser_check_uses_existing_engine(self):
+        """Browser CVE matching reuses the CisaKevEngine singleton."""
+        src = self._src()
+        assert '_kev_engine' in src
+        assert 'search' in src
+        # v29.30 must not import the orphaned standalone browser_protection module
+        assert "import browser_protection" not in src
+        assert "from browser_protection" not in src
+

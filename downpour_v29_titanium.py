@@ -22143,6 +22143,9 @@ class downpour(tk.Tk):
             relief = 'flat', padx=8, pady=2, cursor='hand2',
             command = self._toggle_rain_btn)
         self._rain_btn.pack(side='left', padx=3)
+        self._tooltip(self._rain_btn,
+            "Toggle the animated rain effect on/off.\n"
+            "Pause it on older hardware for an instant performance gain.")
 
         # -- Storm phase cycle button -----------------------------------------
         self._storm_btn = tk.Button(
@@ -22152,6 +22155,9 @@ class downpour(tk.Tk):
             relief = 'flat', padx=8, pady=2, cursor='hand2',
             command = self._cycle_storm_phase)
         self._storm_btn.pack(side='left', padx=3)
+        self._tooltip(self._storm_btn,
+            "Cycle the storm overlay phase.\n"
+            "Purely visual — cycles the intensity theme of the storm effect.")
 
         # -- Settings gear button (FIX-v28p18) -------------------------------
         self._settings_btn = tk.Button(
@@ -22161,6 +22167,8 @@ class downpour(tk.Tk):
             relief = 'flat', padx=8, pady=2, cursor='hand2',
             command = lambda: self._select_tab('_tab_settings'))
         self._settings_btn.pack(side='left', padx=3)
+        self._tooltip(self._settings_btn,
+            "Open the Settings tab (appearance, behavior, and feature toggles).")
 
         # -- Floating widget toggle ------------------------------------------
         # Defaults OFF  -  loading it at startup on older hardware caused freezes.
@@ -22172,6 +22180,9 @@ class downpour(tk.Tk):
             relief = 'flat', padx=8, pady=2, cursor='hand2',
             command = self._toggle_widget)
         self._widget_btn.pack(side='left', padx=3)
+        self._tooltip(self._widget_btn,
+            "Toggle the floating desktop widget.\n"
+            "Click once to open, click again to close.")
 
         # -- PANIC button ----------------------------------------------------
         tk.Button(ctrl, text='\u2620 PANIC', font=('Consolas', 10, 'bold'),
@@ -22283,11 +22294,13 @@ class downpour(tk.Tk):
         self._tab_left_btn = tk.Button(_nb_frame, text='\u25C0', **_btn_style,
             command = lambda: self._scroll_tabs(-1))
         self._tab_left_btn.grid(row=0, column=0, sticky='ns', padx=(2,0))
+        self._tooltip(self._tab_left_btn, 'Scroll the tab strip left')
         self.nb = ttk.Notebook(_nb_frame, style='Dark.TNotebook')
         self.nb.grid(row=0, column=1, sticky='nsew', padx=0, pady=0)
         self._tab_right_btn = tk.Button(_nb_frame, text='\u25B6', **_btn_style,
             command = lambda: self._scroll_tabs(1))
         self._tab_right_btn.grid(row=0, column=2, sticky='ns', padx=(0,2))
+        self._tooltip(self._tab_right_btn, 'Scroll the tab strip right')
         # Fix blank tabs: force canvas width update whenever a tab is selected
         self.nb.bind('<<NotebookTabChanged>>', self._on_nb_tab_changed)
         logger.info("_build_ui: notebook bound, building tabs...")
@@ -26811,6 +26824,9 @@ class downpour(tk.Tk):
             state = 'disabled',
             command = self._apply_selected_cve_hardening)
         self._kev_harden_btn.pack(fill='x', padx=8, pady=2)
+        self._tooltip(self._kev_harden_btn,
+            "Apply a hardening mitigation for the currently selected CVE.\n"
+            "Select a row in the CVE table first — the button enables itself.")
 
         # -- Kernel integrity status ---------------------------------------
         rk: Any = tk.LabelFrame(right, text=' Kernel Integrity ',
@@ -28858,6 +28874,10 @@ Verification Status:
             fg = 'white', relief='flat', padx=10, cursor='hand2',
             command = _bypass_click)
         _bypass_btn.pack(side='left', padx=4)
+        self._tooltip(_bypass_btn,
+            "Toggle TPM / BitLocker check bypass.\n"
+            "ENFORCED = checks active (recommended).\n"
+            "BYPASSED = warnings suppressed — use only on machines without TPM/BitLocker.")
         self._tooltip(_bypass_btn,
             "Toggle enforcement of TPM 2.0 / BitLocker / Secure Boot checks.\n\n"
             "Suppress warnings only if your hardware genuinely lacks these features "
@@ -41684,6 +41704,10 @@ Verification Status:
                                        bg = Colors.GAUGE_GREEN, fg=Colors.BG_VOID,
                                        relief = 'flat', padx=16, pady=6, cursor='hand2')
         self._dns_mon_btn.pack(side='left', padx=8, pady=8)
+        self._tooltip(self._dns_mon_btn,
+            "Start / stop live DNS query monitoring.\n"
+            "Logs every DNS request the system makes in real time, "
+            "with domain, type and latency.")
 
         tk.Button(ctrl_f, text='🗑️ Clear', command=self._dns_clear_monitor,
                   font = ('Consolas', 9), bg=Colors.GLASS_BORDER, fg=Colors.TEXT_DIM,
@@ -50171,6 +50195,8 @@ Verification Status:
              C.GAUGE_ORANGE, 'Move associated files to quarantine vault')
         _btn(bar, '[HIGH] Kill Process',    self._threats_kill_selected,
              C.GAUGE_ORANGE, 'Kill the process named in selected threat')
+        _btn(bar, '🌐 Browser Scan',    self._browser_scan_ui,
+             C.GAUGE_TEAL,    'Scan installed-browser extensions for risky permissions + match against CISA KEV')
         _btn(bar, '🚫 Block IP',        self._threats_block_ip,
              C.GAUGE_YELLOW, 'Add Windows Firewall block rule for threat IP')
         _btn(bar, '[LOCK] Isolate Host',    self._threats_isolate_host,
@@ -51042,6 +51068,185 @@ Verification Status:
             webbrowser.open(url)
 
         self._queue_alert(f'[INTEL] Looking up: {query}', Colors.GAUGE_TEAL)
+
+    # ── Browser Security Scan (v29.30) ─────────────────────────────────────
+    # Consolidates the orphaned standalone browser_protection.py capability
+    # (extension manifest risk scoring + KEV browser CVE matching) inline,
+    # reusing the already-running CisaKevEngine instead of importing a
+    # second standalone module with its own logging config / VulnerabilityScanner
+    # dependency. Runs on the I/O executor; results marshaled back via after(0).
+
+    def _browser_ext_dir(self) -> dict:
+        """Resolve installed-browser extension directories from environment."""
+        import os as _os
+        local: Any = _os.environ.get('LOCALAPPDATA', '')
+        appd: Any = _os.environ.get('APPDATA', '')
+        prof: Any = _os.environ.get('USERPROFILE', '')
+        return {
+            'Chrome':  _os.path.join(local, 'Google', 'Chrome', 'User Data'),
+            'Edge':    _os.path.join(local, 'Microsoft', 'Edge', 'User Data'),
+            'Brave':   _os.path.join(local, 'BraveSoftware', 'Brave-Browser', 'User Data'),
+            'Firefox': _os.path.join(appd, 'Mozilla', 'Firefox', 'Profiles'),
+            'Opera':   _os.path.join(appd, 'Opera Software', 'Opera Stable'),
+            'Vivaldi': _os.path.join(local, 'Vivaldi', 'User Data'),
+            'Arc':     _os.path.join(prof, 'AppData', 'Local', 'Arc', 'User Data'),
+        }
+
+    _EXT_SUSPICIOUS_PERMS = (
+        'tabs', 'webRequest', 'webRequestBlocking', '<all_urls>', 'cookies',
+        'proxy', 'debugger', 'desktopCapture', 'clipboardRead',
+        'nativeMessaging', 'management', 'downloads.open', 'history',
+    )
+
+    def _scan_browser_extensions(self, notify: bool = True) -> list:
+        """Scan installed-browser extension manifests for risky permissions.
+        Returns a list of {browser, name, id, risk, issues, path} dicts."""
+        import os as _os
+        import json as _json
+        results: list = []
+        for browser, base in self._browser_ext_dir().items():
+            try:
+                if not _os.path.isdir(base):
+                    continue
+                scan_dirs: list = []
+                if browser == 'Firefox':
+                    for entry in _os.listdir(base):
+                        if entry.endswith('.default-release') or '.default' in entry:
+                            scan_dirs.append(_os.path.join(base, entry, 'extensions'))
+                else:
+                    # Chromium-family: {User Data}/{Profile}/Extensions
+                    for prof in _os.listdir(base):
+                        if prof.startswith('Profile') or prof == 'Default':
+                            ex: Any = _os.path.join(base, prof, 'Extensions')
+                            if _os.path.isdir(ex):
+                                scan_dirs.append(ex)
+                for ext_root in scan_dirs:
+                    if not _os.path.isdir(ext_root):
+                        continue
+                    for ext_id in _os.listdir(ext_root):
+                        ext_dir: Any = _os.path.join(ext_root, ext_id)
+                        if not _os.path.isdir(ext_dir):
+                            continue
+                        try:
+                            ver_dir: Any = _os.listdir(ext_dir)[0]
+                            man_p: Any = _os.path.join(ext_dir, ver_dir, 'manifest.json')
+                            if not _os.path.isfile(man_p):
+                                man_p = _os.path.join(ext_dir, 'manifest.json')
+                            if not _os.path.isfile(man_p):
+                                continue
+                            with open(man_p, encoding='utf-8', errors='replace') as fh:
+                                man: Any = _json.load(fh)
+                            perms: Any = list(man.get('permissions') or []) + \
+                                          list(man.get('optional_permissions') or [])
+                            host_perms: Any = list(man.get('host_permissions') or [])
+                            name: Any = man.get('name', ext_id)
+                            issues: list = []
+                            for p in self._EXT_SUSPICIOUS_PERMS:
+                                if p in perms:
+                                    issues.append(p)
+                            if '<all_urls>' in host_perms:
+                                issues.append('<all_urls> (host)')
+                            if (man.get('background') or {}).get('persistent') is True:
+                                issues.append('persistent bg')
+                            risk: int = min(100, len(set(issues)) * 25 + (15 if name in ('', ext_id) else 0))
+                            results.append({
+                                'browser': browser, 'name': name, 'id': ext_id,
+                                'risk': risk, 'issues': sorted(set(issues)),
+                                'path': man_p,
+                            })
+                            if notify and risk >= 60:
+                                self._queue_alert(
+                                    f'[BROWSER] {browser}: "{name}" risk {risk} '
+                                    f'({", ".join(issues[:3])})', Colors.GAUGE_ORANGE)
+                        except Exception:
+                            continue
+            except Exception:
+                continue
+        return results
+
+    def _browser_cve_check(self) -> list:
+        """Match installed browsers against the CISA KEV catalog."""
+        import os as _os
+        hits: list = []
+        if not getattr(self, '_kev_engine', None):
+            return hits
+        installed: list = []
+        for browser, base in self._browser_ext_dir().items():
+            if _os.path.isdir(base):
+                installed.append(browser)
+        browser_names: dict = {
+            'Chrome': ('chrome', 'google chrome'),
+            'Edge': ('edge', 'microsoft edge'),
+            'Firefox': ('firefox', 'mozilla firefox'),
+            'Brave': ('brave',),
+            'Opera': ('opera',),
+            'Vivaldi': ('vivaldi',),
+            'Arc': ('arc browser',),
+        }
+        for br in installed:
+            try:
+                kws: Any = browser_names.get(br, (br.lower(),))
+                cves: list = _kev_engine.search(' '.join(kws)) if hasattr(_kev_engine, 'search') else []
+                for v in cves[:8]:
+                    hits.append({'browser': br, 'cve': v.get('cveID', ''), 'product': v.get('product', ''),
+                                 'name': v.get('vendorProject', '') + ' ' + v.get('product', ''),
+                                 'desc': (v.get('shortDescription') or '')[:160],
+                                 'date': v.get('dateAdded', '')})
+            except Exception:
+                continue
+        return hits
+
+    def _run_browser_scan(self):
+        """Kick off a background browser-security scan; show a summary dialog."""
+        import tkinter.messagebox as mb
+        self._queue_alert('[BROWSER] Scanning installed browser extensions...',
+                          Colors.GAUGE_TEAL)
+        def _work():
+            try:
+                exts: Any = self._scan_browser_extensions(notify=True)
+                cves: Any = self._browser_cve_check()
+                risky: list = [e for e in exts if e['risk'] >= 60]
+                self.after(0, lambda: self._browser_scan_done(exts, cves, risky))
+            except Exception:
+                pass
+        self._io_submit(_work)
+
+    def _browser_scan_done(self, exts: list, cves: list, risky: list):
+        """Main-thread postback: summarize browser-scan results."""
+        import tkinter.messagebox as mb
+        if not exts and not cves:
+            self._queue_alert('[BROWSER] No installed browsers found to scan.',
+                              Colors.TEXT_DIM)
+            return
+        n_risky: int = len(risky)
+        n_cves: int = len(cves)
+        sev: Any = Colors.GAUGE_GREEN if (n_risky == 0 and n_cves == 0) else \
+                   Colors.GAUGE_ORANGE if n_cves == 0 else Colors.GAUGE_RED
+        self._queue_alert(
+            f'[BROWSER] Scan done: {len(exts)} extensions, {n_risky} risky, '
+            f'{n_cves} KEV CVEs matched', sev)
+        lines: list = [f'Browser Security Scan — {len(exts)} extensions scanned']
+        lines.append('')
+        lines.append(f'⚠ {n_risky} HIGH-RISK extension(s):')
+        for e in risky:
+            lines.append(f'  • {e["browser"]}: {e["name"]} (risk {e["risk"]}) — '
+                         f'{", ".join(e["issues"][:4]) or "no issues"}')
+        if not risky:
+            lines.append('  • none')
+        lines.append('')
+        lines.append(f'🔴 {n_cves} KEV browser CVE(s) matched:')
+        for c in cves[:8]:
+            lines.append(f'  • {c["browser"]} {c["cve"]} ({c["name"]})')
+        if not cves:
+            lines.append('  • none')
+        try:
+            mb.showinfo('Browser Security Scan', '\n'.join(lines))
+        except Exception:
+            pass
+
+    def _browser_scan_ui(self):
+        """Toolbar entry point — threadsafe wrapper for _run_browser_scan."""
+        self._run_browser_scan()
 
 
 
