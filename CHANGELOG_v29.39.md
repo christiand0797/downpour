@@ -203,6 +203,18 @@ Added additional real-time gauges to the Performance tab:
 #### Real-Time File Anomaly Detection (Row 32)
 - **RANSOM/H**: Ransomware activity detections in the last hour
 
+#### Real-Time Behavior Anomaly Detection (Row 33)
+- **KEYLOG/H**: Keylogging attempts in the last hour
+- **SCREEN/H**: Screen capture attempts in the last hour
+- **INJECT/H**: Process injection attempts in the last hour
+- **CRED/H**: Credential theft attempts in the last hour
+
+#### Real-Time Behavior Anomaly Detection (Row 34)
+- **PERSIST/H**: Persistence mechanism attempts in the last hour
+- **EVASION/H**: Defense evasion attempts in the last hour
+- **EXFIL/H**: Data exfiltration attempts in the last hour
+- **LATERAL/H**: Lateral movement attempts in the last hour
+
 ### 8. Real-Time Phishing URL Detection Tracking (v29.39)
 Added real-time phishing URL detection tracking for enhanced threat intelligence:
 
@@ -278,6 +290,21 @@ Added real-time file anomaly detection tracking for enhanced threat intelligence
 - **Integration**: Tracks anomalies during file operation recording in `record_file_operation()`
 - **Integration**: Tracks ransomware activity in `check_ransomware_activity()`
 - **Performance Tab Gauges**: 5 new gauges for file anomaly visualization
+
+### 15. Real-Time Behavior Anomaly Detection Tracking (v29.39)
+Added real-time behavior anomaly detection tracking for enhanced threat intelligence:
+
+- **Keylogging Attempts/Hour**: Tracks keylogging behavior detections (GetAsyncKeyState, SetWindowsHookEx, etc.)
+- **Screen Capture Attempts/Hour**: Tracks screen capture behavior detections (BitBlt, GetDC, etc.)
+- **Process Injection Attempts/Hour**: Tracks process injection behavior detections (VirtualAllocEx, WriteProcessMemory, etc.)
+- **Credential Theft Attempts/Hour**: Tracks credential theft behavior detections (CredEnumerate, CryptUnprotectData, etc.)
+- **Persistence Attempts/Hour**: Tracks persistence mechanism detections (RegSetValueEx, CreateService, etc.)
+- **Evasion Attempts/Hour**: Tracks defense evasion behavior detections (IsDebuggerPresent, CheckRemoteDebuggerPresent, etc.)
+- **Exfiltration Attempts/Hour**: Tracks data exfiltration behavior detections (WSASend, HttpSendRequest, etc.)
+- **Lateral Movement Attempts/Hour**: Tracks lateral movement behavior detections (PsExec, WMIExec, DCOM, etc.)
+- **Automatic Cleanup**: Removes detections older than 1 hour for all anomaly types
+- **Integration**: Tracks anomalies during process behavior analysis in `analyze_running_processes()`
+- **Performance Tab Gauges**: 8 new gauges for behavior anomaly visualization
 
 ---
 

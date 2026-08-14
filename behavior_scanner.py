@@ -1,9 +1,9 @@
 
 """
-Behavior-Based Threat Scanner v29
+Behavior-Based Threat Scanner v29.39
 =============================
 
-__version__ = "29.0.0"
+__version__ = "29.39.0"
 
 Analyzes file BEHAVIOR, not filenames.
 """
@@ -203,10 +203,92 @@ class BehaviorScanner:
         self.threats_found = []
         self.files_scanned = 0
         self.current_activity = ""
+        
+        # v29.39: Real-time behavior anomaly tracking for Performance tab
+        self._keylogging_attempts_hour = 0
+        self._screen_capture_attempts_hour = 0
+        self._process_injection_attempts_hour = 0
+        self._credential_theft_attempts_hour = 0
+        self._persistence_attempts_hour = 0
+        self._evasion_attempts_hour = 0
+        self._exfil_attempts_hour = 0
+        self._lateral_movement_attempts_hour = 0
+        self._keylogging_history = []
+        self._screen_capture_history = []
+        self._process_injection_history = []
+        self._credential_theft_history = []
+        self._persistence_history = []
+        self._evasion_history = []
+        self._exfil_history = []
+        self._lateral_movement_history = []
 
     def log(self, msg, level="INFO") -> None:
         if self.callback:
             self.callback(msg, level)
+    
+    def _track_keylogging(self):
+        """Track keylogging attempt for real-time metrics."""
+        now = time.time()
+        self._keylogging_history.append(now)
+        # Clean up old detections (older than 1 hour)
+        self._keylogging_history = [t for t in self._keylogging_history if now - t < 3600]
+        self._keylogging_attempts_hour = len(self._keylogging_history)
+    
+    def _track_screen_capture(self):
+        """Track screen capture attempt for real-time metrics."""
+        now = time.time()
+        self._screen_capture_history.append(now)
+        # Clean up old detections (older than 1 hour)
+        self._screen_capture_history = [t for t in self._screen_capture_history if now - t < 3600]
+        self._screen_capture_attempts_hour = len(self._screen_capture_history)
+    
+    def _track_process_injection(self):
+        """Track process injection attempt for real-time metrics."""
+        now = time.time()
+        self._process_injection_history.append(now)
+        # Clean up old detections (older than 1 hour)
+        self._process_injection_history = [t for t in self._process_injection_history if now - t < 3600]
+        self._process_injection_attempts_hour = len(self._process_injection_history)
+    
+    def _track_credential_theft(self):
+        """Track credential theft attempt for real-time metrics."""
+        now = time.time()
+        self._credential_theft_history.append(now)
+        # Clean up old detections (older than 1 hour)
+        self._credential_theft_history = [t for t in self._credential_theft_history if now - t < 3600]
+        self._credential_theft_attempts_hour = len(self._credential_theft_history)
+    
+    def _track_persistence(self):
+        """Track persistence attempt for real-time metrics."""
+        now = time.time()
+        self._persistence_history.append(now)
+        # Clean up old detections (older than 1 hour)
+        self._persistence_history = [t for t in self._persistence_history if now - t < 3600]
+        self._persistence_attempts_hour = len(self._persistence_history)
+    
+    def _track_evasion(self):
+        """Track evasion attempt for real-time metrics."""
+        now = time.time()
+        self._evasion_history.append(now)
+        # Clean up old detections (older than 1 hour)
+        self._evasion_history = [t for t in self._evasion_history if now - t < 3600]
+        self._evasion_attempts_hour = len(self._evasion_history)
+    
+    def _track_exfil(self):
+        """Track exfiltration attempt for real-time metrics."""
+        now = time.time()
+        self._exfil_history.append(now)
+        # Clean up old detections (older than 1 hour)
+        self._exfil_history = [t for t in self._exfil_history if now - t < 3600]
+        self._exfil_attempts_hour = len(self._exfil_history)
+    
+    def _track_lateral_movement(self):
+        """Track lateral movement attempt for real-time metrics."""
+        now = time.time()
+        self._lateral_movement_history.append(now)
+        # Clean up old detections (older than 1 hour)
+        self._lateral_movement_history = [t for t in self._lateral_movement_history if now - t < 3600]
+        self._lateral_movement_attempts_hour = len(self._lateral_movement_history)
     
     # ══════════════════════════════════════════════════════════════════════════
     #                      PROCESS BEHAVIOR ANALYSIS
@@ -308,6 +390,24 @@ class BehaviorScanner:
                 
                 # Only report if we found actual suspicious behavior
                 if threat_indicators:
+                    # v29.39: Track behavior anomalies for real-time metrics
+                    if 'keylogging' in str(threat_indicators).lower():
+                        self._track_keylogging()
+                    if 'screen' in str(threat_indicators).lower():
+                        self._track_screen_capture()
+                    if 'injection' in str(threat_indicators).lower():
+                        self._track_process_injection()
+                    if 'credential' in str(threat_indicators).lower():
+                        self._track_credential_theft()
+                    if 'persistence' in str(threat_indicators).lower() or 'startup' in str(threat_indicators).lower():
+                        self._track_persistence()
+                    if 'evasion' in str(threat_indicators).lower() or 'hidden' in str(threat_indicators).lower():
+                        self._track_evasion()
+                    if 'exfil' in str(threat_indicators).lower() or 'network' in str(threat_indicators).lower():
+                        self._track_exfil()
+                    if 'lateral' in str(threat_indicators).lower() or 'remote' in str(threat_indicators).lower():
+                        self._track_lateral_movement()
+                    
                     suspicious.append({
                         'pid': pinfo['pid'],
                         'name': pinfo['name'],

@@ -17591,6 +17591,17 @@ class HardwareMonitor:
             stats['sus_create_hour'] = getattr(fm, '_suspicious_creations_hour', 0)
             stats['ransom_hour'] = getattr(fm, '_ransomware_activity_hour', 0)
         except Exception: pass
+        # v29.39: Real-time behavior anomaly detection tracking
+        try:
+            stats['keylog_hour'] = getattr(bs, '_keylogging_attempts_hour', 0)
+            stats['screen_hour'] = getattr(bs, '_screen_capture_attempts_hour', 0)
+            stats['behavior_inject_hour'] = getattr(bs, '_process_injection_attempts_hour', 0)
+            stats['cred_hour'] = getattr(bs, '_credential_theft_attempts_hour', 0)
+            stats['persist_hour'] = getattr(bs, '_persistence_attempts_hour', 0)
+            stats['evasion_hour'] = getattr(bs, '_evasion_attempts_hour', 0)
+            stats['exfil_hour'] = getattr(bs, '_exfil_attempts_hour', 0)
+            stats['behavior_lateral_hour'] = getattr(bs, '_lateral_movement_attempts_hour', 0)
+        except Exception: pass
         # v29.39: Real-time disk I/O metrics
         try:
             disk_io = psutil.disk_io_counters()
@@ -28202,6 +28213,16 @@ Verification Status:
             ('SUS CREATE/H',  'sus_create_hour',  10, '/h', 'orange'),
             # Row 32 - v29.39: Real-Time File Anomaly Detection (continued)
             ('RANSOM/H',       'ransom_hour',      5, '/h', 'red'),
+            # Row 33 - v29.39: Real-Time Behavior Anomaly Detection
+            ('KEYLOG/H',       'keylog_hour',      10, '/h', 'red'),
+            ('SCREEN/H',       'screen_hour',      5, '/h', 'orange'),
+            ('INJECT/H',       'behavior_inject_hour', 15, '/h', 'red'),
+            ('CRED/H',         'cred_hour',        10, '/h', 'red'),
+            # Row 34 - v29.39: Real-Time Behavior Anomaly Detection (continued)
+            ('PERSIST/H',      'persist_hour',    20, '/h', 'orange'),
+            ('EVASION/H',      'evasion_hour',    15, '/h', 'purple'),
+            ('EXFIL/H',        'exfil_hour',      10, '/h', 'red'),
+            ('LATERAL/H',      'behavior_lateral_hour', 5, '/h', 'red'),
         ]
 
         COLS: Any = 4
