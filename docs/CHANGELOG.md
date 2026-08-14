@@ -2,6 +2,24 @@
 
 # Downpour v29 Titanium - Changelog
 
+## v29.32 - Live DNS Overview panel (throttled auto-refresh)
+
+- Found via call-site audit: _dns_refresh_overview (the DNS Overview info
+  panel + threat score) had ZERO callers -- the kickoff promised in its
+  build comment ("called from _auto_start") had been removed during loop
+  cleanup, so the panel stayed stale / "Click Refresh to scan" forever.
+- Restored the one-shot refresh at startup (after 4s) and added
+  _dns_overview_loop: a throttled 60s auto-refresh that only fires while the
+  DNS tab is visible, never overlaps an in-flight fetch (busy guard with a
+  180s stuck-fetch safety reset), and keeps the threat score + detail line
+  live. Read-only telemetry, consistent with the v29.27/v29.28 live-loop
+  rationale.
+- 4 new unit tests (46 total), 46/46 pass; py_compile OK.
+
+## v29.31 - Tooltips for the last bare buttons
+
+# Downpour v29 Titanium - Changelog
+
 ## v29.31 - Tooltips for the last bare buttons
 
 - Added hover tooltips to the 9 remaining tk.Button widgets that had none:

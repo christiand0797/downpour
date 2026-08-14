@@ -2,6 +2,27 @@
 
 ## Branch: main
 
+# Downpour v29 Titanium — Enhancement Worklog
+
+## Branch: main
+
+## Session 2026-08-13l — v29.32: live DNS Overview panel
+- ✅ **Bug found**: `_dns_refresh_overview` had zero callers — its build
+  comment said "now called from _auto_start()" but that kickoff was removed
+  during FIX-v28p38 loop cleanup. The DNS Overview info panel + threat score
+  never updated after first paint.
+- ✅ **Fix**: restored `after(4000, self._dns_refresh_overview)` one-shot and
+  added `_dns_overview_loop` (60s throttle) — refreshes only while the DNS
+  tab is visible, with an in-flight busy guard (set in `_dns_refresh_overview`
+  before the fetch thread starts, cleared on the `after(0)` UI postback) plus
+  a 180s stuck-fetch safety reset. Uses `_orig_after` for the reschedule,
+  matching the perf loop.
+- ✅ Tests: `TestDnsOverviewLiveV2932` (4 cases) — caller exists, loop wired
+  into auto_start, loop never raises on a bare instance, busy guard raised.
+  Full suite 46/46 pass; py_compile OK; pushed `62117b3..13b3f90`.
+
+## Session 2026-08-13k — v29.31: tooltips for the last bare buttons
+
 ## Session 2026-08-13l — v29.30b follow-up: hasattr() recursion fix on bare instances
 - ✅ **Bug**: the v29.30b warm-history pre-pass used `hasattr(self, '_perf_history')`
   guard clauses. On a bare `object.__new__(downpour)` test instance (no Tk
