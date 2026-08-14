@@ -185,6 +185,15 @@ Added additional real-time gauges to the Performance tab:
 - **DNS TUN/H**: DNS tunneling attempts in the last hour
 - **PORT SCAN/H**: Port scanning attempts in the last hour
 
+#### Real-Time Process Anomaly Detection (Row 29)
+- **INJECT/H**: Code injection attempts in the last hour
+- **DISGUISE/H**: Disguised processes detected in the last hour
+- **SUS LOC/H**: Suspicious location processes in the last hour
+- **SUS CMD/H**: Suspicious command line processes in the last hour
+
+#### Real-Time Process Anomaly Detection (Row 30)
+- **HIGH CPU/H**: High CPU processes detected in the last hour
+
 ### 8. Real-Time Phishing URL Detection Tracking (v29.39)
 Added real-time phishing URL detection tracking for enhanced threat intelligence:
 
@@ -235,6 +244,18 @@ Added real-time network anomaly detection tracking for enhanced threat intellige
 - **Automatic Cleanup**: Removes detections older than 1 hour for all anomaly types
 - **Integration**: Tracks anomalies during network connection scanning
 - **Performance Tab Gauges**: 4 new gauges for network anomaly visualization
+
+### 13. Real-Time Process Anomaly Detection Tracking (v29.39)
+Added real-time process anomaly detection tracking for enhanced threat intelligence:
+
+- **Injection Attempts/Hour**: Tracks code injection attempts (process hollowing indicators)
+- **Disguised Processes/Hour**: Tracks processes with suspicious names mimicking system processes
+- **Suspicious Locations/Hour**: Tracks processes running from temp/download directories
+- **Suspicious Command Lines/Hour**: Tracks processes with encoded/hidden command patterns
+- **High CPU Processes/Hour**: Tracks processes with excessive CPU usage (potential cryptominers)
+- **Automatic Cleanup**: Removes detections older than 1 hour for all anomaly types
+- **Integration**: Tracks anomalies during process analysis in `analyze_process()`
+- **Performance Tab Gauges**: 5 new gauges for process anomaly visualization
 
 ---
 

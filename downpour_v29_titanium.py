@@ -17578,6 +17578,12 @@ class HardwareMonitor:
             stats['lateral_hour'] = getattr(nm, '_lateral_movement_hour', 0)
             stats['dns_tun_hour'] = getattr(nm, '_dns_tunneling_hour', 0)
             stats['port_scan_hour'] = getattr(nm, '_port_scan_hour', 0)
+            # v29.39: Real-time process anomaly detection tracking
+            stats['inject_hour'] = getattr(pm, '_injection_attempts_hour', 0)
+            stats['disguise_hour'] = getattr(pm, '_disguised_processes_hour', 0)
+            stats['sus_loc_hour'] = getattr(pm, '_suspicious_locations_hour', 0)
+            stats['sus_cmd_hour'] = getattr(pm, '_suspicious_cmdlines_hour', 0)
+            stats['high_cpu_hour'] = getattr(pm, '_high_cpu_processes_hour', 0)
         except Exception: pass
         # v29.39: Real-time disk I/O metrics
         try:
@@ -28176,6 +28182,13 @@ Verification Status:
             ('LATERAL/H',      'lateral_hour',     10, '/h', 'orange'),
             ('DNS TUN/H',      'dns_tun_hour',     50, '/h', 'red'),
             ('PORT SCAN/H',   'port_scan_hour',   30, '/h', 'purple'),
+            # Row 29 - v29.39: Real-Time Process Anomaly Detection
+            ('INJECT/H',       'inject_hour',      15, '/h', 'red'),
+            ('DISGUISE/H',     'disguise_hour',    10, '/h', 'orange'),
+            ('SUS LOC/H',      'sus_loc_hour',     20, '/h', 'red'),
+            ('SUS CMD/H',      'sus_cmd_hour',     25, '/h', 'purple'),
+            # Row 30 - v29.39: Real-Time Process Anomaly Detection (continued)
+            ('HIGH CPU/H',     'high_cpu_hour',    30, '/h', 'orange'),
         ]
 
         COLS: Any = 4

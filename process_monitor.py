@@ -86,6 +86,18 @@ class ProcessMonitor:
         self._threats_last_hour = 0
         self._threat_history = []  # Timestamps of threats for hourly calculation
         
+        # v29.39: Real-time process anomaly tracking
+        self._injection_attempts_hour = 0
+        self._disguised_processes_hour = 0
+        self._suspicious_locations_hour = 0
+        self._suspicious_cmdlines_hour = 0
+        self._high_cpu_processes_hour = 0
+        self._injection_history = []
+        self._disguised_history = []
+        self._suspicious_location_history = []
+        self._suspicious_cmdline_history = []
+        self._high_cpu_history = []
+        
         # Legitimate system processes (exact names)
         self.system_processes = {
             'System', 'smss.exe', 'csrss.exe', 'wininit.exe',
@@ -312,6 +324,46 @@ class ProcessMonitor:
         # Clean up old threats (older than 1 hour)
         self._threat_history = [t for t in self._threat_history if now - t < 3600]
         self._threats_last_hour = len(self._threat_history)
+    
+    def _track_injection(self):
+        """Track code injection attempt for real-time metrics."""
+        now = time.time()
+        self._injection_history.append(now)
+        # Clean up old attempts (older than 1 hour)
+        self._injection_history = [t for t in self._injection_history if now - t < 3600]
+        self._injection_attempts_hour = len(self._injection_history)
+    
+    def _track_disguised(self):
+        """Track disguised process for real-time metrics."""
+        now = time.time()
+        self._disguised_history.append(now)
+        # Clean up old detections (older than 1 hour)
+        self._disguised_history = [t for t in self._disguised_history if now - t < 3600]
+        self._disguised_processes_hour = len(self._disguised_history)
+    
+    def _track_suspicious_location(self):
+        """Track suspicious location for real-time metrics."""
+        now = time.time()
+        self._suspicious_location_history.append(now)
+        # Clean up old detections (older than 1 hour)
+        self._suspicious_location_history = [t for t in self._suspicious_location_history if now - t < 3600]
+        self._suspicious_locations_hour = len(self._suspicious_location_history)
+    
+    def _track_suspicious_cmdline(self):
+        """Track suspicious command line for real-time metrics."""
+        now = time.time()
+        self._suspicious_cmdline_history.append(now)
+        # Clean up old detections (older than 1 hour)
+        self._suspicious_cmdline_history = [t for t in self._suspicious_cmdline_history if now - t < 3600]
+        self._suspicious_cmdlines_hour = len(self._suspicious_cmdline_history)
+    
+    def _track_high_cpu(self):
+        """Track high CPU process for real-time metrics."""
+        now = time.time()
+        self._high_cpu_history.append(now)
+        # Clean up old detections (older than 1 hour)
+        self._high_cpu_history = [t for t in self._high_cpu_history if now - t < 3600]
+        self._high_cpu_processes_hour = len(self._high_cpu_history)
 
     def analyze_process(self, proc):
         """
@@ -372,25 +424,32 @@ class ProcessMonitor:
             if is_disguised:
                 score += 30
                 alerts.append(reason)
+                # v29.39: Track disguised process for real-time metrics
+                self._track_disguised()
             
             # Check for suspicious location
             if self.is_suspicious_location(proc_info['exe']):
                 score += 20
                 alerts.append(f"Running from suspicious location: {proc_info['exe']}")
+                # v29.39: Track suspicious location for real-time metrics
+                self._track_suspicious_location()
             
             # Check command line
             is_suspicious_cmd, reason = self.check_suspicious_cmdline(proc_info['cmdline'])
             if is_suspicious_cmd:
                 score += 25
                 alerts.append(reason)
+                # v29.39: Track suspicious command line for real-time metrics
+                self._track_suspicious_cmdline()
             
             # Check for code injection signs
             is_injected, reason = self.check_process_injection(proc_info)
             if is_injected:
                 score += 40
                 alerts.append(reason)
-                # v29.39: Track threat for real-time metrics
+                # v29.39: Track threat and injection for real-time metrics
                 self._track_threat()
+                self._track_injection()
             
             # Check CPU usage (cryptominers use lots of CPU)
             try:
@@ -398,8 +457,9 @@ class ProcessMonitor:
                 if cpu > 80:
                     score += 15
                     alerts.append(f"High CPU usage: {cpu:.1f}%")
-                    # v29.39: Track threat for real-time metrics
+                    # v29.39: Track threat and high CPU for real-time metrics
                     self._track_threat()
+                    self._track_high_cpu()
             except Exception:
                 pass
             
