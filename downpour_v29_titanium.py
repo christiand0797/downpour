@@ -41569,22 +41569,32 @@ Verification Status:
                  font = ('Consolas', 10, 'bold'), fg=Colors.GAUGE_ORANGE,
                  bg = Colors.GLASS_CARD).pack(anchor='w', padx=8, pady=(8,4))
 
-        def _qbtn(text, cmd, fg=Colors.GAUGE_TEAL):
-            tk.Button(act_f, text=text, command=cmd,
+        def _qbtn(text, cmd, fg=Colors.GAUGE_TEAL, tip=None):
+            _q: Any = tk.Button(act_f, text=text, command=cmd,
                       font = ('Consolas', 9, 'bold'),
                       bg = Colors.GLASS_BORDER, fg=fg,
                       activebackground = Colors.GLASS_LIGHT,
-                      relief = 'flat', cursor='hand2', pady=6, anchor='w', padx=12
-                      ).pack(fill='x', padx=8, pady=3)
+                      relief = 'flat', cursor='hand2', pady=6, anchor='w', padx=12)
+            _q.pack(fill='x', padx=8, pady=3)
+            if tip:
+                self._tooltip(_q, tip)
 
-        _qbtn('[RELOAD]  Refresh DNS Info',         self._dns_refresh_overview, Colors.GAUGE_TEAL)
-        _qbtn('Flush DNS Cache',           self._dns_flush_cache, Colors.GAUGE_BLUE)
-        _qbtn('[LOCK]  Enable DNS-over-HTTPS',     self._dns_enable_doh, Colors.GAUGE_GREEN)
-        _qbtn('[SKULL]  Run Poison Detection',       self._dns_run_poison_check, Colors.GAUGE_ORANGE)
-        _qbtn('[SHIELD]  Apply Secure DNS (Quad9)',  self._dns_apply_quad9, Colors.GAUGE_PURPLE)
-        _qbtn('[CLEAN]  Reset DNS to Auto (DHCP)',  self._dns_reset_dhcp, Colors.TEXT_DIM)
-        _qbtn('[ALERT]  Kill DNS Leak Now',         self._dns_kill_leak, Colors.GAUGE_RED)
-        _qbtn('[CLIP]  Export DNS Report',         self._dns_export_report, Colors.GAUGE_CYAN)
+        _qbtn('[RELOAD]  Refresh DNS Info',         self._dns_refresh_overview, Colors.GAUGE_TEAL,
+              'Re-read current DNS servers, DNSSEC, DoH, leak and hosts-file state and re-score')
+        _qbtn('Flush DNS Cache',           self._dns_flush_cache, Colors.GAUGE_BLUE,
+              'ipconfig /flushdns — clear the local DNS resolver cache')
+        _qbtn('[LOCK]  Enable DNS-over-HTTPS',     self._dns_enable_doh, Colors.GAUGE_GREEN,
+              'Turn on encrypted DNS-over-HTTPS for all active adapters')
+        _qbtn('[SKULL]  Run Poison Detection',       self._dns_run_poison_check, Colors.GAUGE_ORANGE,
+              'Scan for DNS cache poisoning / corruption indicators')
+        _qbtn('[SHIELD]  Apply Secure DNS (Quad9)',  self._dns_apply_quad9, Colors.GAUGE_PURPLE,
+              'Set the secure Quad9 (9.9.9.9) resolver on all active adapters')
+        _qbtn('[CLEAN]  Reset DNS to Auto (DHCP)',  self._dns_reset_dhcp, Colors.TEXT_DIM,
+              'Reset all adapters to automatic (DHCP-provided) DNS')
+        _qbtn('[ALERT]  Kill DNS Leak Now',         self._dns_kill_leak, Colors.GAUGE_RED,
+              'Immediately sever any detected DNS leak / non-resolver DNS traffic')
+        _qbtn('[CLIP]  Export DNS Report',         self._dns_export_report, Colors.GAUGE_CYAN,
+              'Export the DNS security overview as a text report')
 
         # Threat score
         score_f: Any = tk.Frame(act_f, bg=Colors.GLASS_PANEL)
@@ -41650,9 +41660,13 @@ Verification Status:
                 self._dns_secondary_var.set(secondary)
                 self._dns_srv_log(f'Loaded: {sel}  Primary={primary}  Secondary={secondary}', Colors.GAUGE_TEAL)
 
-        tk.Button(pick_f, text='Load ->', command=_apply_provider,
+        self._dns_provider_load_btn = tk.Button(pick_f, text='Load ->', command=_apply_provider,
                   font = ('Consolas', 9), bg=Colors.GAUGE_TEAL, fg=Colors.BG_VOID,
-                  relief = 'flat', padx=10).grid(row=0, column=2, padx=8)
+                  relief = 'flat', padx=10)
+        self._dns_provider_load_btn.grid(row=0, column=2, padx=8)
+        self._tooltip(self._dns_provider_load_btn,
+            'Load the selected provider’s primary + secondary DNS servers\n'
+            'into the manual-entry fields below (Apply still required)')
 
         # Manual entry
         entry_f: Any = tk.Frame(p, bg=Colors.GLASS_PANEL)
@@ -41672,19 +41686,26 @@ Verification Status:
         btn_f: Any = tk.Frame(p, bg=Colors.GLASS_PANEL)
         btn_f.grid(row=3, column=0, sticky='ew', padx=8, pady=4)
 
-        def _srv_btn(text, cmd, fg=Colors.GAUGE_TEAL):
-            tk.Button(btn_f, text=text, command=cmd,
+        def _srv_btn(text, cmd, fg=Colors.GAUGE_TEAL, tip=None):
+            _sb2: Any = tk.Button(btn_f, text=text, command=cmd,
                       font = ('Consolas', 9, 'bold'),
                       bg = Colors.GLASS_BORDER, fg=fg,
                       activebackground = Colors.GLASS_LIGHT,
-                      relief = 'flat', cursor='hand2', pady=5, padx=10
-                      ).pack(side='left', padx=6, pady=6)
+                      relief = 'flat', cursor='hand2', pady=5, padx=10)
+            _sb2.pack(side='left', padx=6, pady=6)
+            if tip:
+                self._tooltip(_sb2, tip)
 
-        _srv_btn('[OK] Apply to All Adapters',  self._dns_apply_servers, Colors.GAUGE_GREEN)
-        _srv_btn('[RELOAD] Show Current DNS',        self._dns_show_current, Colors.GAUGE_TEAL)
-        _srv_btn('[CLEAN] Reset to DHCP',           self._dns_reset_dhcp, Colors.TEXT_DIM)
-        _srv_btn('[NET] Test DNS Latency',        self._dns_test_latency, Colors.GAUGE_BLUE)
-        _srv_btn('[SHIELD] Test DNS Leak',           self._dns_test_leak, Colors.GAUGE_ORANGE)
+        _srv_btn('[OK] Apply to All Adapters',  self._dns_apply_servers, Colors.GAUGE_GREEN,
+                 'Set the DNS servers entered above on every active adapter')
+        _srv_btn('[RELOAD] Show Current DNS',        self._dns_show_current, Colors.GAUGE_TEAL,
+                 'Print the current per-adapter DNS server config')
+        _srv_btn('[CLEAN] Reset to DHCP',           self._dns_reset_dhcp, Colors.TEXT_DIM,
+                 'Reset all adapters to automatic (DHCP-provided) DNS')
+        _srv_btn('[NET] Test DNS Latency',        self._dns_test_latency, Colors.GAUGE_BLUE,
+                 'Measure response time to Cloudflare, Google, Quad9, OpenDNS, AdGuard')
+        _srv_btn('[SHIELD] Test DNS Leak',           self._dns_test_leak, Colors.GAUGE_ORANGE,
+                 'Verify the resolver answers match your configured DNS (leak check)')
 
         # Log
         log_f: Any = tk.Frame(p, bg=Colors.BG_VOID)
@@ -41856,22 +41877,32 @@ Verification Status:
         btn_f: Any = tk.Frame(p, bg=Colors.GLASS_PANEL)
         btn_f.grid(row=1, column=0, sticky='ew', padx=8, pady=4)
 
-        def _hbtn(text, cmd, fg=Colors.GAUGE_TEAL):
-            tk.Button(btn_f, text=text, command=cmd,
+        def _hbtn(text, cmd, fg=Colors.GAUGE_TEAL, tip=None):
+            _hb2: Any = tk.Button(btn_f, text=text, command=cmd,
                       font = ('Consolas', 9, 'bold'),
                       bg = Colors.GLASS_BORDER, fg=fg,
                       activebackground = Colors.GLASS_LIGHT,
-                      relief = 'flat', cursor='hand2', pady=5, padx=10
-                      ).pack(side='left', padx=6, pady=6)
+                      relief = 'flat', cursor='hand2', pady=5, padx=10)
+            _hb2.pack(side='left', padx=6, pady=6)
+            if tip:
+                self._tooltip(_hb2, tip)
 
-        _hbtn('[DIR] Load Hosts File', self._dns_hosts_load, Colors.GAUGE_TEAL)
-        _hbtn('[SAVE] Save Hosts File', self._dns_hosts_save, Colors.GAUGE_GREEN)
-        _hbtn('[BLOCK] Block Malware Hosts',   self._dns_hosts_block_malware, Colors.GAUGE_RED)
-        _hbtn('[BLOCK] Block Ad Servers',      self._dns_hosts_block_ads, Colors.GAUGE_ORANGE)
-        _hbtn('Import StevenBlack List', self._dns_hosts_import_stevenblack, Colors.GAUGE_PURPLE)
-        _hbtn('[SEARCH] Scan for Hijacks',      self._dns_hosts_scan_hijacks, Colors.GAUGE_YELLOW)
-        _hbtn('[CFG] Backup Hosts',          self._dns_hosts_backup, Colors.TEXT_DIM)
-        _hbtn('[RELOAD] Restore Backup',        self._dns_hosts_restore, Colors.TEXT_DIM)
+        _hbtn('[DIR] Load Hosts File', self._dns_hosts_load, Colors.GAUGE_TEAL,
+              'Load the hosts file into the editor for viewing/editing')
+        _hbtn('[SAVE] Save Hosts File', self._dns_hosts_save, Colors.GAUGE_GREEN,
+              'Write the editor contents back to the hosts file')
+        _hbtn('[BLOCK] Block Malware Hosts',   self._dns_hosts_block_malware, Colors.GAUGE_RED,
+              'Add known malware domains to the hosts blocklist')
+        _hbtn('[BLOCK] Block Ad Servers',      self._dns_hosts_block_ads, Colors.GAUGE_ORANGE,
+              'Add known ad/tracker domains to the hosts blocklist')
+        _hbtn('Import StevenBlack List', self._dns_hosts_import_stevenblack, Colors.GAUGE_PURPLE,
+              'Merge the StevenBlack unified hosts blocklist')
+        _hbtn('[SEARCH] Scan for Hijacks',      self._dns_hosts_scan_hijacks, Colors.GAUGE_YELLOW,
+              'Detect entries that redirect known-good domains away from localhost')
+        _hbtn('[CFG] Backup Hosts',          self._dns_hosts_backup, Colors.TEXT_DIM,
+              'Back up the current hosts file to the backup folder')
+        _hbtn('[RELOAD] Restore Backup',        self._dns_hosts_restore, Colors.TEXT_DIM,
+              'Restore the hosts file from the latest backup')
 
         # Editor
         edit_f: Any = tk.Frame(p, bg=Colors.BG_VOID)
@@ -42074,17 +42105,25 @@ Verification Status:
         btn_f: Any = tk.Frame(ctrl_f, bg=Colors.GLASS_CARD)
         btn_f.grid(row=1, column=0, columnspan=2, sticky='ew', padx=4, pady=8)
 
-        def _enc_btn(text, cmd, fg=Colors.GAUGE_PURPLE):
-            tk.Button(btn_f, text=text, command=cmd,
+        def _enc_btn(text, cmd, fg=Colors.GAUGE_PURPLE, tip=None):
+            _eb: Any = tk.Button(btn_f, text=text, command=cmd,
                       font = ('Consolas', 9, 'bold'), bg=Colors.GLASS_BORDER, fg=fg,
                       activebackground = Colors.GLASS_LIGHT, relief='flat',
-                      cursor = 'hand2', pady=5, padx=10).pack(side='left', padx=6, pady=4)
+                      cursor = 'hand2', pady=5, padx=10)
+            _eb.pack(side='left', padx=6, pady=4)
+            if tip:
+                self._tooltip(_eb, tip)
 
-        _enc_btn('[LOCK] Enable DoH (Win11)',   self._dns_enable_doh, Colors.GAUGE_PURPLE)
-        _enc_btn('[LOCK] Enable DoH (Cloudflare)', self._dns_enable_doh_cloudflare, Colors.GAUGE_BLUE)
-        _enc_btn('[LOCK] Enable DoH (Google)',   self._dns_enable_doh_google, Colors.GAUGE_TEAL)
-        _enc_btn('[LOCK] Test DoH Connection',   self._dns_test_doh, Colors.GAUGE_GREEN)
-        _enc_btn('[SHIELD] Check DNS Leak',        self._dns_test_leak, Colors.GAUGE_ORANGE)
+        _enc_btn('[LOCK] Enable DoH (Win11)',   self._dns_enable_doh, Colors.GAUGE_PURPLE,
+                 'Enable DNS-over-HTTPS using the Windows 11 automatic method')
+        _enc_btn('[LOCK] Enable DoH (Cloudflare)', self._dns_enable_doh_cloudflare, Colors.GAUGE_BLUE,
+                 'Point DoH at Cloudflare (https://cloudflare-dns.com/dns-query)')
+        _enc_btn('[LOCK] Enable DoH (Google)',   self._dns_enable_doh_google, Colors.GAUGE_TEAL,
+                 'Point DoH at Google (https://dns.google/dns-query)')
+        _enc_btn('[LOCK] Test DoH Connection',   self._dns_test_doh, Colors.GAUGE_GREEN,
+                 'Verify the DoH endpoint responds correctly over HTTPS')
+        _enc_btn('[SHIELD] Check DNS Leak',        self._dns_test_leak, Colors.GAUGE_ORANGE,
+                 'Confirm no DNS queries leak outside the encrypted resolver')
 
         self._dns_encrypt_results = tk.Text(p, font=('Consolas', 9),
                                              bg = Colors.GLASS_DARK, fg=Colors.TEXT_LIGHT,
@@ -42118,38 +42157,54 @@ Verification Status:
                  font = ('Consolas', 10, 'bold'), fg=Colors.GAUGE_YELLOW,
                  bg = Colors.GLASS_CARD).pack(anchor='w', padx=8, pady=(8,4))
 
-        def _tbtn(parent, text, cmd):
-            tk.Button(parent, text=text, command=cmd,
+        def _tbtn(parent, text, cmd, tip=None):
+            _tb2: Any = tk.Button(parent, text=text, command=cmd,
                       font = ('Consolas', 8, 'bold'), bg=Colors.GLASS_BORDER,
                       fg = Colors.TEXT_LIGHT, activebackground=Colors.GLASS_LIGHT,
-                      relief = 'flat', cursor='hand2', pady=5, anchor='w', padx=8
-                      ).pack(fill='x', padx=8, pady=2)
+                      relief = 'flat', cursor='hand2', pady=5, anchor='w', padx=8)
+            _tb2.pack(fill='x', padx=8, pady=2)
+            if tip:
+                self._tooltip(_tb2, tip)
 
         self._dns_adv_domain_var = tk.StringVar(value='google.com')
         tk.Entry(tools_f, textvariable=self._dns_adv_domain_var,
                  font = ('Consolas', 9), bg=Colors.GLASS_DARK, fg=Colors.GAUGE_TEAL,
                  relief = 'flat', bd=3).pack(fill='x', padx=8, pady=4)
 
-        _tbtn(tools_f, '[SEARCH] nslookup Domain',   self._dns_adv_nslookup)
-        _tbtn(tools_f, '[SEARCH] Reverse DNS Lookup', self._dns_adv_reverse_lookup)
-        _tbtn(tools_f, '[CLIP] Get ALL DNS Records', self._dns_adv_all_records)
-        _tbtn(tools_f, 'Trace DNS Path',      self._dns_adv_trace)
-        _tbtn(tools_f, '[WEB] Whois Lookup',        self._dns_adv_whois)
-        _tbtn(tools_f, '[SHIELD] Check Blacklists (DNSBL)', self._dns_adv_dnsbl)
-        _tbtn(tools_f, '[CT] crt.sh Subdomains',     self._dns_adv_crtsh)
-        _tbtn(tools_f, '[EMAIL] SPF/DMARC/DKIM',     self._dns_adv_email_security)
-        _tbtn(tools_f, '[WEB] urlscan.io Search',    self._dns_adv_urlscan)
-        _tbtn(tools_f, '[BREACH] Infostealer Check', self._dns_adv_hudsonrock)
-        _tbtn(tools_f, '[WEB] Domain OSINT Stack',   self._dns_adv_domain_osint)
+        _tbtn(tools_f, '[SEARCH] nslookup Domain',   self._dns_adv_nslookup,
+              'Resolve A records for the domain above')
+        _tbtn(tools_f, '[SEARCH] Reverse DNS Lookup', self._dns_adv_reverse_lookup,
+              'PTR lookup — map an IP address back to a hostname')
+        _tbtn(tools_f, '[CLIP] Get ALL DNS Records', self._dns_adv_all_records,
+              'Dump every record type (A, AAAA, MX, TXT, NS, CNAME…)')
+        _tbtn(tools_f, 'Trace DNS Path',      self._dns_adv_trace,
+              'Trace the resolution path from your resolver to the domain')
+        _tbtn(tools_f, '[WEB] Whois Lookup',        self._dns_adv_whois,
+              'Query whois/RDAP for registrant, nameserver and expiry data')
+        _tbtn(tools_f, '[SHIELD] Check Blacklists (DNSBL)', self._dns_adv_dnsbl,
+              'Test the domain against common DNS blocklists')
+        _tbtn(tools_f, '[CT] crt.sh Subdomains',     self._dns_adv_crtsh,
+              'Enumerate subdomains via crt.sh certificate-transparency logs')
+        _tbtn(tools_f, '[EMAIL] SPF/DMARC/DKIM',     self._dns_adv_email_security,
+              'Email security: verify SPF, DMARC and DKIM records')
+        _tbtn(tools_f, '[WEB] urlscan.io Search',    self._dns_adv_urlscan,
+              'Search urlscan.io for public scans of the domain')
+        _tbtn(tools_f, '[BREACH] Infostealer Check', self._dns_adv_hudsonrock,
+              'Hudson Rock — check for credentials captured by infostealer malware')
+        _tbtn(tools_f, '[WEB] Domain OSINT Stack',   self._dns_adv_domain_osint,
+              'Run the multi-source OSINT stack against the domain')
         _tbtn(tools_f, '[NET] HackerTarget Recon',
               lambda: self._osint_hacktarget_lookup(
-                  self._dns_adv_domain_var.get().strip()))
+                  self._dns_adv_domain_var.get().strip()),
+              'HackerTarget open-port + DNS recon for the domain')
         _tbtn(tools_f, '[ASN] BGPView Routing',
               lambda: self._osint_bgpview_lookup(
-                  self._dns_adv_domain_var.get().strip()))
+                  self._dns_adv_domain_var.get().strip()),
+              'Show BGP announcements / AS path for the domain')
         _tbtn(tools_f, '[NET] IPinfo ASN Lookup',
               lambda: self._osint_ipinfo_lookup(
-                  self._dns_adv_domain_var.get().strip()))
+                  self._dns_adv_domain_var.get().strip()),
+              'Show IPinfo ASN, organization and network for the domain')
 
         # Column 2: Security Tests
         sec_f: Any = tk.Frame(main_f, bg=Colors.GLASS_CARD)
@@ -42158,13 +42213,20 @@ Verification Status:
                  font = ('Consolas', 10, 'bold'), fg=Colors.GAUGE_RED,
                  bg = Colors.GLASS_CARD).pack(anchor='w', padx=8, pady=(8,4))
 
-        _tbtn(sec_f, '[SCAN] Full DNS Security Audit', self._dns_full_security_audit)
-        _tbtn(sec_f, '[SKULL] DNS Spoofing Test',        self._dns_spoofing_test)
-        _tbtn(sec_f, '[RELOAD] DNS Rebinding Test',       self._dns_rebinding_test)
-        _tbtn(sec_f, '[ALERT] Check DNS Hijack',         self._dns_check_hijack)
-        _tbtn(sec_f, '[NET] Test All DNS Servers',     self._dns_test_all_servers)
-        _tbtn(sec_f, '[SHIELD] Check Router DNS',         self._dns_check_router_dns)
-        _tbtn(sec_f, '[WEB] Test BGP Route Leak',      self._dns_test_bgp)
+        _tbtn(sec_f, '[SCAN] Full DNS Security Audit', self._dns_full_security_audit,
+              'Run every DNS security test and summarize the results')
+        _tbtn(sec_f, '[SKULL] DNS Spoofing Test',        self._dns_spoofing_test,
+              'Detect responses that do not come from your configured resolver')
+        _tbtn(sec_f, '[RELOAD] DNS Rebinding Test',       self._dns_rebinding_test,
+              'Check whether the resolver blocks DNS-rebinding attempts')
+        _tbtn(sec_f, '[ALERT] Check DNS Hijack',         self._dns_check_hijack,
+              'Look for signs the resolver is being intercepted or redirected')
+        _tbtn(sec_f, '[NET] Test All DNS Servers',     self._dns_test_all_servers,
+              'Compare latency and consistency across major public resolvers')
+        _tbtn(sec_f, '[SHIELD] Check Router DNS',         self._dns_check_router_dns,
+              'Verify the gateway/router resolver configuration')
+        _tbtn(sec_f, '[WEB] Test BGP Route Leak',      self._dns_test_bgp,
+              'Check for BGP route leaks that could intercept DNS paths')
 
         # Column 3: Repair/Fix
         fix_f: Any = tk.Frame(main_f, bg=Colors.GLASS_CARD)
@@ -42173,13 +42235,20 @@ Verification Status:
                  font = ('Consolas', 10, 'bold'), fg=Colors.GAUGE_GREEN,
                  bg = Colors.GLASS_CARD).pack(anchor='w', padx=8, pady=(8,4))
 
-        _tbtn(fix_f, 'Flush DNS + NetBIOS',     self._dns_flush_all)
-        _tbtn(fix_f, '[FIX] Reset TCP/IP Stack',       self._dns_reset_tcpip)
-        _tbtn(fix_f, '[FIX] Reset Winsock',            self._dns_reset_winsock)
-        _tbtn(fix_f, '[SHIELD] Lock DNS (prevent changes)', self._dns_lock_dns)
-        _tbtn(fix_f, '[ALERT] Emergency DNS Fix',        self._dns_emergency_fix)
-        _tbtn(fix_f, '[CLIP] Backup DNS Settings',      self._dns_backup_settings)
-        _tbtn(fix_f, '[RELOAD] Restore DNS Settings',     self._dns_restore_settings)
+        _tbtn(fix_f, 'Flush DNS + NetBIOS',     self._dns_flush_all,
+              'ipconfig /flushdns + nbtstat -R')
+        _tbtn(fix_f, '[FIX] Reset TCP/IP Stack',       self._dns_reset_tcpip,
+              'netsh int ip reset — restore the default TCP/IP stack')
+        _tbtn(fix_f, '[FIX] Reset Winsock',            self._dns_reset_winsock,
+              'netsh winsock reset — repair broken sockets (reboot may be needed)')
+        _tbtn(fix_f, '[SHIELD] Lock DNS (prevent changes)', self._dns_lock_dns,
+              'Make DNS settings tamper-resistant against reconfiguration')
+        _tbtn(fix_f, '[ALERT] Emergency DNS Fix',        self._dns_emergency_fix,
+              'Reset broken DNS config and re-apply a safe known-good fallback')
+        _tbtn(fix_f, '[CLIP] Backup DNS Settings',      self._dns_backup_settings,
+              'Export current DNS configuration to a backup file')
+        _tbtn(fix_f, '[RELOAD] Restore DNS Settings',     self._dns_restore_settings,
+              'Re-apply DNS settings from the most recent backup')
 
         # Output console at bottom
         out_f: Any = tk.Frame(p, bg=Colors.GLASS_DARK)
