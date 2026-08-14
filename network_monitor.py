@@ -328,6 +328,8 @@ class NetworkMonitor:
             'abuseipdb': {'abuse_confidence': 0, 'reports': 0},
             'shodan': {'open_ports': [], 'vulns': 0},
             'censys': {'services': [], 'risk_score': 0},
+            'threatwinds': {'malicious': False, 'confidence': 0},
+            'threatradar': {'threat_score': 0, 'severity': ''},
             'composite_score': 0,
             'threat_level': 'UNKNOWN'
         }
@@ -396,6 +398,44 @@ class NetworkMonitor:
                         'risk_score': censys_data.get('result', {}).get('risk_score', 0)
                     }
             
+            # v29.39: Check ThreatWinds
+            if ti.api_keys.get('threatwinds'):
+                try:
+                    headers = {'Authorization': f"Bearer {ti.api_keys['threatwinds']}"}
+                    if _REQUESTS_AVAILABLE:
+                        resp = requests.get(
+                            f"https://apis.threatwinds.com/api/feeds/v1/check",
+                            headers=headers, params={'ip': ip}, timeout=5
+                        )
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            result['threatwinds'] = {
+                                'malicious': data.get('malicious', False),
+                                'confidence': data.get('confidence', 0)
+                            }
+                except Exception:
+                    pass
+            
+            # v29.39: Check ThreatRadar
+            if ti.api_keys.get('threatradar'):
+                try:
+                    headers = {'X-API-Key': ti.api_keys['threatradar']}
+                    if _REQUESTS_AVAILABLE:
+                        resp = requests.get(
+                            f"https://radar.offseq.com/api/v1/threats",
+                            headers=headers, params={'ip': ip}, timeout=5
+                        )
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            if data.get('data'):
+                                threat = data['data'][0] if isinstance(data['data'], list) else data['data']
+                                result['threatradar'] = {
+                                    'threat_score': threat.get('cvss', 0),
+                                    'severity': threat.get('severity', '')
+                                }
+                except Exception:
+                    pass
+            
             # Calculate composite threat score (0-100)
             score = 0
             if result['greynoise']['noise']:
@@ -406,6 +446,11 @@ class NetworkMonitor:
             score += min(result['abuseipdb']['reports'] * 2, 15)
             score += min(result['shodan']['vulns'] * 5, 20)
             score += min(result['censys']['risk_score'] * 10, 20)
+            # v29.39: Add ThreatWinds and ThreatRadar to scoring
+            if result['threatwinds']['malicious']:
+                score += min(result['threatwinds']['confidence'] * 10, 15)
+            if result['threatradar']['threat_score'] > 0:
+                score += min(result['threatradar']['threat_score'] * 5, 10)
             result['composite_score'] = min(score, 100)
             
             # Determine threat level

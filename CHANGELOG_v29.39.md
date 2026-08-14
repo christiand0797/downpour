@@ -30,7 +30,7 @@ Added 12 new real-time gauges to the Performance tab for deeper system visibilit
 - **LOAD 15M**: 15-minute load average
 
 ### 2. OSINT Integration
-Integrated 5 new OSINT data sources for enhanced threat intelligence:
+Integrated 9 new OSINT data sources for enhanced threat intelligence:
 
 #### GreyNoise
 - Internet noise and scanner detection
@@ -58,13 +58,41 @@ Integrated 5 new OSINT data sources for enhanced threat intelligence:
 - Malware URL detection
 - Recent scan history
 
+#### ThreatWinds (v29.39)
+- Comprehensive threat intelligence feeds API
+- Multi-source IOC aggregation
+- Accuracy level filtering (level1/level2/level3)
+- Accumulative and daily feed types
+
+#### DarkAPI (v29.39)
+- URLhaus feed integration
+- MalwareBazaar feed integration
+- Real-time threat feed streaming
+- MISP-compatible export format
+
+#### ThreatBook CTI (v29.39)
+- IOC bundle with threat verdicts
+- IP reputation context
+- Hash feeds for file-based detection
+- URL feeds for automated monitoring
+- Threat actor intelligence
+
+#### ThreatRadar (v29.39)
+- Real-time threat intelligence from multiple sources
+- CVE vulnerability data with enriched metadata
+- IoC checking with fuzzy version matching
+- Geographic threat distribution data
+- 19 filter parameters for precise queries
+
 ### 3. Enhanced Network Monitoring
 Added OSINT reputation checking to network connection analysis:
 
 - **Composite Threat Scoring**: 0-100 score based on multiple OSINT sources
 - **Threat Level Classification**: SAFE/LOW/MEDIUM/HIGH/CRITICAL
-- **Real-time IP Reputation**: Checks GreyNoise, AbuseIPDB, Shodan, Censys on connection
+- **Real-time IP Reputation**: Checks GreyNoise, AbuseIPDB, Shodan, Censys, ThreatWinds, ThreatRadar on connection
 - **Enhanced Alerting**: Detailed OSINT context in security alerts
+- **OSINT Caching**: 5-minute cache TTL to reduce API calls
+- **Automatic Cache Cleanup**: Removes stale entries when cache exceeds 1000 items
 
 ### 4. Enhanced Process Monitoring
 Improved malware detection capabilities:
@@ -94,6 +122,10 @@ self.api_keys = {
     'abuseipdb': '',  # Get from abuseipdb.com
     'censys': '',     # Get from censys.io
     'urlscan': '',    # Get from urlscan.io
+    'threatwinds': '',  # Get from threatwinds.com
+    'darkapi': '',    # Get from darkapi.io
+    'threatbook': '',  # Get from threatbook.io
+    'threatradar': '',  # Get from radar.offseq.com
 }
 ```
 
@@ -103,6 +135,10 @@ self.api_keys = {
 - **AbuseIPDB**: https://www.abuseipdb.com/register (Free tier available)
 - **Censys**: https://search.censys.io/signup (Free tier available)
 - **URLScan.io**: https://urlscan.io/app/signup (Free tier available)
+- **ThreatWinds**: https://threatwinds.com (Free tier available)
+- **DarkAPI**: https://darkapi.io (Free tier available)
+- **ThreatBook**: https://threatbook.io (Free tier available)
+- **ThreatRadar**: https://radar.offseq.com (Free tier available)
 
 ---
 
@@ -115,11 +151,20 @@ self.api_keys = {
 - **DNS Latency**: Simple DNS resolution latency test (8.8.8.8)
 - **Security Metrics Integration**: Cross-module metric collection
 - **OSINT Metrics Tracking**: Lookup counting and cache hit tracking
+- **Adaptive Refresh Interval**: CPU load-based refresh rate (1-3 seconds)
+- **Optimized Gauge Rendering**: Skips glow effects under high CPU load
 
 ### Connection Pooling
 - Shared HTTP session with keep-alive for threat intelligence feeds
-- Connection pool: 10 keep-alive, max 20 connections
-- Reduced API call overhead
+- Optimized connection pool: 5 keep-alive, max 10 connections (reduced from 10/20)
+- pool_block=False to prevent blocking when pool is full
+- Reduced memory usage and API call overhead
+
+### Caching Mechanisms
+- **OSINT Reputation Cache**: 5-minute TTL for IP reputation lookups
+- **Process Cache**: 10-second TTL for process information
+- **Automatic Cache Cleanup**: Removes stale entries when cache exceeds limits
+- **Reduced API Calls**: Caching prevents repeated queries to external OSINT sources
 
 ---
 
@@ -127,12 +172,14 @@ self.api_keys = {
 
 ### Network Threat Detection
 - OSINT reputation checking integrated into connection analysis
-- Composite threat scoring algorithm
+- Composite threat scoring algorithm (now includes ThreatWinds and ThreatRadar)
 - Enhanced alerting with OSINT context
 - GreyNoise classification integration
 - AbuseIPDB abuse confidence tracking
 - Shodan vulnerability counting
 - Censys risk scoring
+- ThreatWinds malicious IP detection
+- ThreatRadar CVE and threat score integration
 
 ### Process Threat Detection
 - Additional suspicious command line patterns
@@ -164,6 +211,11 @@ New OSINT feeds with configured update intervals:
 | URLScan.io | High | 30 minutes | Yes |
 | Shodan | Medium | 24 hours | Yes |
 | Censys | Medium | 24 hours | Yes |
+| ThreatWinds | High | 1 hour | Yes |
+| DarkAPI URLhaus | High | 30 minutes | Yes |
+| DarkAPI MalwareBazaar | High | 30 minutes | Yes |
+| ThreatBook IOC | Medium | 1 hour | Yes |
+| ThreatRadar | Medium | 1 hour | Yes |
 
 ---
 
@@ -250,6 +302,10 @@ No configuration file changes required. API keys can be set in `threat_intellige
 - Shodan
 - Censys
 - URLScan.io
+- ThreatWinds Feeds API
+- DarkAPI (URLhaus, MalwareBazaar)
+- ThreatBook CTI
+- ThreatRadar
 
 ### Inspiration
 - OSINT4ALL Start.me resource collection

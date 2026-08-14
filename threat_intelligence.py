@@ -126,6 +126,10 @@ class ThreatIntelligenceManager:
             'abuseipdb': '',  # Get from abuseipdb.com
             'censys': '',     # Get from censys.io
             'urlscan': '',    # Get from urlscan.io
+            'threatwinds': '',  # Get from threatwinds.com
+            'darkapi': '',    # Get from darkapi.io
+            'threatbook': '',  # Get from threatbook.io
+            'threatradar': '',  # Get from radar.offseq.com
         }
         
         # Feed configurations
@@ -245,6 +249,47 @@ class ThreatIntelligenceManager:
                 'enabled': True,
                 'priority': 'high',
                 'update_interval': 1800,  # 30 minutes
+                'last_update': 0,
+                'api_required': True
+            },
+            # v29.39: Additional OSINT feeds from research
+            'threatwinds': {
+                'url': 'https://apis.threatwinds.com/api/feeds/v1',
+                'enabled': True,
+                'priority': 'high',
+                'update_interval': 3600,  # 1 hour
+                'last_update': 0,
+                'api_required': True
+            },
+            'darkapi_urlhaus': {
+                'url': 'https://api.darkapi.io/v1/feeds/urlhaus',
+                'enabled': True,
+                'priority': 'high',
+                'update_interval': 1800,  # 30 minutes
+                'last_update': 0,
+                'api_required': True
+            },
+            'darkapi_malwarebazaar': {
+                'url': 'https://api.darkapi.io/v1/feeds/malwarebazaar',
+                'enabled': True,
+                'priority': 'high',
+                'update_interval': 1800,  # 30 minutes
+                'last_update': 0,
+                'api_required': True
+            },
+            'threatbook_ioc': {
+                'url': 'https://api.threatbook.com/v3/cti/ioc/feed',
+                'enabled': True,
+                'priority': 'medium',
+                'update_interval': 3600,  # 1 hour
+                'last_update': 0,
+                'api_required': True
+            },
+            'threatradar': {
+                'url': 'https://radar.offseq.com/api/v1/threats',
+                'enabled': True,
+                'priority': 'medium',
+                'update_interval': 3600,  # 1 hour
                 'last_update': 0,
                 'api_required': True
             }
@@ -1185,6 +1230,210 @@ class ThreatIntelligenceManager:
             logging.debug(f"Censys lookup failed for {ip}: {e}")
             return {'error': str(e)}
     
+    # v29.39: Additional OSINT feed update methods for new sources
+    
+    def update_threatwinds_feed(self):
+        """Update threat intelligence from ThreatWinds Feeds API."""
+        try:
+            logging.info("Updating ThreatWinds feed...")
+            
+            if not self.api_keys.get('threatwinds'):
+                logging.warning("ThreatWinds API key not configured, skipping")
+                return 0
+            
+            headers = {}
+            if self.api_keys.get('threatwinds'):
+                headers['Authorization'] = f"Bearer {self.api_keys['threatwinds']}"
+            
+            _get = self._session.get if self._session else requests.get
+            response = _get(self.feeds['threatwinds']['url'], headers=headers, timeout=30)
+            response.raise_for_status()
+            
+            data = response.json()
+            iocs_added = 0
+            
+            # Process ThreatWinds feed data
+            if isinstance(data, dict) and 'feeds' in data:
+                for feed in data.get('feeds', []):
+                    # Extract IPs from feed
+                    if 'indicators' in feed:
+                        for indicator in feed.get('indicators', []):
+                            if indicator.get('type') == 'ip':
+                                self.add_malicious_ip(indicator.get('value'), 'threatwinds')
+                                iocs_added += 1
+            
+            self.feeds['threatwinds']['last_update'] = time.time()
+            logging.info(f"[OK] ThreatWinds updated: {iocs_added} IOCs added")
+            return iocs_added
+            
+        except Exception as e:
+            logging.error(f"Failed to update ThreatWinds: {e}")
+            self.stats['update_failures'] += 1
+            return 0
+    
+    def update_darkapi_urlhaus_feed(self):
+        """Update threat intelligence from DarkAPI URLhaus feed."""
+        try:
+            logging.info("Updating DarkAPI URLhaus feed...")
+            
+            if not self.api_keys.get('darkapi'):
+                logging.warning("DarkAPI API key not configured, skipping")
+                return 0
+            
+            headers = {'Authorization': f"Bearer {self.api_keys['darkapi']}"}
+            _get = self._session.get if self._session else requests.get
+            response = _get(self.feeds['darkapi_urlhaus']['url'], headers=headers, 
+                          params={'limit': 1000}, timeout=30)
+            response.raise_for_status()
+            
+            data = response.json()
+            iocs_added = 0
+            
+            # Process URLhaus feed data
+            if isinstance(data, list):
+                for entry in data:
+                    url = entry.get('url', '')
+                    if url:
+                        self.add_malicious_url(url, 'darkapi_urlhaus')
+                        iocs_added += 1
+                    
+                    ip = entry.get('ip_address', '')
+                    if ip:
+                        self.add_malicious_ip(ip, 'darkapi_urlhaus')
+                        iocs_added += 1
+            
+            self.feeds['darkapi_urlhaus']['last_update'] = time.time()
+            logging.info(f"[OK] DarkAPI URLhaus updated: {iocs_added} IOCs added")
+            return iocs_added
+            
+        except Exception as e:
+            logging.error(f"Failed to update DarkAPI URLhaus: {e}")
+            self.stats['update_failures'] += 1
+            return 0
+    
+    def update_darkapi_malwarebazaar_feed(self):
+        """Update threat intelligence from DarkAPI MalwareBazaar feed."""
+        try:
+            logging.info("Updating DarkAPI MalwareBazaar feed...")
+            
+            if not self.api_keys.get('darkapi'):
+                logging.warning("DarkAPI API key not configured, skipping")
+                return 0
+            
+            headers = {'Authorization': f"Bearer {self.api_keys['darkapi']}"}
+            _get = self._session.get if self._session else requests.get
+            response = _get(self.feeds['darkapi_malwarebazaar']['url'], headers=headers,
+                          params={'limit': 1000}, timeout=30)
+            response.raise_for_status()
+            
+            data = response.json()
+            iocs_added = 0
+            
+            # Process MalwareBazaar feed data
+            if isinstance(data, list):
+                for entry in data:
+                    sha256 = entry.get('sha256_hash', '')
+                    if sha256:
+                        self.add_malware_hash(sha256, 'darkapi_malwarebazaar')
+                        iocs_added += 1
+            
+            self.feeds['darkapi_malwarebazaar']['last_update'] = time.time()
+            logging.info(f"[OK] DarkAPI MalwareBazaar updated: {iocs_added} hashes added")
+            return iocs_added
+            
+        except Exception as e:
+            logging.error(f"Failed to update DarkAPI MalwareBazaar: {e}")
+            self.stats['update_failures'] += 1
+            return 0
+    
+    def update_threatbook_ioc_feed(self):
+        """Update threat intelligence from ThreatBook IOC feed."""
+        try:
+            logging.info("Updating ThreatBook IOC feed...")
+            
+            if not self.api_keys.get('threatbook'):
+                logging.warning("ThreatBook API key not configured, skipping")
+                return 0
+            
+            headers = {'Authorization': f"Bearer {self.api_keys['threatbook']}"}
+            _get = self._session.get if self._session else requests.get
+            response = _get(self.feeds['threatbook_ioc']['url'], headers=headers, timeout=30)
+            response.raise_for_status()
+            
+            data = response.json()
+            iocs_added = 0
+            
+            # Process ThreatBook IOC feed data
+            if isinstance(data, dict) and 'data' in data:
+                for ioc in data.get('data', []):
+                    ioc_type = ioc.get('ioc_type', '')
+                    ioc_value = ioc.get('ioc_value', '')
+                    
+                    if ioc_type == 'ip' and ioc_value:
+                        self.add_malicious_ip(ioc_value, 'threatbook')
+                        iocs_added += 1
+                    elif ioc_type == 'domain' and ioc_value:
+                        self.add_malicious_domain(ioc_value, 'threatbook')
+                        iocs_added += 1
+                    elif ioc_type == 'url' and ioc_value:
+                        self.add_malicious_url(ioc_value, 'threatbook')
+                        iocs_added += 1
+                    elif ioc_type == 'hash' and ioc_value:
+                        self.add_malware_hash(ioc_value, 'threatbook')
+                        iocs_added += 1
+            
+            self.feeds['threatbook_ioc']['last_update'] = time.time()
+            logging.info(f"[OK] ThreatBook IOC updated: {iocs_added} IOCs added")
+            return iocs_added
+            
+        except Exception as e:
+            logging.error(f"Failed to update ThreatBook IOC: {e}")
+            self.stats['update_failures'] += 1
+            return 0
+    
+    def update_threatradar_feed(self):
+        """Update threat intelligence from Threat Radar API."""
+        try:
+            logging.info("Updating Threat Radar feed...")
+            
+            if not self.api_keys.get('threatradar'):
+                logging.warning("ThreatRadar API key not configured, skipping")
+                return 0
+            
+            headers = {'X-API-Key': self.api_keys['threatradar']}
+            _get = self._session.get if self._session else requests.get
+            response = _get(self.feeds['threatradar']['url'], headers=headers,
+                          params={'days': 7, 'limit': 100}, timeout=30)
+            response.raise_for_status()
+            
+            data = response.json()
+            iocs_added = 0
+            
+            # Process Threat Radar data
+            if isinstance(data, dict) and 'data' in data:
+                for threat in data.get('data', []):
+                    # Extract CVEs and add to KEV cache
+                    cve = threat.get('cve', '')
+                    if cve and cve.startswith('CVE-'):
+                        if cve not in self.kev_cache:
+                            self.kev_cache[cve] = {
+                                'source': 'threatradar',
+                                'severity': threat.get('severity', ''),
+                                'cvss': threat.get('cvss', 0),
+                                'published': threat.get('publishedDate', ''),
+                                'date_added': datetime.now().isoformat()
+                            }
+                        iocs_added += 1
+            
+            self.feeds['threatradar']['last_update'] = time.time()
+            logging.info(f"[OK] Threat Radar updated: {iocs_added} threats added")
+            return iocs_added
+            
+        except Exception as e:
+            logging.error(f"Failed to update Threat Radar: {e}")
+            self.stats['update_failures'] += 1
+            return 0
+    
     def cleanup_old_iocs(self):
         """Remove old and stale IOCs from database."""
         conn = sqlite3.connect(self.db_path)
@@ -1251,6 +1500,16 @@ class ThreatIntelligenceManager:
                     iocs = self.update_abuseipdb_feed()
                 elif feed_name == 'urlscan':
                     iocs = self.update_urlscan_feed()
+                elif feed_name == 'threatwinds':
+                    iocs = self.update_threatwinds_feed()
+                elif feed_name == 'darkapi_urlhaus':
+                    iocs = self.update_darkapi_urlhaus_feed()
+                elif feed_name == 'darkapi_malwarebazaar':
+                    iocs = self.update_darkapi_malwarebazaar_feed()
+                elif feed_name == 'threatbook_ioc':
+                    iocs = self.update_threatbook_ioc_feed()
+                elif feed_name == 'threatradar':
+                    iocs = self.update_threatradar_feed()
                 else:
                     logging.warning(f"Unknown feed: {feed_name}")
                     continue
