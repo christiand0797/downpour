@@ -101,6 +101,16 @@ class NetworkMonitor:
         self._c2_servers_detected = set()
         self._threat_history = []  # Timestamps of threats for hourly calculation
         
+        # v29.39: Real-time network anomaly tracking
+        self._exfiltration_attempts_hour = 0
+        self._lateral_movement_hour = 0
+        self._dns_tunneling_hour = 0
+        self._port_scan_hour = 0
+        self._exfiltration_history = []
+        self._lateral_movement_history = []
+        self._dns_tunneling_history = []
+        self._port_scan_history = []
+        
         # v29: Known malicious IPs from threat intelligence feeds
         self.malicious_ips = set([
             # Kimwolf botnet C2 servers
@@ -241,6 +251,38 @@ class NetworkMonitor:
         # Clean up old threats (older than 1 hour)
         self._threat_history = [t for t in self._threat_history if now - t < 3600]
         self._threats_last_hour = len(self._threat_history)
+    
+    def _track_exfiltration(self):
+        """Track data exfiltration attempt for real-time metrics."""
+        now = time.time()
+        self._exfiltration_history.append(now)
+        # Clean up old attempts (older than 1 hour)
+        self._exfiltration_history = [t for t in self._exfiltration_history if now - t < 3600]
+        self._exfiltration_attempts_hour = len(self._exfiltration_history)
+    
+    def _track_lateral_movement(self):
+        """Track lateral movement attempt for real-time metrics."""
+        now = time.time()
+        self._lateral_movement_history.append(now)
+        # Clean up old attempts (older than 1 hour)
+        self._lateral_movement_history = [t for t in self._lateral_movement_history if now - t < 3600]
+        self._lateral_movement_hour = len(self._lateral_movement_history)
+    
+    def _track_dns_tunneling(self):
+        """Track DNS tunneling attempt for real-time metrics."""
+        now = time.time()
+        self._dns_tunneling_history.append(now)
+        # Clean up old attempts (older than 1 hour)
+        self._dns_tunneling_history = [t for t in self._dns_tunneling_history if now - t < 3600]
+        self._dns_tunneling_hour = len(self._dns_tunneling_history)
+    
+    def _track_port_scan(self):
+        """Track port scanning attempt for real-time metrics."""
+        now = time.time()
+        self._port_scan_history.append(now)
+        # Clean up old attempts (older than 1 hour)
+        self._port_scan_history = [t for t in self._port_scan_history if now - t < 3600]
+        self._port_scan_hour = len(self._port_scan_history)
 
     def check_ip_cve(self, ip: str) -> dict:
         """
@@ -556,6 +598,8 @@ class NetworkMonitor:
             
             # Check for suspicious ports
             if remote_port in self.suspicious_ports:
+                # v29.39: Track potential port scanning
+                self._track_port_scan()
                 return (
                     True,
                     "HIGH",
@@ -568,6 +612,18 @@ class NetworkMonitor:
                     True,
                     "MEDIUM",
                     f"Possible cryptocurrency mining: connection to port {remote_port}"
+                )
+            
+            # v29.39: Check for DNS tunneling (port 53 with high query volume)
+            if remote_port == 53:
+                # Track potential DNS tunneling
+                self._track_dns_tunneling()
+                # Note: In a full implementation, would analyze query patterns
+                # For now, we flag port 53 connections for monitoring
+                return (
+                    True,
+                    "MEDIUM",
+                    f"DNS traffic on port 53 (potential tunneling monitoring)"
                 )
             
             # Check for suspicious country (if configured)
@@ -636,6 +692,8 @@ class NetworkMonitor:
                     if len(conns) > 50:
                         logging.warning(f"[MEDIUM] {proc_name} has many connections: {len(conns)}")
                         logging.warning("  This could indicate data exfiltration or botnet activity")
+                        # v29.39: Track potential exfiltration attempt
+                        self._track_exfiltration()
                         
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue

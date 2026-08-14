@@ -17573,6 +17573,11 @@ class HardwareMonitor:
             stats['total_malware'] = getattr(ti, '_total_malware_hashes', 0)
             stats['malware_rate'] = min(100, getattr(ti, '_malware_hashes_hour', 0) * 2) if getattr(ti, '_malware_hashes_hour', 0) > 0 else 0
             stats['malware_score'] = min(100, getattr(ti, '_total_malware_hashes', 0) // 5)
+            # v29.39: Real-time network anomaly detection tracking
+            stats['exfil_hour'] = getattr(nm, '_exfiltration_attempts_hour', 0)
+            stats['lateral_hour'] = getattr(nm, '_lateral_movement_hour', 0)
+            stats['dns_tun_hour'] = getattr(nm, '_dns_tunneling_hour', 0)
+            stats['port_scan_hour'] = getattr(nm, '_port_scan_hour', 0)
         except Exception: pass
         # v29.39: Real-time disk I/O metrics
         try:
@@ -28166,6 +28171,11 @@ Verification Status:
             ('TOTAL MALWARE',  'total_malware',    500, '', 'orange'),
             ('MALWARE RATE',   'malware_rate',     100, '%', 'red'),
             ('MALWARE SCORE',  'malware_score',    100, '', 'purple'),
+            # Row 28 - v29.39: Real-Time Network Anomaly Detection
+            ('EXFIL/H',        'exfil_hour',       20, '/h', 'red'),
+            ('LATERAL/H',      'lateral_hour',     10, '/h', 'orange'),
+            ('DNS TUN/H',      'dns_tun_hour',     50, '/h', 'red'),
+            ('PORT SCAN/H',   'port_scan_hour',   30, '/h', 'purple'),
         ]
 
         COLS: Any = 4

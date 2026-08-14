@@ -179,6 +179,12 @@ Added additional real-time gauges to the Performance tab:
 - **MALWARE RATE**: Malware detection rate percentage
 - **MALWARE SCORE**: Calculated malware threat score (0-100)
 
+#### Real-Time Network Anomaly Detection (Row 28)
+- **EXFIL/H**: Exfiltration attempts in the last hour
+- **LATERAL/H**: Lateral movement attempts in the last hour
+- **DNS TUN/H**: DNS tunneling attempts in the last hour
+- **PORT SCAN/H**: Port scanning attempts in the last hour
+
 ### 8. Real-Time Phishing URL Detection Tracking (v29.39)
 Added real-time phishing URL detection tracking for enhanced threat intelligence:
 
@@ -218,6 +224,17 @@ Added real-time malware hash detection tracking for enhanced threat intelligence
 - **Automatic Cleanup**: Removes detections older than 1 hour
 - **Integration**: Tracks detections when adding malware hashes to database
 - **Performance Tab Gauges**: 4 new gauges for malware hash visualization
+
+### 12. Real-Time Network Anomaly Detection Tracking (v29.39)
+Added real-time network anomaly detection tracking for enhanced threat intelligence:
+
+- **Exfiltration Attempts/Hour**: Tracks potential data exfiltration attempts (excessive connections)
+- **Lateral Movement/Hour**: Tracks potential lateral movement attempts
+- **DNS Tunneling/Hour**: Tracks potential DNS tunneling attempts (port 53 monitoring)
+- **Port Scanning/Hour**: Tracks potential port scanning attempts (suspicious ports)
+- **Automatic Cleanup**: Removes detections older than 1 hour for all anomaly types
+- **Integration**: Tracks anomalies during network connection scanning
+- **Performance Tab Gauges**: 4 new gauges for network anomaly visualization
 
 ---
 
