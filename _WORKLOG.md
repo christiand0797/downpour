@@ -2,6 +2,22 @@
 
 ## Branch: main
 
+## Session 2026-08-13l — v29.30b follow-up: hasattr() recursion fix on bare instances
+- ✅ **Bug**: the v29.30b warm-history pre-pass used `hasattr(self, '_perf_history')`
+  guard clauses. On a bare `object.__new__(downpour)` test instance (no Tk
+  runtime), `hasattr()` for a *missing* attribute recurses via
+  `Misc.__getattr__ → self.tk` → RecursionError — silently swallowed by the
+  blanket `except`, so the pre-pass never ran and the new
+  `TestWarmPerfHistoryV2930b` tests (6) all failed.
+- ✅ **Fix**: the four lazy-init guards now use `'<attr>' not in self.__dict__`
+  membership (no `__getattr__` involved) — strictly more robust, identical
+  behavior on real Tk instances. Also patched the concurrent session's
+  `test_winfo_exists_false_returns_early` which asserted with `hasattr()`.
+- ✅ Result: 42/42 tests pass, py_compile OK, AST 750 methods / 0 dupes,
+  pushed to GitHub.
+
+## Branch: main
+
 ## Session 2026-08-13k — v29.31: tooltips for the last bare buttons
 - ✅ Scanned every `tk.Button(` assignment in the main file (script-based
   tooltip-gap audit). Most flagged sites already bind `_tooltip`; the real
