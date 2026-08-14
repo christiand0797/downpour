@@ -22306,6 +22306,16 @@ class downpour(tk.Tk):
             command = lambda: self._scroll_tabs(1))
         self._tab_right_btn.grid(row=0, column=2, sticky='ns', padx=(0,2))
         self._tooltip(self._tab_right_btn, 'Scroll the tab strip right')
+        # FIX-v29.34b: the tab-position indicator was referenced by
+        # _update_tab_indicator() but never instantiated — the label was
+        # missing, so every update silently threw AttributeError and the
+        # "current/total" readout never appeared. Create it here, before the
+        # <<NotebookTabChanged>> binding below, so the first tab change shows
+        # the indicator.
+        self._tab_indicator = tk.Label(_nb_frame, text='', font=('Consolas', 8),
+                                       fg = Colors.TEXT_DIM, bg=Colors.BG_VOID)
+        self._tab_indicator.grid(row=1, column=0, columnspan=3, sticky='ew', padx=4, pady=(0,2))
+        self._update_tab_indicator()
         # Fix blank tabs: force canvas width update whenever a tab is selected
         self.nb.bind('<<NotebookTabChanged>>', self._on_nb_tab_changed)
         logger.info("_build_ui: notebook bound, building tabs...")

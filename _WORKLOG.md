@@ -605,3 +605,8 @@ Remaining button blocks needing tooltips (NO _tooltip / _make_button yet):
 - **stub fixes**: `apply_revolutionary_enhancements(target: Any = None)` in `revolutionary_enhancements/__init__.pyi`
 - **Result**: 0 pyright errors, 102 warnings (all `reportUnusedVariable`), app launches clean to mainloop
 - **Blocked**: Pillow/matplotlib/scikit-learn/yara-python can't be built — no C compiler + no cp315 wheels yet (Python 3.15.0a6)
+
+## Session 2026-08-13x — v29.35: fix failing test + Phase 3 tooltip sweep (WiFi/IoT/USB/Timeline/VPN/Settings/Hunt/Sandbox)
+- ✅ Fixed failing test TestTabIndicatorV2934b::test_indicator_created_before_tab_change_binding by searching for the exact binding string rather than a bare event name that matched a comment.
+- ✅ Verified Phase 3 tooltip sweep for WiFi, IoT, USB, Timeline, VPN, Settings, Hunt, and Sandbox tabs (tooltips were already correctly populated).
+- ✅ Tests: 50 pass (1720 methods)
