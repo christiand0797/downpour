@@ -1,5 +1,5 @@
 # TODO / Current State — Downpour v29 Titanium
-# Last verified: 2026-08-13 (v29.29, risk-confirmation gates + perf tab overhaul)
+# Last verified: 2026-08-13 (v29.34, Phase 3 tooltip sweep + docs refresh)
 
 **READ THIS FIRST if you are a new agent picking up this project.**
 This file was badly stale (dated April 2026) until this rewrite. `_WORKLOG.md`
@@ -10,7 +10,7 @@ authoritative history. This file is the current-state snapshot + what's left.
 
 ## Verified Current State (as of this rewrite)
 
-- `downpour_v29_titanium.py`: ~47,865 lines, 744 methods in the main `downpour`
+- `downpour_v29_titanium.py`: ~51,780 lines, 751 methods in the main `downpour`
   class, **0 duplicate method names** (verify with the AST script below before
   and after any edit session — this has caught real bugs multiple times)
 - `gpu_detector_fix.py` shipped in v29.24 (was a dangling import in
@@ -20,7 +20,9 @@ authoritative history. This file is the current-state snapshot + what's left.
   pattern. Run: `Python312\python.exe -m pytest tests -q`. (18 tests as of
   v29.26 with the dark-titlebar cases; **31 tests as of v29.29** — added
   `TestPerfTabV2928` gauge/sparkline/ceiling cases, `TestThreatWebStack` intel
-  deep-link builder cases, and `TestRiskConfirmation` `_confirm_risk` cases.)
+  deep-link builder cases, and `TestRiskConfirmation` `_confirm_risk` cases;
+  **46 tests as of v29.34** — added `TestBrowserScanV2930` (5) and
+  `TestWarmPerfHistoryV2930b` (6) plus DNS cases.)
 - Full project: 58 Python files, 0 syntax errors
 - **Main-thread DB-freeze rule (v29.14)**: every `self.db.*` / `count_intel()`
   reached from a main-thread `after()` loop or a one-shot startup callback must

@@ -82,7 +82,7 @@ LAUNCH_V29_TITANIUM.bat
 | 🛡️ **Risk-confirmation gates** | Destructive actions (kill process / block IP / quarantine / suspend / root-cause) now always ask before executing (v29.29) |
 | 🌓 **Windows 11 dark title bar** | Immersive dark mode applied to the real top-level HWND + system-theme detection (v29.26) |
 | 🌐 **Live DNS Overview** | DNS tab overview panel + threat score auto-refresh (60s throttled, busy-guard protected) (v29.32) |
-| 💬 **Tooltips everywhere** | Every button in the Threats, Dashboard, Intel, DNS, and remaining tabs now has hover help (v29.31 / v29.33) |
+| 💬 **Tooltips everywhere** | Every button in the Threats, Dashboard, Intel, DNS, and remaining tabs now has hover help (v29.31 / v29.33 / v29.34) |
 | 🖥️ **System Tray** | pystray minimize-to-tray with Show/Hide/Exit menu (v29.20) |
 | 🌧️ **Rain Overlay** | Animated rain that intensifies with threat level |
 
@@ -104,7 +104,7 @@ The launcher installs all dependencies automatically on first run.
 
 ```
 downpour/
-├── downpour_v29_titanium.py      ← Main application (51,000+ lines)
+├── downpour_v29_titanium.py      ← Main application (51,700+ lines)
 ├── LAUNCH_V29_TITANIUM.bat       ← v29 launcher (use this)
 ├── LAUNCH_DOWNPOUR.bat           ← v28 launcher (kept as backup)
 ├── requirements.txt
