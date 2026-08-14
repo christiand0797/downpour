@@ -28111,14 +28111,14 @@ Verification Status:
         # is hidden, so sparklines are already populated and delta markers are
         # meaningful the instant the user switches to it.
         try:
-            if not hasattr(self, '_perf_gauge_meta'):
+            if '_perf_gauge_meta' not in self.__dict__:
                 self._perf_gauge_meta: Any = {}
-            if not hasattr(self, '_perf_history'):
+            if '_perf_history' not in self.__dict__:
                 import collections as _hist_coll
                 self._perf_history: Any = {}
-            if not hasattr(self, '_perf_prev'):
+            if '_perf_prev' not in self.__dict__:
                 self._perf_prev: Any = {}
-            if not hasattr(self, '_perf_delta'):
+            if '_perf_delta' not in self.__dict__:
                 self._perf_delta: Any = {}
             for _k in self._perf_gauge_meta:
                 _v: Any = s.get(_k, 0) or 0

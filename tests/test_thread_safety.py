@@ -392,3 +392,57 @@ class TestBrowserScanV2930:
         assert "import browser_protection" not in src
         assert "from browser_protection" not in src
 
+
+# --------------------------------------------------------------------------
+# Warm Performance History v29.30b — pre-pass keeps history/delta alive
+# --------------------------------------------------------------------------
+
+class TestWarmPerfHistoryV2930b:
+    """The warm-history pre-pass in _update_perf_ui must sample every tick
+    even when the Performance tab is not visible, so sparklines and deltas
+    are already populated when the user switches to it."""
+
+    def _run_update(self, stats):
+        inst = make_instance()
+        inst.winfo_exists = lambda: True
+        inst._perf_gauge_meta = {'cpu_percent': (100, '%', 'heat', 'CPU'),
+                                 'battery_percent': (100, '%', 'teal', 'BAT')}
+        inst._perf_canvases = {}
+        inst._update_perf_ui(stats)
+        return inst
+
+    def test_history_populated_when_tab_hidden(self):
+        """Pre-pass must record history even with no visible tab (no nb attr)."""
+        inst = self._run_update({'cpu_percent': 42.5})
+        assert inst._perf_history['cpu_percent'][-1] == 42.5
+        assert inst._perf_prev['cpu_percent'] == 42.5
+
+    def test_delta_computed_across_samples(self):
+        inst = self._run_update({'cpu_percent': 42.5})
+        inst._update_perf_ui({'cpu_percent': 55.0})
+        assert abs(inst._perf_delta['cpu_percent'] - 12.5) < 1e-9
+
+    def test_delta_zero_on_first_sample(self):
+        inst = self._run_update({'cpu_percent': 42.5})
+        assert inst._perf_delta['cpu_percent'] == 0.0
+
+    def test_battery_minus_one_normalized_to_zero(self):
+        inst = self._run_update({'battery_percent': -1})
+        assert inst._perf_history['battery_percent'][-1] == 0.0
+
+    def test_history_capped_at_thirty_points(self):
+        inst = self._run_update({'cpu_percent': 1.0})
+        for v in range(2, 45):
+            inst._update_perf_ui({'cpu_percent': float(v)})
+        assert len(inst._perf_history['cpu_percent']) == 30
+        assert inst._perf_history['cpu_percent'][-1] == 44.0
+
+    def test_winfo_exists_false_returns_early(self):
+        inst = make_instance()
+        inst.winfo_exists = lambda: False
+        inst._update_perf_ui({'cpu_percent': 50.0})
+        # Use __dict__ membership: bare Tk-derived instances recurse in
+        # hasattr() for missing attributes (Misc.__getattr__ -> self.tk).
+        assert '_perf_history' not in inst.__dict__
+
+
