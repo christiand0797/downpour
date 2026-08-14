@@ -98,10 +98,18 @@ class ThreatIntelligenceManager:
             # v29.39: Optimized connection pool for reduced memory usage
             adapter = requests.adapters.HTTPAdapter(
                 pool_connections=5, pool_maxsize=10, max_retries=2,
-                pool_block=False)  # Don't block when pool is full
+                pool_block=False)
             self._session.mount('https://', adapter)
             self._session.mount('http://', adapter)
-
+        
+        # v29.39: Real-time IOC hit tracking for Performance tab
+        self._ioc_hits_last_hour = 0
+        self._ioc_hit_history = []  # Timestamps of IOC hits for hourly calculation
+        
+        # v29.39: Historical trend tracking for OSINT feeds
+        self._feed_history = {}  # feed_name -> list of (timestamp, ioc_count) tuples
+        self._max_history_points = 100  # Keep last 100 data points per feed
+        
         # Initialize local database
         self.db_path = Path("threat_intel.db")
         self.init_database()
@@ -190,106 +198,64 @@ class ThreatIntelligenceManager:
                 'update_interval': 3600,  # 1 hour
                 'last_update': 0
             },
-            'cisa_ics': {
-                'url': 'https://raw.githubusercontent.com/icsadvprj/ICS-Advisory-Project/main/ICS-CERT_ADV/CISA_ICS_ADV_Master.csv',
+            'spamhaus_drop': {
+                'url': 'https://www.spamhaus.org/drop/drop.txt',
                 'enabled': True,
-                'priority': 'medium',
-                'update_interval': 86400,  # 24 hours
+                'priority': 'high',
+                'update_interval': 3600,
                 'last_update': 0
             },
-            'blocklist_de': {
-                'url': 'https://lists.blocklist.de/lists/all.txt',
+            'cisco_talos': {
+                'url': 'https://talosintelligence.com/documents/ip-blacklist',
                 'enabled': True,
-                'priority': 'high',
-                'update_interval': 3600,  # 1 hour
+                'priority': 'medium',
+                'update_interval': 3600,
                 'last_update': 0
             },
-            'nvd_recent': {
-                'url': 'https://services.nvd.nist.gov/rest/json/cves/2.0?resultsPerPage=50&startIndex=0',
+            'abuse_ch_feodo': {
+                'url': 'https://feodotracker.abuse.ch/downloads/ipblocklist.csv',
                 'enabled': True,
-                'priority': 'medium',
-                'update_interval': 21600,  # 6 hours
+                'priority': 'high',
+                'update_interval': 3600,
                 'last_update': 0
             },
-            # v29.39: Additional OSINT sources from OSINT4ALL
-            'greynoise': {
-                'url': 'https://api.greynoise.io/v3/community/ip',
+            'abuse_ch_ssl': {
+                'url': 'https://sslbl.abuse.ch/blacklist/sslblacklist.csv',
                 'enabled': True,
                 'priority': 'high',
-                'update_interval': 3600,  # 1 hour
-                'last_update': 0,
-                'api_required': True
+                'update_interval': 3600,
+                'last_update': 0
             },
-            'shodan': {
-                'url': 'https://api.shodan.io/shodan/host/{ip}?key={key}',
-                'enabled': True,
-                'priority': 'medium',
-                'update_interval': 86400,  # 24 hours
-                'last_update': 0,
-                'api_required': True
-            },
-            'abuseipdb': {
-                'url': 'https://api.abuseipdb.com/api/v2/check',
-                'enabled': True,
-                'priority': 'high',
-                'update_interval': 3600,  # 1 hour
-                'last_update': 0,
-                'api_required': True
-            },
-            'censys': {
-                'url': 'https://search.censys.io/api/v2/hosts/{ip}',
-                'enabled': True,
-                'priority': 'medium',
-                'update_interval': 86400,  # 24 hours
-                'last_update': 0,
-                'api_required': True
-            },
-            'urlscan': {
-                'url': 'https://urlscan.io/api/v1/scan/',
-                'enabled': True,
-                'priority': 'high',
-                'update_interval': 1800,  # 30 minutes
-                'last_update': 0,
-                'api_required': True
-            },
-            # v29.39: Additional OSINT feeds from research
+            # v29: New OSINT feeds
             'threatwinds': {
-                'url': 'https://apis.threatwinds.com/api/feeds/v1',
-                'enabled': True,
-                'priority': 'high',
-                'update_interval': 3600,  # 1 hour
-                'last_update': 0,
-                'api_required': True
-            },
-            'darkapi_urlhaus': {
-                'url': 'https://api.darkapi.io/v1/feeds/urlhaus',
+                'url': 'https://api.threatwinds.com/v1/threats',
                 'enabled': True,
                 'priority': 'high',
                 'update_interval': 1800,  # 30 minutes
                 'last_update': 0,
                 'api_required': True
             },
-            'darkapi_malwarebazaar': {
-                'url': 'https://api.darkapi.io/v1/feeds/malwarebazaar',
+            'darkapi': {
+                'url': 'https://api.darkapi.com/v1/indicators',
                 'enabled': True,
                 'priority': 'high',
-                'update_interval': 1800,  # 30 minutes
+                'update_interval': 1800,
                 'last_update': 0,
                 'api_required': True
             },
-            'threatbook_ioc': {
-                'url': 'https://api.threatbook.com/v3/cti/ioc/feed',
+            'threatbook': {
+                'url': 'https://api.threatbook.com/v3/scene/ioc',
                 'enabled': True,
-                'priority': 'medium',
-                'update_interval': 3600,  # 1 hour
+                'priority': 'high',
+                'update_interval': 1800,
                 'last_update': 0,
                 'api_required': True
             },
             'threatradar': {
                 'url': 'https://radar.offseq.com/api/v1/threats',
                 'enabled': True,
-                'priority': 'medium',
-                'update_interval': 3600,  # 1 hour
+                'priority': 'high',
+                'update_interval': 1800,
                 'last_update': 0,
                 'api_required': True
             }
@@ -302,6 +268,14 @@ class ThreatIntelligenceManager:
             'last_update': datetime.now(),
             'update_failures': 0
         }
+    
+    def _track_ioc_hit(self):
+        """Track IOC hit for real-time metrics."""
+        now = time.time()
+        self._ioc_hit_history.append(now)
+        # Clean up old IOC hits (older than 1 hour)
+        self._ioc_hit_history = [t for t in self._ioc_hit_history if now - t < 3600]
+        self._ioc_hits_last_hour = len(self._ioc_hit_history)
         
     def init_database(self):
         """Initialize SQLite database for storing threat intelligence."""
@@ -433,6 +407,7 @@ class ThreatIntelligenceManager:
                     continue
             
             self.feeds['threatfox']['last_update'] = time.time()
+            self._record_feed_history('threatfox', iocs_added)
             logging.info(f"[OK] ThreatFox updated: {iocs_added} IOCs added")
             return iocs_added
             
@@ -478,6 +453,7 @@ class ThreatIntelligenceManager:
                     continue
             
             self.feeds['urlhaus']['last_update'] = time.time()
+            self._record_feed_history('urlhaus', iocs_added)
             logging.info(f"[OK] URLhaus updated: {iocs_added} URLs added")
             return iocs_added
             
@@ -526,6 +502,7 @@ class ThreatIntelligenceManager:
                     continue
             
             self.feeds['phishtank']['last_update'] = time.time()
+            self._record_feed_history('phishtank', iocs_added)
             logging.info(f"[OK] PhishTank updated: {iocs_added} URLs added")
             return iocs_added
             
@@ -582,6 +559,9 @@ class ThreatIntelligenceManager:
 
             conn.commit()
             self.malicious_ips.add(ip)
+            
+            # v29.39: Track IOC hit for real-time metrics
+            self._track_ioc_hit()
 
         except Exception as e:
             logging.error(f"Error adding malicious IP {ip}: {e}")
@@ -607,6 +587,9 @@ class ThreatIntelligenceManager:
 
             conn.commit()
             self.malicious_domains.add(domain)
+            
+            # v29.39: Track IOC hit for real-time metrics
+            self._track_ioc_hit()
 
         except Exception as e:
             logging.error(f"Error adding malicious domain {domain}: {e}")
@@ -665,6 +648,8 @@ class ThreatIntelligenceManager:
         - (is_malicious: bool, details: dict)
         """
         if ip in self.malicious_ips:
+            # v29.39: Track IOC hit for real-time metrics
+            self._track_ioc_hit()
             return True, {'ip': ip, 'in_database': True}
         
         return False, {}
@@ -678,11 +663,15 @@ class ThreatIntelligenceManager:
         """
         # Check exact match
         if domain in self.malicious_domains:
+            # v29.39: Track IOC hit for real-time metrics
+            self._track_ioc_hit()
             return True, {'domain': domain, 'in_database': True}
         
         # Check subdomains
         for bad_domain in self.malicious_domains:
             if domain.endswith('.' + bad_domain) or bad_domain.endswith('.' + domain):
+                # v29.39: Track IOC hit for real-time metrics
+                self._track_ioc_hit()
                 return True, {'domain': domain, 'matched_subdomain': bad_domain}
         
         return False, {}
@@ -696,6 +685,8 @@ class ThreatIntelligenceManager:
         """
         # Check exact URL match
         if url in self.malicious_urls:
+            # v29.39: Track IOC hit for real-time metrics
+            self._track_ioc_hit()
             return True, {'url': url, 'in_database': True}
         
         # Check domain
@@ -718,6 +709,8 @@ class ThreatIntelligenceManager:
         - (is_malicious: bool, details: dict)
         """
         if file_hash.upper() in self.malware_hashes:
+            # v29.39: Track IOC hit for real-time metrics
+            self._track_ioc_hit()
             return True, {'hash': file_hash, 'in_database': True}
         
         return False, {}
@@ -761,6 +754,7 @@ class ThreatIntelligenceManager:
                     continue
             
             self.feeds['malwarebazaar']['last_update'] = time.time()
+            self._record_feed_history('malwarebazaar', iocs_added)
             logging.info(f"[+] MalwareBazaar updated: {iocs_added} hashes added")
             return iocs_added
             

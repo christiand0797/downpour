@@ -108,6 +108,41 @@ Improved malware detection capabilities:
 - Suspended main thread detection (placeholder for future enhancement)
 - Enhanced memory anomaly detection
 
+### 5. Real-Time IOC Hit Tracking (v29.39)
+Added real-time IOC (Indicators of Compromise) hit tracking for the Performance tab:
+
+- **IOC Hits/Hour**: Tracks IOC detections in the last hour
+- **IOC History**: Maintains timestamp history for hourly calculations
+- **Automatic Cleanup**: Removes IOC hits older than 1 hour
+- **Integration**: Tracks hits when adding malicious IPs and domains
+- **Performance Tab Data**: Exposes `_ioc_hits_last_hour` metric for UI display
+
+### 6. Real-Time Threat Actor Activity Monitoring (v29.39)
+Added real-time threat actor activity tracking for enhanced threat intelligence:
+
+- **Actors/Hour**: Tracks threat actor activity in the last hour
+- **Total Actors**: Count of unique threat actors detected
+- **Active Actors**: Currently active threat actors
+- **Activity Score**: Calculated activity score (0-100)
+- **Threat Actor History**: Maintains timestamp history for hourly calculations
+- **CISA KEV Integration**: Tracks ransomware campaign use from CISA KEV catalog
+- **Performance Tab Gauges**: 4 new gauges for threat actor visualization
+
+### 7. Performance Tab Enhancements (v29.39)
+Added additional real-time gauges to the Performance tab:
+
+#### Real-Time CVE Tracking (Row 20)
+- **CVEs/HOUR**: CVE detections in the last hour
+- **TOTAL CVEs**: Cumulative CVE count
+- **CRITICAL CVEs**: Critical severity CVE count
+- **EXPLOIT CVEs**: CVEs with known exploits
+
+#### Real-Time Threat Actor Activity (Row 21)
+- **ACTORS/HOUR**: Threat actor activity in the last hour
+- **TOTAL ACTORS**: Unique threat actors detected
+- **ACTIVE ACTORS**: Currently active threat actors
+- **ACTIVITY SCORE**: Calculated activity score (0-100)
+
 ---
 
 ## API Configuration
@@ -280,6 +315,12 @@ No configuration file changes required. API keys can be set in `threat_intellige
 ### Threat Intelligence
 - Fixed feed update dispatch for new OSINT sources
 - Fixed API key validation for new sources
+- Fixed structural issues in threat_intelligence.py __init__ method (v29.39)
+- Fixed IOC hit tracking method placement (v29.39)
+
+### Vulnerability Scanner
+- Fixed CVE tracking integration in feed updates (v29.39)
+- Fixed threat actor tracking in CISA KEV catalog (v29.39)
 
 ---
 

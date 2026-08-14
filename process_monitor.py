@@ -82,6 +82,10 @@ class ProcessMonitor:
         self._process_cache = {}
         self._process_cache_ttl = 10  # 10 seconds cache
         
+        # v29.39: Real-time threat tracking for Performance tab
+        self._threats_last_hour = 0
+        self._threat_history = []  # Timestamps of threats for hourly calculation
+        
         # Legitimate system processes (exact names)
         self.system_processes = {
             'System', 'smss.exe', 'csrss.exe', 'wininit.exe',
@@ -300,7 +304,15 @@ class ProcessMonitor:
         if reasons:
             return (True, '; '.join(reasons))
         return (False, "")
-    
+
+    def _track_threat(self):
+        """Track threat occurrence for real-time metrics."""
+        now = time.time()
+        self._threat_history.append(now)
+        # Clean up old threats (older than 1 hour)
+        self._threat_history = [t for t in self._threat_history if now - t < 3600]
+        self._threats_last_hour = len(self._threat_history)
+
     def analyze_process(self, proc):
         """
         Comprehensive analysis of a single process.
@@ -377,6 +389,8 @@ class ProcessMonitor:
             if is_injected:
                 score += 40
                 alerts.append(reason)
+                # v29.39: Track threat for real-time metrics
+                self._track_threat()
             
             # Check CPU usage (cryptominers use lots of CPU)
             try:
@@ -384,6 +398,8 @@ class ProcessMonitor:
                 if cpu > 80:
                     score += 15
                     alerts.append(f"High CPU usage: {cpu:.1f}%")
+                    # v29.39: Track threat for real-time metrics
+                    self._track_threat()
             except Exception:
                 pass
             

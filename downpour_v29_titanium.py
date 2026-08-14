@@ -17425,6 +17425,163 @@ class HardwareMonitor:
             stats['feed_errors_total'] = ti.stats.get('update_failures', 0)
             stats['ioc_total_count'] = ti.stats.get('total_iocs', 0)
         except Exception: pass
+        # v29.39: Real-time connection tracking
+        try:
+            tcp_conns = 0
+            udp_conns = 0
+            established = 0
+            listening = 0
+            for conn in psutil.net_connections(kind='inet'):
+                if conn.type == socket.SOCK_STREAM:
+                    tcp_conns += 1
+                    if conn.status == 'ESTABLISHED':
+                        established += 1
+                    elif conn.status == 'LISTEN':
+                        listening += 1
+                elif conn.type == socket.SOCK_DGRAM:
+                    udp_conns += 1
+            stats['active_tcp_conns'] = tcp_conns
+            stats['active_udp_conns'] = udp_conns
+            stats['established_conns'] = established
+            stats['listening_conns'] = listening
+        except Exception: pass
+        # v29.39: Real-time process tracking by status
+        try:
+            running = 0
+            sleeping = 0
+            zombie = 0
+            for p in psutil.process_iter(['status']):
+                try:
+                    status = p.info.get('status', '')
+                    if status == 'running':
+                        running += 1
+                    elif status == 'sleeping':
+                        sleeping += 1
+                    elif status == 'zombie':
+                        zombie += 1
+                except Exception:
+                    pass
+            stats['running_processes'] = running
+            stats['sleeping_processes'] = sleeping
+            stats['zombie_processes'] = zombie
+            # Track new processes per minute
+            current_pids = set(p.pid for p in psutil.process_iter())
+            prev_pids = getattr(self, '_prev_pids', set())
+            new_pids = current_pids - prev_pids
+            stats['new_processes_min'] = len(new_pids)
+            self._prev_pids = current_pids
+        except Exception: pass
+        # v29.39: Real-time memory tracking
+        try:
+            mem = psutil.virtual_memory()
+            stats['cached_memory_gb'] = round(mem.cached / (1024**3), 2)
+            stats['buffer_memory_gb'] = round(getattr(mem, 'buffers', 0) / (1024**3), 2)
+            stats['shared_memory_gb'] = round(getattr(mem, 'shared', 0) / (1024**3), 2)
+        except Exception: pass
+        try:
+            # Page faults per second
+            page_faults = psutil.virtual_memory()
+            prev_faults = getattr(self, '_prev_page_faults', 0)
+            current_faults = getattr(page_faults, 'pageins', 0) + getattr(page_faults, 'pageouts', 0)
+            now = time.time()
+            prev_time = getattr(self, '_prev_faults_time', now)
+            dt = max(now - prev_time, 0.001)
+            stats['page_faults_per_sec'] = int((current_faults - prev_faults) / dt) if dt > 0 else 0
+            self._prev_page_faults = current_faults
+            self._prev_faults_time = now
+        except Exception: pass
+        # v29.39: Real-time security event streaming
+        try:
+            from network_monitor import get_monitor
+            nm = get_monitor()
+            stats['network_threats_hour'] = getattr(nm, '_threats_last_hour', 0)
+        except Exception: pass
+        try:
+            from process_monitor import get_monitor
+            pm = get_monitor()
+            stats['process_threats_hour'] = getattr(pm, '_threats_last_hour', 0)
+        except Exception: pass
+        try:
+            stats['file_threats_hour'] = getattr(self, '_file_threats_last_hour', 0)
+        except Exception: pass
+        try:
+            from threat_intelligence import ThreatIntelligenceManager
+            ti = ThreatIntelligenceManager()
+            stats['ioc_hits_hour'] = getattr(ti, '_ioc_hits_last_hour', 0)
+        except Exception: pass
+        # v29.39: Real-time threat detection totals
+        try:
+            stats['malware_detected_total'] = getattr(self, '_malware_detected_total', 0)
+        except Exception: pass
+        try:
+            stats['phishing_urls_total'] = getattr(self, '_phishing_urls_total', 0)
+        except Exception: pass
+        try:
+            from network_monitor import get_monitor
+            nm = get_monitor()
+            stats['c2_servers_total'] = len(getattr(nm, '_c2_servers_detected', set()))
+        except Exception: pass
+        try:
+            stats['suspicious_dns_total'] = getattr(self, '_suspicious_dns_total', 0)
+        except Exception: pass
+        # v29.39: Real-time CVE tracking
+        try:
+            from vulnerability_scanner import VulnerabilityScanner
+            vs = VulnerabilityScanner()
+            stats['cves_hour'] = getattr(vs, '_cves_last_hour', 0)
+            stats['total_cves'] = getattr(vs, '_total_cves', 0)
+            stats['critical_cves'] = getattr(vs, '_critical_cves', 0)
+            stats['exploit_cves'] = getattr(vs, '_exploit_available_cves', 0)
+            # v29.39: Real-time threat actor activity tracking
+            stats['actors_hour'] = getattr(vs, '_threat_actor_activity_hour', 0)
+            stats['total_actors'] = len(getattr(vs, '_threat_actors_detected', set()))
+            stats['active_actors'] = len(getattr(vs, '_threat_actors_detected', set()))
+            stats['activity_score'] = min(100, getattr(vs, '_threat_actor_activity_hour', 0) * 10)
+        except Exception: pass
+        # v29.39: Real-time disk I/O metrics
+        try:
+            disk_io = psutil.disk_io_counters()
+            if disk_io:
+                # Calculate rates from previous values
+                prev_read = getattr(self, '_prev_disk_read', 0)
+                prev_write = getattr(self, '_prev_disk_write', 0)
+                prev_time = getattr(self, '_prev_disk_time', now)
+                dt = max(now - prev_time, 0.001)
+                
+                stats['disk_read_mb_s'] = round((disk_io.read_bytes - prev_read) / dt / 1024 / 1024, 2)
+                stats['disk_write_mb_s'] = round((disk_io.write_bytes - prev_write) / dt / 1024 / 1024, 2)
+                
+                self._prev_disk_read = disk_io.read_bytes
+                self._prev_disk_write = disk_io.write_bytes
+                self._prev_disk_time = now
+                
+                # Disk queue depth (approximate from busy time)
+                stats['disk_queue_depth'] = getattr(disk_io, 'busy_time', 0) // 1000
+                
+                # Disk utilization percentage (approximate)
+                stats['disk_util_percent'] = min(100, int(getattr(disk_io, 'busy_time', 0) / dt / 10))
+        except Exception: pass
+        # v29.39: Real-time memory fragmentation metrics
+        try:
+            mem = psutil.virtual_memory()
+            # Memory fragmentation percentage (approximate from available vs total)
+            stats['mem_frag_percent'] = round((1 - mem.available / mem.total) * 100, 2)
+            
+            # Page faults rate
+            prev_page_faults = getattr(self, '_prev_page_faults', 0)
+            page_faults = getattr(mem, 'pageins', 0) + getattr(mem, 'pageouts', 0)
+            stats['page_faults_s'] = round((page_faults - prev_page_faults) / dt, 2)
+            self._prev_page_faults = page_faults
+            
+            # Swap I/O
+            swap = psutil.swap_memory()
+            prev_swap_in = getattr(self, '_prev_swap_in', 0)
+            prev_swap_out = getattr(self, '_prev_swap_out', 0)
+            stats['swap_in_mb_s'] = round((swap.sin - prev_swap_in) / dt / 1024 / 1024, 2)
+            stats['swap_out_mb_s'] = round((swap.sout - prev_swap_out) / dt / 1024 / 1024, 2)
+            self._prev_swap_in = swap.sin
+            self._prev_swap_out = swap.sout
+        except Exception: pass
         # CPU temperature via WMI (optional)
         if WMI_AVAILABLE and stats['cpu_temp'] == 0:
             try:
@@ -27898,6 +28055,51 @@ Verification Status:
             ('FEED UPDATES',    'feed_updates_total', 100, '', 'green'),
             ('FEED ERRORS',     'feed_errors_total',  50, '', 'red'),
             ('IOC TOTAL',       'ioc_total_count',    50000, '', 'teal'),
+            # Row 13 - v29.39: Real-time Connection Tracking
+            ('ACTIVE TCP',      'active_tcp_conns',   1000, '', 'blue'),
+            ('ACTIVE UDP',      'active_udp_conns',   500, '', 'cyan'),
+            ('ESTABLISHED',     'established_conns',  800, '', 'green'),
+            ('LISTENING',       'listening_conns',    100, '', 'orange'),
+            # Row 14 - v29.39: Real-time Process Tracking
+            ('RUNNING PROCS',   'running_processes',  500, '', 'purple'),
+            ('SLEEPING PROCS',  'sleeping_processes', 400, '', 'blue'),
+            ('ZOMBIE PROCS',    'zombie_processes',   10, '', 'red'),
+            ('NEW PROCS',       'new_processes_min',  50, '', 'green'),
+            # Row 15 - v29.39: Real-time Memory Tracking
+            ('CACHE MEM',       'cached_memory_gb',   32, 'GB', 'cyan'),
+            ('BUFFER MEM',      'buffer_memory_gb',   16, 'GB', 'blue'),
+            ('SHARED MEM',      'shared_memory_gb',   8, 'GB', 'purple'),
+            ('PAGE FAULTS',     'page_faults_per_sec', 10000, '/s', 'orange'),
+            # Row 16 - v29.39: Real-time Security Event Streaming
+            ('NET THREATS',     'network_threats_hour', 100, '/h', 'red'),
+            ('PROC THREATS',    'process_threats_hour', 50, '/h', 'orange'),
+            ('FILE THREATS',    'file_threats_hour',   20, '/h', 'purple'),
+            ('IOC HITS',        'ioc_hits_hour',       200, '/h', 'cyan'),
+            # Row 17 - v29.39: Real-time Threat Detection
+            ('MALWARE DETECTED','malware_detected_total', 50, '', 'red'),
+            ('PHISHING URLS',   'phishing_urls_total', 100, '', 'orange'),
+            ('C2 SERVERS',      'c2_servers_total',    25, '', 'red'),
+            ('SUSPICIOUS DNS',  'suspicious_dns_total', 150, '', 'purple'),
+            # Row 18 - v29.39: Real-time Disk I/O
+            ('DISK READ',       'disk_read_mb_s',     100, 'MB/s', 'cyan'),
+            ('DISK WRITE',      'disk_write_mb_s',    100, 'MB/s', 'blue'),
+            ('DISK QUEUE',      'disk_queue_depth',   32, '', 'orange'),
+            ('DISK UTIL',       'disk_util_percent',  100, '%', 'purple'),
+            # Row 19 - v29.39: Real-time Memory Fragmentation
+            ('MEM FRAG',       'mem_frag_percent',   100, '%', 'red'),
+            ('PAGE FAULTS',     'page_faults_s',      1000, '/s', 'orange'),
+            ('SWAP IN',        'swap_in_mb_s',       100, 'MB/s', 'purple'),
+            ('SWAP OUT',       'swap_out_mb_s',      100, 'MB/s', 'blue'),
+            # Row 20 - v29.39: Real-time CVE Tracking
+            ('CVEs/HOUR',      'cves_hour',         100, '/h', 'red'),
+            ('TOTAL CVEs',     'total_cves',         1000, '', 'orange'),
+            ('CRITICAL CVEs',  'critical_cves',      100, '', 'red'),
+            ('EXPLOIT CVEs',   'exploit_cves',       100, '', 'purple'),
+            # Row 21 - v29.39: Real-time Threat Actor Activity
+            ('ACTORS/HOUR',    'actors_hour',       50, '/h', 'red'),
+            ('TOTAL ACTORS',   'total_actors',      25, '', 'orange'),
+            ('ACTIVE ACTORS',  'active_actors',     20, '', 'red'),
+            ('ACTIVITY SCORE', 'activity_score',    100, '', 'purple'),
         ]
 
         COLS: Any = 4

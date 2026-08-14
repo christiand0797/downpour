@@ -96,6 +96,11 @@ class NetworkMonitor:
         self._osint_cache = {}
         self._osint_cache_ttl = 300  # 5 minutes cache TTL
         
+        # v29.39: Real-time threat tracking for Performance tab
+        self._threats_last_hour = 0
+        self._c2_servers_detected = set()
+        self._threat_history = []  # Timestamps of threats for hourly calculation
+        
         # v29: Known malicious IPs from threat intelligence feeds
         self.malicious_ips = set([
             # Kimwolf botnet C2 servers
@@ -228,6 +233,14 @@ class NetworkMonitor:
             pass
         
         return "??"  # Unknown
+
+    def _track_threat(self):
+        """Track threat occurrence for real-time metrics."""
+        now = time.time()
+        self._threat_history.append(now)
+        # Clean up old threats (older than 1 hour)
+        self._threat_history = [t for t in self._threat_history if now - t < 3600]
+        self._threats_last_hour = len(self._threat_history)
 
     def check_ip_cve(self, ip: str) -> dict:
         """
@@ -503,6 +516,10 @@ class NetworkMonitor:
             
             # Check against known malicious IPs (exact match + CIDR ranges)
             if self._is_malicious_ip(remote_ip):
+                # v29.39: Track threat for real-time metrics
+                self._track_threat()
+                if remote_ip not in self._c2_servers_detected:
+                    self._c2_servers_detected.add(remote_ip)
                 # Check if this IP is associated with any known CVEs
                 cve_info = self.check_ip_cve(remote_ip)
                 reason = f"Connection to known malicious IP: {remote_ip}"
@@ -521,6 +538,8 @@ class NetworkMonitor:
             # v29.39: Check OSINT reputation for enhanced threat detection
             osint_rep = self.check_osint_reputation(remote_ip)
             if osint_rep['composite_score'] >= 50:
+                # v29.39: Track threat for real-time metrics
+                self._track_threat()
                 threat_level = osint_rep['threat_level']
                 reason_parts = [f"OSINT reputation: {threat_level} (score: {osint_rep['composite_score']})"]
                 if osint_rep['greynoise']['noise']:
