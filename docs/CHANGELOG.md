@@ -1,5 +1,59 @@
 # Downpour v29 Titanium — Changelog
 
+# Downpour v29 Titanium - Changelog
+
+## v29.31 - Tooltips for the last bare buttons
+
+- Added hover tooltips to the 9 remaining tk.Button widgets that had none:
+  Rain, Storm, Settings gear, Widget toggle, tab-strip scroll arrows (both),
+  CVE "Apply Mitigation" button, TPM/BitLocker bypass toggle, and the DNS
+  Live Monitor start/stop button.
+- Verified py_compile OK; 31/31 unit tests pass.
+
+## v29.30b - Warm Performance History (gauges never idle)
+
+- _update_perf_ui now runs a cheap warm-history pre-pass BEFORE the
+  tab-visibility guard: every gauge value is appended to its 30-point
+  history deque and per-gauge up/down deltas are computed even while the
+  Perf tab is hidden.
+- Result: sparkline rings are already populated and delta markers meaningful
+  the instant the Perf tab is opened; adaptive DISK/NET ceilings also learn
+  from background traffic instead of starting cold at 0.
+- Removed the duplicate/triple history appends in the visible loop (single
+  source of truth = the pre-pass).
+- Verified py_compile OK; 31/31 unit tests pass.
+
+## v29.30a - Inline Browser-Extension Security Scan (Threats toolbar)
+
+- browser_protection.py (defensive orphan) wired inline as
+  _scan_browser_extensions / _browser_cve_check / _browser_ext_dir,
+  reusing the running CisaKevEngine singleton for browser->KEV matching.
+- Scans Chrome, Edge, Brave, Firefox, Opera, Vivaldi, Arc manifests; risk
+  score = suspicious permissions x25 + anonymity penalty, capped at 100.
+- Runs on the IO executor, posts back via after(0) + _queue_alert; new
+  Browser Scan button on the Threats toolbar with tooltip.
+- 5 new tests (36 total), 36/36 pass, AST 750 methods / 0 dupes.
+
+## v29.29 - Risk-Confirmation Gates on Destructive Actions
+
+- Kill / block / suspend / quarantine actions now require an explicit
+  confirm dialog before executing, consistent with the perf-tab process
+  kill flow.
+
+## v29.28 - Performance Tab Overhaul
+
+- Fixed label/sparkline overlap ("black box over half the gauges").
+- Adaptive rate-gauge ceilings for DISK/NET so needles track real traffic.
+- GPU + network + disk live tables, scoped mousewheel, live detail row
+  (RAM / Disk / CPU temp / Net totals / last-updated) and delta markers.
+- Perf live kickoff at startup (dead perf tab fix, v29.27) + status-bar
+  telemetry ticker (CPU/RAM/DISK/NET, color-coded).
+
+## v29.27 - Perf live kickoff + Threat Web Stack deep-links
+
+- Performance telemetry loops auto-start from launch (read-only, no side
+  effects); threat web-stack rows deep-link to open ports / processes.
+
 ## v29.26 Titanium — Windows 11 Immersive Dark Title Bar + Theme Detection
 
 Session goal: clear the "dark mode detection for Windows 11" TODO. Downpour

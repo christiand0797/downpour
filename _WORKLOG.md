@@ -2,6 +2,29 @@
 
 ## Branch: main
 
+## Session 2026-08-13k — v29.31: tooltips for the last bare buttons
+- ✅ Scanned every `tk.Button(` assignment in the main file (script-based
+  tooltip-gap audit). Most flagged sites already bind `_tooltip`; the real
+  stragglers were 9 named buttons: Rain toggle, Storm cycle, Settings gear,
+  Widget toggle, tab-strip ◀/▶ scroll arrows, CVE "Apply Mitigation for This
+  CVE", TPM/BitLocker bypass toggle, and the DNS Live Monitor start/stop.
+- ✅ All 9 now have `_tooltip(...)` bindings with short action/state
+  explanations. `py_compile` OK; 31/31 unit tests pass.
+
+## Session 2026-08-13k — v29.30b: warm Performance history (gauges never idle)
+- ✅ **Gap**: `_update_perf_ui` early-returned whenever the Perf tab wasn't
+  visible, so sparkline history and ▲/▼ deltas only accumulated while you
+  watched — opening the tab always started from an empty, flat history and
+  the adaptive DISK/NET rate ceilings began cold at 0.
+- ✅ **Fix**: a cheap warm-history pre-pass now runs *before* the
+  tab-visibility guard — every `_perf_gauge_meta` key's value is appended to
+  its 30-point deque and per-key deltas computed every tick regardless of
+  tab. The visible loop only redraws canvases, reading the warm history
+  (removed the old duplicate/triple appends so history has one source).
+- ✅ Bonus: adaptive ceilings now learn from background traffic, so DISK/NET
+  needles are already scaled correctly when the tab is opened.
+- ✅ Verified `py_compile` OK; 31/31 unit tests pass.
+
 ## Session 2026-08-13j — v29.30: inline browser-extension security scan
 - ✅ **Gap**: `browser_protection.py` (a defensive orphan module: extension
   manifest risk scoring + browser KEV matching) was never wired into the v29
