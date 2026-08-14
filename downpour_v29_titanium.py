@@ -22185,11 +22185,16 @@ class downpour(tk.Tk):
             "Click once to open, click again to close.")
 
         # -- PANIC button ----------------------------------------------------
-        tk.Button(ctrl, text='\u2620 PANIC', font=('Consolas', 10, 'bold'),
+        self._panic_btn: Any = tk.Button(ctrl, text='\u2620 PANIC', font=('Consolas', 10, 'bold'),
                   fg = '#ff2222', bg='#180000',
                   activebackground = '#330000', activeforeground='#ff4444',
                   relief = 'flat', padx=10, pady=2, cursor='hand2',
-                  command = self._panic_button).pack(side='left', padx=4)
+                  command = self._panic_button)
+        self._panic_btn.pack(side='left', padx=4)
+        self._tooltip(self._panic_btn,
+            "EMERGENCY PANIC — kill all suspicious processes, block all\n"
+            "flagged C2 IPs, isolate the host, and quarantine new files.\n"
+            "Runs the full emergency-response sequence. Confirm when prompted.")
 
         # -- Hardware gauge bar ------------------------------------------------
         logger.info("_build_ui: building hw bar...")
@@ -22423,11 +22428,14 @@ class downpour(tk.Tk):
                              relief = 'flat', bd=3)
         _gh_entry.grid(row=0, column=1, sticky='ew', padx=4, pady=5, ipadx=4)
         _gh_entry.bind('<Return>', self._global_hunt_go)
-        tk.Button(search_bar, text="[HIGH] HUNT",
+        self._hunt_btn: Any = tk.Button(search_bar, text="[HIGH] HUNT",
                   font = ('Consolas', 9, 'bold'), bg=Colors.GAUGE_RED, fg='white',
                   relief = 'flat', padx=10,
-                  command = self._global_hunt_go
-                  ).grid(row=0, column=2, padx=4, pady=5, sticky='w')
+                  command = self._global_hunt_go)
+        self._hunt_btn.grid(row=0, column=2, padx=4, pady=5, sticky='w')
+        self._tooltip(self._hunt_btn,
+            "Global threat hunt: search the entered indicator (name/hash/IP/domain)\n"
+            "across processes, files, registry, and the IOC database at once (Enter works too)")
         tk.Label(search_bar,
                  text = "Type threat name - hash - IP - domain -> searches processes, files, registry, IOC DB",
                  font = ('Consolas', 7), fg=Colors.TEXT_INACTIVE, bg=Colors.GLASS_PANEL
@@ -22998,30 +23006,39 @@ class downpour(tk.Tk):
         ecp.grid_columnconfigure(1, weight=1)
 
         engine_buttons: Any = [
-            ("Monitoring",       self._manual_start_monitoring,          Colors.GAUGE_BLUE),
-            ("Security Monitors",self._manual_start_security_monitors,  Colors.GAUGE_ORANGE),
-            ("AEGIS Layers",     self._manual_start_aegis,              Colors.GAUGE_TEAL),
-            ("Ransomware/Mem",   self._manual_start_ransomware,         Colors.GAUGE_PURPLE),
-            ("Zero-Day Engine",  self._manual_start_zeroday,            Colors.GAUGE_RED),
-            ("Botnet Detector",  self._manual_start_botnet,             Colors.GAUGE_ORANGE),
+            ("Monitoring",       self._manual_start_monitoring,          Colors.GAUGE_BLUE,
+             "Start the base monitoring loops (system/process/network telemetry)"),
+            ("Security Monitors",self._manual_start_security_monitors,  Colors.GAUGE_ORANGE,
+             "Start security monitors: threat scan, file integrity, USB, email"),
+            ("AEGIS Layers",     self._manual_start_aegis,              Colors.GAUGE_TEAL,
+             "Start all five Project AEGIS defense layers"),
+            ("Ransomware/Mem",   self._manual_start_ransomware,         Colors.GAUGE_PURPLE,
+             "Start ransomware canary/watch + memory forensics monitors"),
+            ("Zero-Day Engine",  self._manual_start_zeroday,            Colors.GAUGE_RED,
+             "Start the zero-day threat detection engine (ML heuristics)"),
+            ("Botnet Detector",  self._manual_start_botnet,             Colors.GAUGE_ORANGE,
+             "Start Kimwolf/botnet C2 detection with 150+ IOCs"),
         ]
-        for i, (txt, cmd, col) in enumerate(engine_buttons):
+        for i, (txt, cmd, col, tip) in enumerate(engine_buttons):
             r, c = divmod(i, 2)
-            tk.Button(ecp, text=txt, font=('Consolas', 8, 'bold'),
+            _eb: Any = tk.Button(ecp, text=txt, font=('Consolas', 8, 'bold'),
                       fg = col, bg=Colors.GLASS_CARD, relief='flat',
                       activebackground = Colors.GLASS_LIGHT,
-                      padx = 4, pady=2, command=cmd
-                      ).grid(row=r, column=c, sticky='ew', padx=3, pady=2)
+                      padx = 4, pady=2, command=cmd)
+            _eb.grid(row=r, column=c, sticky='ew', padx=3, pady=2)
+            self._tooltip(_eb, tip)
 
         # Start All button spans full width
-        tk.Button(ecp, text="START ALL ENGINES",
+        self._start_all_btn: Any = tk.Button(ecp, text="START ALL ENGINES",
                   font = ('Consolas', 9, 'bold'),
                   fg = Colors.GAUGE_GREEN, bg=Colors.GLASS_CARD,
                   relief = 'flat', activebackground=Colors.GLASS_LIGHT,
                   padx = 4, pady=3,
-                  command = self._manual_start_all_engines
-                  ).grid(row=len(engine_buttons)//2, column=0, columnspan=2,
+                  command = self._manual_start_all_engines)
+        self._start_all_btn.grid(row=len(engine_buttons)//2, column=0, columnspan=2,
                          sticky = 'ew', padx=3, pady=(4, 6))
+        self._tooltip(self._start_all_btn,
+            "Start EVERY engine group at once (all six groups above).")
 
         # Gaming status section
         tk.Label(right, text="GAMING STATUS", font=('Consolas', 9, 'bold'),
@@ -23052,17 +23069,22 @@ class downpour(tk.Tk):
                  fg = Colors.TEXT_DIM, bg=Colors.GLASS_CARD).grid(
                  row = len(stat_defs)+1, column=0, pady=(12,2))
         triage_btns: Any = [
-            ("Kill ALL Suspicious", self._kill_all_suspicious, Colors.GAUGE_RED),
-            ("Block All C2 IPs",    self._block_all_c2,        Colors.GAUGE_ORANGE),
-            ("Take File Snapshot",  self._take_file_snapshots, Colors.GAUGE_BLUE),
-            ("Run Hardening Scan",  self._harden_analyze,      Colors.GAUGE_GREEN),
+            ("Kill ALL Suspicious", self._kill_all_suspicious, Colors.GAUGE_RED,
+             "Force-kill every suspicious process currently flagged — confirms first"),
+            ("Block All C2 IPs",    self._block_all_c2,        Colors.GAUGE_ORANGE,
+             "Add Windows Firewall block rules for all known C2/botnet IPs"),
+            ("Take File Snapshot",  self._take_file_snapshots, Colors.GAUGE_BLUE,
+             "Snapshot running files for the file-integrity baseline"),
+            ("Run Hardening Scan",  self._harden_analyze,      Colors.GAUGE_GREEN,
+             "Run the DISA-STIG / Windows hardening assessment now"),
         ]
-        for i, (txt, cmd, col) in enumerate(triage_btns):
-            tk.Button(right, text=txt, font=('Consolas', 8, 'bold'), fg=col,
+        for i, (txt, cmd, col, tip) in enumerate(triage_btns):
+            _tb: Any = tk.Button(right, text=txt, font=('Consolas', 8, 'bold'), fg=col,
                       bg = Colors.GLASS_DARK, relief='flat', padx=4, pady=2,
-                      command = cmd, anchor='w'
-                      ).grid(row=len(stat_defs)+2+i, column=0, sticky='ew',
-                             padx = 6, pady=2)
+                      command = cmd, anchor='w')
+            _tb.grid(row=len(stat_defs)+2+i, column=0, sticky='ew',
+                     padx = 6, pady=2)
+            self._tooltip(_tb, tip)
 
         # -- Privacy Score panel (polished) ------------------------------------
         priv_frame: Any = tk.Frame(right, bg=Colors.GLASS_CARD, relief='flat')
@@ -23103,19 +23125,22 @@ class downpour(tk.Tk):
         _pb.grid(row=3, column=0, columnspan=2, sticky='ew', padx=6, pady=(0,6))
         _pb.grid_columnconfigure(0, weight=1)
         _pb.grid_columnconfigure(1, weight=1)
-        tk.Button(_pb, text="[HIGH] Privacy Mode",
+        _pm_btn: Any = tk.Button(_pb, text="[HIGH] Privacy Mode",
                   font = ('Consolas', 8, 'bold'), fg=Colors.GAUGE_GREEN,
                   bg = '#0a1a0a', activebackground='#0d220d',
                   activeforeground = Colors.GAUGE_GREEN,
                   relief = 'flat', padx=6, pady=3, cursor='hand2',
-                  command = self._activate_privacy_mode
-                  ).grid(row=0, column=0, sticky='ew', padx=(0,3), pady=1)
-        tk.Button(_pb, text="Score",
+                  command = self._activate_privacy_mode)
+        _pm_btn.grid(row=0, column=0, sticky='ew', padx=(0,3), pady=1)
+        self._tooltip(_pm_btn,
+            "Privacy Mode: harden DNS, clear telemetry, tighten privacy settings")
+        _score_btn: Any = tk.Button(_pb, text="Score",
                   font = ('Consolas', 8), fg=Colors.TEXT_DIM,
                   bg = Colors.GLASS_CARD, activebackground=Colors.GLASS_BORDER,
                   relief = 'flat', padx=6, pady=3, cursor='hand2',
-                  command = self._refresh_privacy_score
-                  ).grid(row=0, column=1, sticky='ew', padx=(3,0), pady=1)
+                  command = self._refresh_privacy_score)
+        _score_btn.grid(row=0, column=1, sticky='ew', padx=(3,0), pady=1)
+        self._tooltip(_score_btn, "Recompute your privacy score now")
 
         self._privacy_details_lbl = tk.Label(priv_frame, text="",
             font = ('Consolas', 7), fg=Colors.TEXT_INACTIVE, bg=Colors.GLASS_CARD,
@@ -23798,15 +23823,21 @@ class downpour(tk.Tk):
         self._pcap_status = tk.Label(pcap_bar, text="Idle", font=('Consolas', 8),
                                       fg = Colors.TEXT_DIM, bg=Colors.GLASS_DARK)
         self._pcap_status.pack(side='left', padx=8)
-        tk.Button(pcap_bar, text="> Start Capture", font=('Consolas', 8),
+        _pc_start: Any = tk.Button(pcap_bar, text="> Start Capture", font=('Consolas', 8),
                   bg = Colors.GAUGE_PURPLE, fg='white', relief='flat', padx=8,
-                  command = self._ui_start_pcap).pack(side='left', padx=4, pady=3)
-        tk.Button(pcap_bar, text="Stop", font=('Consolas', 8),
+                  command = self._ui_start_pcap)
+        _pc_start.pack(side='left', padx=4, pady=3)
+        self._tooltip(_pc_start, "Start packet capture + live connection monitoring (needs admin)")
+        _pc_stop: Any = tk.Button(pcap_bar, text="Stop", font=('Consolas', 8),
                   bg = Colors.CHROME_MID, fg=Colors.TEXT_DIM, relief='flat', padx=6,
-                  command = self._stop_packet_capture).pack(side='left', padx=2, pady=3)
-        tk.Button(pcap_bar, text="Check Rogue DHCP", font=('Consolas', 8),
+                  command = self._stop_packet_capture)
+        _pc_stop.pack(side='left', padx=2, pady=3)
+        self._tooltip(_pc_stop, "Stop the active packet capture")
+        _dhcp_btn: Any = tk.Button(pcap_bar, text="Check Rogue DHCP", font=('Consolas', 8),
                   bg = Colors.GAUGE_ORANGE, fg='white', relief='flat', padx=8,
-                  command = self._run_rogue_dhcp_check).pack(side='right', padx=8, pady=3)
+                  command = self._run_rogue_dhcp_check)
+        _dhcp_btn.pack(side='right', padx=8, pady=3)
+        self._tooltip(_dhcp_btn, "Detect rogue/evil-twin DHCP servers handing out bad configs")
         # Bandwidth monitor bar
         bw_bar: Any = tk.Frame(p, bg=Colors.GLASS_PANEL)
         bw_bar.grid(row=3, column=0, sticky='ew', padx=8, pady=(0,4))
@@ -23997,9 +24028,11 @@ class downpour(tk.Tk):
         tk.Entry(check_row, textvariable=self._intel_check_var, font=('Consolas', 9),
                  bg = Colors.GLASS_LIGHT, fg=Colors.TEXT_BRIGHT, insertbackground='white',
                  width = 40, relief='flat').pack(side='left', padx=4)
-        tk.Button(check_row, text="Check", font=('Consolas', 9),
-                  fg = Colors.GAUGE_BLUE, bg=Colors.GLASS_CARD, relief='flat',
-                  command = self._check_intel_item).pack(side='left', padx=4)
+        _chk_item: Any = tk.Button(check_row, text="Check", font=('Consolas', 9),
+                      fg = Colors.GAUGE_BLUE, bg=Colors.GLASS_CARD, relief='flat',
+                      command = self._check_intel_item)
+        _chk_item.pack(side='left', padx=4)
+        self._tooltip(_chk_item, "Look up the current IOC value against all loaded intel feeds + local cache")
         self._intel_result = tk.Label(p, text="", font=('Consolas', 9),
                                        fg = Colors.GAUGE_GREEN, bg=Colors.BG_VOID)
         self._intel_result.pack(anchor='w', padx=12)
@@ -24119,21 +24152,31 @@ class downpour(tk.Tk):
 
         db_btn_row: Any = tk.Frame(db_frame, bg=Colors.BG_VOID)
         db_btn_row.pack(fill='x', padx=6, pady=(0,4))
-        tk.Button(db_btn_row, text="Add Feed", font=('Consolas', 8, 'bold'),
+        _b_add_feed: Any = tk.Button(db_btn_row, text="Add Feed", font=('Consolas', 8, 'bold'),
                   fg = Colors.GAUGE_GREEN, bg=Colors.GLASS_CARD, relief='flat',
-                  command = self._add_custom_feed).pack(side='left', padx=3)
-        tk.Button(db_btn_row, text="Fetch Now", font=('Consolas', 8),
+                  command = self._add_custom_feed)
+        _b_add_feed.pack(side='left', padx=3)
+        self._tooltip(_b_add_feed, "Register a new custom threat-intel feed (URL + type + name)")
+        _b_fetch: Any = tk.Button(db_btn_row, text="Fetch Now", font=('Consolas', 8),
                   fg = Colors.GAUGE_TEAL, bg=Colors.GLASS_CARD, relief='flat',
-                  command = self._fetch_custom_feed_now).pack(side='left', padx=3)
-        tk.Button(db_btn_row, text="Remove Selected", font=('Consolas', 8),
+                  command = self._fetch_custom_feed_now)
+        _b_fetch.pack(side='left', padx=3)
+        self._tooltip(_b_fetch, "Immediately fetch the selected custom feed")
+        _b_rmfeed: Any = tk.Button(db_btn_row, text="Remove Selected", font=('Consolas', 8),
                   fg = Colors.GAUGE_RED, bg=Colors.GLASS_CARD, relief='flat',
-                  command = self._remove_custom_feed).pack(side='left', padx=3)
-        tk.Button(db_btn_row, text="📂 Import from File", font=('Consolas', 8),
+                  command = self._remove_custom_feed)
+        _b_rmfeed.pack(side='left', padx=3)
+        self._tooltip(_b_rmfeed, "Delete the selected custom feed from the registry")
+        _b_impfeed: Any = tk.Button(db_btn_row, text="📂 Import from File", font=('Consolas', 8),
                   fg = Colors.GAUGE_BLUE, bg=Colors.GLASS_CARD, relief='flat',
-                  command = self._import_feed_from_file).pack(side='left', padx=3)
-        tk.Button(db_btn_row, text="[CHART] Feed Statistics", font=('Consolas', 8),
+                  command = self._import_feed_from_file)
+        _b_impfeed.pack(side='left', padx=3)
+        self._tooltip(_b_impfeed, "Import IOCs from a local file (txt/csv/json) as a feed")
+        _b_feedstats: Any = tk.Button(db_btn_row, text="[CHART] Feed Statistics", font=('Consolas', 8),
                   fg = Colors.GAUGE_PURPLE, bg=Colors.GLASS_CARD, relief='flat',
-                  command = self._show_feed_stats).pack(side='left', padx=3)
+                  command = self._show_feed_stats)
+        _b_feedstats.pack(side='left', padx=3)
+        self._tooltip(_b_feedstats, "View fetch statistics/health for all configured feeds")
 
         # Custom feeds list with enhanced scrollability
         custom_feed_container: Any = tk.Frame(db_frame, bg=Colors.BG_VOID)
@@ -27121,9 +27164,11 @@ class downpour(tk.Tk):
                           Colors.GAUGE_TEAL)
             dialog.destroy()
         
-        tk.Button(btn_frame, text='Rollback Selected', command=do_rollback,
+        _rb_btn: Any = tk.Button(btn_frame, text='Rollback Selected', command=do_rollback,
                  bg = Colors.GAUGE_ORANGE, fg='white', font=('Consolas',9,'bold'),
-                 padx = 20).pack(side='left', padx=5)
+                 padx = 20)
+        _rb_btn.pack(side='left', padx=5)
+        self._tooltip(_rb_btn, "Undo the selected hardening change (restore the previous setting)")
         
         tk.Button(btn_frame, text='Cancel', command=dialog.destroy,
                  bg = Colors.GAUGE_RED, fg='white', font=('Consolas',9,'bold'),
@@ -31653,20 +31698,23 @@ Verification Status:
                                          fg = Colors.GAUGE_ORANGE, bg=Colors.GLASS_CARD)
         self._vuln_score_lbl.grid(row=0, column=1, padx=20)
 
-        tk.Button(hdr, text="> RUN FULL SCAN", font=('Consolas', 9, 'bold'),
+        _v_scan: Any = tk.Button(hdr, text="> RUN FULL SCAN", font=('Consolas', 9, 'bold'),
                   bg = Colors.GAUGE_RED, fg='white', relief='flat', padx=10, pady=4,
-                  command = self._run_vuln_scan
-                  ).grid(row=0, column=2, padx=8, pady=6)
+                  command = self._run_vuln_scan)
+        _v_scan.grid(row=0, column=2, padx=8, pady=6)
+        self._tooltip(_v_scan, "Full vulnerability scan: CVE-aware check of Windows config, drivers, and installed software")
 
-        tk.Button(hdr, text="[HIGH] FIX ALL (Admin)", font=('Consolas', 9),
+        _v_fix: Any = tk.Button(hdr, text="[HIGH] FIX ALL (Admin)", font=('Consolas', 9),
                   bg = Colors.GAUGE_ORANGE, fg='white', relief='flat', padx=10, pady=4,
-                  command = self._vuln_fix_all
-                  ).grid(row=0, column=3, padx=4, pady=6, sticky='w')
+                  command = self._vuln_fix_all)
+        _v_fix.grid(row=0, column=3, padx=4, pady=6, sticky='w')
+        self._tooltip(_v_fix, "Apply fixes for all detected vulnerabilities (requires admin; confirms first)")
 
-        tk.Button(hdr, text="🚨 CHECK ZERO-DAYS (Live)", font=('Consolas', 9, 'bold'),
+        _v_zero: Any = tk.Button(hdr, text="🚨 CHECK ZERO-DAYS (Live)", font=('Consolas', 9, 'bold'),
                   bg = '#6a0000', fg='white', relief='flat', padx=10, pady=4,
-                  command = self._check_zero_days_live
-                  ).grid(row=0, column=4, padx=4, pady=6, sticky='w')
+                  command = self._check_zero_days_live)
+        _v_zero.grid(row=0, column=4, padx=4, pady=6, sticky='w')
+        self._tooltip(_v_zero, "Live check for known zero-day exploits against this machine (OSS-based, network fetch)")
 
         # Results pane
         body: Any = tk.Frame(p, bg=Colors.BG_VOID)
@@ -40913,10 +40961,12 @@ Verification Status:
                                     font = ('Consolas', 9, 'bold'), fg=Colors.TEXT_DIM,
                                     bg = Colors.GLASS_DARK, anchor='w')
         self._nlp_result.pack(side='left', padx=4)
-        tk.Button(nlp_btn_f, text="Analyze >",
-                  font = ('Consolas', 9, 'bold'), fg=Colors.GAUGE_YELLOW,
-                  bg = Colors.GLASS_CARD, relief='flat', padx=8,
-                  command = self._aegis_analyze_text).pack(side='right', padx=4)
+        _nlp_btn: Any = tk.Button(nlp_btn_f, text="Analyze >",
+                      font = ('Consolas', 9, 'bold'), fg=Colors.GAUGE_YELLOW,
+                      bg = Colors.GLASS_CARD, relief='flat', padx=8,
+                      command = self._aegis_analyze_text)
+        _nlp_btn.pack(side='right', padx=4)
+        self._tooltip(_nlp_btn, "NLP-analyze the pasted text for threat indicators, phishing, and intent")
 
         # -- Event log ---------------------------------------------
         log_frame: Any = tk.Frame(right, bg=Colors.GLASS_DARK)
@@ -41740,13 +41790,17 @@ Verification Status:
             "Logs every DNS request the system makes in real time, "
             "with domain, type and latency.")
 
-        tk.Button(ctrl_f, text='🗑️ Clear', command=self._dns_clear_monitor,
-                  font = ('Consolas', 9), bg=Colors.GLASS_BORDER, fg=Colors.TEXT_DIM,
-                  relief = 'flat', padx=8, cursor='hand2').pack(side='left', padx=4)
+        _dns_clear_btn: Any = tk.Button(ctrl_f, text='🗑️ Clear', command=self._dns_clear_monitor,
+                      font = ('Consolas', 9), bg=Colors.GLASS_BORDER, fg=Colors.TEXT_DIM,
+                      relief = 'flat', padx=8, cursor='hand2')
+        _dns_clear_btn.pack(side='left', padx=4)
+        self._tooltip(_dns_clear_btn, "Clear all captured DNS query log entries")
 
-        tk.Button(ctrl_f, text='💾 Export Log', command=self._dns_export_monitor_log,
-                  font = ('Consolas', 9), bg=Colors.GLASS_BORDER, fg=Colors.GAUGE_CYAN,
-                  relief = 'flat', padx=8, cursor='hand2').pack(side='left', padx=4)
+        _dns_export_btn: Any = tk.Button(ctrl_f, text='💾 Export Log', command=self._dns_export_monitor_log,
+                      font = ('Consolas', 9), bg=Colors.GLASS_BORDER, fg=Colors.GAUGE_CYAN,
+                      relief = 'flat', padx=8, cursor='hand2')
+        _dns_export_btn.pack(side='left', padx=4)
+        self._tooltip(_dns_export_btn, "Export the current DNS monitor log to a text file")
 
         self._dns_mon_count_var = tk.StringVar(value='Queries: 0  |  Threats: 0')
         tk.Label(ctrl_f, textvariable=self._dns_mon_count_var,
@@ -41834,24 +41888,27 @@ Verification Status:
 
         btn_f: Any = tk.Frame(check_f, bg=Colors.GLASS_CARD)
         btn_f.pack(fill='x', padx=8, pady=6)
-        tk.Button(btn_f, text='☠️ RUN POISON CHECK',
+        _poison_btn: Any = tk.Button(btn_f, text='☠️ RUN POISON CHECK',
                   command = self._dns_run_poison_check,
                   font = ('Consolas', 10, 'bold'),
                   bg = Colors.GAUGE_RED, fg='white',
-                  relief = 'flat', padx=16, pady=6, cursor='hand2'
-                  ).pack(side='left', padx=4)
-        tk.Button(btn_f, text='🔄 Check Critical System Domains',
+                  relief = 'flat', padx=16, pady=6, cursor='hand2')
+        _poison_btn.pack(side='left', padx=4)
+        self._tooltip(_poison_btn, "Check for DNS cache poisoning against known-bad answer patterns")
+        _sysdom_btn: Any = tk.Button(btn_f, text='🔄 Check Critical System Domains',
                   command = self._dns_check_system_domains,
                   font = ('Consolas', 9),
                   bg = Colors.GAUGE_ORANGE, fg='white',
-                  relief = 'flat', padx=10, cursor='hand2'
-                  ).pack(side='left', padx=4)
-        tk.Button(btn_f, text='Test Router DNS',
+                  relief = 'flat', padx=10, cursor='hand2')
+        _sysdom_btn.pack(side='left', padx=4)
+        self._tooltip(_sysdom_btn, "Verify resolution of critical Windows system domains (Microsoft, update, etc.)")
+        _routerdns_btn: Any = tk.Button(btn_f, text='Test Router DNS',
                   command = self._dns_test_router,
                   font = ('Consolas', 9),
                   bg = Colors.GAUGE_BLUE, fg='white',
-                  relief = 'flat', padx=10, cursor='hand2'
-                  ).pack(side='left', padx=4)
+                  relief = 'flat', padx=10, cursor='hand2')
+        _routerdns_btn.pack(side='left', padx=4)
+        self._tooltip(_routerdns_btn, "Test the router's DNS settings for integrity and tampering")
 
         # Results
         self._dns_poison_results = tk.Text(p, font=('Consolas', 9),
@@ -41955,18 +42012,20 @@ Verification Status:
                  font = ('Consolas', 10), width=30,
                  bg = Colors.GLASS_DARK, fg=Colors.GAUGE_TEAL,
                  relief = 'flat', bd=3).grid(row=0, column=1, padx=8, pady=8, sticky='ew')
-        tk.Button(ctrl_f, text='Validate DNSSEC',
+        _dnssec_val: Any = tk.Button(ctrl_f, text='Validate DNSSEC',
                   command = self._dns_validate_dnssec,
                   font = ('Consolas', 10, 'bold'),
                   bg = Colors.GAUGE_GREEN, fg=Colors.BG_VOID,
-                  relief = 'flat', padx=16, cursor='hand2'
-                  ).grid(row=0, column=2, padx=8)
-        tk.Button(ctrl_f, text='Full DNSSEC Audit',
+                  relief = 'flat', padx=16, cursor='hand2')
+        _dnssec_val.grid(row=0, column=2, padx=8)
+        self._tooltip(_dnssec_val, "Validate DNSSEC signatures for the query domain(s)")
+        _dnssec_full: Any = tk.Button(ctrl_f, text='Full DNSSEC Audit',
                   command = self._dns_full_dnssec_audit,
                   font = ('Consolas', 9),
                   bg = Colors.GAUGE_BLUE, fg='white',
-                  relief = 'flat', padx=10, cursor='hand2'
-                  ).grid(row=0, column=3, padx=4)
+                  relief = 'flat', padx=10, cursor='hand2')
+        _dnssec_full.grid(row=0, column=3, padx=4)
+        self._tooltip(_dnssec_full, "Run a full DNSSEC audit against configured resolvers")
 
         self._dns_dnssec_results = tk.Text(p, font=('Consolas', 9),
                                             bg = Colors.GLASS_DARK, fg=Colors.TEXT_LIGHT,
@@ -41990,18 +42049,26 @@ Verification Status:
 
         btn_f: Any = tk.Frame(p, bg=Colors.GLASS_PANEL)
         btn_f.grid(row=1, column=0, sticky='ew', padx=8, pady=4)
-        tk.Button(btn_f, text='📋 View DNS Cache', command=self._dns_view_cache,
+        _dns_view_cache_btn: Any = tk.Button(btn_f, text='📋 View DNS Cache', command=self._dns_view_cache,
                   font = ('Consolas', 9, 'bold'), bg=Colors.GAUGE_TEAL, fg=Colors.BG_VOID,
-                  relief = 'flat', padx=12, pady=5, cursor='hand2').pack(side='left', padx=6, pady=6)
-        tk.Button(btn_f, text='🚿 Flush All DNS Cache', command=self._dns_flush_cache,
+                  relief = 'flat', padx=12, pady=5, cursor='hand2')
+        _dns_view_cache_btn.pack(side='left', padx=6, pady=6)
+        self._tooltip(_dns_view_cache_btn, "Open a window listing every entry in the local DNS cache")
+        _dns_flush_btn: Any = tk.Button(btn_f, text='🚿 Flush All DNS Cache', command=self._dns_flush_cache,
                   font = ('Consolas', 9, 'bold'), bg=Colors.GAUGE_RED, fg='white',
-                  relief = 'flat', padx=12, pady=5, cursor='hand2').pack(side='left', padx=6)
-        tk.Button(btn_f, text='🔍 Scan Cache for Threats', command=self._dns_scan_cache_threats,
+                  relief = 'flat', padx=12, pady=5, cursor='hand2')
+        _dns_flush_btn.pack(side='left', padx=6)
+        self._tooltip(_dns_flush_btn, "Flush the entire DNS resolver cache (ipconfig /flushdns)")
+        _dns_scan_cache_btn: Any = tk.Button(btn_f, text='🔍 Scan Cache for Threats', command=self._dns_scan_cache_threats,
                   font = ('Consolas', 9, 'bold'), bg=Colors.GAUGE_ORANGE, fg='white',
-                  relief = 'flat', padx=12, pady=5, cursor='hand2').pack(side='left', padx=6)
-        tk.Button(btn_f, text='💾 Export Cache', command=self._dns_export_cache,
+                  relief = 'flat', padx=12, pady=5, cursor='hand2')
+        _dns_scan_cache_btn.pack(side='left', padx=6)
+        self._tooltip(_dns_scan_cache_btn, "Cross-check cached DNS entries against threat-intel IOC lists")
+        _dns_export_cache_btn: Any = tk.Button(btn_f, text='💾 Export Cache', command=self._dns_export_cache,
                   font = ('Consolas', 9), bg=Colors.GLASS_BORDER, fg=Colors.TEXT_DIM,
-                  relief = 'flat', padx=10, cursor='hand2').pack(side='left', padx=4)
+                  relief = 'flat', padx=10, cursor='hand2')
+        _dns_export_cache_btn.pack(side='left', padx=4)
+        self._tooltip(_dns_export_cache_btn, "Export the DNS cache listing to a text file")
 
         self._dns_cache_text = tk.Text(p, font=('Consolas', 8),
                                         bg = Colors.GLASS_DARK, fg=Colors.TEXT_LIGHT,
@@ -42040,18 +42107,26 @@ Verification Status:
         _be.grid(row=0, column=1, padx=8, pady=8, sticky='ew')
         _be.bind('<Return>', lambda e: self._dns_blocklist_add())
 
-        tk.Button(add_f, text='🚫 Block', command=self._dns_blocklist_add,
+        _bl_block: Any = tk.Button(add_f, text='🚫 Block', command=self._dns_blocklist_add,
                   font = ('Consolas', 9, 'bold'), bg=Colors.GAUGE_RED, fg='white',
-                  relief = 'flat', padx=10).grid(row=0, column=2, padx=4)
-        tk.Button(add_f, text='[OK] Unblock', command=self._dns_blocklist_remove,
+                  relief = 'flat', padx=10)
+        _bl_block.grid(row=0, column=2, padx=4)
+        self._tooltip(_bl_block, "Add the domain to the blocklist (blocks resolution via hosts)")
+        _bl_unblock: Any = tk.Button(add_f, text='[OK] Unblock', command=self._dns_blocklist_remove,
                   font = ('Consolas', 9), bg=Colors.GAUGE_GREEN, fg=Colors.BG_VOID,
-                  relief = 'flat', padx=10).grid(row=0, column=3, padx=4)
-        tk.Button(add_f, text='📥 Import List', command=self._dns_blocklist_import,
+                  relief = 'flat', padx=10)
+        _bl_unblock.grid(row=0, column=3, padx=4)
+        self._tooltip(_bl_unblock, "Remove the domain from the blocklist")
+        _bl_import: Any = tk.Button(add_f, text='📥 Import List', command=self._dns_blocklist_import,
                   font = ('Consolas', 9), bg=Colors.GAUGE_BLUE, fg='white',
-                  relief = 'flat', padx=10).grid(row=0, column=4, padx=4)
-        tk.Button(add_f, text='📤 Export List', command=self._dns_blocklist_export,
+                  relief = 'flat', padx=10)
+        _bl_import.grid(row=0, column=4, padx=4)
+        self._tooltip(_bl_import, "Import a domain blocklist from a file")
+        _bl_export: Any = tk.Button(add_f, text='📤 Export List', command=self._dns_blocklist_export,
                   font = ('Consolas', 9), bg=Colors.GLASS_BORDER, fg=Colors.TEXT_DIM,
-                  relief = 'flat', padx=10).grid(row=0, column=5, padx=4)
+                  relief = 'flat', padx=10)
+        _bl_export.grid(row=0, column=5, padx=4)
+        self._tooltip(_bl_export, "Export the current blocklist to a file")
 
         # Block list treeview
         tree_f: Any = tk.Frame(p, bg=Colors.BG_VOID)
@@ -47656,9 +47731,11 @@ Verification Status:
         tk.Label(hdr2, text="🚫 RECENT BLOCKED CONNECTIONS (Event Log 5157)",
                  font = ('Consolas', 9, 'bold'), fg=Colors.GAUGE_RED,
                  bg = Colors.GLASS_CARD).pack(side='left', padx=8, pady=4)
-        tk.Button(hdr2, text="Load Events", font=('Consolas', 8),
+        _fw_events_btn: Any = tk.Button(hdr2, text="Load Events", font=('Consolas', 8),
                   fg = Colors.GAUGE_TEAL, bg=Colors.GLASS_DARK, relief='flat', padx=6,
-                  command = self._fw_load_blocked_events).pack(side='right', padx=8, pady=3)
+                  command = self._fw_load_blocked_events)
+        _fw_events_btn.pack(side='right', padx=8, pady=3)
+        self._tooltip(_fw_events_btn, "Load recent blocked-connection events from the firewall log")
         evt_cols: Any = ('Time','Process','Source IP','Dest IP','Dest Port','Protocol')
         self._fw_evt_tree = ttk.Treeview(evt_f, style='Titan.Treeview', columns=evt_cols,
                                           show = 'headings', height=6)
@@ -49717,12 +49794,16 @@ Verification Status:
 
         btn_row: Any = tk.Frame(win, bg=Colors.BG_VOID)
         btn_row.pack(pady=8)
-        tk.Button(btn_row, text='🔍 Check on GreyNoise', font=('Consolas', 9, 'bold'),
+        _gn_btn: Any = tk.Button(btn_row, text='🔍 Check on GreyNoise', font=('Consolas', 9, 'bold'),
                   fg=Colors.GAUGE_TEAL, bg=Colors.GLASS_CARD, relief='flat',
-                  padx=10, pady=4, command=_check_greynoise).pack(side='left', padx=4)
-        tk.Button(btn_row, text='✅ Unblock Selected', font=('Consolas', 9, 'bold'),
+                  padx=10, pady=4, command=_check_greynoise)
+        _gn_btn.pack(side='left', padx=4)
+        self._tooltip(_gn_btn, "Classify the selected IP on GreyNoise (routine noise vs targeted actor)")
+        _unblk_btn: Any = tk.Button(btn_row, text='✅ Unblock Selected', font=('Consolas', 9, 'bold'),
                   fg=Colors.GAUGE_GREEN, bg=Colors.GLASS_CARD, relief='flat',
-                  padx=10, pady=4, command=_unblock_selected).pack(side='left', padx=4)
+                  padx=10, pady=4, command=_unblock_selected)
+        _unblk_btn.pack(side='left', padx=4)
+        self._tooltip(_unblk_btn, "Remove the selected IP(s) from the firewall block list")
         tk.Button(btn_row, text='Close', font=('Consolas', 9),
                   fg=Colors.TEXT_DIM, bg=Colors.GLASS_CARD, relief='flat',
                   padx=10, pady=4, command=win.destroy).pack(side='left', padx=4)
@@ -50828,12 +50909,16 @@ Verification Status:
                            icon = 'warning'):
                 self._fp_clear_all()
                 win.destroy()
-        tk.Button(btns, text='Re-arm Selected', font=('Consolas', 9),
+        _rearm_btn: Any = tk.Button(btns, text='Re-arm Selected', font=('Consolas', 9),
                   fg = Colors.GAUGE_YELLOW, bg=Colors.GLASS_CARD, relief='flat',
-                  command=_unsuppress).pack(side='left', padx=3)
-        tk.Button(btns, text='Clear All', font=('Consolas', 9),
+                  command=_unsuppress)
+        _rearm_btn.pack(side='left', padx=3)
+        self._tooltip(_rearm_btn, "Re-arm (unsuppress) the selected fingerprint so it can alert again")
+        _clearall_btn: Any = tk.Button(btns, text='Clear All', font=('Consolas', 9),
                   fg = Colors.GAUGE_RED, bg=Colors.GLASS_CARD, relief='flat',
-                  command=_clear_all).pack(side='left', padx=3)
+                  command=_clear_all)
+        _clearall_btn.pack(side='left', padx=3)
+        self._tooltip(_clearall_btn, "Re-arm every suppressed fingerprint and clear the blocklist")
         tk.Button(btns, text='Close', font=('Consolas', 9), fg=Colors.GAUGE_TEAL,
                   bg = Colors.GLASS_CARD, relief='flat', command=win.destroy
                   ).pack(side='right', padx=3)
