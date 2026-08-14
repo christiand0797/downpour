@@ -153,6 +153,15 @@ for node in ast.walk(tree):
       Cause) and Threats-tab Kill Selected.
 - [x] **Tooltip sweep** — Intel Threat Response row (31 buttons) + Dashboard
       quick-actions row now show tooltips (`_resp_tips` pattern + hand2).
+- [x] **Browser-extension security scan (v29.30)** — inflated a defensive
+      orphan (`browser_protection.py`) inline into the Threats toolbar:
+      `_scan_browser_extensions` reads every installed-browser extension
+      `manifest.json` and risk-scores permissions (tabs/webRequest/cookies/
+      debugger/clipboardRead/…), `_browser_cve_check` matches installed
+      browsers against the existing `CisaKevEngine` singleton. Runs on
+      `_io_executor` with `_queue_alert` + after(0) postback. DECLINED: the
+      `advanced_device_profiler.py` orphan (evasion/bypass-capability toolkit)
+      is deliberately left unwired.
 
 ## OSINT4ALL Research — Status
 

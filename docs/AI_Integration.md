@@ -6,8 +6,10 @@
 |--------|-----------------|--------|
 | `ai_security_engine.py` | No | Standalone — not wired into main app |
 | `ml_behavioral_analyzer.py` | No | Standalone — behavioral baseline + anomaly scoring |
-| `ml_optimization_engine.py` | No | Standalone — performance tuning |
+| `ml_optimization_engine.py` | No | Standalone — performance tuning (duplicates inline ML) |
 | `sklearn` (stub) | Yes (try/except) | Optional — IsolationForest, RandomForestClassifier, MLPClassifier, TfidfVectorizer, StandardScaler |
+| `browser_protection.py` | No | **CONSOLIDATED v29.30** — extension manifest risk scoring + browser KEV match now inline in `downpour_v29_titanium.py` (`_scan_browser_extensions` / `_browser_cve_check` / `_browser_ext_dir`) reusing `CisaKevEngine` |
+| `advanced_device_profiler.py` | No | **DECLINED** — evasion/anti-security toolkit (bypass-capability analysis); deliberately not wired in |
 | `revolutionary_enhancements/` | Yes (try/except) | Optional — quantum/neural placeholders |
 
 ## In-app ML features (when sklearn available)

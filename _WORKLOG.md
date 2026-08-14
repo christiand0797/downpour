@@ -2,6 +2,36 @@
 
 ## Branch: main
 
+## Session 2026-08-13j — v29.30: inline browser-extension security scan
+- ✅ **Gap**: `browser_protection.py` (a defensive orphan module: extension
+  manifest risk scoring + browser KEV matching) was never wired into the v29
+  app; `manifest.json` / `extension_risk` had zero hits in the main file.
+  The v29 Threats tab had no browser-extensions surface at all.
+- ✅ **Wiring decision (Phase 5)**: rather than importing the standalone
+  module (which owns its own `logging.basicConfig`, spawns a daemon thread,
+  and depends on `VulnerabilityScanner` + `pythoncom`), consolidated the
+  capability inline as `_scan_browser_extensions` / `_browser_cve_check` /
+  `_browser_ext_dir` — reusing the already-running `CisaKevEngine` singleton
+  for browser→KEV matching instead of a second KEV copy.
+- ✅ Scan covers Chrome, Edge, Brave, Firefox (profiles), Opera, Vivaldi, Arc;
+  Chromium-family walks `{User Data}/{Profile}/Extensions/{id}/{ver}/manifest.json`,
+  Firefox scans profile `extensions` dirs. Risk score = unique suspicious
+  permissions ×25 (tabs, webRequest, <all_urls>, cookies, proxy, debugger,
+  desktopCapture, clipboardRead, nativeMessaging, management, downloads.open,
+  history…), +15 for unnamed/empty-name extensions, capped at 100.
+- ✅ Runs on `_io_executor` (never blocks main thread); `_queue_alert` +
+  `after(0)` postback; summary via `messagebox.showinfo`. Rate-limited alerts
+  auto-apply (`_queue_alert` global 2/s cap). No new runtime deps.
+- ✅ Wired into Threats toolbar: `🌐 Browser Scan` button with tooltip.
+- ✅ **Declined**: `advanced_device_profiler.py` is evasion/anti-security
+  tooling (bypass-capability analysis, adaptation strategies for covert ops)
+  — explicitly NOT wired in, consistent with Phase 5 rule "do NOT strengthen
+  bypass/evasion orphans".
+- ✅ New tests: `TestBrowserScanV2930` (5 tests, 36 total). 36/36 pass,
+  py_compile OK, AST 750 methods / 0 dupes, full-project audit clean.
+
+## Branch: main
+
 ## Session 2026-08-13i — v29.29: risk-confirmation gates on destructive actions
 - ✅ **Gap**: the Threat Action Panel (right-click alert response) ran kill/
   block/suspend/root-cause with ZERO confirmation — one click on the wrong
