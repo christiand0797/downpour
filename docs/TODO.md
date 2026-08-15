@@ -1,5 +1,5 @@
 # TODO / Current State — Downpour v29 Titanium
-# Last verified: 2026-08-13 (v29.34, Phase 3 tooltip sweep + docs refresh)
+# Last verified: 2026-08-14 (v29.40c, boot-crash fix + live Performance data)
 
 **READ THIS FIRST if you are a new agent picking up this project.**
 This file was badly stale (dated April 2026) until this rewrite. `_WORKLOG.md`
@@ -10,19 +10,23 @@ authoritative history. This file is the current-state snapshot + what's left.
 
 ## Verified Current State (as of this rewrite)
 
-- `downpour_v29_titanium.py`: ~51,780 lines, 751 methods in the main `downpour`
-  class, **0 duplicate method names** (verify with the AST script below before
-  and after any edit session — this has caught real bugs multiple times)
+- `downpour_v29_titanium.py`: ~52,780 lines, 1313 methods across classes
+  (751 in the main `downpour` class), **0 duplicate method names** (verify with
+  the AST script below before and after any edit session — this has caught real
+  bugs multiple times)
 - `gpu_detector_fix.py` shipped in v29.24 (was a dangling import in
   `enhanced_security_dashboard.py`).
-- `tests/test_thread_safety.py` added in v29.25 — 16 pytest cases covering the
+- `tests/test_thread_safety.py` added in v29.25 — pytest cases covering the
   FP-suppression flow, `_queue_alert` rate limit, and the executor post-back
   pattern. Run: `Python312\python.exe -m pytest tests -q`. (18 tests as of
   v29.26 with the dark-titlebar cases; **31 tests as of v29.29** — added
   `TestPerfTabV2928` gauge/sparkline/ceiling cases, `TestThreatWebStack` intel
   deep-link builder cases, and `TestRiskConfirmation` `_confirm_risk` cases;
   **46 tests as of v29.34** — added `TestBrowserScanV2930` (5) and
-  `TestWarmPerfHistoryV2930b` (6) plus DNS cases.)
+  `TestWarmPerfHistoryV2930b` (6) plus DNS cases; **60 tests as of v29.40** —
+  added `TestV2940Reliability` (10) covering the boot-crash fix, live
+  anomaly-gauge bindings, perf-loop guards, gauge-key uniqueness, and
+  stable-Python selection.)
 - Full project: 58 Python files, 0 syntax errors
 - **Main-thread DB-freeze rule (v29.14)**: every `self.db.*` / `count_intel()`
   reached from a main-thread `after()` loop or a one-shot startup callback must
@@ -35,7 +39,9 @@ authoritative history. This file is the current-state snapshot + what's left.
   PATH resolves to without checking — this machine's default was Python
   3.15.0a6 (an alpha build) for a long time, which has NO compiled wheels for
   matplotlib/Pillow/pystray/netifaces/scipy and no C compiler to build from
-  source. Use `C:\Users\purpl\AppData\Local\Programs\Python\Python312\python.exe`
+  source. The repo `.venv` was rebuilt on 3.12.10 in v29.40 after the alpha
+  venv crashed with `PIL._imaging uses unknown slot ID 85`. Use
+  `C:\Users\purpl\AppData\Local\Programs\Python\Python312\python.exe`
   explicitly. All 20 dependencies install cleanly on 3.12. The launcher
   (`LAUNCH_V29_TITANIUM.bat`) already rejects non-final Python releases.
 - GitHub: `github.com/christiand0797/downpour`, single branch `main`

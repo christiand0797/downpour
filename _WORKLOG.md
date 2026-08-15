@@ -2,6 +2,47 @@
 
 ## Branch: main
 
+## Session 2026-08-14a — v29.40c: boot crash fix + live Performance data pipeline
+- ✅ **CRITICAL boot regression**: `downpour_v29_titanium.py` exited code 1 at
+  line 114 with `AttributeError: module 'logging' has no attribute 'handlers'`.
+  Python 3.13+ dropped the implicit `logging.handlers` attribute binding; the
+  explicit `import logging.handlers as _crash_handlers` now loads it.
+- ✅ **Env root-cause**: repo `.venv` was built on Python 3.15.0a6 (an alpha —
+  no binary wheels). Pillow imported with `SystemError: PIL._imaging uses
+  unknown slot ID 85`. Rebuilt `.venv` on the repo's documented
+  `C:\Users\purpl\AppData\Local\Programs\Python\Python312\python.exe`
+  (all 20 deps install; netifaces dropped — EOL with no py3.12 wheel and zero
+  usage in the codebase). Added setuptools (provides the `distutils` shim GPUtil
+  still needs on 3.12). Full GUI now boots GUI clean (zero stderr).
+- ✅ **Live-data pipeline fixes** (Performance tab): `_fetch` referenced
+  `fm`/`bs` that were never defined → ~15 file/behavior anomaly gauges silently
+  NameError-zeroed every tick. Both are now lazily bound and cached on the
+  monitor (`_file_monitor_ref` / `_behavior_scanner_ref`). Swap/page-fault rate
+  block borrowed the disk block's local `dt` (NameError on some machines) —
+  now owns its own `_dt_m`. `_force_perf_ui` 10s safety timer was defined but
+  never scheduled — wired into `_auto_start`.
+- ✅ **Perf-loop hardening**: `_perf_loop` could stack executor submissions on a
+  slow tick — added `_perf_inflight` guard. It now also honors
+  `_adaptive_prf_ms` (HardwareProfiler.adapt_to_load) so under CPU/RAM pressure
+  the throttle actually engages.
+- ✅ **Dead-landmine removal**: `_update_hw_ui`'s except-block referenced
+  undefined `pct`/`score`/`max_score`/`color` (masked real errors with a
+  NameError). `_start_hw_thread` read a never-set `_hw_ms`. Both removed.
+- ✅ **Interpreter selection**: `find_latest_python()` unconditionally preferred
+  the newest Python (→ 3.15.0a6, breaking wheels). It now skips alpha/beta/rc
+  (`releaselevel == 'final'`) and parses `py --list` correctly.
+- ✅ **Launcher**: added Python 3.14 discovery paths + replaced eol-only
+  `netifaces`/`pynvml` notes in requirements prose.
+- ✅ **Gauge refinement**: GAUGES table had same-key duplicates (DISK QUEUE,
+  FILE THREATS/H, EXFIL/H) where only one of the pair of canvases ever updated;
+  plus cross-key visual dupes (DISK READ/WRITE, MEM FRAG, PAGE FAULTS, FEED
+  ERRORS). Deduplicated → 129 unique live gauges; added UPTIME.
+- ✅ **AEGIS guard**: alert wiring now uses `getattr(..., None)` so a missing
+  optional layer can't blow up the startup callback chain.
+- ✅ Tests: +10 regression guards (`TestV2940Reliability`) → 60/60 pass,
+  py_compile OK, `_fetch` headless round-trip verified (no NameError; anomaly
+  keys bound; swap/page-fault/disk rates live). Pushed `c526c10..22cf5c5`.
+
 ## Session 2026-08-13n — v29.34: Phase 3 tooltip sweep across all main tabs
 - ℹ️. **Gap**: Phase 3 audit counted 122 `tk.Button` creations vs only 72
   `_tooltip` calls — 55 bare buttons across the main (non-DNS) tabs had no

@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/threat%20feeds-34%2B-orange?style=for-the-badge" />
   <img src="https://img.shields.io/badge/MITRE%20techniques-85%2B-purple?style=for-the-badge" />
   <img src="https://img.shields.io/badge/tabs-27-teal?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/tests-55%2B%20passing-brightgreen?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/tests-60%2B%20passing-brightgreen?style=for-the-badge" />
 </p>
 
 ---
@@ -189,7 +189,9 @@ Detects: **Mimikatz, CobaltStrike, Metasploit, Empire, PoshC2, AsyncRAT, NjRAT, 
 
 See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for full details.
 
-**v29.36** (latest): 60-second CPU/RAM/GPU/NET history timeline chart, performance threshold auto-alerts (CPU/RAM/Temp/Disk spike detection with 120s cooldown), alert rate meter in the status bar (⚡ N/min), 5 new passing tests.
+**v29.40** (latest): Fixed the Python 3.13+ boot crash (`logging.handlers` import) and the alpha-Python wheel breakage. Completed the live Performance data pipeline — ~15 file/behavior anomaly gauges were silently stuck at 0 (undefined variable refs), swap/page-fault rates now live, perf-loop in-flight guard + adaptive interval honored, 10s safety timer finally scheduled, gauge grid deduplicated to 129 unique live gauges. 10 new regression tests (60/60 passing).
+
+**v29.36**: 60-second CPU/RAM/GPU/NET history timeline chart, performance threshold auto-alerts (CPU/RAM/Temp/Disk spike detection with 120s cooldown), alert rate meter in the status bar (⚡ N/min), 5 new passing tests.
 
 **v29.35**: Completed Phase 3 tooltip sweep — all 113 buttons across every tab now have hover help. Added WiFi Security Analyzer, IoT Device Discovery, USB Guard, and Security Event Timeline tabs with full functionality.
 
