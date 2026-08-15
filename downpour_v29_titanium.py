@@ -17460,8 +17460,10 @@ class HardwareMonitor:
         except Exception: pass
         # v29.39: OSINT feed status metrics from threat intelligence
         try:
-            from threat_intelligence import ThreatIntelligenceManager
-            ti = ThreatIntelligenceManager()
+            if not getattr(self, '_ti_ref', None):
+                from threat_intelligence import ThreatIntelligenceManager
+                self._ti_ref = ThreatIntelligenceManager()
+            ti = self._ti_ref
             stats['feed_threatwinds'] = ti.feeds.get('threatwinds', {}).get('last_update', 0) > 0 and 1 or 0
             stats['feed_darkapi_urlhaus'] = ti.feeds.get('darkapi_urlhaus', {}).get('last_update', 0) > 0 and 1 or 0
             stats['feed_darkapi_malware'] = ti.feeds.get('darkapi_malwarebazaar', {}).get('last_update', 0) > 0 and 1 or 0
@@ -17651,9 +17653,14 @@ class HardwareMonitor:
             stats['activity_score'] = min(100, getattr(vs, '_threat_actor_activity_hour', 0) * 10)
         except Exception: pass
         # v29.39: Real-time file threat detection tracking
+        # FIX-v29.41d: ThreatIntelligenceManager does DB init in __init__; a
+        # fresh instance per fetch tick (every 1-3s) is wasteful — cache it.
+        ti = None
         try:
-            from threat_intelligence import ThreatIntelligenceManager
-            ti = ThreatIntelligenceManager()
+            if not getattr(self, '_ti_ref', None):
+                from threat_intelligence import ThreatIntelligenceManager
+                self._ti_ref = ThreatIntelligenceManager()
+            ti = self._ti_ref
             stats['file_threats_hour'] = getattr(ti, '_file_threats_hour', 0)
             stats['total_file_threats'] = getattr(ti, '_total_file_threats', 0)
             stats['malware_detected'] = len(getattr(ti, 'malware_hashes', set()))

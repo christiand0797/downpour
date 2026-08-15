@@ -614,6 +614,14 @@ class TestV2940Reliability:
         chunk = src[idx:idx + 1200]
         assert 'nm = pm = None' in chunk
 
+    def test_threat_intel_manager_cached_per_monitor(self):
+        """ThreatIntelligenceManager does DB init in __init__; creating a fresh
+        one every fetch tick (1-3s) is wasteful — both consumers must share one
+        cached `_ti_ref` on the monitor."""
+        src = self._src()
+        assert self._src().count('self._ti_ref = ThreatIntelligenceManager()') == 2
+        assert 'if not getattr(self, \'_ti_ref\', None):' in src
+
     def test_fetch_behavior_prefers_live_scan_reasons(self):
         """Behavior gauges must classify [BEHAVIOR] findings from the app's live
         scanned process list instead of the never-started behavior_scanner."""
