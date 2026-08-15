@@ -656,6 +656,24 @@ class TestV2940Reliability:
         chunk = vs_src[idx:idx + 500]
         assert 'sqlite3.connect(self.db_path, timeout=30)' in chunk
 
+    def test_perf_osint_and_event_counters_incremented(self):
+        """SEC EVENTS / OSINT LOOKUPS / OSINT TODAY / OSINT CACHE gauges were
+        read (getattr, default 0) but never incremented anywhere — stuck at 0.
+        SEC EVENTS must bump in _queue_alert; OSINT counters must bump via
+        _bump_osint_lookup from check_ip/check_url/check_hash."""
+        src = self._src()
+        assert 'def _bump_osint_lookup' in src
+        assert 'self._security_events_today = getattr(self, \'_security_events_today\', 0) + 1' in src
+        assert 'self._osint_lookups_total = getattr(self, \'_osint_lookups_total\', 0) + 1' in src
+        assert 'self._osint_cache_hits = getattr(self, \'_osint_cache_hits\', 0) + 1' in src
+        idx = src.index('def check_ip')
+        chunk = src[idx:idx + 800]
+        assert "_bump_osint_lookup(cache_hit=True)" in chunk
+        assert "_bump_osint_lookup(cache_hit=False)" in chunk
+        assert "self._bump_osint_lookup(cache_hit=False)" in src[src.index('def check_url'):src.index('def check_url') + 300]
+        ihash = src.index('def check_hash(')
+        assert "self._bump_osint_lookup(cache_hit=False)" in src[ihash:ihash + 300]
+
     def test_feed_updates_run_off_main_thread(self):
         """update_all_feeds() downloads + inserts large dumps; running it in
         the Tk 'after' callback froze the GUI for minutes. Both scheduled feed

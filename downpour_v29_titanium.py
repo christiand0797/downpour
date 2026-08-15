@@ -13004,6 +13004,22 @@ class ThreatIntelEngine:
     _IP_CACHE_MAX: Any = 2000
     _IP_CACHE_TTL: Any = 300  # 5 minute TTL
 
+    def _bump_osint_lookup(self, cache_hit: bool = False):
+        """FIX-v29.41i: feed the Perf-tab OSINT gauges (were never incremented).
+        Tracks total lookups, daily lookups (reset per calendar day), and cache
+        hits. Cheap counter bumps on the hot scan path."""
+        try:
+            _today = time.strftime('%Y-%m-%d')
+            if getattr(self, '_osint_day', None) != _today:
+                self._osint_day = _today
+                self._osint_lookups_today = 0
+            self._osint_lookups_total = getattr(self, '_osint_lookups_total', 0) + 1
+            self._osint_lookups_today = getattr(self, '_osint_lookups_today', 0) + 1
+            if cache_hit:
+                self._osint_cache_hits = getattr(self, '_osint_cache_hits', 0) + 1
+        except Exception:
+            pass
+
     def check_ip(self, ip: str) -> bool:
         if not ip or not re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', ip):
             return False
@@ -13013,7 +13029,9 @@ class ThreatIntelEngine:
             self._ip_cache = {}
             self._ip_cache_ts = now
         if ip in self._ip_cache:
+            self._bump_osint_lookup(cache_hit=True)
             return self._ip_cache[ip]
+        self._bump_osint_lookup(cache_hit=False)
         try:
             r: Any = self.db.execute("SELECT COUNT(*) FROM malicious_ips WHERE ip=?", (ip,))
             hit: Any = r[0][0] > 0
@@ -13078,6 +13096,7 @@ class ThreatIntelEngine:
     def check_hash(self, h: str) -> Optional[str]:
         if not h or not re.match(r'^[0-9a-f]{32,64}$', h):
             return None
+        self._bump_osint_lookup(cache_hit=False)
         try:
             r: Any = self.db.execute("SELECT threat_name, source FROM malicious_hashes WHERE hash=?", (h,))
             if r:
@@ -13089,6 +13108,7 @@ class ThreatIntelEngine:
     def check_url(self, url: str) -> bool:
         if not url:
             return False
+        self._bump_osint_lookup(cache_hit=False)
         try:
             r: Any = self.db.execute("SELECT COUNT(*) FROM malicious_urls WHERE url=? LIMIT 500", (url[:500],))
             return r[0][0] > 0
@@ -36365,6 +36385,16 @@ Verification Status:
         self._pending_alerts.append((msg, color))
         # Record timestamp for alert‑rate meter
         self._alert_timestamps.append(now)
+        # FIX-v29.41i: feed the Perf-tab "SEC EVENTS" gauge (was never
+        # incremented anywhere → stuck at 0). Reset once per calendar day.
+        try:
+            _today = time.strftime('%Y-%m-%d')
+            if getattr(self, '_events_counter_day', None) != _today:
+                self._events_counter_day = _today
+                self._security_events_today = 0
+            self._security_events_today = getattr(self, '_security_events_today', 0) + 1
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------------
     #  DB-backed false-positive auto-suppression (FIX-v29.16)
