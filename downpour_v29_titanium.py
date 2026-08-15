@@ -108,10 +108,13 @@ except Exception:
 
 _crash_lg: Any = _crash_logging.getLogger('Downpour.CrashCatcher')
 
+# Python 3.13+ does NOT auto-bind logging.handlers as an attribute; import it explicitly.
+import logging.handlers as _crash_handlers
+
 # Initialise main application logger with rotating file handler
 _logger = _crash_logging.getLogger('Downpour')
 if not _logger.handlers:
-    _handler = _crash_logging.handlers.RotatingFileHandler(
+    _handler = _crash_handlers.RotatingFileHandler(
         filename='downpour_data/logs/app.log', maxBytes=5_000_000, backupCount=3, encoding='utf-8'
     )
     _formatter = _crash_logging.Formatter('%(asctime)s %(levelname)s %(name)s: %(message)s')
@@ -2419,42 +2422,52 @@ _DEFENDER_EXCLUSION_ADDED: Any = _add_defender_exclusion()
 #                           DEPENDENCY MANAGEMENT
 # [ascii art removed]
 def find_latest_python() -> str:
-    """Find the latest Python installation (prioritizing 3.15+)."""
+    """Find the latest STABLE Python installation (skips alpha/beta/rc builds).
+
+    FIX-v29.40: this previously returned the newest interpreter unconditionally
+    (e.g. Python 3.15.0a6). Pre-release Pythons have no compatible binary wheels
+    for Pillow/psutil/etc. which made every background pip install fail silently
+    and could invite the "unknown slot ID" PIL crash at startup.
+    """
     import subprocess
     import sys
     import os
     from pathlib import Path
-    
-    # First, check if current Python is 3.15+
+
+    def _is_stable(ver: str) -> bool:
+        """True when ver looks like 3.12.10 (final) — rejects 3.15.0a6 etc."""
+        return not any(ch in ver for ch in ('a', 'b', 'rc', 'c0', 'c1', 'c2'))
+
+    # First, check if current Python is stable and sufficiently new
     current_version: Any = sys.version_info
-    if current_version.major >= 3 and current_version.minor >= 15:
+    if current_version.major >= 3 and current_version.releaselevel == 'final':
         logger.info(f"Using current Python {current_version.major}.{current_version.minor}.{current_version.micro}")
         return sys.executable
-    
+
     try:
+        import re as _re_py
         result: Any = subprocess.run(['py', '--list'], capture_output=True, text=True, timeout=10, creationflags=_NO_WIN)
         if result.returncode == 0:
             versions: Any = []
             for line in result.stdout.split('\n'):
-                if line.strip() and '-' in line:
-                    try:
-                        version_part: Any = line.split('-')[0].strip()
-                        version_parts: Any = version_part.split('.')
-                        if len(version_parts) >= 2:
-                            major, minor = int(version_parts[0]), int(version_parts[1])
-                            versions.append((major, minor, version_part))
-                    except (ValueError, IndexError):
-                        continue
-            
+                # Format: " -V:3.15 *        Python 3.15 (64-bit)"
+                m: Any = _re_py.search(r'-V:(\d+)\.(\d+)', line)
+                if not m:
+                    continue
+                major, minor = int(m.group(1)), int(m.group(2))
+                versions.append((major, minor, f'{major}.{minor}'))
+
             if versions:
-                # Sort by version (newest first) and get the best 3.8+ version
-                versions.sort(reverse=True)
-                for major, minor, version_str in versions:
+                # FIX-v29.40: prefer newest STABLE build; a prerelease is used
+                # only when every stable one fails the sanity check below.
+                stable: Any = [v for v in versions if _is_stable(v[2])]
+                candidates = sorted(stable, reverse=True) or sorted(versions, reverse=True)
+                for major, minor, version_str in candidates:
                     if major > 3 or (major == 3 and minor >= 8):
                         py_cmd: Any = f'py -{major}.{minor}'
                         # Verify this version actually works
                         verify_result: Any = subprocess.run(
-                            [py_cmd, '--version'], 
+                            [py_cmd, '--version'],
                             capture_output = True, text=True, timeout=5
                         , creationflags=_NO_WIN)
                         if verify_result.returncode == 0:
@@ -2500,7 +2513,8 @@ def find_latest_python() -> str:
                     version_parts: Any = version_str.split('.')
                     if len(version_parts) >= 2:
                         major, minor = int(version_parts[0]), int(version_parts[1])
-                        if major >= 3 and minor >= 8:
+                        # FIX-v29.40: skip alpha/beta/rc (no binary wheels)
+                        if major >= 3 and minor >= 8 and _is_stable(version_str):
                             working_versions.append((major, minor, python_path, version_str))
         except (subprocess.TimeoutExpired, FileNotFoundError, PermissionError, ValueError):
             continue
@@ -17617,6 +17631,19 @@ class HardwareMonitor:
             stats['sus_cmd_hour'] = getattr(pm, '_suspicious_cmdlines_hour', 0)
             stats['high_cpu_hour'] = getattr(pm, '_high_cpu_processes_hour', 0)
             # v29.39: Real-time file anomaly detection tracking
+            # FIX-v29.40: `fm` was referenced but never defined -> the whole block
+            # silently NameError'd into pass, so every file gauge stayed 0.
+            try:
+                fm = getattr(self, '_file_monitor_ref', None)
+                if fm is None:
+                    try:
+                        from file_monitor import get_monitor as _get_file_monitor
+                        fm = _get_file_monitor()
+                    except Exception:
+                        fm = None
+                    self._file_monitor_ref = fm
+            except Exception:
+                fm = None
             stats['file_mod_hour'] = getattr(fm, '_file_modifications_hour', 0)
             stats['file_create_hour'] = getattr(fm, '_file_creations_hour', 0)
             stats['file_delete_hour'] = getattr(fm, '_file_deletions_hour', 0)
@@ -17624,6 +17651,18 @@ class HardwareMonitor:
             stats['ransom_hour'] = getattr(fm, '_ransomware_activity_hour', 0)
         except Exception: pass
         # v29.39: Real-time behavior anomaly detection tracking
+        # FIX-v29.40: `bs` was undefined -> same silent-zero problem as `fm`.
+        try:
+            bs = getattr(self, '_behavior_scanner_ref', None)
+            if bs is None:
+                try:
+                    from behavior_scanner import BehaviorScanner as _BehaviorScanner
+                    bs = _BehaviorScanner(db=None)
+                except Exception:
+                    bs = None
+                self._behavior_scanner_ref = bs
+        except Exception:
+            bs = None
         try:
             stats['keylog_hour'] = getattr(bs, '_keylogging_attempts_hour', 0)
             stats['screen_hour'] = getattr(bs, '_screen_capture_attempts_hour', 0)
@@ -17662,19 +17701,25 @@ class HardwareMonitor:
             mem = psutil.virtual_memory()
             # Memory fragmentation percentage (approximate from available vs total)
             stats['mem_frag_percent'] = round((1 - mem.available / mem.total) * 100, 2)
-            
+
+            # FIX-v29.40: `dt` here used to borrow the disk-IO block's local (often
+            # undefined -> NameError -> whole block silently skipped). Own it here.
+            _mnow: Any = time.time()
+            _dt_m: Any = max(_mnow - getattr(self, '_prev_mem_time', _mnow), 0.001)
+
             # Page faults rate
             prev_page_faults = getattr(self, '_prev_page_faults', 0)
             page_faults = getattr(mem, 'pageins', 0) + getattr(mem, 'pageouts', 0)
-            stats['page_faults_s'] = round((page_faults - prev_page_faults) / dt, 2)
+            stats['page_faults_s'] = round((page_faults - prev_page_faults) / _dt_m, 2)
             self._prev_page_faults = page_faults
-            
+            self._prev_mem_time = _mnow
+
             # Swap I/O
             swap = psutil.swap_memory()
             prev_swap_in = getattr(self, '_prev_swap_in', 0)
             prev_swap_out = getattr(self, '_prev_swap_out', 0)
-            stats['swap_in_mb_s'] = round((swap.sin - prev_swap_in) / dt / 1024 / 1024, 2)
-            stats['swap_out_mb_s'] = round((swap.sout - prev_swap_out) / dt / 1024 / 1024, 2)
+            stats['swap_in_mb_s'] = round((swap.sin - prev_swap_in) / _dt_m / 1024 / 1024, 2)
+            stats['swap_out_mb_s'] = round((swap.sout - prev_swap_out) / _dt_m / 1024 / 1024, 2)
             self._prev_swap_in = swap.sin
             self._prev_swap_out = swap.sout
         except Exception: pass
@@ -28124,14 +28169,14 @@ Verification Status:
             ('GPU MEM',         'gpu_mem_percent', 100, '%',   'heat'),
             ('GPU TEMP',        'gpu_temp',        100, ' degC',  'temp'),
             ('GPU FAN',         'gpu_fan',         100, '%',   'cyan'),
-            # Row 3  -  Disk & Net
-            ('DISK READ',       'disk_read_rate',  7000, 'MB/s','blue'),
-            ('DISK WRITE',      'disk_write_rate', 7000, 'MB/s','blue'),
+            # Row 3  -  Network & Runtime (FIX-v29.40: removed duplicate DISK
+            # READ/WRITE rows 18 already cover disk MB/s; added UPTIME here)
             ('NET UP',          'net_send_rate',  102400, 'KB/s','green'),
             ('NET DOWN',        'net_recv_rate',  102400, 'KB/s','green'),
+            ('UPTIME',          'uptime_seconds', 172800, 's',   'cyan'),
+            ('THREADS',         'thread_count',   5000, '',     'blue'),
             # Row 4  -  System
             ('PROCESSES',       'process_count',  1000, '',    'cyan'),
-            ('THREADS',         'thread_count',   5000, '',    'blue'),
             ('DISK USED',       'disk_used_percent', 100, '%', 'heat'),
             ('BATTERY',         'battery_percent',  100, '%',  'green'),
             # Row 5  -  KEV/CEV/EPSS Vulnerability Tracking (v29)
@@ -28172,7 +28217,8 @@ Verification Status:
             # Row 12 - v29.39: Additional OSINT Feed Status
             ('THREATRADAR',     'feed_threatradar',   1000, '', 'orange'),
             ('FEED UPDATES',    'feed_updates_total', 100, '', 'green'),
-            ('FEED ERRORS',     'feed_errors_total',  50, '', 'red'),
+            # FIX-v29.40: renamed to disambiguate from row 23 'FEED ERRORS'
+            ('FEED ERR TOTAL',  'feed_errors_total',  50, '', 'red'),
             ('IOC TOTAL',       'ioc_total_count',    50000, '', 'teal'),
             # Row 13 - v29.39: Real-time Connection Tracking
             ('ACTIVE TCP',      'active_tcp_conns',   1000, '', 'blue'),
@@ -28200,12 +28246,13 @@ Verification Status:
             ('C2 SERVERS',      'c2_servers_total',    25, '', 'red'),
             ('SUSPICIOUS DNS',  'suspicious_dns_total', 150, '', 'purple'),
             # Row 18 - v29.39: Real-time Disk I/O
+            # (DISK QUEUE kept at row 9 only — duplicate key was never updated)
             ('DISK READ',       'disk_read_mb_s',     100, 'MB/s', 'cyan'),
             ('DISK WRITE',      'disk_write_mb_s',    100, 'MB/s', 'blue'),
-            ('DISK QUEUE',      'disk_queue_depth',   32, '', 'orange'),
             ('DISK UTIL',       'disk_util_percent',  100, '%', 'purple'),
             # Row 19 - v29.39: Real-time Memory Fragmentation
-            ('MEM FRAG',       'mem_frag_percent',   100, '%', 'red'),
+            # (MEM FRAG % kept at row 8 as mem_fragmentation — removed the
+            #  same-label duplicate here)
             ('PAGE FAULTS',     'page_faults_s',      1000, '/s', 'orange'),
             ('SWAP IN',        'swap_in_mb_s',       100, 'MB/s', 'purple'),
             ('SWAP OUT',       'swap_out_mb_s',      100, 'MB/s', 'blue'),
@@ -28220,7 +28267,7 @@ Verification Status:
             ('ACTIVE ACTORS',  'active_actors',     20, '', 'red'),
             ('ACTIVITY SCORE', 'activity_score',    100, '', 'purple'),
             # Row 22 - v29.39: Real-time File Threat Detection
-            ('FILE THREATS/H', 'file_threats_hour', 100, '/h', 'red'),
+            # (FILE THREATS/H removed — same key as row 16, never updated)
             ('TOTAL FILE THRT', 'total_file_threats', 1000, '', 'orange'),
             ('MALWARE DETECT', 'malware_detected',   50, '', 'red'),
             ('HASH LOOKUPS',   'hash_lookups',      200, '', 'purple'),
@@ -28276,7 +28323,7 @@ Verification Status:
             # Row 34 - v29.39: Real-Time Behavior Anomaly Detection (continued)
             ('PERSIST/H',      'persist_hour',    20, '/h', 'orange'),
             ('EVASION/H',      'evasion_hour',    15, '/h', 'purple'),
-            ('EXFIL/H',        'exfil_hour',      10, '/h', 'red'),
+            # (EXFIL/H removed — same key as row 28, never updated)
             ('LATERAL/H',      'behavior_lateral_hour', 5, '/h', 'red'),
         ]
 
@@ -28474,17 +28521,9 @@ Verification Status:
         except Exception:
             pass
         # Safety: after 10s force _perf_data_received=True so gauges never
-        # stay on "..." forever (shows real values even if psutil isn't available)
-        def _force_perf_received():
-            self._perf_data_received = True
-            # Force a redraw of all gauges with whatever data we have
-            try:
-                s: Any = self.hw.get_stats()
-                if self.winfo_exists():
-                    self._update_perf_ui(s)
-            except Exception:
-                pass
-        # FIX: _force_perf_received timer moved to _auto_start
+        # stay on "..." forever (shows real values even if psutil isn't available).
+        # FIX-v29.40: the timer itself is now scheduled from _auto_start (this
+        # closure stays for reference; the old code here was defined-but-never-run).
 
     # FIX-v28p18: Cache font check result (was calling tkfont.families() per gauge per frame)
     _cascadia_font_available: Any = None  # class-level cache
@@ -28802,6 +28841,17 @@ Verification Status:
             # Still reschedule so we resume immediately on un-pause
             self._orig_after(500, self._perf_loop)
             return
+        if getattr(self, '_perf_inflight', False):
+            # FIX-v29.40: previous executor fetch still running (slow tick,
+            # window drag, GC pause) — skip submitting another; re-arm soon.
+            self._orig_after(250, self._perf_loop)
+            return
+        self._perf_inflight = True
+        def _clear_inflight():
+            try:
+                self._perf_inflight = False
+            except Exception:
+                pass
         def _fetch_and_update():
             try:
                 s: Any = self.hw.get_stats()
@@ -28809,8 +28859,17 @@ Verification Status:
                     self.after(1, lambda: self._update_perf_ui(s))
             except Exception as e:
                 error_logger.log('PerfFetch', 'Stats error', e)
+            finally:
+                try:
+                    self.after(0, _clear_inflight)
+                except Exception:
+                    self._perf_inflight = False
         self._executor.submit(_fetch_and_update)
-        interval = getattr(self, '_perf_interval_ms', 500)
+        # FIX-v29.40: honor the adaptive interval from HardwareProfiler.adapt_to_load
+        # (it raises `_adaptive_prf_ms` under CPU/RAM pressure so the UI never thrashes).
+        _base_ms: Any = getattr(self, '_perf_interval_ms', 500)
+        _adaptive_ms: Any = getattr(self, '_adaptive_prf_ms', 0)
+        interval = _base_ms if (_adaptive_ms <= _base_ms) else _adaptive_ms
         self._orig_after(interval, self._perf_loop)
 
     def _update_perf_ui(self, s: dict):
@@ -35004,6 +35063,27 @@ Verification Status:
         except Exception as e:
             error_logger.log('AutoStart', 'Failed to schedule _perf_loop', e)
 
+        # FIX-v29.40: the "_force_perf_received" safety timer used to be defined
+        # inside _build_performance_tab but never scheduled (comment said it was
+        # "moved to _auto_start" — it wasn't). If psutil/exports are slow or a
+        # stat never warms, gauges could sit on "..." forever. Schedule it here.
+        try:
+            def _force_perf_ui():
+                if not self.winfo_exists():
+                    return
+                self._perf_data_received = True
+                try:
+                    s: Any = self.hw.get_stats()
+                    if 'cpu_percent' not in s and hasattr(self.hw, '_fetch'):
+                        s = dict(self.hw._fetch())
+                    if self.winfo_exists():
+                        self._update_perf_ui(s)
+                except Exception:
+                    pass
+            self.after(10_000, _force_perf_ui)
+        except Exception as e:
+            error_logger.log('AutoStart', 'Failed to schedule force_perf timer', e)
+
         # v29.28: Dashboard telemetry gauges are ALSO read-only, so make them
         # live from launch the same way (cached stats only, never blocks).
         # _hw_loop self-guards: it no-ops until the widget set exists and the
@@ -35035,9 +35115,17 @@ Verification Status:
             color: Any = (Colors.GAUGE_RED if level == 'CRITICAL' else
                      Colors.GAUGE_ORANGE if level == 'HIGH' else Colors.GAUGE_YELLOW)
             self._queue_alert(msg, color)
-        for layer in (self.aegis_physical, self.aegis_tcp, self.aegis_ingest,
-                      self.aegis_nlp, self.aegis_memory):
-            layer.alert_cb = _aegis_alert
+        for layer in (
+                    getattr(self, 'aegis_physical', None),
+                    getattr(self, 'aegis_tcp', None),
+                    getattr(self, 'aegis_ingest', None),
+                    getattr(self, 'aegis_nlp', None),
+                    getattr(self, 'aegis_memory', None)):
+            # FIX-v29.40: some AEGIS layers are optional (created only when their
+            # backing module imports) — guard so a missing layer can't blow up
+            # the whole startup callback chain (tk_callback_errors.txt).
+            if layer is not None:
+                layer.alert_cb = _aegis_alert
         if hasattr(self, 'aegis') and self.aegis is not None and hasattr(self.aegis, 'tor_router'):
             self.aegis.tor_router.alert_cb = _aegis_alert
         self._aegis_refresh_running = False
@@ -35398,7 +35486,7 @@ Verification Status:
                     self.after(0, lambda stats=s: self._update_hw_ui(stats))
                 except Exception as e:
                     _log_exception(e, '_hw_thread')
-                _time.sleep(self._hw_ms / 1000.0)
+                _time.sleep(getattr(self, '_hw_refresh_ms', 1000) / 1000.0)
         t = _threading.Thread(target=_worker, daemon=True, name='HW-Thread')
         t.start()
         self._hw_thread = t
@@ -35425,12 +35513,9 @@ Verification Status:
                     return f"{kbs/1024:.1f}M" if kbs >= 1024 else f"{kbs:.0f}K"
                 self._net_lbl.config(text=f"^{_rate(net_up)} v{_rate(net_dn)}")
         except Exception as e:
+            # FIX-v29.40: removed broken except-block that referenced undefined
+            # pct/score/max_score/color (masked the real exception with NameError).
             _log_exception(e, '_update_hw_ui')
-            self._queue_alert(
-                f"[SHIELD] Security Score: {pct}% ({score}/{max_score})  -  {'NEEDS HARDENING' if pct < 50 else 'Good'}",
-                color)
-        except Exception as e:
-            error_logger.log('Hardening', 'Background check failed', e)
 
     def _feed_refresh_loop(self):
         """Periodically show feed/IOC counts"""

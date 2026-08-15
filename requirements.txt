@@ -1,14 +1,14 @@
 # Downpour v29 Titanium - Dependencies
 # Install: pip install -r requirements.txt
 #
-# Tested with Python 3.12 (recommended) and 3.15.0a6 (alpha).
-# All packages below are guarded by try/except ImportError in the app —
+# Tested with Python 3.12 (recommended) and 3.13+.
+# All packages below are guarded by try/except ImportError in the app �?"
 # it still runs if any optional one is missing, with graceful feature
 # degradation. Recommended install command (from LAUNCH_DOWNPOUR.bat):
 #
 #   pip install psutil requests cryptography watchdog nvidia-ml-py colorama \
-#     wmi pywin32 scikit-learn yara-python pillow dnspython netifaces joblib \
-#     tqdm pyperclip reportlab pystray matplotlib GPUtil
+#     wmi pywin32 scikit-learn yara-python pillow dnspython joblib \
+#     tqdm pyperclip reportlab pystray matplotlib GPUtil setuptools
 
 # ── Core dependencies (used by every run, keep always present) ──────────────
 psutil>=5.9.0            # system metrics (CPU/RAM/disk/net/processes)
@@ -16,7 +16,6 @@ nvidia-ml-py>=12.0.0     # GPU telemetry via NVML (falls back to GPUtil / nvidia
 cryptography>=41.0.0     # quarantine encryption, hashing
 requests>=2.31.0         # threat feeds, OSINT lookups, intel updates
 dnspython>=2.4.0         # DNS advanced tools
-netifaces>=0.11.0        # interface enumeration fallback
 scapy>=2.5.0             # network scanning / packet analysis
 wmi>=1.5.1               # CPU temp, AV status, WMI sensors
 pywin32>=306             # win32 registry, services, process APIs

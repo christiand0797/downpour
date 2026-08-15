@@ -534,3 +534,92 @@ class TestDnsOverviewLiveV2932:
         assert inst._dns_overview_busy is True
 
 
+# --------------------------------------------------------------------------
+# v29.40 reliability — Python 3.13+ logging.handlers crash, live anomaly
+# stats, perf-loop overlap guard, gauge-key uniqueness, stable-python pick
+# --------------------------------------------------------------------------
+
+class TestV2940Reliability:
+    """Regression guards for the v29.40 fixes.
+
+    - Python 3.13+ no longer auto-binds ``logging.handlers`` as an attribute;
+      the startup crash ``module 'logging' has no attribute 'handlers'`` was
+      fixed by importing the submodule explicitly.
+    - The Perf tab's file/behavior anomaly stats (`fm`/`bs`) referenced
+      variables that were never defined, so every one of those ~15 live gauges
+      silently stayed 0.
+    - `_perf_loop` could stack executor submissions when a tick ran long.
+    - The GAUGES table had same-key duplicates (only one of the pair's canvases
+      ever updated — the other one read the same key and stayed stale).
+    """
+
+    def _src(self) -> str:
+        return open(os.path.join(os.path.dirname(__file__),
+                                 '..', 'downpour_v29_titanium.py'),
+                    encoding='utf-8', errors='replace').read()
+
+    def test_logging_handlers_imported_explicitly(self):
+        """3.13+ startup crash fix: submodule must be imported, not dotted."""
+        src = self._src()
+        assert 'import logging.handlers as _crash_handlers' in src
+        assert '_crash_handlers.RotatingFileHandler' in src
+        # The old dotted form that blew up on 3.13+ must be gone.
+        assert '_crash_logging.handlers.RotatingFileHandler' not in src
+
+    def test_fetch_file_anomaly_sources_defined(self):
+        """`fm`/`bs` must be lazily bound (cached on the monitor), not NameError."""
+        src = self._src()
+        assert '_file_monitor_ref' in src
+        assert '_behavior_scanner_ref' in src
+        assert 'file_mod_hour' in src and 'behavior_lateral_hour' in src
+
+    def test_fetch_owns_its_dt_for_swap_rates(self):
+        """swap/page-fault rates must not borrow the disk block's local dt."""
+        src = self._src()
+        assert '_dt_m' in src
+        assert "_prev_mem_time" in src
+
+    def test_perf_loop_has_inflight_guard(self):
+        src = self._src()
+        assert 'if getattr(self, \'_perf_inflight\', False):' in src
+        assert 'self._perf_inflight = True' in src
+        assert 'self._perf_inflight = False' in src
+
+    def test_perf_loop_honors_adaptive_interval(self):
+        src = self._src()
+        assert '_adaptive_prf_ms' in src
+        assert '_base_ms' in src
+
+    def test_force_perf_received_timer_wired(self):
+        """The 10s safety kick must be scheduled from _auto_start."""
+        src = self._src()
+        assert 'after(10_000, _force_perf_ui)' in src
+
+    def test_gauge_keys_are_unique(self):
+        """Duplicate stat keys in the GAUGES literal = a stale gauge."""
+        import re
+        src = self._src()
+        m = re.search(r'GAUGES: Any = \[(.*?)\]', src, re.S)
+        assert m, 'GAUGES literal not found'
+        keys = re.findall(r"\(\s*'[^']*',\s*'([^']+)'", m.group(1))
+        assert len(keys) == len(set(keys)), 'duplicate gauge stat keys found'
+
+    def test_find_latest_python_skips_prereleases(self):
+        """3.15.0a6 must not be preferred over stable builds."""
+        src = self._src()
+        assert '_is_stable' in src
+        assert "releaselevel == 'final'" in src
+
+    def test_removed_dead_hw_thread_nameerror_landmine(self):
+        """The broken _update_hw_ui except-block (undefined pct/score) is gone."""
+        src = self._src()
+        assert 'Security Score: {pct}% ({score}/{max_score})' not in src
+
+    def test_aegis_layer_wiring_guarded(self):
+        """AEGIS alert wiring must tolerate missing optional layers."""
+        src = self._src()
+        idx = src.index('_aegis_alert(msg: str, level: str = \'HIGH\'):')
+        chunk = src[idx:idx + 1200]
+        assert 'getattr(self, \'aegis_physical\', None)' in chunk
+
+
