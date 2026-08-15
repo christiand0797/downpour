@@ -17565,10 +17565,45 @@ class HardwareMonitor:
         # network threat gauge ← live analyze_connections (NET THREATS)
         try:
             if _app_nm is not None and getattr(_app_nm, 'net_monitor', None) is not None:
+                # Throttle the live analysis (full psutil connection walk is
+                # expensive to run every 1-3s fetch tick) — refresh it at most
+                # every 10s and reuse the cached breakdown for the finer
+                # exfil/dns-tunnel/port-scan/lateral gauges below.
                 try:
-                    _nm_alerts = _app_nm.net_monitor.analyze_connections(
-                        _app_nm.net_monitor.get_all_connections())
-                    stats['network_threats_hour'] = len(_nm_alerts or [])
+                    _nm_now = time.time()
+                    _nm_last = getattr(self, '_nm_alert_ts', 0.0)
+                    _reuse = getattr(self, '_nm_alert_map', None)
+                    if _reuse is None or (_nm_now - _nm_last) >= 10.0:
+                        _nm_alerts = _app_nm.net_monitor.analyze_connections(
+                            _app_nm.net_monitor.get_all_connections())
+                        _nm_map = {'port_scan': 0, 'data_exfil': 0,
+                                   'dns_tunnel': 0, 'lateral': 0, 'beacon': 0}
+                        for _na in (_nm_alerts or []):
+                            _nt = (_na or {}).get('type', '')
+                            if _nt == 'port_scan':
+                                _nm_map['port_scan'] += 1
+                            elif _nt == 'data_exfil':
+                                _nm_map['data_exfil'] += 1
+                            elif _nt in ('beaconing', 'c2_beacon'):
+                                _nm_map['beacon'] += 1
+                            elif _nt == 'connection_flood':
+                                _nm_map['lateral'] += 1
+                            elif _nt == 'dns_tunneling':
+                                _nm_map['dns_tunnel'] += 1
+                        stats['network_threats_hour'] = len(_nm_alerts or [])
+                        stats['port_scan_hour'] = _nm_map['port_scan']
+                        stats['exfil_hour'] = _nm_map['data_exfil']
+                        stats['dns_tun_hour'] = _nm_map['dns_tunnel']
+                        stats['lateral_hour'] = _nm_map['lateral']
+                        _nm_map['total'] = len(_nm_alerts or [])
+                        self._nm_alert_ts = _nm_now
+                        self._nm_alert_map = _nm_map
+                    elif _reuse is not None:
+                        stats['network_threats_hour'] = _reuse.get('total', 0)
+                        stats['port_scan_hour'] = _reuse['port_scan']
+                        stats['exfil_hour'] = _reuse['data_exfil']
+                        stats['dns_tun_hour'] = _reuse['dns_tunnel']
+                        stats['lateral_hour'] = _reuse['lateral']
                 except Exception:
                     pass
             elif nm is not None:
@@ -17590,9 +17625,13 @@ class HardwareMonitor:
             stats['phishing_urls_total'] = getattr(self, '_phishing_urls_total', 0)
         except Exception: pass
         try:
-            from network_monitor import get_monitor
-            nm = get_monitor()
-            stats['c2_servers_total'] = len(getattr(nm, '_c2_servers_detected', set()))
+            _nm_map2 = getattr(self, '_nm_alert_map', None)
+            if _app_nm is not None and _nm_map2 is not None:
+                stats['c2_servers_total'] = _nm_map2.get('beacon', 0)
+            else:
+                from network_monitor import get_monitor
+                nm = get_monitor()
+                stats['c2_servers_total'] = len(getattr(nm, '_c2_servers_detected', set()))
         except Exception: pass
         try:
             stats['suspicious_dns_total'] = getattr(self, '_suspicious_dns_total', 0)
@@ -17647,16 +17686,46 @@ class HardwareMonitor:
             stats['malware_rate'] = min(100, getattr(ti, '_malware_hashes_hour', 0) * 2) if getattr(ti, '_malware_hashes_hour', 0) > 0 else 0
             stats['malware_score'] = min(100, getattr(ti, '_total_malware_hashes', 0) // 5)
             # v29.39: Real-time network anomaly detection tracking
-            stats['exfil_hour'] = getattr(nm, '_exfiltration_attempts_hour', 0)
-            stats['lateral_hour'] = getattr(nm, '_lateral_movement_hour', 0)
-            stats['dns_tun_hour'] = getattr(nm, '_dns_tunneling_hour', 0)
-            stats['port_scan_hour'] = getattr(nm, '_port_scan_hour', 0)
+            # FIX-v29.41b: the live net_monitor path above already fills these;
+            # setdefault so the orphan singleton can't overwrite live values.
+            stats.setdefault('exfil_hour', getattr(nm, '_exfiltration_attempts_hour', 0))
+            stats.setdefault('lateral_hour', getattr(nm, '_lateral_movement_hour', 0))
+            stats.setdefault('dns_tun_hour', getattr(nm, '_dns_tunneling_hour', 0))
+            stats.setdefault('port_scan_hour', getattr(nm, '_port_scan_hour', 0))
             # v29.39: Real-time process anomaly detection tracking
-            stats['inject_hour'] = getattr(pm, '_injection_attempts_hour', 0)
-            stats['disguise_hour'] = getattr(pm, '_disguised_processes_hour', 0)
-            stats['sus_loc_hour'] = getattr(pm, '_suspicious_locations_hour', 0)
-            stats['sus_cmd_hour'] = getattr(pm, '_suspicious_cmdlines_hour', 0)
-            stats['high_cpu_hour'] = getattr(pm, '_high_cpu_processes_hour', 0)
+            # FIX-v29.41b: classify from the live scanned process list instead
+            # of the never-started orphan process_monitor singleton.
+            _pp = {'inject': 0, 'disguise': 0, 'susloc': 0, 'suscmd': 0, 'highcpu': 0}
+            try:
+                if _app_nm is not None and getattr(_app_nm, '_processes', None) is not None:
+                    _PKEY = {
+                        'inject': ('inject', 'hollow', ' hook', 'remote thread'),
+                        'disguise': ('disguise', 'masquerad', 'spoofed', 'renamed'),
+                        'susloc': ('sus loc', 'suspicious location', 'temp dir',
+                                   'appdata\\temp', 'startup folder'),
+                        'suscmd': ('suspicious cmdline', 'encoded', 'iex', 'heredoc',
+                                   'invoke-expression'),
+                        'highcpu': ('sustained high cpu', 'high cpu', 'cpu:'),
+                    }
+                    for _lp2 in (getattr(_app_nm, '_processes', []) or []):
+                        _rr2 = ' '.join(getattr(_lp2, 'risk_reasons', []) or []).lower()
+                        for _k2, _kws2 in _PKEY.items():
+                            if any(_kw2 in _rr2 for _kw2 in _kws2):
+                                _pp[_k2] += 1
+                        _cpu2 = getattr(_lp2, 'cpu_percent', 0) or 0
+                        if _cpu2 > 90:
+                            _pp['highcpu'] += 1
+            except Exception:
+                pass
+            for _k3, _dst3 in (('inject_hour', 'inject'), ('disguise_hour', 'disguise'),
+                               ('sus_loc_hour', 'susloc'), ('sus_cmd_hour', 'suscmd'),
+                               ('high_cpu_hour', 'highcpu')):
+                stats[_k3] = _pp[_dst3] if _pp[_dst3] else getattr(pm,
+                        {'inject_hour': '_injection_attempts_hour',
+                         'disguise_hour': '_disguised_processes_hour',
+                         'sus_loc_hour': '_suspicious_locations_hour',
+                         'sus_cmd_hour': '_suspicious_cmdlines_hour',
+                         'high_cpu_hour': '_high_cpu_processes_hour'}[_k3], 0)
             # v29.39: Real-time file anomaly detection tracking
             # FIX-v29.40: `fm` was referenced but never defined -> the whole block
             # silently NameError'd into pass, so every file gauge stayed 0.
@@ -17750,7 +17819,9 @@ class HardwareMonitor:
                     stats['cred_hour'] = _bh['cred']
                     stats['persist_hour'] = _bh['persist']
                     stats['evasion_hour'] = _bh['evasion']
-                    stats['exfil_hour'] = _bh['exfil']
+                    # FIX-v29.41b: EXFIL/H is the NET gauge — the live net path
+                    # already filled it; don't let behavior's counter clobber it.
+                    stats.setdefault('exfil_hour', _bh['exfil'])
                     stats['behavior_lateral_hour'] = _bh['lateral']
         except Exception: pass
         try:
@@ -17769,7 +17840,7 @@ class HardwareMonitor:
                 stats['cred_hour'] = getattr(bs, '_credential_theft_attempts_hour', 0)
                 stats['persist_hour'] = getattr(bs, '_persistence_attempts_hour', 0)
                 stats['evasion_hour'] = getattr(bs, '_evasion_attempts_hour', 0)
-                stats['exfil_hour'] = getattr(bs, '_exfil_attempts_hour', 0)
+                stats.setdefault('exfil_hour', getattr(bs, '_exfil_attempts_hour', 0))
                 stats['behavior_lateral_hour'] = getattr(bs, '_lateral_movement_attempts_hour', 0)
         except Exception: pass
         # v29.39: Real-time disk I/O metrics

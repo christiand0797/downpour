@@ -626,6 +626,31 @@ class TestV2940Reliability:
         assert '_KEY' in chunk
         assert 'stats[\'keylog_hour\'] = _bh[\'keylog\']' in chunk
 
+    def test_net_exfil_not_clobbered_by_behavior(self):
+        """EXFIL/H is the net gauge; behavior's exfil must not overwrite it."""
+        src = self._src()
+        idx = src.index("stats.setdefault('exfil_hour'")
+        assert 'stats.setdefault(\'exfil_hour\', _bh[\'exfil\'])' in src
+
+    def test_net_anomaly_gauges_live_with_throttle(self):
+        """port_scan/exfil/dns_tun/lateral must be served by the throttled live
+        net_monitor analysis, with setdefault fallbacks for the orphan read."""
+        src = self._src()
+        assert '_nm_alert_ts' in src
+        assert '_nm_alert_map' in src
+        assert 'stats.setdefault(\'exfil_hour\', getattr(nm,' in src
+        assert 'stats.setdefault(\'port_scan_hour\',' in src
+
+    def test_process_anomaly_gauges_classify_live(self):
+        """inject/disguise/sus_loc/sus_cmd/high_cpu classify the live process
+        list, falling back to the orphan singleton only when idle."""
+        src = self._src()
+        assert '_PKEY' in src
+        idx = src.index('_pp = {\'inject\': 0')
+        chunk = src[idx:idx + 2600]
+        assert 'stats[_k3] = _pp[_dst3]' in chunk
+        assert '_high_cpu_processes_hour' in chunk
+
     def test_fetch_owns_its_dt_for_swap_rates(self):
         """swap/page-fault rates must not borrow the disk block's local dt."""
         src = self._src()
