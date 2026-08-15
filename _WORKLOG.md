@@ -2,6 +2,19 @@
 
 ## Branch: main
 
+## Session 2026-08-14b7 — v29.41h: vuln-scanner None-crash trio + CEV DB timeout
+- ✅ Log audit surfaced two recurring crash signatures (last seen Aug 11, 102
+  hits each): `detect_exploit_attempts` bug — `proc.info.get('cmdline',
+  [])` can be `None` (psutil sets attr to None on AccessDenied for the attr
+  list in process_iter), so `' '.join(None)` → "can only join an iterable".
+  Fixed with `proc_info.get('cmdline') or []`. `check_privilege_escalations`
+  — `proc_info.get('username', '')` also can be None → `.endswith` on None.
+  Fixed with `(proc_info.get('username') or '')`.
+- ✅ `get_cev_score` (read every fetch tick) opened each connection with the
+  5s default timeout; long feed-writer transactions → "database is locked"
+  (351 hits). Bumped to `timeout=30`.
+- ✅ 73/73 tests (2 new regression tests); pushed `1e8b21b`.
+
 ## Session 2026-08-14b6 — v29.41g: feed updates off the Tk main thread
 - ✅ `_scheduled_feed_update` called `ti.update_all_feeds()` directly in the
   `after` callback — URLhaus `csv_recent` full-dump per-row inserts froze the

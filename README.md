@@ -189,6 +189,10 @@ Detects: **Mimikatz, CobaltStrike, Metasploit, Empire, PoshC2, AsyncRAT, NjRAT, 
 
 See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for full details.
 
+**v29.41h**: Fixed two vulnerability-scanner scan crashes (psutil cmdline/username can be `None` → join/endswith crashes) and gave the per-tick CEV reader a 30s DB timeout (was "database is locked" during long feed writes). 73/73 tests.
+
+**v29.41g**: Scheduled OSINT feed updates and feed-health checks now run in daemon threads — previously `update_all_feeds()` (URLhaus csv_recent ingest) ran on the Tk main thread and froze the GUI for minutes.
+
 **v29.41f**: Fixed every OSINT feed update crashing (`_record_feed_history` method was missing; threatfox/urlhaus/phishtank/malwarebazaar all failed silently). Cached `VulnerabilityScanner` on the monitor — its DB init ran fresh every fetch tick (~every 15s logged), now once at startup. 71/71 tests.
 
 **v29.41e**: Cached `ThreatIntelligenceManager` on the monitor (DB init in `__init__` was run 3× per fetch tick).
