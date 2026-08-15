@@ -601,6 +601,19 @@ class TestV2940Reliability:
         assert '_file_monitor_ref' in chunk
         assert 'getattr(fm, \'_file_modifications_hour\', 0)' in chunk
 
+    def test_fetch_process_network_prefer_live_app(self):
+        """PROC/NET THREAT gauges must read the app's live process list and
+        net_monitor alerts instead of the never-started orphan modules."""
+        src = self._src()
+        assert 'getattr(_app_nm, \'_processes\', None)' in src
+        assert 'getattr(_app_nm, \'net_monitor\', None)' in src
+        assert 'analyze_connections(' in src
+        # `nm`/`pm` must stay bound (orphan fallback) so finer-grained anomaly
+        # gauges below never NameError even when the live app path is used.
+        idx = src.index('_app_nm = getattr(self, \'_app\', None)')
+        chunk = src[idx:idx + 1200]
+        assert 'nm = pm = None' in chunk
+
     def test_fetch_owns_its_dt_for_swap_rates(self):
         """swap/page-fault rates must not borrow the disk block's local dt."""
         src = self._src()

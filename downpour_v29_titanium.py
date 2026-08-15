@@ -17537,15 +17537,42 @@ class HardwareMonitor:
             self._prev_faults_time = now
         except Exception: pass
         # v29.39: Real-time security event streaming
+        # FIX-v29.41: network_monitor/process_monitor are orphan modules never
+        # .start()ed anywhere — prefer the app's LIVE scanned process list and
+        # connection analysis when the app backref exists, but always keep
+        # `nm`/`pm` bound so the finer-grained anomaly gauges below never NameError.
+        _app_nm = getattr(self, '_app', None)
+        nm = pm = None
         try:
             from network_monitor import get_monitor
             nm = get_monitor()
-            stats['network_threats_hour'] = getattr(nm, '_threats_last_hour', 0)
-        except Exception: pass
+        except Exception:
+            nm = None
         try:
             from process_monitor import get_monitor
             pm = get_monitor()
-            stats['process_threats_hour'] = getattr(pm, '_threats_last_hour', 0)
+        except Exception:
+            pm = None
+        # process threat gauge ← live scanned process list (PROC THREATS)
+        try:
+            if _app_nm is not None and getattr(_app_nm, '_processes', None) is not None:
+                _live_procs = getattr(_app_nm, '_processes', []) or []
+                stats['process_threats_hour'] = sum(1 for p in _live_procs
+                                                    if getattr(p, 'is_suspicious', False))
+            elif pm is not None:
+                stats['process_threats_hour'] = getattr(pm, '_threats_last_hour', 0)
+        except Exception: pass
+        # network threat gauge ← live analyze_connections (NET THREATS)
+        try:
+            if _app_nm is not None and getattr(_app_nm, 'net_monitor', None) is not None:
+                try:
+                    _nm_alerts = _app_nm.net_monitor.analyze_connections(
+                        _app_nm.net_monitor.get_all_connections())
+                    stats['network_threats_hour'] = len(_nm_alerts or [])
+                except Exception:
+                    pass
+            elif nm is not None:
+                stats['network_threats_hour'] = getattr(nm, '_threats_last_hour', 0)
         except Exception: pass
         try:
             stats['file_threats_hour'] = getattr(self, '_file_threats_last_hour', 0)
