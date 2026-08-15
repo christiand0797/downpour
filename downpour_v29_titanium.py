@@ -17633,22 +17633,62 @@ class HardwareMonitor:
             # v29.39: Real-time file anomaly detection tracking
             # FIX-v29.40: `fm` was referenced but never defined -> the whole block
             # silently NameError'd into pass, so every file gauge stayed 0.
+            # FIX-v29.41: the orphan file_monitor module is never .start()ed anywhere
+            # in the app, so even a correctly bound `fm` could never move. Prefer the
+            # app's LIVE RansomwareDetector (self._app.ransomware) — its watchdog
+            # feeds a real-time file-change deque whenever the engine is running.
             try:
-                fm = getattr(self, '_file_monitor_ref', None)
-                if fm is None:
-                    try:
-                        from file_monitor import get_monitor as _get_file_monitor
-                        fm = _get_file_monitor()
-                    except Exception:
-                        fm = None
-                    self._file_monitor_ref = fm
+                app = getattr(self, '_app', None)
+                rw = getattr(app, 'ransomware', None) if app is not None else None
+                if rw is not None:
+                    _rw_now = time.time()
+                    _rw_cut = _rw_now - 3600
+                    _rw_src = getattr(rw, '_file_changes', None)
+                    if _rw_src is not None:
+                        _ct = {'modified': 0, 'created': 0, 'moved': 0, 'deleted': 0}
+                        _sus = 0
+                        _ransom = 0
+                        for _c in _rw_src:
+                            if getattr(_c, 'get', None) is None or _c.get('time', 0) < _rw_cut:
+                                continue
+                            _t = _c.get('type', '')
+                            if _t in _ct:
+                                _ct[_t] += 1
+                            if _t == 'created':
+                                _p = str(_c.get('path', '')).lower()
+                                if any(_p.endswith(e) for e in
+                                       ('.exe', '.dll', '.bat', '.cmd', '.ps1',
+                                        '.vbs', '.js', '.scr', '.jar', '.com')):
+                                    _sus += 1
+                                if (any(_p.endswith(e) for e in KnownThreats.RANSOMWARE_EXTENSIONS)
+                                        or os.path.basename(_p) in KnownThreats.RANSOMWARE_NOTES):
+                                    _ransom += 1
+                        stats['file_mod_hour'] = _ct['modified']
+                        stats['file_create_hour'] = _ct['created']
+                        stats['file_delete_hour'] = _ct['moved'] + _ct['deleted']
+                        stats['sus_create_hour'] = _sus
+                        stats['ransom_hour'] = _ransom
+                    else:
+                        raise AttributeError('_file_changes')
+                else:
+                    raise AttributeError('_app.ransomware')
             except Exception:
-                fm = None
-            stats['file_mod_hour'] = getattr(fm, '_file_modifications_hour', 0)
-            stats['file_create_hour'] = getattr(fm, '_file_creations_hour', 0)
-            stats['file_delete_hour'] = getattr(fm, '_file_deletions_hour', 0)
-            stats['sus_create_hour'] = getattr(fm, '_suspicious_creations_hour', 0)
-            stats['ransom_hour'] = getattr(fm, '_ransomware_activity_hour', 0)
+                try:
+                    fm = getattr(self, '_file_monitor_ref', None)
+                    if fm is None:
+                        try:
+                            from file_monitor import get_monitor as _get_file_monitor
+                            fm = _get_file_monitor()
+                        except Exception:
+                            fm = None
+                        self._file_monitor_ref = fm
+                    stats['file_mod_hour'] = getattr(fm, '_file_modifications_hour', 0)
+                    stats['file_create_hour'] = getattr(fm, '_file_creations_hour', 0)
+                    stats['file_delete_hour'] = getattr(fm, '_file_deletions_hour', 0)
+                    stats['sus_create_hour'] = getattr(fm, '_suspicious_creations_hour', 0)
+                    stats['ransom_hour'] = getattr(fm, '_ransomware_activity_hour', 0)
+                except Exception:
+                    pass
         except Exception: pass
         # v29.39: Real-time behavior anomaly detection tracking
         # FIX-v29.40: `bs` was undefined -> same silent-zero problem as `fm`.
@@ -21884,6 +21924,11 @@ class downpour(tk.Tk):
             self.parental = ParentalControls(self.cfg, self.db)
             self.ransomware = RansomwareDetector(self.db)
             self.mem_forensics = MemoryForensicsAnalyzer(self.db)
+            # FIX-v29.41: give HardwareMonitor a backref to the live app so its
+            # _fetch can read real per-hour file counts from the running
+            # RansomwareDetector deque (the orphan file_monitor module was never
+            # started anywhere, so its gauges could never move).
+            self.hw._app = self
             self.hardening = SystemHardeningEngine()
             if _CLEANUP_MODULE_AVAILABLE:
                 self.cleanup_engine = CleanupEngine()

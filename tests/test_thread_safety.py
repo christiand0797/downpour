@@ -573,6 +573,34 @@ class TestV2940Reliability:
         assert '_behavior_scanner_ref' in src
         assert 'file_mod_hour' in src and 'behavior_lateral_hour' in src
 
+    def test_fetch_prefers_live_ransomware_deque(self):
+        """File gauges must prefer the app's live RansomwareDetector deque over
+        the never-started orphan file_monitor module (v29.41)."""
+        src = self._src()
+        assert 'getattr(self, \'_app\', None)' in src
+        assert 'getattr(app, \'ransomware\', None)' in src
+        assert '_rw_src' in src
+        assert '_file_changes' in src
+        # The live path must read from the deque, not orphan-module counters.
+        idx = src.index('app = getattr(self, \'_app\', None)')
+        chunk = src[idx:idx + 3000]
+        assert "_c.get('time', 0)" in chunk
+        assert 'KnownThreats.RANSOMWARE_EXTENSIONS' in chunk
+
+    def test_hw_monitor_given_app_backref(self):
+        """HardwareMonitor must receive `_app` so _fetch reaches live engines."""
+        src = self._src()
+        assert 'self.hw._app = self' in src
+
+    def test_fetch_file_block_keeps_fallback(self):
+        """Without the app backref the file gauges still fall back to the
+        orphan binding instead of raising."""
+        src = self._src()
+        idx = src.index('app = getattr(self, \'_app\', None)')
+        chunk = src[idx:idx + 5000]
+        assert '_file_monitor_ref' in chunk
+        assert 'getattr(fm, \'_file_modifications_hour\', 0)' in chunk
+
     def test_fetch_owns_its_dt_for_swap_rates(self):
         """swap/page-fault rates must not borrow the disk block's local dt."""
         src = self._src()
