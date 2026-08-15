@@ -189,6 +189,10 @@ Detects: **Mimikatz, CobaltStrike, Metasploit, Empire, PoshC2, AsyncRAT, NjRAT, 
 
 See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for full details.
 
+**v29.41c**: Completed the Performance-tab live-data pipeline: file gauges now read the live `RansomwareDetector` deques, PROC/NET THREAT gauges read live scanned processes + connection alerts, and all 8 behavior gauges classify `[BEHAVIOR]` findings from the continuous scan loop — the orphan `file_monitor`/`network_monitor`/`process_monitor`/`behavior_scanner` modules (never started anywhere) no longer leave 23 gauges stuck at zero.
+
+**v29.41b**: PROC/NET THREAT gauges read the app's live process list + `net_monitor` alerts instead of never-started orphan modules; `nm`/`pm` stay bound for the finer anomaly gauges.
+
 **v29.41**: File gauges on the Performance tab now read from the app's live `RansomwareDetector` per-hour file-change counts (the previously-wired `file_monitor` module was never started, so MOD/CREATE/DELETE/SUS-CREATE/RANSOM gauges could never move). `HardwareMonitor` gets an app backref, graceful fallback retained, 3 new regression tests.
 
 **v29.40** (latest): Fixed the Python 3.13+ boot crash (`logging.handlers` import) and the alpha-Python wheel breakage. Completed the live Performance data pipeline — ~15 file/behavior anomaly gauges were silently stuck at 0 (undefined variable refs), swap/page-fault rates now live, perf-loop in-flight guard + adaptive interval honored, 10s safety timer finally scheduled, gauge grid deduplicated to 129 unique live gauges. 10 new regression tests (60/60 passing).

@@ -2,6 +2,20 @@
 
 ## Branch: main
 
+## Session 2026-08-14b3 — v29.41c: behavior gauges → live [BEHAVIOR] findings
+- ✅ **Last orphan-gauge group**: KEYLOG/SCREEN/INJECT/CRED/PERSIST/EVASION/
+  EXFIL/LATERAL-H read `behavior_scanner.BehaviorScanner(db=None)` — a module
+  the app never starts (it even documents wiring into a different app). Static
+  0 forever.
+- ✅ **Fix**: when the `_app` backref exists, the eight behavior gauges now
+  classify `[BEHAVIOR]` keyed findings from the app's LIVE scanned process
+  list (`_processes` → `scan_all()` → `risk_reasons`, refreshed continuously
+  by `_proc_loop`). Live path only writes when ≥1 behavior found; otherwise
+  the orphan fallback still satisfies the keys (never NameErrors).
+- ✅ 65/65 tests pass; boot smoke 50s → zero stderr; pushed `b553e04`.
+- ✅ All three orphan-monitor gauge groups (file, proc/net threats, behavior)
+  are now wired to genuine live app data.
+
 ## Session 2026-08-14b2 — v29.41b: PROC/NET THREAT gauges → live app data
 - ✅ **Same orphan-module class of bug**: NET THREATS / PROC THREATS read
   `network_monitor` / `process_monitor` singletons that are never `.start()`ed
