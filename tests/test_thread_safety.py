@@ -674,6 +674,17 @@ class TestV2940Reliability:
         ihash = src.index('def check_hash(')
         assert "self._bump_osint_lookup(cache_hit=False)" in src[ihash:ihash + 300]
 
+    def test_four_dead_total_gauges_wired_to_ti_ref(self):
+        """MALWARE DETECTED / PHISHING URLS / SUSPICIOUS DNS / FILE THREATS
+        gauges read self attrs (_malware_detected_total etc.) that were never
+        assigned anywhere. They must fall back to the live `_ti_ref` totals."""
+        src = self._src()
+        assert "stats['malware_detected_total'] = getattr(getattr(self, '_ti_ref', None)," in src
+        assert "'_total_malware_hashes', 0)" in src
+        assert "stats['phishing_urls_total'] = getattr(getattr(self, '_ti_ref', None)," in src
+        assert "stats['suspicious_dns_total'] = getattr(getattr(self, '_ti_ref', None)," in src
+        assert "stats['file_threats_hour'] = getattr(getattr(self, '_ti_ref', None)," in src
+
     def test_feed_updates_run_off_main_thread(self):
         """update_all_feeds() downloads + inserts large dumps; running it in
         the Tk 'after' callback froze the GUI for minutes. Both scheduled feed

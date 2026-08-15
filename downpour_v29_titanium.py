@@ -17648,18 +17648,27 @@ class HardwareMonitor:
                 stats['network_threats_hour'] = getattr(nm, '_threats_last_hour', 0)
         except Exception: pass
         try:
-            stats['file_threats_hour'] = getattr(self, '_file_threats_last_hour', 0)
+            # FIX-v29.41j: _file_threats_last_hour is never assigned anywhere;
+            # prefer the live cached TI manager's per-hour file threat counter.
+            stats['file_threats_hour'] = getattr(getattr(self, '_ti_ref', None),
+                                                 '_file_threats_hour',
+                                                 getattr(self, '_file_threats_last_hour', 0))
         except Exception: pass
         try:
             # FIX-v29.41e: reuse cached TI manager (created once by the OSINT feed block)
             stats['ioc_hits_hour'] = getattr(getattr(self, '_ti_ref', None), '_ioc_hits_last_hour', 0)
         except Exception: pass
         # v29.39: Real-time threat detection totals
+        # FIX-v29.41j: _malware_detected_total / _phishing_urls_total /
+        # _suspicious_dns_total were never assigned anywhere (gauges stuck 0);
+        # prefer the live cached TI manager's total counters.
         try:
-            stats['malware_detected_total'] = getattr(self, '_malware_detected_total', 0)
+            stats['malware_detected_total'] = getattr(getattr(self, '_ti_ref', None),
+                                                      '_total_malware_hashes', 0)
         except Exception: pass
         try:
-            stats['phishing_urls_total'] = getattr(self, '_phishing_urls_total', 0)
+            stats['phishing_urls_total'] = getattr(getattr(self, '_ti_ref', None),
+                                                   '_total_phishing_urls', 0)
         except Exception: pass
         try:
             _nm_map2 = getattr(self, '_nm_alert_map', None)
@@ -17671,7 +17680,8 @@ class HardwareMonitor:
                 stats['c2_servers_total'] = len(getattr(nm, '_c2_servers_detected', set()))
         except Exception: pass
         try:
-            stats['suspicious_dns_total'] = getattr(self, '_suspicious_dns_total', 0)
+            stats['suspicious_dns_total'] = getattr(getattr(self, '_ti_ref', None),
+                                                    '_total_suspicious_dns', 0)
         except Exception: pass
         # v29.39: Real-time CVE tracking
         # FIX-v29.41f: VulnerabilityScanner also does DB init in __init__; a
