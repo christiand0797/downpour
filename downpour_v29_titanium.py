@@ -35400,45 +35400,58 @@ Verification Status:
         try:
             if not self.winfo_exists():
                 return
-            
-            from threat_intelligence import ThreatIntelligenceManager
-            ti = ThreatIntelligenceManager()
-            
-            alerts = ti.get_feed_alerts()
-            
-            for alert in alerts:
-                severity = alert.get('severity', 'warning')
-                message = alert.get('message', '')
-                
-                if severity == 'critical':
-                    self._queue_alert(f"[FEED CRITICAL] {message}", Colors.GAUGE_RED)
-                elif severity == 'warning':
-                    self._queue_alert(f"[FEED WARNING] {message}", Colors.GAUGE_ORANGE)
-            
+            # FIX-v29.41g: get_feed_alerts() does a DB read; run off the main
+            # thread so a slow DB/IOC query can't freeze the GUI.
+            def _worker():
+                try:
+                    from threat_intelligence import ThreatIntelligenceManager
+                    ti = ThreatIntelligenceManager()
+                    alerts = ti.get_feed_alerts()
+                except Exception as e:
+                    error_logger.log('FeedHealthCheck', 'failed', e)
+                    return
+                try:
+                    for alert in alerts:
+                        severity = alert.get('severity', 'warning')
+                        message = alert.get('message', '')
+                        self.after(0, lambda s=severity, m=message:
+                                   self._queue_alert(
+                                       f"[FEED {s.upper()}] {m}",
+                                       Colors.GAUGE_RED if s == 'critical'
+                                       else Colors.GAUGE_ORANGE))
+                except Exception:
+                    pass
+            threading.Thread(target=_worker, daemon=True,
+                             name='FeedHealthCheck').start()
             # Reschedule every 30 minutes
             self.after(30 * 60 * 1000, self._scheduled_feed_health_check)
-            
         except Exception as e:
             error_logger.log('FeedHealthCheck', 'failed', e)
     
     def _scheduled_feed_update(self):
-        """Automatically update OSINT feeds every hour."""
+        """Automatically update OSINT feeds (hourly, in a background thread)."""
         try:
             if not self.winfo_exists():
                 return
-            
-            from threat_intelligence import ThreatIntelligenceManager
-            ti = ThreatIntelligenceManager()
-            
-            # Update all feeds (they internally check if update is needed)
-            ti.update_all_feeds()
-            
-            # Refresh IOC count display
-            self._refresh_ioc_count_display()
-            
-            # Reschedule every hour
+            # FIX-v29.41g: update_all_feeds() downloads + inserts large dumps
+            # (URLhaus csv_recent etc.). Running it on the Tk main thread froze
+            # the GUI for minutes — move to a daemon thread; reschedule on the
+            # main thread afterwards.
+            def _worker():
+                try:
+                    from threat_intelligence import ThreatIntelligenceManager
+                    ti = ThreatIntelligenceManager()
+                    ti.update_all_feeds()
+                except Exception as e:
+                    error_logger.log('FeedUpdate', 'failed', e)
+                finally:
+                    try:
+                        self.after(0, self._refresh_ioc_count_display)
+                    except Exception:
+                        pass
+            threading.Thread(target=_worker, daemon=True,
+                             name='FeedUpdate').start()
             self.after(60 * 60 * 1000, self._scheduled_feed_update)
-            
         except Exception as e:
             error_logger.log('FeedUpdate', 'failed', e)
 

@@ -189,6 +189,12 @@ Detects: **Mimikatz, CobaltStrike, Metasploit, Empire, PoshC2, AsyncRAT, NjRAT, 
 
 See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for full details.
 
+**v29.41f**: Fixed every OSINT feed update crashing (`_record_feed_history` method was missing; threatfox/urlhaus/phishtank/malwarebazaar all failed silently). Cached `VulnerabilityScanner` on the monitor — its DB init ran fresh every fetch tick (~every 15s logged), now once at startup. 71/71 tests.
+
+**v29.41e**: Cached `ThreatIntelligenceManager` on the monitor (DB init in `__init__` was run 3× per fetch tick).
+
+**v29.41d**: Net anomaly gauges (PORT SCAN/EXFIL/DNS TUN/LATERAL) served by throttled live `net_monitor` alert classification; process anomaly gauges classify the live scan; EXFIL/H now the net gauge with setdefault precedence; `c2_servers_total` live.
+
 **v29.41c**: Completed the Performance-tab live-data pipeline: file gauges now read the live `RansomwareDetector` deques, PROC/NET THREAT gauges read live scanned processes + connection alerts, and all 8 behavior gauges classify `[BEHAVIOR]` findings from the continuous scan loop — the orphan `file_monitor`/`network_monitor`/`process_monitor`/`behavior_scanner` modules (never started anywhere) no longer leave 23 gauges stuck at zero.
 
 **v29.41b**: PROC/NET THREAT gauges read the app's live process list + `net_monitor` alerts instead of never-started orphan modules; `nm`/`pm` stay bound for the finer anomaly gauges.

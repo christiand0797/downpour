@@ -642,6 +642,20 @@ class TestV2940Reliability:
         assert 'self._vs_ref = VulnerabilityScanner()' in src
         assert 'vs = self._vs_ref' in src
 
+    def test_feed_updates_run_off_main_thread(self):
+        """update_all_feeds() downloads + inserts large dumps; running it in
+        the Tk 'after' callback froze the GUI for minutes. Both scheduled feed
+        callbacks must spawn daemon worker threads and reschedule on main."""
+        src = self._src()
+        iu = src.index('def _scheduled_feed_update')
+        chunk_u = src[iu:iu + 1300]
+        assert "threading.Thread(target=_worker, daemon=True,\n                             name='FeedUpdate')" in chunk_u
+        ih = src.index('def _scheduled_feed_health_check')
+        chunk_h = src[ih:ih + 1700]
+        assert "threading.Thread(target=_worker, daemon=True,\n                             name='FeedHealthCheck')" in chunk_h
+        assert 'self.after(60 * 60 * 1000, self._scheduled_feed_update)' in chunk_u
+        assert 'self.after(30 * 60 * 1000, self._scheduled_feed_health_check)' in chunk_h
+
     def test_fetch_behavior_prefers_live_scan_reasons(self):
         """Behavior gauges must classify [BEHAVIOR] findings from the app's live
         scanned process list instead of the never-started behavior_scanner."""
