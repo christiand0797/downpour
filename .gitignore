@@ -24,6 +24,7 @@ dp_stderr.txt
 tk_callback_errors.txt
 downpour_quarantine/
 *.db
+*.db-journal
 *.sqlite
 *.log
 
