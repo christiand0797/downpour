@@ -622,6 +622,26 @@ class TestV2940Reliability:
         assert self._src().count('self._ti_ref = ThreatIntelligenceManager()') == 2
         assert 'if not getattr(self, \'_ti_ref\', None):' in src
 
+    def test_threat_intel_record_feed_history_defined(self):
+        """OSINT feed updaters call _record_feed_history (threatfox/urlhaus/
+        phishtank/malwarebazaar); it was missing, raising
+        'no attribute _record_feed_history' and failing every feed update."""
+        ti_path = os.path.join(os.path.dirname(__file__),
+                               '..', 'threat_intelligence.py')
+        ti_src = open(ti_path, encoding='utf-8', errors='replace').read()
+        assert 'def _record_feed_history' in ti_src
+        assert '_max_history_points' in ti_src
+        assert "_feed_history.setdefault(feed_name, []).append(" in ti_src
+
+    def test_vulnerability_scanner_cached_per_monitor(self):
+        """VulnerabilityScanner does DB init in __init__; creating a fresh one
+        every fetch tick re-opened the DB (~15s log spam). It must be cached
+        once as `_vs_ref` on the monitor."""
+        src = self._src()
+        assert 'if not getattr(self, \'_vs_ref\', None):' in src
+        assert 'self._vs_ref = VulnerabilityScanner()' in src
+        assert 'vs = self._vs_ref' in src
+
     def test_fetch_behavior_prefers_live_scan_reasons(self):
         """Behavior gauges must classify [BEHAVIOR] findings from the app's live
         scanned process list instead of the never-started behavior_scanner."""

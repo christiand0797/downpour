@@ -17436,17 +17436,33 @@ class HardwareMonitor:
                 stats['dns_latency_ms'] = -1.0  # DNS failure
         except Exception: pass
         # v29.39: Security metrics from network monitor
+        # FIX-v29.41e: orphan network_monitor counters are never populated;
+        # use the live net alert map / scanned process list when available.
         try:
-            from network_monitor import get_monitor
-            nm = get_monitor()
-            if hasattr(nm, '_blocked_connections'):
-                stats['blocked_connections'] = getattr(nm, '_blocked_connections', 0)
+            _alert_map2 = getattr(self, '_nm_alert_map', None)
+            if _app_nm is not None:
+                if _alert_map2 is not None:
+                    stats['blocked_connections'] = _alert_map2.get('total', 0)
+                elif getattr(_app_nm, '_processes', None) is not None:
+                    stats['suspicious_processes'] = sum(
+                        1 for p in (getattr(_app_nm, '_processes', []) or [])
+                        if getattr(p, 'is_suspicious', False))
+            else:
+                from network_monitor import get_monitor
+                nm = get_monitor()
+                if hasattr(nm, '_blocked_connections'):
+                    stats['blocked_connections'] = getattr(nm, '_blocked_connections', 0)
         except Exception: pass
         try:
-            from process_monitor import get_monitor
-            pm = get_monitor()
-            if hasattr(pm, '_suspicious_count'):
-                stats['suspicious_processes'] = getattr(pm, '_suspicious_count', 0)
+            if _app_nm is not None and getattr(_app_nm, '_processes', None) is not None:
+                stats['suspicious_processes'] = sum(
+                    1 for p in (getattr(_app_nm, '_processes', []) or [])
+                    if getattr(p, 'is_suspicious', False))
+            else:
+                from process_monitor import get_monitor
+                pm = get_monitor()
+                if hasattr(pm, '_suspicious_count'):
+                    stats['suspicious_processes'] = getattr(pm, '_suspicious_count', 0)
         except Exception: pass
         # v29.39: Security events today (from alert system)
         try:
@@ -17615,9 +17631,8 @@ class HardwareMonitor:
             stats['file_threats_hour'] = getattr(self, '_file_threats_last_hour', 0)
         except Exception: pass
         try:
-            from threat_intelligence import ThreatIntelligenceManager
-            ti = ThreatIntelligenceManager()
-            stats['ioc_hits_hour'] = getattr(ti, '_ioc_hits_last_hour', 0)
+            # FIX-v29.41e: reuse cached TI manager (created once by the OSINT feed block)
+            stats['ioc_hits_hour'] = getattr(getattr(self, '_ti_ref', None), '_ioc_hits_last_hour', 0)
         except Exception: pass
         # v29.39: Real-time threat detection totals
         try:
@@ -17639,9 +17654,14 @@ class HardwareMonitor:
             stats['suspicious_dns_total'] = getattr(self, '_suspicious_dns_total', 0)
         except Exception: pass
         # v29.39: Real-time CVE tracking
+        # FIX-v29.41f: VulnerabilityScanner also does DB init in __init__; a
+        # fresh instance per fetch tick is wasteful — cache it on the monitor.
+        vs = None
         try:
-            from vulnerability_scanner import VulnerabilityScanner
-            vs = VulnerabilityScanner()
+            if not getattr(self, '_vs_ref', None):
+                from vulnerability_scanner import VulnerabilityScanner
+                self._vs_ref = VulnerabilityScanner()
+            vs = self._vs_ref
             stats['cves_hour'] = getattr(vs, '_cves_last_hour', 0)
             stats['total_cves'] = getattr(vs, '_total_cves', 0)
             stats['critical_cves'] = getattr(vs, '_critical_cves', 0)

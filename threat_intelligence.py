@@ -439,6 +439,16 @@ class ThreatIntelligenceManager:
             if conn:
                 conn.close()
     
+    def _record_feed_history(self, feed_name: str, ioc_count: int):
+        """Append a (timestamp, ioc_count) point to feed trend history, capped."""
+        try:
+            stop = getattr(self, '_max_history_points', 100)
+            self._feed_history.setdefault(feed_name, []).append((time.time(), ioc_count))
+            if len(self._feed_history[feed_name]) > stop:
+                del self._feed_history[feed_name][:-stop]
+        except Exception:
+            pass
+
     def update_threatfox_feed(self):
         """Update threat intelligence from ThreatFox (abuse.ch)."""
         try:

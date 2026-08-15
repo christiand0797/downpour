@@ -2,6 +2,42 @@
 
 ## Branch: main
 
+## Session 2026-08-14b5 — v29.41f: missing `_record_feed_history` + VS DB-init cache
+- ✅ **Real bug found via boot smoke**: every OSINT feed update (threatfox/
+  urlhaus/phishtank/malwarebazaar) crashed with `'ThreatIntelligenceManager'
+  object has no attribute '_record_feed_history'` — `_feed_history` dict was
+  initialized in `__init__` but the `_record_feed_history` method was never
+  written. Feed updates failed silently every launch; only visible in
+  `downpour.log`. Added the method (appends (ts, ioc_count), capped at
+  `_max_history_points=100`). ThreatFox now updates `[OK]` in ~3s.
+- ✅ **Second DB-init-per-tick offender**: the CVE gauges block also did
+  `VulnerabilityScanner()` fresh every fetch tick → `[OK] Vulnerability scanner
+  database initialized` logged ~every 15s. Cached once as `_vs_ref` on the
+  monitor (same pattern as `_ti_ref` in v29.41e). Post-fix: DB init appears
+  only once at startup.
+- ✅ 71/71 tests; clean boot confirmed (2 VS inits total, zero feed errors);
+  pushed `d3f0a16`.
+- ℹ️ Known: `_scheduled_feed_update` runs `update_all_feeds()` on the Tk main
+  thread; URLhaus full-dump insert can block the GUI for minutes. Pre-existing,
+  not addressed in this session.
+
+## Session 2026-08-14b4 — v29.41d/e: net/process anomaly gauges live + TI cache
+- ✅ **v29.41d**: net anomaly gauges (PORT SCAN/H, EXFIL/H, DNS TUN/H,
+  LATERAL/H) now served by a *throttled* (10s) live `net_monitor.
+  analyze_connections()` classification — port_scan/data_exfil/dns_tunneling/
+  connection_flood alert types map to the gauges, `_nm_alert_map` reused
+  between ticks so the full psutil connection walk doesn't run every 1-3s.
+  Process anomaly gauges (INJECT/H, DISGUISE/H, SUS LOC/H, SUS CMD/H,
+  HIGH CPU/H) classify the live scanned process list (`_PKEY` keyword map).
+  EXFIL/H is the NET gauge — behavior's exfil counter uses setdefault; the
+  heatmap `c2_servers_total` reads from live beaconing alerts too. Caught a
+  real ordering bug headless: behavior block overwrote net exfil — fixed via
+  setdefault precedence. 25 live-gauge assertions pass on a fake app.
+- ✅ **v29.41e**: `ThreatIntelligenceManager` does DB init in `__init__` and
+  was constructed fresh 2× per fetch tick — now cached once as `_ti_ref` on
+  the monitor (both file-threat + OSINT feed blocks share it).
+- ✅ 69/69 tests; boot smoke → zero stderr; pushed `db9c00a`.
+
 ## Session 2026-08-14b3 — v29.41c: behavior gauges → live [BEHAVIOR] findings
 - ✅ **Last orphan-gauge group**: KEYLOG/SCREEN/INJECT/CRED/PERSIST/EVASION/
   EXFIL/LATERAL-H read `behavior_scanner.BehaviorScanner(db=None)` — a module
