@@ -642,6 +642,20 @@ class TestV2940Reliability:
         assert 'self._vs_ref = VulnerabilityScanner()' in src
         assert 'vs = self._vs_ref' in src
 
+    def test_vulnerability_scanner_none_safe_process_handling(self):
+        """detect_exploit_attempts and check_privilege_escalations must not
+        crash when psutil returns None for cmdline/username (Aug-11 log spam:
+        'can only join an iterable', 'NoneType ... endswith'). And the
+        per-tick CEV reader needs a long DB timeout."""
+        vs_path = os.path.join(os.path.dirname(__file__),
+                               '..', 'vulnerability_scanner.py')
+        vs_src = open(vs_path, encoding='utf-8', errors='replace').read()
+        assert "' '.join(proc_info.get('cmdline') or [])" in vs_src
+        assert "(proc_info.get('username') or '').endswith('SYSTEM')" in vs_src
+        idx = vs_src.index('def get_cev_score')
+        chunk = vs_src[idx:idx + 500]
+        assert 'sqlite3.connect(self.db_path, timeout=30)' in chunk
+
     def test_feed_updates_run_off_main_thread(self):
         """update_all_feeds() downloads + inserts large dumps; running it in
         the Tk 'after' callback froze the GUI for minutes. Both scheduled feed
