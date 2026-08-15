@@ -2,6 +2,19 @@
 
 ## Branch: main
 
+## Session 2026-08-14b6 — v29.41g: feed updates off the Tk main thread
+- ✅ `_scheduled_feed_update` called `ti.update_all_feeds()` directly in the
+  `after` callback — URLhaus `csv_recent` full-dump per-row inserts froze the
+  GUI for minutes (observed: 4+ min blocked). Both `_scheduled_feed_update` and
+  `_scheduled_feed_health_check` now spawn `threading.Thread(daemon=True)`
+  workers; the hourly/30-min reschedule stays on the main thread via `self.after`
+  and feed-alert queuing is marshaled back with `self.after(0, ...)`.
+- ✅ Validated during live ingest: GUI mainloop stays ALIVE + responsive
+  (alerts/pending_after counters ticking) the entire time URLhaus is ingesting.
+- ✅ 72/72 tests; pushed `6b1e271`.
+- ℹ️ URLhaus ingest itself remains slow (~minutes) — per-row `add_malicious_url`
+  DB insert, pre-existing. Now non-blocking, so acceptable.
+
 ## Session 2026-08-14b5 — v29.41f: missing `_record_feed_history` + VS DB-init cache
 - ✅ **Real bug found via boot smoke**: every OSINT feed update (threatfox/
   urlhaus/phishtank/malwarebazaar) crashed with `'ThreatIntelligenceManager'
