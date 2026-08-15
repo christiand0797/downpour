@@ -189,6 +189,8 @@ Detects: **Mimikatz, CobaltStrike, Metasploit, Empire, PoshC2, AsyncRAT, NjRAT, 
 
 See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for full details.
 
+**v29.41j**: Wired 4 more dead Performance-tab gauges (MALWARE DETECTED / PHISHING URLS / SUSPICIOUS DNS / FILE THREATS) to the live threat-intel manager — they read never-assigned attributes and were stuck at 0. 75/75 tests.
+
 **v29.41i**: Wired the last dead Perf-tab gauges — SEC EVENTS now increments in the alert queue, and OSINT LOOKUPS/TODAY/CACHE increment from live IP/URL/hash lookups (all four were read-only, stuck at 0 forever). 74/74 tests.
 
 **v29.41h**: Fixed two vulnerability-scanner scan crashes (psutil cmdline/username can be `None` → join/endswith crashes) and gave the per-tick CEV reader a 30s DB timeout (was "database is locked" during long feed writes). 73/73 tests.

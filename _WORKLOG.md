@@ -2,6 +2,17 @@
 
 ## Branch: main
 
+## Session 2026-08-14b9 — v29.41j: wire 4 more dead Perf gauges to live `_ti_ref`
+- ✅ Systematic gauge audit (130 gauge keys vs `_fetch` writes) confirmed every
+  key is written — but a second audit of `self._*` reads found 4 more never-
+  assigned attrs feeding gauges: `_file_threats_last_hour` (FILE THREATS/H),
+  `_malware_detected_total` (MALWARE DETECTED), `_phishing_urls_total`
+  (PHISHING URLS), `_suspicious_dns_total` (SUSPICIOUS DNS). All four now read
+  the live cached `ThreatIntelligenceManager` (`_file_threats_hour`,
+  `_total_malware_hashes`, `_total_phishing_urls`, `_total_suspicious_dns`).
+  The wired-key regression suite is the same-class guarantee.
+- ✅ 75/75 tests; clean boot smoke; pushed `fc9fb9b`.
+
 ## Session 2026-08-14b8 — v29.41i: wire 4 dead Perf-tab gauges to real counters
 - ✅ Gauge audit found 4 more stuck-at-zero gauges: SEC EVENTS / OSINT
   LOOKUPS / OSINT TODAY / OSINT CACHE were read in `_fetch` via `getattr(self,
