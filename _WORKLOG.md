@@ -2,6 +2,17 @@
 
 ## Branch: main
 
+## Session 2026-08-14b8 — v29.41i: wire 4 dead Perf-tab gauges to real counters
+- ✅ Gauge audit found 4 more stuck-at-zero gauges: SEC EVENTS / OSINT
+  LOOKUPS / OSINT TODAY / OSINT CACHE were read in `_fetch` via `getattr(self,
+  '_x', 0)` but written NOWHERE. Wired:
+  - SEC EVENTS → `_queue_alert` increments `_security_events_today` (daily
+    reset via `_events_counter_day`).
+  - OSINT total/today/cache → new `_bump_osint_lookup(cache_hit)` helper,
+    called from `check_ip` (distinguishes cache hit/miss), `check_url`,
+    `check_hash`; daily reset via `_osint_day`.
+- ✅ 74/74 tests (new regression test); pushed `db8042e`.
+
 ## Session 2026-08-14b7 — v29.41h: vuln-scanner None-crash trio + CEV DB timeout
 - ✅ Log audit surfaced two recurring crash signatures (last seen Aug 11, 102
   hits each): `detect_exploit_attempts` bug — `proc.info.get('cmdline',
