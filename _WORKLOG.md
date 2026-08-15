@@ -2,6 +2,21 @@
 
 ## Branch: main
 
+## Session 2026-08-14b — v29.41: file gauges bound to the LIVE RansomwareDetector
+- ✅ **Follow-up on v29.40c**: the `fm` fix bound the *orphan* `file_monitor`
+  module (`get_monitor()`), but that module is never `.start()`ed anywhere in
+  the app — its counters (`_file_modifications_hour`, etc.) could never move,
+  so MOD/H, CREATE/H, DELETE/H, SUS CREATE/H, RANSOM/H would stay 0 forever.
+- ✅ **Fix**: `HardwareMonitor._fetch` now prefers the app's LIVE
+  `RansomwareDetector` — `self.hw._app = self` backref wired in the app
+  constructor, and the file gauges compute real per-hour counts from
+  `ransomware._file_changes` deque (watchdog-fed; created/suspicious-extension/
+  ransomware-note classification inline via KnownThreats lists). Falls back to
+  the old orphan binding only when no app backref exists (headless tests).
+- ✅ Verified headless with a fake app + deque: mod/create/delete/sus/ransom
+  all counted correctly; fallback path returns 0 without raising. Full suite
+  63/63 pass; boot smoke test 45s → zero stderr. Pushed `26a0177`.
+
 ## Session 2026-08-14a — v29.40c: boot crash fix + live Performance data pipeline
 - ✅ **CRITICAL boot regression**: `downpour_v29_titanium.py` exited code 1 at
   line 114 with `AttributeError: module 'logging' has no attribute 'handlers'`.

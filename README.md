@@ -189,6 +189,8 @@ Detects: **Mimikatz, CobaltStrike, Metasploit, Empire, PoshC2, AsyncRAT, NjRAT, 
 
 See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for full details.
 
+**v29.41**: File gauges on the Performance tab now read from the app's live `RansomwareDetector` per-hour file-change counts (the previously-wired `file_monitor` module was never started, so MOD/CREATE/DELETE/SUS-CREATE/RANSOM gauges could never move). `HardwareMonitor` gets an app backref, graceful fallback retained, 3 new regression tests.
+
 **v29.40** (latest): Fixed the Python 3.13+ boot crash (`logging.handlers` import) and the alpha-Python wheel breakage. Completed the live Performance data pipeline — ~15 file/behavior anomaly gauges were silently stuck at 0 (undefined variable refs), swap/page-fault rates now live, perf-loop in-flight guard + adaptive interval honored, 10s safety timer finally scheduled, gauge grid deduplicated to 129 unique live gauges. 10 new regression tests (60/60 passing).
 
 **v29.36**: 60-second CPU/RAM/GPU/NET history timeline chart, performance threshold auto-alerts (CPU/RAM/Temp/Disk spike detection with 120s cooldown), alert rate meter in the status bar (⚡ N/min), 5 new passing tests.
