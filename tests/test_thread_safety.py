@@ -614,6 +614,18 @@ class TestV2940Reliability:
         chunk = src[idx:idx + 1200]
         assert 'nm = pm = None' in chunk
 
+    def test_fetch_behavior_prefers_live_scan_reasons(self):
+        """Behavior gauges must classify [BEHAVIOR] findings from the app's live
+        scanned process list instead of the never-started behavior_scanner."""
+        src = self._src()
+        assert 'risk_reasons' in src
+        assert 'keylog_hour' in src and 'behavior_lateral_hour' in src
+        idx = src.index('_bh = {\'keylog\': 0')
+        chunk = src[idx:idx + 1600]
+        assert 'risk_reasons' in chunk
+        assert '_KEY' in chunk
+        assert 'stats[\'keylog_hour\'] = _bh[\'keylog\']' in chunk
+
     def test_fetch_owns_its_dt_for_swap_rates(self):
         """swap/page-fault rates must not borrow the disk block's local dt."""
         src = self._src()

@@ -2,6 +2,21 @@
 
 ## Branch: main
 
+## Session 2026-08-14b2 — v29.41b: PROC/NET THREAT gauges → live app data
+- ✅ **Same orphan-module class of bug**: NET THREATS / PROC THREATS read
+  `network_monitor` / `process_monitor` singletons that are never `.start()`ed
+  anywhere in the app — static 0 regardless of what the app is doing.
+- ✅ **Fix**: with the `_app` backref present, PROC THREATS counts suspicious
+  from the app's LIVE `_processes` list (refreshed continuously by
+  `_proc_loop` → `scanner.scan_all()`), and NET THREATS runs the app's live
+  `net_monitor.analyze_connections()` for alert count. Without a backref
+  (headless tests) it falls back to the orphan singletons. `nm`/`pm` local
+  refs stay always-bound so the finer-grained anomaly gauges below never
+  NameError on the live path.
+- ✅ 64/64 tests pass; boot smoke 50s → zero stderr; pushed `090b250`.
+- ⏳ Next: the 8 behavior gauges (KEYLOG/SCREEN/INJECT/CRED/PERSIST/EVASION/
+  LATERAL/H) still read the orphan `behavior_scanner` module.
+
 ## Session 2026-08-14b — v29.41: file gauges bound to the LIVE RansomwareDetector
 - ✅ **Follow-up on v29.40c**: the `fm` fix bound the *orphan* `file_monitor`
   module (`get_monitor()`), but that module is never `.start()`ed anywhere in

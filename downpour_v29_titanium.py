@@ -17719,6 +17719,40 @@ class HardwareMonitor:
         except Exception: pass
         # v29.39: Real-time behavior anomaly detection tracking
         # FIX-v29.40: `bs` was undefined -> same silent-zero problem as `fm`.
+        # FIX-v29.41b: the orphan behavior_scanner module is never started; when
+        # the live app backref exists, classify [BEHAVIOR] findings from the
+        # app's LIVE scanned process list (scan_all() → risk_reasons) instead.
+        _bh = {'keylog': 0, 'screen': 0, 'inject': 0, 'cred': 0,
+               'persist': 0, 'evasion': 0, 'exfil': 0, 'lateral': 0}
+        try:
+            if _app_nm is not None and getattr(_app_nm, '_processes', None) is not None:
+                _KEY = {
+                    'keylog': ('keylog', 'keyboard'),
+                    'screen': ('screen', 'screenshot'),
+                    'inject': ('inject', 'hollow', 'hook'),
+                    'cred': ('credential', 'password', 'logon'),
+                    'persist': ('persist', 'startup', 'autorun', 'run key', 'registry'),
+                    'evasion': ('evas', 'amsi', 'defender', 'bypass'),
+                    'exfil': ('exfil', 'exfiltration', 'upload'),
+                    'lateral': ('lateral', 'spread', 'network share', 'smb'),
+                }
+                for _lp in (getattr(_app_nm, '_processes', []) or []):
+                    _reasons = ' '.join(getattr(_lp, 'risk_reasons', []) or []).lower()
+                    if '[behavior]' not in _reasons:
+                        continue
+                    for _k, _kws in _KEY.items():
+                        if any(_kw in _reasons for _kw in _kws):
+                            _bh[_k] += 1
+                if sum(_bh.values()):
+                    stats['keylog_hour'] = _bh['keylog']
+                    stats['screen_hour'] = _bh['screen']
+                    stats['behavior_inject_hour'] = _bh['inject']
+                    stats['cred_hour'] = _bh['cred']
+                    stats['persist_hour'] = _bh['persist']
+                    stats['evasion_hour'] = _bh['evasion']
+                    stats['exfil_hour'] = _bh['exfil']
+                    stats['behavior_lateral_hour'] = _bh['lateral']
+        except Exception: pass
         try:
             bs = getattr(self, '_behavior_scanner_ref', None)
             if bs is None:
@@ -17728,17 +17762,15 @@ class HardwareMonitor:
                 except Exception:
                     bs = None
                 self._behavior_scanner_ref = bs
-        except Exception:
-            bs = None
-        try:
-            stats['keylog_hour'] = getattr(bs, '_keylogging_attempts_hour', 0)
-            stats['screen_hour'] = getattr(bs, '_screen_capture_attempts_hour', 0)
-            stats['behavior_inject_hour'] = getattr(bs, '_process_injection_attempts_hour', 0)
-            stats['cred_hour'] = getattr(bs, '_credential_theft_attempts_hour', 0)
-            stats['persist_hour'] = getattr(bs, '_persistence_attempts_hour', 0)
-            stats['evasion_hour'] = getattr(bs, '_evasion_attempts_hour', 0)
-            stats['exfil_hour'] = getattr(bs, '_exfil_attempts_hour', 0)
-            stats['behavior_lateral_hour'] = getattr(bs, '_lateral_movement_attempts_hour', 0)
+            if not sum(_bh.values()):
+                stats['keylog_hour'] = getattr(bs, '_keylogging_attempts_hour', 0)
+                stats['screen_hour'] = getattr(bs, '_screen_capture_attempts_hour', 0)
+                stats['behavior_inject_hour'] = getattr(bs, '_process_injection_attempts_hour', 0)
+                stats['cred_hour'] = getattr(bs, '_credential_theft_attempts_hour', 0)
+                stats['persist_hour'] = getattr(bs, '_persistence_attempts_hour', 0)
+                stats['evasion_hour'] = getattr(bs, '_evasion_attempts_hour', 0)
+                stats['exfil_hour'] = getattr(bs, '_exfil_attempts_hour', 0)
+                stats['behavior_lateral_hour'] = getattr(bs, '_lateral_movement_attempts_hour', 0)
         except Exception: pass
         # v29.39: Real-time disk I/O metrics
         try:
