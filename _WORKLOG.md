@@ -2,6 +2,51 @@
 
 ## Branch: main
 
+## Session 2026-08-16a1 — v29.41k: main-thread freeze elimination (rain + net UI)
+- ✅ Root-caused recurring 1.5–28.5s GUI freezes with a background
+  `freeze-sampler` daemon thread (120ms samples of the main-thread stack via
+  `sys._current_frames()`, 3s dominant-location vote) + per-section `_fmark`
+  timing inside the animation loop. Two real culprits dominated:
+  1. **Rain canvas** `ImmersiveRainCanvas._animate`: frames cost 1–4.4s in the
+     loaded app vs 2.8ms standalone (each Tk `coords()` ≈ 4–90ms under
+     software-render/load). The old 10fps `after(100)` loop stole whole
+     seconds whenever anything else ran concurrently.
+  2. **`_update_network_ui`** ran on the main thread every 5s and rebuilt
+     hundreds of Treeview rows via `_net_tree.item()` roundtrips sampled as
+     6–21.5s freezes — even while the rain was hard-frozen.
+- ✅ Rain fixes (all in `downpour_v29_titanium.py`):
+  - Fg/stipple/outline/fill itemconfig caching (skip redundant Tk reconfigs).
+  - Splash/streak pool resets limited to previously-used slots
+    (`_splash_last_used`, `_streak_last_used`) — killed the 50/70 pointless
+    off-screen reset coords per frame.
+  - Adaptive degradation: `_load_ema` (0.7/0.3) of frame cost drives
+    `_anim_allowed` backoff 100→1200ms; when >150ms the cosmetic layers
+    (splashes/fog/puddles/mist/lightning/**stars**) are skipped.
+  - Rotating drop stride `_update_drops(dt_scale, stride, degraded)` — only
+    1/N drops touched per frame, slice rotates so every drop still animates;
+    stride also scales linearly with EMA (`1 + ema/150`, capped 40) so a
+    pathological 3.6s frame degrades to ~3 coords().
+  - Hard freeze hysteresis: frame >700ms or EMA>600 → `_anim_frozen` (static
+    sky ~25s, ticks at 500ms); resume seeds `_anim_allowed=1200` and
+    **EMA=6000** with a 12-frame `_anim_probe_ticks` window (max stride,
+    freeze suppressed) so recovery ramps up gracefully instead of re-freezing
+    the instant full speed returns.
+  - Degrade path purges `_splashes/`_streaks` residue each frame (spawned in
+    `_update_drops` but never aged out when `_update_splashes` is skipped) —
+    had grown to `splashes=156 streaks=253` → 844ms wipe-out frame on resume.
+- ✅ Net UI fix: `_update_network_ui` now hard-skips when the Network tab is
+  off-screen (`winfo_viewable()==0`) and diffs a **rotating 60-row slice**
+  per pass instead of the whole tree — a 300-row refresh is spread over ~5
+  passes so it can never stall one frame.
+- ✅ Result (fresh run ~13 min, launched 04:47): **zero FREEZE logs** in the
+  first 8 min, then only 3 minor 1.5–1.8s hiccups from a `_drain_alert_queue`
+  reschedule + one mist frame mid-probe vs. previous runs' 2–26.7s freezes
+  every few seconds. Steady state is now nominal.
+- ✅ `pytest.ini` added (testpaths=tests; norecursedirs=_ARCHIVE
+  /_legacy_launchers/downpour_tmp/.venv) — bare `pytest` used to recurse into
+  legacy `_ARCHIVE` GUI/feed tests and die; now 75/75 clean.
+- ✅ 75/75 tests; boot smoke clean.
+
 ## Session 2026-08-14b9 — v29.41j: wire 4 more dead Perf gauges to live `_ti_ref`
 - ✅ Systematic gauge audit (130 gauge keys vs `_fetch` writes) confirmed every
   key is written — but a second audit of `self._*` reads found 4 more never-

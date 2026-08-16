@@ -189,6 +189,8 @@ Detects: **Mimikatz, CobaltStrike, Metasploit, Empire, PoshC2, AsyncRAT, NjRAT, 
 
 See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for full details.
 
+**v29.41k**: Eliminated the recurring main-thread GUI freezes (1.5–28.5s). Rain canvas got full adaptive degradation — EMA backoff, rotating drop stride (linear in measured frame cost), cosmetic-layer gating, itemconfig caching, and a hard-freeze hysteresis that holds a static sky under load then resumes at peak back-off with a probe window. The Network tab's diff-based Treeview refresh was the other major blocker (6–21.5s sampled) — it now hard-skips off-screen and diffs a rotating 60-row slice per pass. Zero FREEZE logs in a 13-min steady-state run (was 2–26.7s every few seconds). 75/75 tests.
+
 **v29.41j**: Wired 4 more dead Performance-tab gauges (MALWARE DETECTED / PHISHING URLS / SUSPICIOUS DNS / FILE THREATS) to the live threat-intel manager — they read never-assigned attributes and were stuck at 0. 75/75 tests.
 
 **v29.41i**: Wired the last dead Perf-tab gauges — SEC EVENTS now increments in the alert queue, and OSINT LOOKUPS/TODAY/CACHE increment from live IP/URL/hash lookups (all four were read-only, stuck at 0 forever). 74/74 tests.

@@ -18106,6 +18106,12 @@ class ImmersiveRainCanvas(tk.Canvas):
         self._lightning_phase = 0
         self._lightning_cb = None
         self._last_frame_time = 0.0
+        # Adaptive load degradation state (EMA of frame cost + tick backoff)
+        self._load_ema = 0.0
+        self._anim_allowed = 100
+        self._anim_frozen = False
+        self._anim_freeze_countdown = 60
+        self._anim_probe_ticks = 0
 
         # ── Storm dynamics ────────────────────────────────────────────────
         self._storm_phase_idx = 2          # start at 'storm'
@@ -18422,37 +18428,169 @@ class ImmersiveRainCanvas(tk.Canvas):
         dt_scale: Any = dt / 0.042  # normalize to 24fps baseline
 
         self._frame += 1
+        _frame_t0: Any = time.monotonic()
+        _fsec: Any = {}
+        def _fmark(name):
+            _fsec[name] = (time.monotonic() - _frame_t0) * 1000.0
         try:
             self._update_wind(dt_scale)
             self._update_storm_phase()
-            self._update_drops(dt_scale)
-            self._update_splashes(dt_scale)
-            self._update_fog()
+            # Adaptive layer skip: under frame-cost pressure, drop the cosmetic
+            # layers (splashes/fog/puddles/mist/lightning/stars) so only the
+            # rain lines are drawn — that keeps the signature look while giving
+            # the main thread the bulk of its time back.
+            _degrade: bool = self._anim_allowed > 150
+            if not _degrade:
+                _fmark('phase')
+            # under load, stride the drops (only 1/N touched per frame). Stride
+            # scales with BOTH the backoff interval and the EMA frame cost so
+            # a jump in per-coords() cost (observed 4ms..90ms on this box)
+            # deepens the stride immediately instead of waiting for the EMA
+            # to climb through the backoff tiers. The EMA term is linear in the
+            # measured frame cost so a pathological 3.6s frame (~3600 EMA) gets
+            # ~24-36x striding -> 3-5 coords() calls max.
+            _drop_stride: int = 1 if self._anim_allowed <= 300 else (
+                2 if self._anim_allowed <= 600 else 4)
+            _ema_now: float = getattr(self, '_load_ema', 0.0)
+            _ema_stride: int = 1 + int(_ema_now / 150.0)
+            _drop_stride = max(_drop_stride, min(_ema_stride, 40))
+            self._update_drops(dt_scale, _drop_stride, _degrade)
+            if not _degrade:
+                _fmark('drops')
+            if not _degrade:
+                self._update_splashes(dt_scale)
+                _fmark('splashes')
+            else:
+                # Degraded path: splashes spawn in _update_drops but are never
+                # aged out because _update_splashes is skipped. Purge the
+                # residue lists every frame so a win-back to full speed doesn't
+                # suddenly render a backlog of hundreds of items (observed:
+                # splashes=156 streaks=253 -> 844ms wipe-out frame).
+                try:
+                    if self._splashes or self._streaks:
+                        self._splashes = []
+                        self._streaks = []
+                        self._splash_last_used = 0
+                        self._streak_last_used = 0
+                except Exception:
+                    pass
+            if not _degrade:
+                self._update_fog()
+                _fmark('fog')
 
             # Puddle shimmer (every 3rd frame — lightweight)
-            if self._frame % 3 == 0:
+            if not _degrade and self._frame % 3 == 0:
                 self._update_puddles(dt_scale)
             # Mist particles (every 2nd frame)
-            if self._frame % 2 == 0:
+            if not _degrade and self._frame % 2 == 0:
                 self._update_mist(dt_scale)
 
-            # Lightning based on current storm phase
-            phase: Any = self._STORM_PHASES[self._storm_phase_idx]
-            lightning_chance: Any = phase[3]
-            if random.random() < lightning_chance:
-                self._trigger_lightning()
-            if self._lightning_phase > 0:
+            # Lightning based on current storm phase — skipped when degraded
+            # (bolt gen + segment coords are heavy; measured fx=1438ms under
+            # load even though _update_splashes was purged).
+            if not _degrade:
+                phase: Any = self._STORM_PHASES[self._storm_phase_idx]
+                lightning_chance: Any = phase[3]
+                if random.random() < lightning_chance:
+                    self._trigger_lightning()
+            if not _degrade and self._lightning_phase > 0:
                 self._update_lightning()
-            if self._afterglow_phase > 0:
+            if not _degrade and self._afterglow_phase > 0:
                 self._afterglow_phase -= 1
+            _fmark('fx')
 
-            # Star twinkle (every 6th frame to save CPU)
-            if self._frame % 6 == 0:
+            # Star twinkle (every 6th frame to save CPU) — skipped entirely
+            # while degraded so the cosmetic stars never add canvas ops.
+            if not _degrade and self._frame % 6 == 0:
                 self._twinkle_stars()
         except Exception:
             pass
-        # 10fps — smooth enough for rain, much less CPU
-        self.after(100, self._animate)
+        _fmark('done')
+        # Slow-frame guard: if a single animation frame exceeds 500ms the
+        # main thread is saturated — log the duration so freezes are traced
+        # to the animation itself instead of guessed at.
+        _frame_ms: Any = (time.monotonic() - _frame_t0) * 1000.0
+        # Adaptive degradation: keep an EMA of frame cost. If a single frame
+        # is pathologically slow (machine under load), back the tick interval
+        # off so the main thread gets breathing room; recover as soon as the
+        # EMA settles back down. This keeps the rain running while it's cheap
+        # and stops it from stealing whole seconds of GUI time when the system
+        # is struggling (observed: 1-4.4s frames under pressure).
+        self._load_ema = (self._load_ema * 0.7) + _frame_ms * 0.3
+        if self._load_ema > 450:
+            self._anim_allowed = min(1200, self._anim_allowed * 2)
+        elif self._load_ema < 45:
+            self._anim_allowed = 100  # fast again when load is gone
+        # Hard freeze under sustained load: if a frame is pathologically slow
+        # (even once, at low backoff), stop drawing entirely (static sky) until
+        # the main thread proves it can run cheap frames again. This guarantees
+        # rain can never hold the GUI hostage for multiple seconds no matter
+        # how loaded the machine is — on software-rendered displays a 120-drop
+        # frame can cost seconds, and no amount of interval stretch helps that.
+        _frozen: bool = getattr(self, '_anim_frozen', False)
+        _probe: int = getattr(self, '_anim_probe_ticks', 0)
+        # During the post-freeze probe window the EMA is seeded very high so
+        # the stride is maxed and frames are cheap; skip the freeze trigger
+        # there so the probe can actually run its ramp-down.
+        if not _frozen and _probe <= 0 and (_frame_ms > 700 or self._load_ema > 600):
+            self._anim_frozen = True
+            self._anim_freeze_countdown = 50  # ~25s of frozen sky (up from 25)
+            self._anim_allowed = 500
+            try:
+                logger.info('[RAIN] animation frozen to protect GUI (frame %.0fms)',
+                            _frame_ms)
+            except Exception:
+                pass
+        elif _frozen:
+            self._anim_freeze_countdown -= 1
+            if self._anim_freeze_countdown <= 0:
+                self._anim_frozen = False
+                # Deliberately resume at PEAK back-off (not full speed): the
+                # freeze proved the machine could not sustain cheap frames, so
+                # probe slowly and let the EMA ramp back down to 100ms only if
+                # frames stay fast. Resuming at 100ms immediately after a
+                # freeze caused an instant re-freeze (observed at 00:14:36).
+                # EMA is seeded VERY high so the first probe frames run at max
+                # stride (≈3 coords ≈ tens of ms) and ramp up gracefully as
+                # EMA decays toward the measured frame cost.
+                self._anim_allowed = 1200
+                self._load_ema = 6000
+                self._anim_probe_ticks = 12
+                try:
+                    logger.info('[RAIN] animation resumed (cooldown elapsed) '
+                                'at peak back-off')
+                except Exception:
+                    pass
+        if _probe > 0:
+            _probe -= 1
+            self._anim_probe_ticks = _probe
+        # skip rendering entirely while frozen — only physics bookkeeping runs
+        if getattr(self, '_anim_frozen', False):
+            try:
+                self._update_wind(0.5)
+                self._update_storm_phase()
+            except Exception:
+                pass
+            self._slow_frames = 0
+            self.after(500, self._animate)
+            return
+        if _frame_ms > 500:
+            _slow_ct: Any = getattr(self, '_slow_frames', 0)
+            self._slow_frames = _slow_ct + 1
+            if _slow_ct % 20 == 0:
+                try:
+                    _breakdown: Any = ' '.join(
+                        f'{k}={v:.0f}ms' for k, v in _fsec.items())
+                    logger.info('[RAIN-SLOW] frame %.0fms drops=%d splashes=%d '
+                                'streaks=%d fog=%d puddles=%d mist=%d | %s',
+                                _frame_ms, len(self._drops), len(self._splashes),
+                                len(self._streaks), len(self._fog_items),
+                                len(self._puddle_items), self._MIST_POOL,
+                                _breakdown)
+                except Exception:
+                    pass
+        # 10fps — smooth enough for rain, much less CPU (adaptive)
+        self.after(self._anim_allowed, self._animate)
 
     # ── Wind gust dynamics ───────────────────────────────────────────────
     def _update_wind(self, dt_scale):
@@ -18479,7 +18617,7 @@ class ImmersiveRainCanvas(tk.Canvas):
                 self._storm_phase_timer = 0
 
     # ── Drop physics + rendering ─────────────────────────────────────────
-    def _update_drops(self, dt_scale):
+    def _update_drops(self, dt_scale, stride: int = 1, degraded: bool = False):
         items: Any = self._drop_items
         colors: Any = self._drop_colors
         widths: Any = self._drop_widths
@@ -18489,8 +18627,13 @@ class ImmersiveRainCanvas(tk.Canvas):
         phase: Any = self._STORM_PHASES[self._storm_phase_idx]
         spd_mult: Any = phase[1]
 
-        for i, d in enumerate(self._drops):
-            # Apply wind + speed with delta-time
+        # Rotating stride: under main-thread load we update only a strided
+        # slice of drops per frame (the rest keep their last coords) so the
+        # per-frame canvas op budget shrinks in step with the load. The slice
+        # rotates each frame so every drop still animates — just spread out.
+        _stride: int = max(stride, 1)
+        for i in range(self._frame % _stride, len(self._drops), _stride):
+            d: Any = self._drops[i]
             d['y'] += d['spd'] * spd_mult * dt_scale
             d['x'] += (d['wnd'] + wind) * dt_scale
             if d['x'] < -10:
@@ -18499,7 +18642,8 @@ class ImmersiveRainCanvas(tk.Canvas):
                 d['x'] = -10
             # Hit bottom — recycle + spawn splash
             if d['y'] > h + d['len']:
-                self._alloc_splash(d['x'], h, d['col'])
+                if not degraded:
+                    self._alloc_splash(d['x'], h, d['col'])
                 nd: Any = self._new_drop()
                 d.update(nd)
                 if i < len(items):
@@ -18548,6 +18692,9 @@ class ImmersiveRainCanvas(tk.Canvas):
         """Update splash/streak positions using pre-allocated canvas items."""
         alive_s: Any = []
         oval_idx: Any = 0
+        # cache last outline color per pool slot to skip redundant itemconfig
+        if getattr(self, '_splash_color_cache', None) is None:
+            self._splash_color_cache = [None] * self._SPLASH_POOL
         for s in self._splashes:
             s['life'] -= 1
             if s['life'] <= 0:
@@ -18561,14 +18708,25 @@ class ImmersiveRainCanvas(tk.Canvas):
                 oid: Any = self._splash_items[oval_idx]
                 self.coords(oid, s['x'] - r, s['y'] - r * 0.3,
                              s['x'] + r, s['y'] + r * 0.3)
-                self.itemconfig(oid, outline=s['col'])
+                if self._splash_color_cache[oval_idx] != s['col']:
+                    self.itemconfig(oid, outline=s['col'])
+                    self._splash_color_cache[oval_idx] = s['col']
                 oval_idx += 1
-        for j in range(oval_idx, self._SPLASH_POOL):
+        # Only reset slots that were in use LAST frame; avoids 50 pointless
+        # off-screen coords() calls when no splashes are alive (the biggest
+        # per-frame win when the pool is empty under load).
+        _prev_oval: int = getattr(self, '_splash_last_used', 0)
+        for j in range(oval_idx, min(_prev_oval, self._SPLASH_POOL)):
             self.coords(self._splash_items[j], -20, -20, -10, -10)
+            if self._splash_color_cache[j] is not None:
+                self._splash_color_cache[j] = None
+        self._splash_last_used = oval_idx
         self._splashes = alive_s
         # Update streaks
         alive_t: Any = []
         line_idx: Any = 0
+        if getattr(self, '_streak_color_cache', None) is None:
+            self._streak_color_cache = [None] * self._STREAK_POOL
         for t in self._streaks:
             t['life'] -= 1
             if t['life'] <= 0:
@@ -18580,12 +18738,20 @@ class ImmersiveRainCanvas(tk.Canvas):
             ny: Any = t['y'] + t['vy'] * dt_scale + 0.4
             lid: Any = self._streak_items[line_idx]
             self.coords(lid, t['x'], t['y'], nx, ny)
-            self.itemconfig(lid, fill=t['col'])
+            if self._streak_color_cache[line_idx] != t['col']:
+                self.itemconfig(lid, fill=t['col'])
+                self._streak_color_cache[line_idx] = t['col']
             t['x'], t['y'] = nx, ny
             t['vy'] += 0.35 * dt_scale
             line_idx += 1
-        for j in range(line_idx, self._STREAK_POOL):
+        # Only reset streak slots that were in use last frame (0 streaks = 0
+        # coords instead of 70 off-screen coords every frame).
+        _prev_line: int = getattr(self, '_streak_last_used', 0)
+        for j in range(line_idx, min(_prev_line, self._STREAK_POOL)):
             self.coords(self._streak_items[j], -20, -20, -20, -20)
+            if self._streak_color_cache[j] is not None:
+                self._streak_color_cache[j] = None
+        self._streak_last_used = line_idx
         self._streaks = alive_t
 
     # ── Fog / mist layer ─────────────────────────────────────────────────
@@ -18597,6 +18763,11 @@ class ImmersiveRainCanvas(tk.Canvas):
         w: Any = self.w
         fog_base: Any = h * (1.0 - fog_intensity * 0.3)
         band_h: Any = (h - fog_base) / max(self._FOG_BANDS, 1)
+        # Cache the last (style, fill) tuple per band so we DON'T re-issue an
+        # identical itemconfig every frame — under machine load Tk redraw
+        # cost dominates and reconfiguring unchanged fog is pure waste.
+        if getattr(self, '_fog_style_cache', None) is None:
+            self._fog_style_cache = [None] * len(self._fog_items)
         for i, fid in enumerate(self._fog_items):
             y0: Any = fog_base + i * band_h
             y1: Any = y0 + band_h + 2
@@ -18606,7 +18777,9 @@ class ImmersiveRainCanvas(tk.Canvas):
             # Vary stipple density based on position (denser at bottom)
             stipple: Any = 'gray25' if i < self._FOG_BANDS // 2 else 'gray12'
             fog_col: Any = '#0a1428' if i % 2 == 0 else '#0e1830'
-            self.itemconfig(fid, fill=fog_col, stipple=stipple)
+            if self._fog_style_cache[i] != (fog_col, stipple):
+                self.itemconfig(fid, fill=fog_col, stipple=stipple)
+                self._fog_style_cache[i] = (fog_col, stipple)
 
     # ── Puddle reflections ─────────────────────────────────────────────
     def _update_puddles(self, dt_scale):
@@ -35370,14 +35543,78 @@ Verification Status:
 
         # Freeze diagnostic (lightweight — 200ms check, no work)
         import time as _fdt
+        import sys as _fds
+        import traceback as _fdtb
+        import threading as _fdth
         self._freeze_diag_last = _fdt.perf_counter()
+        self._freeze_diag_stack: Any = ['<no sample>']
+        self._freeze_diag_dom: Any = ['<no sample>']
+        # Background sampler: every 120ms snapshot the main thread's stack so
+        # that when a >1.5s block IS detected we can report what actually
+        # caused it (the after()-based check fires only AFTER the block ends,
+        # so it can never see the culprit by itself).
+        try:
+            _fdt_main_tid: Any = _fdth.main_thread().ident
+            _fdt_stop_flag: Any = [False]
+            self._freeze_diag_counts: Any = {}
+            self._freeze_diag_last_reset: Any = _fdt.perf_counter()
+            def _freeze_sampler():
+                while not _fdt_stop_flag[0]:
+                    try:
+                        _mf: Any = _fds._current_frames().get(_fdt_main_tid)
+                        _now2: Any = _fdt.perf_counter()
+                        # every 3s, fold the frequency map down so the block
+                        # report can show the dominant steady-state location as
+                        # an annotation (the authoritative stack stays the live
+                        # 120ms sample, which is closest to the actual block)
+                        if _now2 - self._freeze_diag_last_reset >= 3.0:
+                            if self._freeze_diag_counts:
+                                _dom_key = max(self._freeze_diag_counts,
+                                               key=lambda kv: self._freeze_diag_counts[kv][0])
+                                self._freeze_diag_dom = self._freeze_diag_counts[_dom_key][1]
+                            self._freeze_diag_counts = {}
+                            self._freeze_diag_last_reset = _now2
+                        if _mf is not None:
+                            _stk: Any = _fdtb.format_stack(_mf)
+                            # always refresh the live slot so a short block
+                            # still reports the stack sampled nearest the block
+                            self._freeze_diag_stack = _stk
+                            # fold the stack to its most specific frame: last
+                            # "line N, in func" entry
+                            _key_fn: str = 'unknown'
+                            for _sf in _stk:
+                                _mm2: Any = __import__('re').search(
+                                    r', line (\d+), in (\w+)', _sf)
+                                if _mm2:
+                                    _key_fn = 'line%s %s' % (_mm2.group(1), _mm2.group(2))
+                            _entry: Any = self._freeze_diag_counts.get(_key_fn)
+                            if _entry is None:
+                                self._freeze_diag_counts[_key_fn] = [1, _stk]
+                            else:
+                                _entry[0] += 1
+                    except Exception:
+                        pass
+                    _fdt.sleep(0.12)
+            self._freeze_diag_sampler: Any = _fdth.Thread(
+                target=_freeze_sampler, name='freeze-sampler', daemon=True)
+            self._freeze_diag_sampler.start()
+        except Exception:
+            self._freeze_diag_stack = ['<sampler unavailable>']
         def _freeze_check():
-            if not self.winfo_exists(): return
+            if not self.winfo_exists():
+                return
             now: Any = _fdt.perf_counter()
             elapsed: Any = now - self._freeze_diag_last
             if elapsed > 1.5:
-                logger.warning('[FREEZE] GUI blocked %.1fs', elapsed)
+                _stack_txt: Any = '\n'.join(self._freeze_diag_stack[:12])
+                _dom_txt: Any = '\n'.join(
+                    getattr(self, '_freeze_diag_dom', [''])[:8])
+                logger.warning('[FREEZE] GUI blocked %.1fs, main-thread stack:\n%s'
+                               '\n<dominant 3s loc:\n%s>',
+                               elapsed, _stack_txt, _dom_txt)
             self._freeze_diag_last = now
+            self._freeze_diag_stack = ['<no recent block>']
+            self._freeze_diag_dom = ['<no recent dominant loc>']
             self._orig_after(500, _freeze_check)
         self._orig_after(500, _freeze_check)
 
@@ -36120,8 +36357,23 @@ Verification Status:
 
     def _update_network_ui(self, conns, proc_map: Optional[dict] = None, threat_cache: Optional[dict] = None):
         """Diff-based network treeview. proc_map + threat_cache pre-built in background."""
-        if not self.winfo_exists(): return
+        if not self.winfo_exists():
+            return
         try:
+            # FIX-v29p49: Hard visibility + row-budget gates. A full tree rebuild
+            # on every 5s net loop was the dominant periodic main-thread blocker
+            # (sampled 6-21s freezes inside _update_network_ui, even while the
+            # rain animation was hard-frozen). If the Network tab isn't visible
+            # there is nothing to render — skip entirely. When visible, only a
+            # rotating slice of rows is diffed per pass so a 300-row tree costs
+            # a bounded fraction of one frame instead of the whole event loop.
+            if getattr(self, '_net_tree', None) is None:
+                return
+            try:
+                if self._net_tree.winfo_viewable() == 0 or self._net_tree.winfo_height() < 20:
+                    return
+            except Exception:
+                return
             if proc_map is None:
                 proc_map = getattr(self, '_cached_proc_map', {})
             if threat_cache is None:
@@ -36193,7 +36445,21 @@ Verification Status:
             if to_remove:
                 self._net_tree.delete(*to_remove)
 
-            for k, (vals, tag) in target.items():
+            # Rotating diff slice: cap how many Treeview rows are touched per pass
+            # and rotate the window each call so every row still gets refreshed
+            # across passes. Prevents a large tree from stalling one frame
+            # (measured: _net_tree.item() roundtrips cost tens of ms each under
+            # load on this box).
+            _row_budget: int = 60
+            _net_tick: int = getattr(self, '_net_diff_tick', 0) + 1
+            self._net_diff_tick = _net_tick
+            _row_budget = max(15, _row_budget)
+            _start_idx: int = (_net_tick * _row_budget) % max(len(target), 1)
+            _sliced: Any = list(target.items())[_start_idx:_start_idx + _row_budget]
+            _sliced.extend(
+                list(target.items())[:max(0, _row_budget - len(_sliced))])
+
+            for k, (vals, tag) in _sliced:
                 if k in existing:
                     # Update existing row if values changed
                     cur: Any = self._net_tree.item(k, 'values')
