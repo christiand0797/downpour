@@ -47,6 +47,38 @@
   legacy `_ARCHIVE` GUI/feed tests and die; now 75/75 clean.
 - ✅ 75/75 tests; boot smoke clean.
 
+## Session 2026-08-16a2 — v29.41k2: kill residual 1.5–21.4s freezes (idle backoff + coords-cost degradation)
+- ✅ Tally of the 3 residual 1.5–3s freezes from session a1 (`_day_tally2.txt`,
+  1210 freezes/7h) showed the freeze-checker now catches mostly **periodic
+  drain-loop backlog**: three separate sub-200ms main-thread loops
+  (`_early_drain` @200ms, `_drain_alert_queue` @150ms, `_schedule_ui_updates`
+  @150ms) with `_pending_after` drained redundantly by two of them. On a
+  loaded box each Tk call costs 4–90ms, so constant-wakeup drains built an
+  accumulated Tcl backlog that tripped the 1.5s check even with rain fixed.
+- ✅ **Idle backoff** on all three drains: `_early_drain` and
+  `_drain_alert_queue` re-arm at **1s when nothing was queued** (150–200ms
+  only when they actually drained work); `_schedule_ui_updates` re-arms at
+  500ms idle / 150ms busy. `_did_work` flags added to each. (~5× fewer
+  main-thread wakeups in steady state.)
+- ✅ Root-caused the still-periodic **9.9–21.4s freezes**: the rain stride
+  keyed off the *frame-cost* EMA, which oscillates — cheap probe frames decay
+  the EMA to ~83, the linear stride term collapses to 1, and a full 120-drop
+  frame at ~80ms/coords = a 10s main-thread block, freeze, probe, repeat.
+- ✅ **Coords-cost self-regulation** (decoupled from frame EMA):
+  - `_update_drops` times its actual `coords()` calls and keeps a
+    `_coords_cost_ema` (0.7/0.3, updated only when ≥5 calls sampled).
+  - `_animate` computes the drop stride from a hard **~50ms coords budget**:
+    `stride = ceil(n_drops / floor(50ms / per-coords-cost))`, capped 80, so a
+    80ms/coords box touches ~2 drops/frame regardless of EMA state.
+  - `_degrade` is now ALSO true whenever `_coords_cost_ema >= 8` — cosmetic
+    layers (stars/splash/fog/mist/lightning) stay off while canvas ops are
+    intrinsically expensive, so they can't run a multi-second frame the moment
+    the frame EMA falls back to 100ms. Seeded `_coords_cost_ema = 8.0` at init.
+- ✅ Result (fresh run 20:10:33, observed ~6 min): **zero FREEZE logs**, no
+  RAIN freeze/resume cycling at all, CPU ~34% idle-ish, alerts flowing. Prior
+  run of the same commit: 9.9–21.4s freezes every ~30–60s.
+- ✅ 75/75 tests; boot smoke clean.
+
 ## Session 2026-08-14b9 — v29.41j: wire 4 more dead Perf gauges to live `_ti_ref`
 - ✅ Systematic gauge audit (130 gauge keys vs `_fetch` writes) confirmed every
   key is written — but a second audit of `self._*` reads found 4 more never-

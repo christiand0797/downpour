@@ -18108,6 +18108,10 @@ class ImmersiveRainCanvas(tk.Canvas):
         self._last_frame_time = 0.0
         # Adaptive load degradation state (EMA of frame cost + tick backoff)
         self._load_ema = 0.0
+        # FIX-v29.41k: per-coords() cost EMA drives the drop stride directly
+        # (see _update_drops). Seed at a modest 5ms so early frames are a bit
+        # conservative while the real cost is being measured.
+        self._coords_cost_ema = 8.0
         self._anim_allowed = 100
         self._anim_frozen = False
         self._anim_freeze_countdown = 60
@@ -18439,7 +18443,15 @@ class ImmersiveRainCanvas(tk.Canvas):
             # layers (splashes/fog/puddles/mist/lightning/stars) so only the
             # rain lines are drawn — that keeps the signature look while giving
             # the main thread the bulk of its time back.
-            _degrade: bool = self._anim_allowed > 150
+            # FIX-v29.41k: ALSO degrade when the measured per-coords() cost is
+            # intrinsically high (stride-protected drop frames stay cheap, so
+            # the frame EMA can fall back to 100ms and re-enable the cosmetic
+            # layers — then stars/fog/mist run at ~80ms/coords x dozens =
+            # multi-second frames again; observed 21.4s freeze). Tying degrade
+            # to the coords cost self-regulates: cosmetics resume only when
+            # canvas ops are genuinely cheap again.
+            _degrade: bool = self._anim_allowed > 150 or (
+                getattr(self, '_coords_cost_ema', 0.0) >= 8.0)
             if not _degrade:
                 _fmark('phase')
             # under load, stride the drops (only 1/N touched per frame). Stride
@@ -18454,6 +18466,20 @@ class ImmersiveRainCanvas(tk.Canvas):
             _ema_now: float = getattr(self, '_load_ema', 0.0)
             _ema_stride: int = 1 + int(_ema_now / 150.0)
             _drop_stride = max(_drop_stride, min(_ema_stride, 40))
+            # FIX-v29.41k: stride from MEASURED per-coords() cost, not frame
+            # EMA. The frame EMA oscillates: cheap probe frames decay it to
+            # ~83, which collapses the linear term back to 1 and a 120-drop
+            # frame at ~80ms/coords = a 10s main-thread block (observed 9-11s
+            # freezes every ~30s). Budget the coords() time directly instead:
+            # if a coords() call is expensive, touch only enough drops to stay
+            # under ~50ms of canvas time per frame, regardless of EMA state.
+            _coords_ema: float = getattr(self, '_coords_cost_ema', 0.0)
+            if _coords_ema >= 8.0:
+                _coords_budget_ms: float = 50.0
+                _max_calls: int = max(1, int(_coords_budget_ms / _coords_ema))
+                _n_drops: int = len(self._drops)
+                _need_stride: int = int(math.ceil(_n_drops / max(_max_calls, 1)))
+                _drop_stride = max(_drop_stride, min(_need_stride, 80))
             self._update_drops(dt_scale, _drop_stride, _degrade)
             if not _degrade:
                 _fmark('drops')
@@ -18632,6 +18658,8 @@ class ImmersiveRainCanvas(tk.Canvas):
         # per-frame canvas op budget shrinks in step with the load. The slice
         # rotates each frame so every drop still animates — just spread out.
         _stride: int = max(stride, 1)
+        _call_t0: float = time.monotonic()
+        _calls: int = 0
         for i in range(self._frame % _stride, len(self._drops), _stride):
             d: Any = self._drops[i]
             d['y'] += d['spd'] * spd_mult * dt_scale
@@ -18655,6 +18683,7 @@ class ImmersiveRainCanvas(tk.Canvas):
             y2: Any = d['y'] - d['len']
             if i < len(items):
                 self.coords(items[i], d['x'], d['y'], x2, y2)
+                _calls += 1
                 col: Any = '#eef8ff' if d['fat'] else d['col']
                 wid: Any = 3 if d['fat'] else d['wid']
                 if i < len(colors) and colors[i] != col:
@@ -18663,6 +18692,14 @@ class ImmersiveRainCanvas(tk.Canvas):
                 if i < len(widths) and widths[i] != wid:
                     self.itemconfig(items[i], width=wid)
                     widths[i] = wid
+        # FIX-v29.41k: EMA of per-coords() call cost, so the stride can be
+        # derived from the real canvas-op price (independent of frame EMA
+        # oscillation). Only profile when at least 5 calls ran; stale value
+        # retained otherwise so a stride-tiny frame doesn't decay the estimate.
+        if _calls >= 5:
+            _per_call_ms: float = (time.monotonic() - _call_t0) * 1000.0 / _calls
+            self._coords_cost_ema = (
+                getattr(self, '_coords_cost_ema', 0.0) * 0.7 + _per_call_ms * 0.3)
 
     # ── Splash system (pre-allocated pool — zero canvas allocs) ──────────
     def _alloc_splash(self, x, y, color):
@@ -21906,12 +21943,22 @@ class downpour(tk.Tk):
             try:
                 if not self.winfo_exists():
                     return
+                _drained: int = 0
                 for _ in range(16):
                     if not self._pending_after:
                         break
                     ms, func, args = self._pending_after.popleft()
                     self._orig_after(ms, func, *args)
-                self._orig_after(200, _early_drain)  # FIX-v28p9: was 50ms
+                    _drained += 1
+                # FIX-v29.41k: idle backoff — when nothing was queued, sleep
+                # 1s instead of waking the main thread every 200ms. With ~5s
+                # per pending-after call under load, pointless wakeups built
+                # an accumulated Tk backlog that tripped the 1.5s freeze
+                # check (was 116+ of 1210 freezes in 7h).
+                if _drained:
+                    self._orig_after(200, _early_drain)
+                else:
+                    self._orig_after(1000, _early_drain)
             except Exception:
                 try: self._orig_after(200, _early_drain)
                 except Exception: pass
@@ -22595,11 +22642,14 @@ class downpour(tk.Tk):
         try:
             if not self.winfo_exists():
                 return  # Window destroyed — stop rescheduling
+            _did_work: bool = False
             with self._ui_update_lock:
                 while self._ui_update_queue:
                     widget, update_func = self._ui_update_queue.pop(0)
                     self._execute_ui_update(widget, update_func)
-            self._orig_after(150, self._schedule_ui_updates)  # FIX-v28p35: 150ms (was 500ms)
+                    _did_work = True
+            # FIX-v29.41k: idle backoff — 500ms when queue empty (was 150ms constant)
+            self._orig_after(150 if _did_work else 500, self._schedule_ui_updates)
         except Exception:
             try:
                 self._orig_after(100, self._schedule_ui_updates)
@@ -36809,6 +36859,7 @@ Verification Status:
         try:
             if not self.winfo_exists():
                 return  # Window destroyed — stop rescheduling
+            _did_work: bool = False
             # -- Drain deferred self.after() calls from background threads --
             for _ in range(20):  # FIX-v28p19: drain more pending_after per cycle
                 if not self._pending_after:
@@ -36816,6 +36867,7 @@ Verification Status:
                 try:
                     ms, func, args = self._pending_after.popleft()
                     self._orig_after(ms, func, *args)
+                    _did_work = True
                 except Exception:
                     pass
             # -- Drain alert queue --
@@ -36829,6 +36881,7 @@ Verification Status:
                 except Exception:
                     pass  # Widget may not exist yet — skip this alert
                 drained += 1
+                _did_work = True
             # Refresh threats tab treeview if new entries arrived.
             # FIX: throttle to max once per 2s AND only when tab is visible,
             # to avoid rebuilding 2000-row treeview on every 150ms drain cycle.
@@ -36853,7 +36906,7 @@ Verification Status:
                             self._threat_log_refresh_ts = _now
                     except Exception:
                         pass
-            self._orig_after(150, self._drain_alert_queue)  # FIX-v28p35: 150ms (was 300ms)
+            self._orig_after(150 if _did_work else 1000, self._drain_alert_queue)  # FIX-v29.41k: idle backoff — 1s when nothing queued
         except tk.TclError:
             pass  # Tk destroyed — stop cleanly
         except Exception:
