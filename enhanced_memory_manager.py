@@ -46,6 +46,7 @@ class MemorySnapshot:
     percent: float = 0.0; swap_used: int = 0
     gc_counts: Tuple[int,...] = (0,0,0)
     tracemalloc_current: int = 0; tracemalloc_peak: int = 0
+    rss_bytes: int = 0  # FIX-v29.41k3: this process's own RSS
 
 @dataclass
 class LeakReport:
@@ -54,6 +55,7 @@ class LeakReport:
     suspected_objects: List[str] = field(default_factory=list)
     top_allocations: List[Tuple[str,int]] = field(default_factory=list)
     recommendation: str = ""
+    type_counts: List[str] = field(default_factory=list)
 
 # ─── Core Manager ─────────────────────────────────────────────────────────────
 class EnhancedMemoryManager:
@@ -123,15 +125,30 @@ class EnhancedMemoryManager:
                     self._respond_to_pressure(pressure, consecutive_high)
                 else:
                     consecutive_high = max(0, consecutive_high - 1)
-                # Leak detection every 20 snapshots
-                if len(self._snapshots) % 20 == 0:
+                # Leak detection every 10 snapshots (5 min at 30s / 2.5 min at 15s)
+                if len(self._snapshots) % 10 == 0:
                     report = self.detect_leaks()
                     if report.detected:
                         self.stats['leak_detections'] += 1
                         _log.warning("Memory leak detected: %.2f MB/min growth",
                                      report.growth_rate_mb_per_min)
-                interval = 15 if pressure.value >= MemoryPressure.MODERATE.value else 30
-                time.sleep(interval)
+                        # FIX-v29.41k3: surface the actual top allocation sites
+                        # so the leak can be chased instead of guessed at.
+                        try:
+                            _top = "; ".join(
+                                "{}->{} {}".format(*t) if len(t) >= 3 else str(t)
+                                for t in report.top_allocations[:6])
+                            _log.warning("  top allocations: %s", _top)
+                        except Exception:
+                            pass
+                        try:
+                            _log.warning("  top types: %s", ", ".join(report.type_counts[:8]))
+                        except Exception:
+                            pass
+                # FIX-v29.41k3: `interval` was never defined -> NameError every
+                # loop, so the thread silently slept 60s (leak reports ~10min
+                # apart). Monitor at 15s under pressure, 30s otherwise.
+                time.sleep(15 if pressure.value >= MemoryPressure.HIGH.value else 30)
             except Exception as exc:
                 _log.debug("Monitor loop: %s", exc); time.sleep(60)
 
@@ -152,6 +169,13 @@ class EnhancedMemoryManager:
             gc_counts=tuple(gc.get_count()),
             tracemalloc_current=cur, tracemalloc_peak=peak,
         )
+        # FIX-v29.41k3: track the app's own RSS so leak detection measures
+        # THIS process, not whole-system memory (other apps made system
+        # `used_bytes` grow 87 MB/min and produced false leak alarms).
+        try:
+            snap.rss_bytes = psutil.Process(os.getpid()).memory_info().rss
+        except Exception:
+            snap.rss_bytes = 0
         peak_mb = mem.used / 1024**2
         if peak_mb > self.stats['peak_memory_mb']:
             self.stats['peak_memory_mb'] = peak_mb
@@ -210,7 +234,14 @@ class EnhancedMemoryManager:
         if len(self._snapshots) < 10: return report
         snaps = list(self._snapshots)
         recent = snaps[-10:]
-        growth = (recent[-1].used_bytes - recent[0].used_bytes) / 1024**2
+        # FIX-v29.41k3: base the growth rate on THIS process's RSS when
+        # available (falls back to system used_bytes otherwise). System-wide
+        # `used_bytes` grows with every other app on the box and caused
+        # constant false leak alarms.
+        if any(s.rss_bytes for s in recent):
+            growth = (recent[-1].rss_bytes - recent[0].rss_bytes) / 1024**2
+        else:
+            growth = (recent[-1].used_bytes - recent[0].used_bytes) / 1024**2
         elapsed_min = (recent[-1].timestamp - recent[0].timestamp) / 60
         if elapsed_min > 0: rate = growth / elapsed_min
         else: return report
@@ -218,6 +249,17 @@ class EnhancedMemoryManager:
             report.detected = True
             report.growth_rate_mb_per_min = rate
             report.recommendation = "Consider restarting or investigating memory-heavy components"
+            # FIX-v29.41k3: capture gc type counts FIRST (before the tracemalloc
+            # snapshot below), otherwise the report's own Traceback/Statistic
+            # objects dominate the type histogram and hide the real leak.
+            try:
+                _types: Dict[str, int] = {}
+                for o in gc.get_objects():
+                    _n = type(o).__name__
+                    _types[_n] = _types.get(_n, 0) + 1
+                _big = sorted(_types.items(), key=lambda kv: -kv[1])[:10]
+                report.type_counts = [f"{k}={v}" for k, v in _big]
+            except Exception: pass
             try:
                 snapshot = tracemalloc.take_snapshot()
                 top = snapshot.statistics('lineno')[:10]
@@ -273,7 +315,25 @@ class EnhancedMemoryManager:
         _log.info("EnhancedMemoryManager cleaned up")
 
 # ─── Singleton ────────────────────────────────────────────────────────────────
+# FIX-v29.41k4: under Windows `spawn`, ProcessPoolExecutor workers re-import
+# this module. Each child would otherwise start its own tracemalloc + monitor
+# thread and flood the shared log with the PARSE worker's memory view, hiding
+# the real main-process leak. Detect child context and stop monitoring there.
+def _is_spawn_child() -> bool:
+    try:
+        from multiprocessing import current_process
+        _name = current_process().name
+        return _name and _name not in ('MainProcess', 'SpawnMainProcess')
+    except Exception:
+        return False
+
 memory_manager = EnhancedMemoryManager(strategy=MemoryStrategy.PREDICTIVE)
+if _is_spawn_child():
+    # Child processes: keep the object importable (app references it) but
+    # neutralize tracing + monitor so children don't report/leak.
+    memory_manager.enabled = False
+    try: tracemalloc.stop()
+    except Exception: pass
 
 # ─── Sophisticated Memory Manager (enhanced) ─────────────────────────────────
 class SophisticatedMemoryManager:

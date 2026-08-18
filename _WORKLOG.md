@@ -2,6 +2,40 @@
 
 ## Branch: main
 
+## Session 2026-08-18a — v29.41k4: parse-pool child isolation kills the phantom main-process memory leak
+- ✅ Root cause: the main-process "leak" (97–116 MB/min reports, RSS ratcheting
+  to 1.27GB mid-wave) was **not** an accumulator in the app — it was
+  **ProcessPoolExecutor children monitoring themselves**. Under Windows `spawn`,
+  every parse worker re-imports `downpour_v29_titanium.py`, which imports the
+  `enhanced_memory_manager` singleton (L169) and starts **tracemalloc + a
+  monitor thread in each child**, logging the worker's own memory view into the
+  shared `downpour.log` (166MB at `text.splitlines()`, 183MB at
+  `connection.py:251`, 42–71MB decode/gzip buffers). tracemalloc-tracing every
+  parse allocation slowed the children, so the parent pool queue backed up with
+  large pickled payloads → parent RSS ratcheted and reports looked like a real
+  leak.
+- ✅ Fix (in `enhanced_memory_manager.py`):
+  - `_is_spawn_child()` detects non-main processes (`current_process().name`
+    not MainProcess/SpawnMainProcess); children neutralize the singleton
+    (`enabled=False`) + `tracemalloc.stop()`. Workers are `SpawnProcess-1/2`.
+  - Leak growth now computed from **this process's own RSS**
+    (`psutil.Process(os.getpid()).memory_info().rss`, new `rss_bytes` field)
+    instead of system-wide `used_bytes` (which counted other apps and caused
+    false 87–110 MB/min alarms).
+  - Leak report surfaces `top allocations:` (first 6 tracemalloc sites) and
+    `top types:` (top 10 gc type counts); gc counts captured BEFORE the
+    tracemalloc snapshot so the report's own Traceback/Statistic objects don't
+    pollute the histogram.
+  - Fixed `NameError: interval` in the monitor loop — it silently slept 60s
+    per iteration; now 15s (HIGH pressure) / 30s. Leak detection every 10
+    snapshots.
+- ✅ Verified with 8 memprobes + 15 leak-test sessions: main PID 1668 RSS flat
+  at **660–665MB across a full 10-min staggered wave cycle** (probe 8,
+  00:41–00:51), waves spike ~1.27GB then release to baseline; only ONE clean
+  report in the 08-18 session (00:36, 5.13 MB/min — post-wave transient), zero
+  since. Pre-fix reports (16–116 MB/min) discarded as child-contaminated.
+- ✅ 75/75 tests; `py_compile` OK.
+
 ## Session 2026-08-17a — v29.41k3: boot-storm freezes eliminated via intel dedupe + bounded workers
 - ✅ Root cause: the 9.3–53.8s boot freezes (main thread parked in trivial
   `tk.call('configure'...)` / `after` for seconds) were a **boot-window CPU/IO
