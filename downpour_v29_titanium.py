@@ -1522,10 +1522,26 @@ class AIEnhancedThreatDetector:
         """Train real IsolationForest + RandomForest models using sklearn.
         Uses synthetic baseline data from known-good process profiles so
         anomalies stand out statistically. Called once on startup.
+
+        FIX-v29.41k3: sklearn fits + the numpy profile builders are heavy
+        GIL consumers (IsolationForest/RandomForest with n_jobs=-1 spawn a
+        full joblib thread pool). Launched during the boot storm they starve
+        the Tcl interpreter lock and stall the UI for seconds. We now:
+          * defer the first fit by ~60s so the boot window has settled, and
+          * cap n_jobs to 2 so training never floods every core at once.
+        Heuristic models stay active until _models_trained flips True, so
+        detection is unaffected during the deferral.
         """
         try:
             if not SKLEARN_AVAILABLE:
                 return
+            # FIX-v29.41k3: stay out of the boot-storm window (scans, feed
+            # downloads, watchdog observers, process walks all hammer CPU/IO
+            # for the first minute). Sleep inside this daemon thread only.
+            time.sleep(60)
+            # Cap parallelism — full n_jobs=-1 during startup causes heavy
+            # thread churn that stalls Tcl callbacks in the main loop.
+            _n_jobs: Any = min(2, max(1, (os.cpu_count() or 2)))
             import numpy as np
             from sklearn.ensemble import IsolationForest, RandomForestClassifier  # type: ignore[import-not-found]
             from sklearn.preprocessing import StandardScaler  # type: ignore[import-not-found]
@@ -1606,12 +1622,12 @@ class AIEnhancedThreatDetector:
                 # IsolationForest for anomaly detection (unsupervised)
                 self._iso_forest = IsolationForest(
                     n_estimators = 100, contamination=0.1,
-                    random_state = 42, n_jobs=-1).fit(X_scaled)
+                    random_state = 42, n_jobs=_n_jobs).fit(X_scaled)
 
                 # RandomForest for binary classification (supervised)
                 self._rf_classifier = RandomForestClassifier(
                     n_estimators = 100, max_depth=8,
-                    random_state = 42, n_jobs=-1).fit(X_scaled, y)
+                    random_state = 42, n_jobs=_n_jobs).fit(X_scaled, y)
 
                 self._models_trained = True
 
@@ -7067,7 +7083,7 @@ class ConfigManager:
         'parental':  {'enabled': 'false', 'child_user': '', 'weekday_mins': '120',
                       'weekend_mins': '240', 'bedtime_start': '21:00', 'bedtime_end': '07:00',
                       'block_adult': 'true', 'block_gambling': 'true', 'block_violence': 'true'},
-        'intel':     {'auto_update': 'false', 'update_interval_hours': '6'},
+        'intel':     {'auto_update': 'true', 'update_interval_hours': '6'},
         'security':  {'bypass_tpm_bitlocker': 'false'},
         'osint':     {'abuseipdb_key': '', 'talos_reputation': 'true',
                       'shodan_key': '', 'censys_enabled': 'true',
@@ -11870,6 +11886,31 @@ def _mp_classify(val, ips, urls, hashes, domains):
             domains.append(val.lower())
 # -- End multiprocessing parse function --------------------------------
 
+# FIX-v29.41k3: Bounded shared parse pool for update_staggered(). update_all()
+# forks ProcessPoolExecutor(max(4, cpu-2)) per call (boot storm), while parsing
+# in-process on threads holds the GIL for seconds per large feed (regex/string
+# ops never yield), starving the Tk mainloop. This pool is: created once,
+# reused across all staggered waves/calls, and capped at 2 children — enough
+# GIL isolation for parsing without ever reproducing the boot process storm.
+_shared_parse_pool: Any = None
+_shared_parse_pool_lock: Any = threading.Lock()
+_shared_parse_pool_used: Any = False
+
+
+def _get_shared_parse_pool():
+    """Lazily create the ONE shared 2-worker process parse pool."""
+    global _shared_parse_pool, _shared_parse_pool_used
+    if _shared_parse_pool is None:
+        with _shared_parse_pool_lock:
+            if _shared_parse_pool is None:
+                from concurrent.futures import ProcessPoolExecutor as _SPPE
+                try:
+                    _shared_parse_pool = _SPPE(max_workers=2)
+                except Exception:
+                    _shared_parse_pool = None
+    _shared_parse_pool_used = True
+    return _shared_parse_pool
+
 
 class ThreatIntelEngine:
     # 200+ threat intelligence feeds organized by category
@@ -12883,6 +12924,131 @@ class ThreatIntelEngine:
                        f"{ioc_count:,} IOCs - {loaded}/{total} feeds - {errors} failed")
         self._progress(
             f"[OK] Done  -  {ioc_count:,} IOCs from {loaded}/{total} feeds "
+            f"({errors} failed)")
+
+    def update_staggered(self, callback=None):
+        """Fetch feeds in priority waves with bounded workers — safe to run at
+        startup or auto-scheduled.
+
+        update_all() spawns a ProcessPoolExecutor(max(4, cpu-2)) and blasts
+        all 278 feeds at once, which under load forks 8+ child processes and
+        steals the GIL from the whole app (observed as the boot process-pool
+        storm). This variant:
+          - orders feeds by priority (critical → high → medium → low) so
+            the highest-value intel lands first,
+          - uses ONE small in-process thread pool (max 4) with the module-level
+            parser (no process fork, no GIL handover), and
+          - yields between waves so monitoring threads / the GUI keep talking.
+        Progress still streams through the same callback used by update_all(),
+        so the Intel tab Status column and progress bar update identically.
+        """
+        if self._fast_startup:
+            if callback:
+                callback("Fast startup mode: Skipping threat intelligence downloads")
+            self.status = "Skipped (fast startup)"
+            logger.info("Fast startup mode: Threat intelligence downloads skipped")
+            return
+        if callback:
+            self._progress_cb = callback
+        import time as _sttime
+        from concurrent.futures import ThreadPoolExecutor as _STPE
+        # Priority order for the wave plan.
+        _prio_rank: Any = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3}
+        def _prio_key(item):
+            return _prio_rank.get(self.get_feed_priority(item[0]), 2)
+        _feeds_list: Any = sorted(self.FEEDS.items(), key=_prio_key)
+        _total: Any = len(_feeds_list)
+        loaded: Any = 0
+        errors: Any = 0
+        _done: Any = 0
+        _lock: Any = threading.Lock()
+        _workers: Any = 4  # bounded — never starve the GIL/monitor threads
+
+        def _fetch_one(item):
+            name, feed_info = item
+            url: Any = feed_info[0]
+            ioc_type: Any = feed_info[1] if len(feed_info) > 1 else 'ip'
+            try:
+                raw: Any = self._fetch_feed(name, url)
+                if raw:
+                    text: Any = raw.decode('utf-8', errors='ignore')
+                    # FIX-v29.41k3: parse on the SHARED bounded process pool (2
+                    # workers), never in-process. In-thread parsing holds the
+                    # GIL for seconds per large feed (regex never yields),
+                    # starving the Tk mainloop (11-13s GUI freezes observed).
+                    # Fall back to in-process only if the pool is unavailable.
+                    try:
+                        _ppool: Any = _get_shared_parse_pool()
+                        if _ppool is not None:
+                            _pfut: Any = _ppool.submit(
+                                _mp_parse_feed_text, text, ioc_type)
+                            ips, urls, hashes, domains = _pfut.result(timeout=120)
+                        else:
+                            ips, urls, hashes, domains = _mp_parse_feed_text(
+                                text, ioc_type)
+                    except Exception:
+                        ips, urls, hashes, domains = _mp_parse_feed_text(
+                            text, ioc_type)
+                    count: Any = self._store_parsed_iocs(
+                        name, ioc_type, ips, urls, hashes, domains)
+                    self.db.execute(
+                        "INSERT OR REPLACE INTO feed_status "
+                        "(feed_name, last_update, records_added, error_message) "
+                        "VALUES (?,?,?,?)",
+                        (name, datetime.now().isoformat(), count, None))
+                    return ('ok', name, count)
+                err: Any = self._feed_errors.get(name, 'No data returned')
+                self.db.execute(
+                    "INSERT OR REPLACE INTO feed_status "
+                    "(feed_name, last_update, records_added, error_message) "
+                    "VALUES (?,?,?,?)",
+                    (name, datetime.now().isoformat(), 0, err))
+                return ('err', name, err)
+            except Exception as e:
+                err: Any = str(e)[:200]
+                error_logger.log('ThreatIntel', f"Feed {name} failed: {e}")
+                self.db.execute(
+                    "INSERT OR REPLACE INTO feed_status "
+                    "(feed_name, last_update, records_added, error_message) "
+                    "VALUES (?,?,?,?)",
+                    (name, datetime.now().isoformat(), 0, err))
+                return ('err', name, err)
+
+        self._progress(f"Starting staggered fetch of {_total} feeds "
+                       f"(priority waves, {_workers} workers)...")
+        with _STPE(max_workers=_workers,
+                   thread_name_prefix="intel-wave") as pool:
+            # Waves of 8 feeds; breathe between waves so other threads get
+            # GIL time and the UI never bakes. Bounded concurrency + in-wave
+            # collection keeps DB contention (`db._lock`) low.
+            for _wstart in range(0, _total, 8):
+                _wave: Any = _feeds_list[_wstart:_wstart+8]
+                _futures: Any = {pool.submit(_fetch_one, item): item[0]
+                                 for item in _wave}
+                for _fut in _futures:
+                    try:
+                        _st, _, _ = _fut.result(timeout=150)
+                    except Exception as e:
+                        _st, _futures[_fut], _ = 'err', _futures[_fut], str(e)
+                    with _lock:
+                        _done += 1
+                        if _st == 'ok':
+                            loaded += 1
+                        else:
+                            errors += 1
+                        if _done % 10 == 0 or _done == _total:
+                            self._progress(
+                                f"[{_done}/{_total}] [OK] {loaded} ok  "
+                                f"[X] {errors} failed")
+                if _wstart + 8 < _total:
+                    _sttime.sleep(0.4)  # yield between waves
+        self.last_update = datetime.now()
+        ioc_count: Any = self.db.count_intel()
+        self.status = (f"Updated {datetime.now().strftime('%H:%M')} - "
+                       f"{ioc_count:,} IOCs - {loaded}/{_total} feeds - "
+                       f"{errors} failed")
+        self._progress(
+            f"[OK] Done  -  {ioc_count:,} IOCs from {loaded}/{_total} feeds "
             f"({errors} failed)")
 
     def _store_parsed_iocs(self, feed, hint_type, ips, urls, hashes, domains):
@@ -35518,6 +35684,18 @@ Verification Status:
         except Exception as e:
             error_logger.log('AutoStart', 'Failed to schedule _perf_loop', e)
 
+        # v29.41k3: auto threat-intel refresh on startup. Was dead code —
+        # _intel_auto_loop existed but nothing ever called it, so threat
+        # intelligence only loaded if the user clicked "Update All Feeds Now".
+        # Kick it off staggered: 20s after launch (UI + feed tab are fully
+        # built), then it self-reschedules every 10 min. The update itself
+        # (update_staggered) is a bounded priority-wave fetch on the executor
+        # with in-process parsing — no process-pool storm at boot.
+        try:
+            self.after(20_000, self._intel_auto_loop)
+        except Exception as e:
+            error_logger.log('AutoStart', 'Failed to schedule _intel_auto_loop', e)
+
         # FIX-v29.40: the "_force_perf_received" safety timer used to be defined
         # inside _build_performance_tab but never scheduled (comment said it was
         # "moved to _auto_start" — it wasn't). If psutil/exports are slow or a
@@ -35599,6 +35777,7 @@ Verification Status:
         self._freeze_diag_last = _fdt.perf_counter()
         self._freeze_diag_stack: Any = ['<no sample>']
         self._freeze_diag_dom: Any = ['<no sample>']
+        self._freeze_diag_othr: Any = ['<no sample>']
         # Background sampler: every 120ms snapshot the main thread's stack so
         # that when a >1.5s block IS detected we can report what actually
         # caused it (the after()-based check fires only AFTER the block ends,
@@ -35609,9 +35788,10 @@ Verification Status:
             self._freeze_diag_counts: Any = {}
             self._freeze_diag_last_reset: Any = _fdt.perf_counter()
             def _freeze_sampler():
+                _main_id: Any = _fdt_main_tid
                 while not _fdt_stop_flag[0]:
                     try:
-                        _mf: Any = _fds._current_frames().get(_fdt_main_tid)
+                        _mf: Any = _fds._current_frames().get(_main_id)
                         _now2: Any = _fdt.perf_counter()
                         # every 3s, fold the frequency map down so the block
                         # report can show the dominant steady-state location as
@@ -35642,6 +35822,27 @@ Verification Status:
                                 self._freeze_diag_counts[_key_fn] = [1, _stk]
                             else:
                                 _entry[0] += 1
+                        # FIX-v29.41k3: ALSO snapshot non-main threads during the
+                        # sample window. Detection fires after a block ENDS, so by
+                        # report time the culprit thread has moved on — but this
+                        # live 120ms slot still holds where it was DURING the
+                        # block. Kept as one line per thread (top frame) to keep
+                        # the sampler light.
+                        try:
+                            _frames: Any = _fds._current_frames()
+                            _othr: Any = []
+                            for _tid2, _fr2 in _frames.items():
+                                if _tid2 == _main_id:
+                                    continue
+                                try:
+                                    _fn2: Any = _fr2.f_code.co_filename.split('\\')[-1]
+                                    _othr.append(
+                                        f'{_fr2.f_code.co_name}@{_fn2}:{_fr2.f_lineno}')
+                                except Exception:
+                                    pass
+                            self._freeze_diag_othr = _othr[:16]
+                        except Exception:
+                            pass
                     except Exception:
                         pass
                     _fdt.sleep(0.12)
@@ -35659,12 +35860,22 @@ Verification Status:
                 _stack_txt: Any = '\n'.join(self._freeze_diag_stack[:12])
                 _dom_txt: Any = '\n'.join(
                     getattr(self, '_freeze_diag_dom', [''])[:8])
+                # FIX-v29.41k3: report the non-main threads the sampler saw
+                # DURING the block (the live 120ms slot), not a post-hoc
+                # enumeration at detection time (the culprit has already moved
+                # on by then). Main thread idles in mainloop while the GUI
+                # starves, so the background thread holding the Tcl lock / GIL
+                # is the actual answer to "why did it freeze".
+                _othr_txt: Any = '\n'.join(
+                    '  ' + t for t in
+                    getattr(self, '_freeze_diag_othr', [])[:16])
                 logger.warning('[FREEZE] GUI blocked %.1fs, main-thread stack:\n%s'
-                               '\n<dominant 3s loc:\n%s>',
-                               elapsed, _stack_txt, _dom_txt)
+                               '\n<dominant 3s loc:\n%s>\n<other threads during block:\n%s>',
+                               elapsed, _stack_txt, _dom_txt, _othr_txt)
             self._freeze_diag_last = now
             self._freeze_diag_stack = ['<no recent block>']
             self._freeze_diag_dom = ['<no recent dominant loc>']
+            self._freeze_diag_othr = ['<no recent block>']
             self._orig_after(500, _freeze_check)
         self._orig_after(500, _freeze_check)
 
@@ -35746,9 +35957,29 @@ Verification Status:
             error_logger.log('FeedHealthCheck', 'failed', e)
     
     def _scheduled_feed_update(self):
-        """Automatically update OSINT feeds (hourly, in a background thread)."""
+        """Automatically update OSINT feeds (hourly, in a background thread).
+
+        FIX-v29.41k3: when the intel auto-update is enabled, _intel_auto_loop
+        already owns the OSINT feed refreshes via ThreatIntelEngine.update_
+        staggered (bounded priority waves, shared process pool, feed_status
+        tracking). Running this legacy ThreatIntelligenceManager.update_all_
+        feeds() too re-downloads the same feeds (URLhaus, Feodo, SSLBL,
+        ThreatFox, Spamhaus ...) and re-parses them in-thread, doubling the
+        boot-time network + GIL + DB load and feeding the startup freeze
+        storm. So: if auto-update is on, defer to it and only fall back to the
+        legacy full update when auto-update is disabled.
+        """
         try:
             if not self.winfo_exists():
+                return
+            _auto: bool = False
+            try:
+                _auto = bool(self.cfg.get('intel', 'auto_update'))
+            except Exception:
+                _auto = False
+            if _auto:
+                # Legacy updater stands down; the staggered loop handles feeds.
+                self.after(60 * 60 * 1000, self._scheduled_feed_update)
                 return
             # FIX-v29.41g: update_all_feeds() downloads + inserts large dumps
             # (URLhaus csv_recent etc.). Running it on the Tk main thread froze
@@ -36327,11 +36558,36 @@ Verification Status:
     def _intel_auto_loop(self):
         if self.cfg.get('intel', 'auto_update'):
             interval_h: Any = self.cfg.get('intel', 'update_interval_hours') or 6
-            if (self.intel.last_update is None or
-                    (datetime.now() - self.intel.last_update).seconds > interval_h * 3600):
-                self._executor.submit(lambda: self.intel.update_all(
-                    lambda msg: self.after(0, lambda m=msg: self._intel_progress_var.set(m))))
-        self.after(600000, self._intel_auto_loop)  # check every 10 min (manual trigger only now)
+            # FIX-v29.41k3: use total_seconds() — .seconds() wraps modulo 24h,
+            # so intel older than a day never looked "stale" and auto-update
+            # silently skipped after the first day of uptime.
+            _stale: bool = (
+                getattr(self.intel, 'last_update', None) is None or
+                (datetime.now() - self.intel.last_update).total_seconds()
+                > interval_h * 3600)
+            # Staggered, bounded, off-main-thread: no process pool, priority
+            # waves, thread yield between waves (see update_staggered). Guard
+            # against overlapping runs in case a manual Update All is in flight.
+            if _stale and not getattr(self, '_intel_updating', False):
+                self._intel_updating = True
+                def _finish():
+                    try: self._intel_updating = False
+                    except Exception: pass
+                    self._refresh_ioc_count_display()
+                    self._refresh_feed_health()
+                def _run():
+                    try:
+                        self.intel.update_staggered(
+                            lambda msg: self.after(0, lambda m=msg: (
+                                hasattr(self, '_intel_progress_var') and
+                                self._intel_progress_var.set(m))))
+                    except Exception as e:
+                        error_logger.log('IntelAuto', 'staggered update failed', e)
+                    finally:
+                        try: self.after(0, _finish)
+                        except Exception: self._intel_updating = False
+                self._executor.submit(_run)
+        self.after(600000, self._intel_auto_loop)  # re-check every 10 min
 
     # --------------------------------------------------------------------------
     #  UI UPDATERS
@@ -37936,7 +38192,7 @@ Verification Status:
     def _update_intel_now(self):
         self._set_status("Updating threat intelligence...")
         def do():
-            self.intel.update_all(
+            self.intel.update_staggered(
                 lambda msg: self.after(0, lambda m=msg: [
                     self._intel_progress_var.set(m),
                     self._intel_status.config(text=m),

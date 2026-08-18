@@ -691,7 +691,7 @@ class TestV2940Reliability:
         callbacks must spawn daemon worker threads and reschedule on main."""
         src = self._src()
         iu = src.index('def _scheduled_feed_update')
-        chunk_u = src[iu:iu + 1300]
+        chunk_u = src[iu:iu + 2800]
         assert "threading.Thread(target=_worker, daemon=True,\n                             name='FeedUpdate')" in chunk_u
         ih = src.index('def _scheduled_feed_health_check')
         chunk_h = src[ih:ih + 1700]

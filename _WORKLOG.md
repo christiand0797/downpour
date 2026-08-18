@@ -2,6 +2,39 @@
 
 ## Branch: main
 
+## Session 2026-08-17a — v29.41k3: boot-storm freezes eliminated via intel dedupe + bounded workers
+- ✅ Root cause: the 9.3–53.8s boot freezes (main thread parked in trivial
+  `tk.call('configure'...)` / `after` for seconds) were a **boot-window CPU/IO
+  storm**, not intel logic alone: freezes began before the intel DB init, and
+  the first boot had 0 `feed_status` writes yet still froze. Two concurrent
+  updaters both re-downloaded the same OSINT feeds (URLhaus/Feodo/SSLBL/
+  ThreatFox/Bazaar/Spamhaus ...): the legacy `_scheduled_feed_update`
+  (`ThreatIntelligenceManager.update_all_feeds`) and the new `_intel_auto_loop`
+  (`ThreatIntelEngine.update_staggered`).
+- ✅ Fixes (all in `downpour_v29_titanium.py`):
+  - Intel auto-update flipped to default ON (`'auto_update': 'true'`,
+    6h interval) so the staggered engine owns feed refreshes.
+  - `_scheduled_feed_update` **stands down** when auto-update is enabled
+    (re-arms hourly; only falls back to legacy `update_all_feeds` when
+    auto-update is off).
+  - `update_staggered` parses on ONE shared `ProcessPoolExecutor(max_workers=2)`
+    (`_get_shared_parse_pool` ~L11873, created lazily, reused across all waves)
+    with 120s future timeouts + in-process fallback — no per-call
+    `ProcessPoolExecutor(max(4, cpu-2))` fork storm.
+  - `AIEnhancedThreatDetector._train_models_background` defers the first fit
+    ~60s (daemon-thread sleep) and caps `n_jobs` to 2 — IsolationForest/RF
+    full `n_jobs=-1` was flooding every core during boot.
+- ✅ Diagnostics that got us there: `_freeze_sampler` snapshots other-thread
+  top frames too (`_freeze_diag_othr`); `_freeze_check` prints
+  `<other threads during block:>`. Sampled other-threads during blocks were
+  sklearn fits, `pathlib.stat`/`read_text`, subprocess readers, watchdog
+  observers, feed DB writes — all concurrent at boot.
+- ✅ Verified: fresh boot smoke test (`2026-08-17 20:45` session) ran the full
+  build, auto-start, staggered feed waves (feed_status rows written live at
+  20:48–20:49, e.g. easylist 5,845 / firehol_l2 16,490 / fanboy_annoyance
+  25,725 IOCs) with **zero FREEZE events** and responsive mainloop
+  (`[ALIVE]` every 10s, `pending_after` draining to 0). 75/75 tests.
+
 ## Session 2026-08-16a1 — v29.41k: main-thread freeze elimination (rain + net UI)
 - ✅ Root-caused recurring 1.5–28.5s GUI freezes with a background
   `freeze-sampler` daemon thread (120ms samples of the main-thread stack via
