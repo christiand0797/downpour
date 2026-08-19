@@ -1,5 +1,36 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.41k5 - scan-worker/joblib thread explosion fixed + Perf-tab live-data restore
+
+### Critical: scan-worker/joblib nested-parallelism deadlock (thread/memory runaway)
+- Root cause: sklearn 1.9.0 + joblib 1.5.3 deadlock inside joblib's `_retrieve`
+  whenever `predict_proba()` / `decision_function()` were called from inside a
+  `ThreadPoolExecutor` worker (the `scan-worker` pool in `scan_all()`). Every
+  60s `_proc_loop` leaked a fresh 9-worker pool stuck forever — observed
+  176 → 341 threads in ~50 min, RSS crawling toward 2.56GB.
+- Fitted sklearn estimators now force `n_jobs = 1` post-fit (single-sample
+  inference gains nothing from n_jobs > 1) so nested joblib dispatch can never
+  fire from inside a pool worker.
+- `scan_all()` split into `_scan_all_locked()` with a `_scan_in_progress`
+  overlap guard (returns `[]` while a scan is draining) and explicit
+  `pool.shutdown(wait=False, cancel_futures=True)`; `as_completed(futures,
+  timeout=90)` abandons wedged workers so `_proc_loop` can never stack pools.
+
+### Perf tab: live data restored to real cadence
+- The `open_files` walk (verified ~8.5s for 500 pids on Windows) ran on EVERY
+  fetch tick, strangling the whole 1-3s refresh to ~14s. Now sampled every 15s
+  (300-pid cap, cached in between) — non-sampling ticks drop to ~3s.
+- Top-processes table gained live per-process RSS MB, disk I/O rate (KB/s) and
+  active connection count — enrichment is bounded to the top-20 CPU consumers
+  via one shared `net_connections` walk (O(top-N), not O(all procs)).
+- Columns now: pid / name / cpu% / mem% / rssMB / rd / wr / conns / gpu / status.
+
+### Stability
+- winfo_exists Tcl-safety: `_tk_alive` flag + `_winfo_ok()` helper across all
+  16 worker-thread `winfo_exists()` sites; `_shutdown()` clears the flag first.
+- Verified: smoke thread count stable at 67–80 (was climbing 176→341), ALIVE
+  cadence clean, fetch cadence restored. 84/84 tests.
+
 ## v29.36 - 60-Second History Timeline Chart, Performance Threshold Alerts, Alert Rate Meter
 
 ### Performance Tab: 60-Second History Timeline

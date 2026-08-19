@@ -2,6 +2,42 @@
 
 ## Branch: main
 
+## Session 2026-08-19a — v29.41k5: scan-worker/joblib thread explosion + Perf-tab live-data restore
+- ✅ Root cause of the smoke-test thread/memory runaway: **ThreadPoolExecutor
+  ("scan-worker") + sklearn 1.9.0 + joblib 1.5.3 nested-parallelism deadlock**.
+  Every 60s `_proc_loop` → `scan_all()` → each worker's
+  `predict_proba()`/`decision_function()` deadlocked in joblib's `_retrieve`
+  (nested joblib dispatch from inside a pool worker). The `with`-block
+  `shutdown(wait=True)` never returned and `_proc_loop` rescheduled
+  unconditionally → pools piled up: threads 176 → 229 → 296 → **341** in
+  ~50 min, 64+ workers permanently wedged in
+  `joblib.parallel._retrieve` → `analyze_process_sklearn`, RSS crawled
+  2.4→2.56GB. Prior session (PID 1668) was unaffected only because models
+  weren't trained yet (`_models_trained` False → early return).
+- ✅ Fixes in `downpour_v29_titanium.py`:
+  - Post-fit `self._iso_forest.n_jobs = 1` + `self._rf_classifier.n_jobs = 1`
+    (FIX-v29.41k5) — single-sample inference gains nothing from n_jobs>1, and
+    the nested joblib dispatch can no longer fire.
+  - `scan_all()` split into `_scan_all_locked()` with a `_scan_in_progress`
+    overlap guard (returns `[]` while a scan is draining) and explicit
+    `pool.shutdown(wait=False, cancel_futures=True)`; `as_completed(futures,
+    timeout=90)` abandons wedged workers so `_proc_loop` can never stack pools.
+- ✅ Perf-tab live-data restore (FIX-v29.41k5): the ~8.5s `open_files` walk ran
+  on EVERY fetch tick (verified: `open_files 500 pids` = 8.5s; full `_fetch` =
+  ~14s) — so the whole Perf tab effectively refreshed ~1×/14s despite the 1-3s
+  loop. Now sampled every 15s (bounded at 300 pids, cached in between).
+  top-procs rows gained live `rss_mb`, `disk_rd_kbs`, `disk_wr_kbs` and `conns`
+  (one shared `net_connections` walk filtered to the top-20 candidate PIDs —
+  enrichment is O(top-N), not O(all procs)). Treeview columns:
+  pid/name/cpu%/mem%/rssMB/rd/wr/conns/gpu/status.
+- ✅ winfo_exists Tcl-safety (uncommitted from prior session, folded in):
+  `_tk_alive` flag + `_winfo_ok()` helper replacing all 16 worker-thread
+  `winfo_exists()` calls; `_shutdown()` clears the flag first.
+- ✅ Verified: smoke PID threads stable at 67–80 (was climbing 176→341); ALIVE
+  cadence clean; fetch cadence restored (non-open_files ticks ~3s).
+  `py_compile` OK; **84/84 tests** (added TestV2941K5ScanWorkerFix +
+  TestV2941K5PerfTabLive regression guards).
+
 ## Session 2026-08-18a — v29.41k4: parse-pool child isolation kills the phantom main-process memory leak
 - ✅ Root cause: the main-process "leak" (97–116 MB/min reports, RSS ratcheting
   to 1.27GB mid-wave) was **not** an accumulator in the app — it was

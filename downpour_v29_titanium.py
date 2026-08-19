@@ -1629,6 +1629,18 @@ class AIEnhancedThreatDetector:
                     n_estimators = 100, max_depth=8,
                     random_state = 42, n_jobs=_n_jobs).fit(X_scaled, y)
 
+                # FIX-v29.41k5: force single-threaded predict. sklearn 1.9 +
+                # joblib 1.5 deadlocks inside joblib's `_retrieve` when
+                # predict_proba / decision_function are called from within a
+                # ThreadPoolExecutor worker thread (the scan_all pool) — each
+                # estimator re-dispatches its own nested joblib parallel job
+                # that never completes on Windows. Every scan then leaked a
+                # fresh 9-worker pool stuck forever (observed 176 -> 341
+                # threads in ~50 min). Inference on a single sample gains
+                # nothing from n_jobs>1 anyway.
+                self._iso_forest.n_jobs = 1
+                self._rf_classifier.n_jobs = 1
+
                 self._models_trained = True
 
         except Exception as _e:
@@ -8813,8 +8825,23 @@ class AdvancedProcessScanner:
         and release the GIL, so all CPU cores work concurrently."""
         if not PSUTIL_AVAILABLE:
             return []
+        # FIX-v29.41k5: overlap guard. _proc_loop reschedules itself
+        # unconditionally every 60s; if a previous scan's pool workers got
+        # stuck (previously: joblib deadlock inside predict_proba), the old
+        # pool's `with`-exit shutdown(wait=True) never returned and every
+        # tick spawned yet another 9-worker pool. 176 -> 341 threads in
+        # ~50 min. Never start a scan while one is still draining.
+        if getattr(self, '_scan_in_progress', False):
+            return []
+        self._scan_in_progress = True
+        try:
+            return self._scan_all_locked()
+        finally:
+            self._scan_in_progress = False
+
+    def _scan_all_locked(self) -> List[ProcessInfo]:
         import os as _os
-        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as _CFTimeoutError
         _opid: Any = _os.getpid()
         _ncpu: Any = _os.cpu_count() or 4
         # Snapshot process list first (cheap single-threaded call)
@@ -8832,20 +8859,29 @@ class AdvancedProcessScanner:
             _workers: Any = getattr(_hwp, 'workers_io', max(2, _ncpu * 3 // 4))
         else:
             _workers: Any = max(2, _ncpu * 3 // 4)
-        
-        with ThreadPoolExecutor(max_workers=_workers,
-                                thread_name_prefix = "scan-worker") as pool:
+        # FIX-v29.41k5: never block the caller on a wedged worker. Cap the
+        # total wait; if any worker hangs past it, abandon the pool without
+        # waiting (wait=False) so a stuck _analyze can't stall _proc_loop or
+        # pile up additional scan-worker pools on the next tick.
+        pool: Any = ThreadPoolExecutor(max_workers=_workers,
+                                       thread_name_prefix="scan-worker")
+        try:
             futures: Any = {pool.submit(self._analyze, p): p for p in procs
                        if p.pid != _opid}
-            for fut in as_completed(futures):
-                try:
-                    info: Any = fut.result(timeout=5)
-                    if info:
-                        results.append(info)
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
-                except Exception:
-                    pass
+            try:
+                for fut in as_completed(futures, timeout=90):
+                    try:
+                        info: Any = fut.result(timeout=5)
+                        if info:
+                            results.append(info)
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        pass
+                    except Exception:
+                        pass
+            except _CFTimeoutError:
+                pass  # pool abandoned below; keep whatever finished
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
         results.sort(key=lambda x: x.risk_score, reverse=True)
         return results
 
@@ -17563,15 +17599,25 @@ class HardwareMonitor:
             self._prev_ctx_time = now_time
         except Exception: pass
         # Open file handles count
+        # FIX-v29.41k5: p.open_files() on Windows enumerates handles and costs
+        # ~8.5s for 500 pids — that alone strangled every 1-3s fetch tick, so
+        # the whole Perf tab only refreshed ~1x/14s. Sample it at most every
+        # 15s and reuse the last known value in between.
         try:
-            pids: Any = psutil.pids()
-            open_count: Any = 0
-            for pid in pids[:500]:  # Limit to first 500 processes for performance
-                try:
-                    p: Any = psutil.Process(pid)
-                    open_count += len(p.open_files())
-                except Exception: pass
-            stats['open_files'] = open_count
+            _now_of: Any = time.time()
+            if _now_of - getattr(self, '_open_files_last_t', 0.0) >= 15.0:
+                pids: Any = psutil.pids()
+                open_count: Any = 0
+                for pid in pids[:300]:  # Cap sample size
+                    try:
+                        p: Any = psutil.Process(pid)
+                        open_count += len(p.open_files())
+                    except Exception: pass
+                stats['open_files'] = open_count
+                self._open_files_count = open_count
+                self._open_files_last_t = _now_of
+            else:
+                stats['open_files'] = getattr(self, '_open_files_count', 0)
         except Exception: pass
         # v29.38: Network connections count (ESTABLISHED only)
         try:
@@ -18129,7 +18175,9 @@ class HardwareMonitor:
                     break
             except Exception: pass
 
-        # SPRINT1: Top-10 processes by CPU %
+        # SPRINT1: Top-15 processes by CPU %  -  every row now carries live
+        # RSS MB, per-process disk I/O rate (KB/s) and active connection
+        # count so the Perf-tab table is fully real-time (FIX-v29.41k5).
         try:
             _procs_raw = []
             for p in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent', 'status']):
@@ -18144,7 +18192,57 @@ class HardwareMonitor:
                     })
                 except Exception:
                     pass
-            stats['top_procs'] = sorted(_procs_raw, key=lambda x: x['cpu_percent'], reverse=True)[:15]
+            # Only enrich the top CPU consumers with the expensive live fields
+            # (rss MB / disk io rate / connection count) — enriching all 190+
+            # processes every 1-3s tick costs ~0.6s of syscall time that buys
+            # nothing for the 12 rows the table actually shows.
+            _top: Any = sorted(_procs_raw, key=lambda x: x['cpu_percent'], reverse=True)[:20]
+            _top_pids: Any = {t['pid'] for t in _top}
+            _pid_con: Any = {}
+            try:
+                for _cn in psutil.net_connections(kind='inet'):
+                    _cp = _cn.pid
+                    if _cp is None or _cp not in _top_pids:
+                        continue
+                    if _cn.status in ('ESTABLISHED', 'LISTEN', 'SYN_SENT',
+                                      'SYN_RECV', 'TIME_WAIT', 'CLOSE_WAIT',
+                                      'FIN_WAIT1', 'FIN_WAIT2', 'LAST_ACK'):
+                        _pid_con[_cp] = _pid_con.get(_cp, 0) + 1
+            except Exception:
+                pass
+            _now_io: Any = time.time()
+            _prev_io: Any = getattr(self, '_prev_proc_io', {})
+            _dt_io: Any = max(_now_io - getattr(self, '_prev_proc_io_t', _now_io), 0.001)
+            _next_prev: Any = dict(_prev_io)
+            for _r in _top:
+                _pid: Any = _r['pid']
+                _rss: Any = 0.0
+                _io_rd: Any = 0.0
+                _io_wr: Any = 0.0
+                try:
+                    _p = psutil.Process(_pid)
+                    try:
+                        _rss = _p.memory_info().rss / 1048576  # MB
+                    except Exception:
+                        pass
+                    try:
+                        _io = _p.io_counters()
+                        _pr = _prev_io.get(_pid)
+                        if _pr:
+                            _io_rd = max(0.0, (_io.read_bytes - _pr[0]) / 1024 / _dt_io)
+                            _io_wr = max(0.0, (_io.write_bytes - _pr[1]) / 1024 / _dt_io)
+                        _next_prev[_pid] = (_io.read_bytes, _io.write_bytes)
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+                _r['rss_mb'] = round(_rss, 1)
+                _r['disk_rd_kbs'] = round(_io_rd, 1)
+                _r['disk_wr_kbs'] = round(_io_wr, 1)
+                _r['conns'] = _pid_con.get(_pid, 0)
+            self._prev_proc_io = _next_prev
+            self._prev_proc_io_t = _now_io
+            stats['top_procs'] = _top[:15]
         except Exception:
             stats['top_procs'] = []
 
@@ -22569,11 +22667,25 @@ class downpour(tk.Tk):
         except Exception as e:
             logger.warning(f"System optimizations failed: {e}")
     
+    def _winfo_ok(self) -> bool:
+        """Thread-safe winfo_exists(): reads the main-thread _tk_alive flag
+        instead of calling into Tcl. Safe to call from any thread (no Tcl grab)."""
+        try:
+            return bool(getattr(self, '_tk_alive', True))
+        except Exception:
+            return True
+
     def _setup_event_handlers(self) -> None:
         """Set up event handling and callbacks."""
         try:
             # Initialize threading and synchronization
             self._stop_event = threading.Event()  # set on shutdown to wake all monitor loops
+            # FIX-v29.41k4: plain-Python alive flag for worker threads. Tk calls
+            # (winfo_exists, after, etc.) are only legal on the main thread; a
+            # background executor thread grabbing Tcl caused a native access
+            # violation (_psutil_windows.pyd 0xc0000005). Worker threads consult
+            # _tk_alive (set False in _shutdown) instead of calling winfo_exists.
+            self._tk_alive: bool = True
             self._dns_blocked = 0
             self._perf_canvases = {}
             self._perf_gauge_meta = {}
@@ -28622,7 +28734,7 @@ Verification Status:
                     s: Any = self.hw._fetch()
                     with self.hw._lock:
                         self.hw._cache = s
-                    if self.winfo_exists():
+                    if self._winfo_ok():
                         self.after(0, lambda: self._update_perf_ui(s))
                 except Exception as e:
                     error_logger.log('PerfRefresh', 'Force refresh error', e)
@@ -28985,7 +29097,7 @@ Verification Status:
                  fg=Colors.GAUGE_ORANGE, bg=Colors.BG_VOID).grid(
                  row=_proc_row_base, column=0, columnspan=4,
                  sticky='w', padx=10, pady=(14,4))
-        _proc_cols = ('pid', 'name', 'cpu%', 'mem%', 'gpu', 'status')
+        _proc_cols = ('pid', 'name', 'cpu%', 'mem%', 'rssMB', 'rd', 'wr', 'conns', 'gpu', 'status')
         _proc_frame = tk.Frame(grid_frame, bg=Colors.BG_VOID)
         _proc_frame.grid(row=_proc_row_base+1, column=0, columnspan=4, sticky='ew', padx=10, pady=(0,14))
         # Style the treeview
@@ -29000,7 +29112,7 @@ Verification Status:
         self._perf_proc_tree = ttk.Treeview(
             _proc_frame, columns=_proc_cols, show='headings',
             height=10, style='Perf.Treeview', selectmode='browse')
-        for col, w, anchor in [('pid',60,'e'),('name',200,'w'),('cpu%',70,'e'),('mem%',70,'e'),('gpu',60,'e'),('status',90,'w')]:
+        for col, w, anchor in [('pid',60,'e'),('name',200,'w'),('cpu%',65,'e'),('mem%',60,'e'),('rssMB',65,'e'),('rd',60,'e'),('wr',60,'e'),('conns',55,'e'),('gpu',55,'e'),('status',85,'w')]:
             self._perf_proc_tree.heading(col, text=col.upper())
             self._perf_proc_tree.column(col, width=w, anchor=anchor, stretch=(col=='name'))
         _proc_vsb = ttk.Scrollbar(_proc_frame, orient='vertical', command=self._perf_proc_tree.yview)
@@ -29476,7 +29588,7 @@ Verification Status:
         def _fetch_and_update():
             try:
                 s: Any = self.hw.get_stats()
-                if self.winfo_exists():
+                if self._winfo_ok():
                     self.after(1, lambda: self._update_perf_ui(s))
             except Exception as e:
                 error_logger.log('PerfFetch', 'Stats error', e)
@@ -29733,8 +29845,16 @@ Verification Status:
                         if pid in gpu_map:
                             _gv: Any = gpu_map[pid]
                             gpu_txt = f'{_gv}MB' if str(_gv).isdigit() else 'GPU'
+                        # FIX-v29.41k5: live RSS MB, per-proc disk I/O KB/s and
+                        # active connection count now ride the top_procs payload.
+                        rss_mb = proc.get('rss_mb', 0) or 0
+                        rd_kbs = proc.get('disk_rd_kbs', 0) or 0
+                        wr_kbs = proc.get('disk_wr_kbs', 0) or 0
+                        conns  = proc.get('conns', 0) or 0
                         self._perf_proc_tree.insert('', 'end',
-                            values=(pid, name, f'{cpu:.1f}%', f'{mem:.1f}%', gpu_txt, stat),
+                            values=(pid, name, f'{cpu:.1f}%', f'{mem:.1f}%',
+                                    f'{rss_mb:.0f}', f'{rd_kbs:.0f}', f'{wr_kbs:.0f}',
+                                    conns, gpu_txt, stat),
                             tags=(tag,))
                     if hasattr(self, '_perf_count_lbl'):
                         tot: Any = s.get('process_count', 0) or 0
@@ -30774,7 +30894,7 @@ Verification Status:
                 import urllib.request
                 ip: Any = urllib.request.urlopen(
                     'https://api.ipify.org', timeout=5).read().decode().strip()
-                if self.winfo_exists():
+                if self._winfo_ok():
                     self.after(1, lambda _ip=ip: self._vpn_ip_var.set(f'Public IP: {_ip}'))
             except Exception:
                 pass
@@ -31002,14 +31122,14 @@ Verification Status:
                             pass
 
                 except Exception as e:
-                    if self.winfo_exists():
+                    if self._winfo_ok():
                         self.after(0, lambda _n=src['name'], _e=str(e):
                             self._vpn_log_msg(f'{_n}: {_e[:60]}', Colors.GAUGE_ORANGE))
 
             # Sort by speed desc
             all_servers.sort(key=lambda s: s.get('speed_mbps', 0), reverse=True)
             summary: Any = ', '.join(loaded_sources) if loaded_sources else 'No sources loaded'
-            if self.winfo_exists():
+            if self._winfo_ok():
                 self.after(0, lambda sv=all_servers, sm=summary:
                     (self._vpn_populate_tree(sv),
                      self._vpn_log_msg(f'Sources: {sm}', Colors.GAUGE_TEAL)))
@@ -31262,7 +31382,7 @@ Verification Status:
                 _workers: Any = max(1, _ncpu // 2)  # Conservative fallback
             with concurrent.futures.ThreadPoolExecutor(max_workers=_workers) as pool:
                 list(pool.map(_ping_worker, visible))
-            if self.winfo_exists():
+            if self._winfo_ok():
                 self.after(1, _done)
 
         def _done():
@@ -31369,14 +31489,14 @@ Verification Status:
                         conn_ok: Any = False
                         for line in (self._vpn_proc.stdout or []):
                             line: Any = line.strip()
-                            if self.winfo_exists():
+                            if self._winfo_ok():
                                 self.after(1, lambda l=line: self._vpn_log_msg(l, Colors.TEXT_DIM))
                             if 'Initialization Sequence Completed' in line:
                                 conn_ok: Any = True
                                 break
                             if self._vpn_proc.poll() is not None:
                                 break
-                        if conn_ok and self.winfo_exists():
+                        if conn_ok and self._winfo_ok():
                             self._vpn_current_name = f'OpenVPN:{host}'
                             self.after(1, lambda: (
                                 self._vpn_set_status(True, f'{country} ({host}) via OpenVPN'),
@@ -31387,7 +31507,7 @@ Verification Status:
                             ))
                             return
                 except Exception as e:
-                    if self.winfo_exists():
+                    if self._winfo_ok():
                         self.after(1, lambda err=str(e): self._vpn_log_msg(
                             f'OpenVPN failed: {err}', Colors.GAUGE_ORANGE))
 
@@ -31419,7 +31539,7 @@ Verification Status:
                         creationflags = 0x08000000)
                     if r2.returncode == 0 or 'connected' in r2.stdout.lower():
                         self._vpn_current_name = conn_name
-                        if self.winfo_exists():
+                        if self._winfo_ok():
                             self.after(1, lambda: (
                                 self._vpn_set_status(True, f'{country} ({host}) via L2TP'),
                                 self._vpn_progress_var.set(f'Connected via L2TP  -  {country}'),
@@ -31430,11 +31550,11 @@ Verification Status:
                         return
                     else:
                         err: Any = r2.stderr or r2.stdout
-                        if self.winfo_exists():
+                        if self._winfo_ok():
                             self.after(1, lambda e=err: self._vpn_log_msg(
                                 f'L2TP failed: {e[:120]}', Colors.GAUGE_ORANGE))
                 except Exception as e:
-                    if self.winfo_exists():
+                    if self._winfo_ok():
                         self.after(1, lambda err=str(e): self._vpn_log_msg(
                             f'L2TP error: {err}', Colors.GAUGE_RED))
 
@@ -31458,7 +31578,7 @@ Verification Status:
                         creationflags = 0x08000000)
                     if r2.returncode == 0:
                         self._vpn_current_name = conn_name
-                        if self.winfo_exists():
+                        if self._winfo_ok():
                             self.after(1, lambda: (
                                 self._vpn_set_status(True, f'{country} ({host}) via SSTP'),
                                 self._vpn_log_msg('[OK] SSTP connected!', Colors.GAUGE_GREEN),
@@ -31466,11 +31586,11 @@ Verification Status:
                             ))
                         return
                 except Exception as e:
-                    if self.winfo_exists():
+                    if self._winfo_ok():
                         self.after(1, lambda err=str(e): self._vpn_log_msg(
                             f'SSTP error: {err}', Colors.GAUGE_RED))
 
-            if self.winfo_exists():
+            if self._winfo_ok():
                 self.after(1, lambda: (
                     self._vpn_log_msg('[X] All connection methods failed for this server. Try another.', Colors.GAUGE_RED),
                     self._vpn_progress_var.set('Connection failed  -  try another server.'),
@@ -31499,7 +31619,7 @@ Verification Status:
                         capture_output = True, timeout=10, creationflags=0x08000000)
                 except Exception:
                     pass
-                if self.winfo_exists():
+                if self._winfo_ok():
                     self.after(1, lambda: (
                         self._vpn_set_status(False),
                         self._vpn_log_msg('[R] Disconnected.', Colors.GAUGE_RED),
@@ -43249,6 +43369,11 @@ Verification Status:
             self._shutdown()
 
     def _shutdown(self):
+        # FIX-v29.41k4: stop claiming the window is alive BEFORE tearing down
+        # Tk. Any executor worker checking _winfo_ok() now short-circuits and
+        # won't schedule self.after() on a destroyed window.
+        try: self._tk_alive = False
+        except Exception: pass
         # Log shutdown call with full stack trace
         import traceback as _stb, datetime as _dt
         try:

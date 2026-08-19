@@ -786,3 +786,140 @@ class TestV2940Reliability:
         assert 'getattr(self, \'aegis_physical\', None)' in chunk
 
 
+# --------------------------------------------------------------------------
+# v29.41k5 — scan-worker/joblib thread explosion fix. sklearn 1.9 + joblib
+# 1.5 deadlock nested-parallel predict calls inside ThreadPoolExecutor
+# workers; the scan_all `with`-block shutdown(wait=True) never returned and
+# _proc_loop piled up pools (176 -> 341 threads). These guards prevent the
+# deadlock and, if a worker still wedges, abandon the pool instead of blocking.
+# --------------------------------------------------------------------------
+
+class TestV2941K5ScanWorkerFix:
+    """Regression guards for the v29.41k5 scan-worker/joblib thread fix."""
+
+    def _src(self) -> str:
+        return open(os.path.join(os.path.dirname(__file__),
+                                 '..', 'downpour_v29_titanium.py'),
+                    encoding='utf-8', errors='replace').read()
+
+    def test_models_forced_single_threaded_after_fit(self):
+        """Fitted estimators must have n_jobs forced to 1 so predict() never
+        dispatches a nested joblib job from inside a pool worker (the deadlock)."""
+        src = self._src()
+        fit = src.index('def _train_models_background')
+        chunk = src[fit:fit + 9000]
+        # The FIX marker is present, and both estimators get n_jobs=1 right
+        # after the .fit(...) calls, before _models_trained is set True.
+        assert 'FIX-v29.41k5' in chunk
+        assert 'self._iso_forest.n_jobs = 1' in chunk
+        assert 'self._rf_classifier.n_jobs = 1' in chunk
+        iso = chunk.index('self._iso_forest = IsolationForest(')
+        rf = chunk.index('self._rf_classifier = RandomForestClassifier(')
+        fl = chunk.index('self._iso_forest.n_jobs = 1')
+        rl = chunk.index('self._rf_classifier.n_jobs = 1')
+        assert iso < rf < fl and fl < rl, \
+            'n_jobs=1 must come after both .fit() calls'
+        mt = chunk.index('self._models_trained = True')
+        assert rl < mt, 'n_jobs=1 must be set before _models_trained=True'
+
+    def test_scan_all_has_overlap_guard(self):
+        """scan_all must refuse to start while a previous scan is draining."""
+        src = self._src()
+        idx = src.index('def scan_all(self)')
+        chunk = src[idx:idx + 1200]
+        assert "getattr(self, '_scan_in_progress', False)" in chunk
+        assert "self._scan_in_progress = True" in chunk
+        assert "self._scan_in_progress = False" in chunk
+
+    def test_scan_guard_skips_when_already_running(self):
+        """Second concurrent scan_all must return [] without touching the pool."""
+        scanner_cls = getattr(dp, 'AdvancedProcessScanner', None)
+        assert scanner_cls is not None, 'AdvancedProcessScanner class missing'
+        inst = object.__new__(scanner_cls)
+        inst._scan_in_progress = True
+        # psutil module global is set, but patch it off so scan_all bails at
+        # the first guard even if the overlap guard were removed.
+        import unittest.mock as um
+        with um.patch.object(dp, 'PSUTIL_AVAILABLE', True):
+            out = inst.scan_all()
+        assert out == []
+        assert inst._scan_in_progress is True
+
+    def test_pool_abandoned_not_blocking(self):
+        """The scan pool must be shut down non-blocking with cancel_futures."""
+        src = self._src()
+        idx = src.index('def _scan_all_locked(self)')
+        chunk = src[idx:idx + 2600]
+        assert 'thread_name_prefix="scan-worker"' in chunk
+        assert 'as_completed(futures, timeout=90)' in chunk
+        assert 'pool.shutdown(wait=False, cancel_futures=True)' in chunk
+        # The old `with`-block form (shutdown wait=True) must be gone.
+        assert 'with ThreadPoolExecutor' not in chunk
+
+    def test_no_nested_joblib_from_analyze(self):
+        """analyze_process_sklearn must run single-threaded predict paths."""
+        src = self._src()
+        idx = src.index('def analyze_process_sklearn')
+        chunk = src[idx:idx + 900]
+        assert 'decision_function' in chunk
+        assert 'predict_proba' in chunk
+
+
+# --------------------------------------------------------------------------
+# v29.41k5 perf-tab live-data upgrade — the open_files walk cost ~8.5s and
+# ran on EVERY fetch tick, strangling the 1-3s refresh cadence to ~14s; the
+# top-procs table only had cpu%/mem%/gpu/status. Now open_files is sampled
+# every 15s and top-procs rows carry live RSS MB, disk I/O rate and active
+# connection count.
+# --------------------------------------------------------------------------
+
+class TestV2941K5PerfTabLive:
+    """Regression guards for the perf-tab live-data/refresh-cadence fixes."""
+
+    def _src(self) -> str:
+        return open(os.path.join(os.path.dirname(__file__),
+                                 '..', 'downpour_v29_titanium.py'),
+                    encoding='utf-8', errors='replace').read()
+
+    def test_open_files_sampled_not_every_tick(self):
+        """The 8.5s open_files walk must be throttled to >=15s cadence."""
+        src = self._src()
+        idx = src.index('# Open file handles count')
+        chunk = src[idx:idx + 1200]
+        assert '_open_files_last_t' in chunk
+        assert '>= 15.0' in chunk
+        assert 'pids[:300]' in chunk
+        # The old every-tick full walk must be gone.
+        assert 'for pid in pids[:500]' not in chunk
+
+    def test_top_procs_carries_live_fields(self):
+        """top-procs rows must include rss_mb / disk_rd_kbs / disk_wr_kbs /
+        conns so the table is fully real-time."""
+        src = self._src()
+        idx = src.index("stats['top_procs']")
+        chunk = src[idx - 4000:idx + 400]
+        for f in ('rss_mb', 'disk_rd_kbs', 'disk_wr_kbs', 'conns'):
+            assert f"'{f}'" in chunk, f'missing top_procs live field: {f}'
+
+    def test_top_procs_enrichment_limited_to_top(self):
+        """The expensive per-process enrichment must only touch the top-N
+        consumers, not all ~200 processes."""
+        src = self._src()
+        idx = src.index("stats['top_procs']")
+        chunk = src[idx - 4000:idx + 400]
+        assert "[:20]" in chunk or "top_pids" in chunk
+        assert '_top_pids' in chunk
+
+    def test_perf_table_columns_include_live_fields(self):
+        """The treeview must expose the new live columns."""
+        src = self._src()
+        assert "'rssMB'" in src
+        assert "'conns'" in src
+        assert "'rd'" in src and "'wr'" in src
+        idx = src.index('values=(pid, name')
+        chunk = src[idx:idx + 600]
+        assert "'{rss_mb:.0f}'" in chunk
+        assert "'{rd_kbs:.0f}'" in chunk
+        assert "'{wr_kbs:.0f}'" in chunk
+
+
