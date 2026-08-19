@@ -25478,9 +25478,10 @@ class downpour(tk.Tk):
             return
         def _do():
             try:
-                import urllib.request as _ur
-                with _ur.urlopen(f"http://ip-api.com/json/{ip}?fields=country,city,isp,as,proxy,hosting", timeout=8) as r:
-                    import json as _j; d = _j.loads(r.read())
+                import json as _j
+                d: Any = self._ip_api_get(ip, 'country,city,isp,as,proxy,hosting', timeout=8)
+                if not d or d.get('status') != 'success':
+                    raise ValueError('lookup failed')
                 geo: Any = f"{d.get('city','?')}, {d.get('country','?')} | ISP: {d.get('isp','?')} | Proxy: {d.get('proxy','?')}"
                 self.after(0, lambda: self._intel_result.config(text=f"[GLOBE] {geo}", fg=Colors.GAUGE_CYAN))
             except Exception as e:
@@ -25994,9 +25995,9 @@ class downpour(tk.Tk):
             return
         def _do():
             try:
-                import urllib.request as _ur, json as _j
-                with _ur.urlopen(f"http://ip-api.com/json/{ip}?fields=country,city,isp,proxy,hosting", timeout=8) as r:
-                    d: Any = _j.loads(r.read())
+                d: Any = self._ip_api_get(ip, 'country,city,isp,proxy,hosting', timeout=8)
+                if not d or d.get('status') != 'success':
+                    raise ValueError('lookup failed')
                 geo: Any = f"{d.get('city','?')}, {d.get('country','?')} | ISP: {d.get('isp','?')} | Proxy/Hosting: {d.get('proxy','?')}/{d.get('hosting','?')}"
                 self.after(0, lambda: __import__('tkinter.messagebox', fromlist=['showinfo']).showinfo("GeoIP", f"{ip}\n{geo}"))
             except Exception as e:
@@ -36810,6 +36811,8 @@ Verification Status:
                 self._conn_start_times = {}
             if not hasattr(self, '_rdns_cache'):
                 self._rdns_cache = {}   # ip → hostname (async filled)
+            if not hasattr(self, '_geo_cache'):
+                self._geo_cache = {}    # ip → country code (async filled, FIX-v29.41k5)
 
             now_ts = time.time()
             target: Any = {}
@@ -36847,6 +36850,14 @@ Verification Status:
                 # SPRINT2: rDNS hostname (if cached)
                 rdns = self._rdns_cache.get(rip, '')
                 display_ip = f'{rdns}' if rdns and rdns != rip else rip
+                # FIX-v29.41k5: populate the Country column live — Country was
+                # hard-coded '' forever (column always blank). Async ip-api.com
+                # lookup fills _geo_cache; private IPs stay blank.
+                country = self._geo_cache.get(rip, '')
+                if not country and rip not in self._geo_cache and \
+                   not rip.startswith(('192.168.', '10.', '172.', '127.', '169.254.', 'fe80:', '::1')):
+                    self._geo_cache[rip] = ''  # mark pending
+                    self._async_geo(rip)
                 # SPRINT2: Tag by threat level
                 if threat_cache.get(rip, False):
                     tag: Any = 'threat'
@@ -36854,8 +36865,6 @@ Verification Status:
                     tag: Any = 'suspect'
                 else:
                     tag: Any = 'normal'
-                # SPRINT2: GeoIP flag emoji in Country (if already resolved)
-                country = ''
                 target[key] = ((conn.pid, proc_name, proto_str, lip, display_ip, rport,
                                 conn.status, dur_str, threat, country), tag)
 
@@ -36917,6 +36926,46 @@ Verification Status:
             self._executor.submit(_do)
         except Exception:
             pass
+
+    def _async_geo(self, ip: str):
+        """FIX-v29.41k5: Async country lookup for the Network tab's formerly
+        always-empty Country column. Keyless ip-api.com endpoint, bounded
+        timeout, on the executor — never blocks the UI. Failures leave the
+        ip marked pending forever (''), which is the same graceful degradation
+        the column had before, so no alert spam."""
+        def _do():
+            try:
+                _data = self._ip_api_get(ip, 'status,countryCode', timeout=4)
+                if _data.get('status') == 'success' and _data.get('countryCode'):
+                    self._geo_cache[ip] = str(_data['countryCode'])
+                else:
+                    self._geo_cache[ip] = '--'
+            except Exception:
+                try:
+                    self._geo_cache[ip] = '--'
+                except Exception:
+                    pass
+        try:
+            self._executor.submit(_do)
+        except Exception:
+            pass
+
+    def _ip_api_get(self, ip: str, fields: str, timeout: int = 6) -> dict:
+        """FIX-v29.41k5b: shared keyless ip-api.com lookup — HTTPS first for
+        privacy, plain-HTTP fallback (the free tier is HTTP-only for the JSON
+        endpoint). Never raises; returns {} on total failure. All five geo
+        call sites route through this so they behave identically."""
+        import json as _json
+        import urllib.request as _ur
+        for _scheme in ('https', 'http'):
+            try:
+                _url = f'{_scheme}://ip-api.com/json/{ip}?fields={fields}'
+                _req = _ur.Request(_url, headers={'User-Agent': 'downpour/29'})
+                with _ur.urlopen(_req, timeout=timeout) as _resp:
+                    return _json.loads(_resp.read().decode('utf-8', 'replace'))
+            except Exception:
+                continue
+        return {}
 
     def _refresh_ioc_count_display(self):
         """Update the IOC-count stat label without blocking the main thread.
@@ -42542,11 +42591,11 @@ Verification Status:
             return
         def do():
             try:
-                req: Any = urllib.request.Request(
-                    f"http://ip-api.com/json/{ip}?fields=status,country,regionName,city,isp,org,as,proxy,hosting,query",
-                    headers = {'User-Agent': 'Downpour/1.0'})
-                with urllib.request.urlopen(req, timeout=8) as r:
-                    data: Any = json.loads(r.read().decode())
+                data: Any = self._ip_api_get(
+                    ip, 'status,country,regionName,city,isp,org,as,proxy,hosting,query',
+                    timeout=8)
+                if not data:
+                    raise ValueError('lookup failed')
                 if data.get('status') == 'success':
                     flags: Any = []
                     if data.get('proxy'):
@@ -42757,11 +42806,7 @@ Verification Status:
     def _geolocate_one(self, ip: str):
         """Silent geo-lookup that logs to alert feed"""
         try:
-            req: Any = urllib.request.Request(
-                f"http://ip-api.com/json/{ip}?fields=status,country,city,isp",
-                headers = {'User-Agent': 'Downpour/1.0'})
-            with urllib.request.urlopen(req, timeout=6) as r:
-                data: Any = json.loads(r.read().decode())
+            data: Any = self._ip_api_get(ip, 'status,country,city,isp', timeout=6)
             if data.get('status') == 'success':
                 self._queue_alert(
                     f"[WEB] {ip} -> {data['country']}, {data['city']} ({data['isp']})",

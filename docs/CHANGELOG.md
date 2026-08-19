@@ -1,5 +1,19 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.41k5b - Network tab Country column made live + unified HTTPS-first geo helper
+- The Network tab's Country column was hard-coded blank forever (no lookup ever
+  ran). Now resolves live: `_geo_cache` + `_async_geo(ip)` do a keyless
+  ip-api.com country lookup on the executor for public IPs; private IPs stay
+  blank (rate-limit hygiene) and failures degrade to `--` without blocking.
+- New shared `_ip_api_get(self, ip, fields, timeout)` helper — HTTPS-first,
+  plain-HTTP fallback (free JSON endpoint is HTTP-only), uniform UA, returns
+  `{}` on total failure. All five geo call sites unified on it: live Country
+  column, Intel-tab GeoIP, alert-action GeoIP, Net-tab Geo-Locate,
+  alert-feed `_geolocate_one`. Four previously used plain-HTTP only.
+- 87/87 tests (added geo regression guards). Smoke: threads stable 67–80, ZERO
+  scan-worker/joblib wedges, 17 transient ≤2s FREEZE warnings (DB-write
+  contention only).
+
 ## v29.41k5 - scan-worker/joblib thread explosion fixed + Perf-tab live-data restore
 
 ### Critical: scan-worker/joblib nested-parallelism deadlock (thread/memory runaway)

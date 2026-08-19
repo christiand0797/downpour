@@ -922,4 +922,52 @@ class TestV2941K5PerfTabLive:
         assert "'{rd_kbs:.0f}'" in chunk
         assert "'{wr_kbs:.0f}'" in chunk
 
+    def test_net_tab_country_column_populated_live(self):
+        """Country was hard-coded '' forever (column always blank). It must
+        read the async geo cache and trigger a lookup for new public IPs."""
+        src = self._src()
+        idx = src.index('_geo_cache = {}')
+        assert idx >= 0
+        # The stale `country = ''` override is gone.
+        assert "# GeoIP flag emoji in Country (if already resolved)" not in src
+        # Country reads the cache.
+        assert "country = self._geo_cache.get(rip, '')" in src
+        # New public IPs trigger an async lookup; private IPs stay blank.
+        assert 'self._async_geo(rip)' in src
+        assert 'not rip.startswith((\'192.168.\', \'10.\', \'172.\', \'127.\', \'169.254.\', \'fe80:\', \'::1\'))' in src
+        # The resolver exists and is keyless.
+        assert 'def _async_geo(self, ip: str):' in src
+        assert 'ip-api.com/json/' in src
+        assert "headers={'User-Agent': 'downpour/29'}" in src
+
+    def test_geo_resolver_marks_unknown_as_dash(self):
+        """ip-api failures must degrade to '--' (never block, never raise)."""
+        import unittest.mock as um
+        inst = make_instance()
+        inst._geo_cache = {}
+        inst._executor = um.MagicMock()
+        # Patch urlopen to raise so the fallback path records '--'. The
+        # submitted callable must be invoked INSIDE the patch context (it
+        # performs the network call).
+        with um.patch('urllib.request.urlopen', side_effect=OSError('no net')):
+            inst._async_geo('8.8.8.8')
+            fn = inst._executor.submit.call_args[0][0]
+            fn()
+        assert inst._geo_cache.get('8.8.8.8') == '--'
+
+    def test_ip_api_get_is_https_first_with_http_fallback(self):
+        """All geo call sites share _ip_api_get; it must try HTTPS before the
+        plain-HTTP fallback and return {} on total failure."""
+        import unittest.mock as um
+        inst = make_instance()
+        with um.patch('urllib.request.urlopen', side_effect=OSError('no net')):
+            out = inst._ip_api_get('8.8.8.8', 'status,countryCode', timeout=2)
+        assert out == {}
+        # Direct check: the helper must not hardcode plain http first.
+        src = self._src()
+        idx = src.index('def _ip_api_get')
+        chunk = src[idx:idx + 1200]
+        assert "for _scheme in ('https', 'http'):" in chunk
+        assert 'return {}' in chunk
+
 

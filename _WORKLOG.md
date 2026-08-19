@@ -2,6 +2,30 @@
 
 ## Branch: main
 
+## Session 2026-08-19b — v29.41k5b: Network tab Country column made live + all 5 geo call sites unified on HTTPS-first helper
+- ✅ Audit found the Network tab's Country column was hard-coded `''` forever
+  (every row showed a blank country; no lookup ever ran). Real live-data gap.
+- ✅ FIX (FIX-v29.41k5b):
+  - Added `_geo_cache` dict + `_async_geo(ip)` (async ip-api.com countryCode
+    lookup on the executor). Country cells now resolve live for public IPs;
+    private IPs (192.168.*, 10.*, 172.*, 127.*, 169.254.*, fe80::, ::1) stay
+    blank to keep the free ip-api rate limit clean; failures/misses degrade to
+    `--` and never block or raise.
+  - Added shared `_ip_api_get(self, ip, fields, timeout)` helper: HTTPS-first
+    for privacy, plain-HTTP fallback (the free JSON endpoint is HTTP-only),
+    uniform `downpour/29` UA, returns `{}` on total failure.
+  - Routed ALL FIVE geo call sites through `_ip_api_get`: live Country column
+    (`_async_geo`), Intel-tab GeoIP (`_intel_geoip`), alert-action GeoIP
+    (`_alert_action_geoip`), Net-tab Geo-Locate (`_geolocate_ip`),
+    alert-feed `_geolocate_one`. Four of them were previously plain-HTTP only
+    (which the free tier silently rejects) — they now get the HTTPS-first +
+    fallback too. `grep http://ip-api` = 0 matches now.
+- ✅ Verified: `py_compile` OK; **87/87 tests** (added geo regression tests:
+  `_async_geo` failure marks `--`; `_ip_api_get` is HTTPS-first with `{}`
+  on total failure). Smoke PID threads stable 67–80; 17 transient FREEZE
+  warnings over 40 min (all DB-write contention, ≤2s), ZERO scan-worker /
+  joblib events.
+
 ## Session 2026-08-19a — v29.41k5: scan-worker/joblib thread explosion + Perf-tab live-data restore
 - ✅ Root cause of the smoke-test thread/memory runaway: **ThreadPoolExecutor
   ("scan-worker") + sklearn 1.9.0 + joblib 1.5.3 nested-parallelism deadlock**.
