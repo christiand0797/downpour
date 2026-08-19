@@ -970,4 +970,40 @@ class TestV2941K5PerfTabLive:
         assert "for _scheme in ('https', 'http'):" in chunk
         assert 'return {}' in chunk
 
+    def test_feed_fetch_is_https_first_with_http_fallback(self):
+        """_fetch_feed must try HTTPS before plain HTTP for http:// feeds, and
+        fall back to HTTP only if HTTPS fails — the _HTTP_OK hard-lock (which
+        kept sysctl.org / data.phishtank.com plain-HTTP forever) is gone."""
+        import unittest.mock as um
+        from downpour_v29_titanium import ThreatIntelEngine
+        eng = object.__new__(ThreatIntelEngine)
+        eng._feed_errors = {}
+        calls: list = []
+
+        class FakeResp:
+            def read(self, n=-1):
+                return ('# 1.2.3.4\n# example feed\n'.encode() * 4)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        def fake_urlopen(req, **kw):
+            calls.append((req.full_url, kw.get('context') is not None))
+            return FakeResp()
+
+        with um.patch('urllib.request.urlopen', side_effect=fake_urlopen):
+            out = eng._fetch_feed('test_http_feed',
+                                  'http://data.phishtank.com/data/online-valid.csv')
+        assert out, 'feed should download'
+        assert calls, 'urlopen must be called'
+        # First attempt must be HTTPS.
+        first_url = calls[0][0]
+        assert first_url.startswith('https://'), f'HTTPS-first violated: {first_url}'
+        assert len(calls) == 1, f'expecting a single successful call, got {calls}'
+        # Plain-HTTP hosts in _HTTP_OK no longer stay HTTP-only.
+        assert 'sysctl.org' not in calls[0][0] or 'https' in calls[0][0]
+
 

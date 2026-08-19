@@ -2,6 +2,23 @@
 
 ## Branch: main
 
+## Session 2026-08-19c — v29.41k5c: intel feed fetches HTTPS-first with HTTP fallback
+- ✅ Audit of network egress found the same ip-api-style HTTPS gap in
+  `_fetch_feed`: a `_HTTP_OK` host set (`sysctl.org`, `data.phishtank.com`,
+  `pgl.yoyo.org`, `someonewhocares.org`) was hard-locked to plain `http://`
+  forever, and any feed whose HTTPS attempt failed was skipped entirely for
+  the whole cycle (no fallback).
+- ✅ FIX (FIX-v29.41k5c): every feed now builds an HTTPS-first candidate list
+  (`https://` promoted from `http://`) with the original `http://` kept as the
+  final fallback. The permissive SSL context (for expired/self-signed cert
+  hosts) still completes a TLS handshake, so exempt hosts now go HTTPS too.
+  `_HTTP_OK` deleted; backoff (0/2/6s) retained per candidate.
+- ✅ Regression test: `_fetch_feed` invoked with an `http://` feed URL must
+  open `https://` first and succeed in a single call (fake urlopen context
+  manager needed `__enter__`/`__exit__` for the `with` block). 88/88 tests.
+- ✅ Smoke PID 13756 still stable (threads 23, RSS ~161MB) while models train
+  in the background; no joblib/scan-worker wedges.
+
 ## Session 2026-08-19b — v29.41k5b: Network tab Country column made live + all 5 geo call sites unified on HTTPS-first helper
 - ✅ Audit found the Network tab's Country column was hard-coded `''` forever
   (every row showed a blank country; no lookup ever ran). Real live-data gap.

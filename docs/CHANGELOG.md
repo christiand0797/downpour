@@ -1,5 +1,15 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.41k5c - Intel feed fetches: HTTPS-first with HTTP fallback
+- `_fetch_feed()` no longer hard-locks a `_HTTP_OK` host set (`sysctl.org`,
+  `data.phishtank.com`, `pgl.yoyo.org`, `someonewhocares.org`) to plain
+  `http://` forever, and no longer skips a feed when its HTTPS fetch fails.
+- All feeds are fetched over HTTPS first (permissive SSL context still used
+  for the expired/self-signed-cert hosts, which complete the handshake);
+  plain-HTTP is only a terminal fallback. `_HTTP_OK` removed.
+- Same pattern as the `_ip_api_get` geo helper from v29.41k5b — privacy
+  first, resilience second. 88/88 tests.
+
 ## v29.41k5b - Network tab Country column made live + unified HTTPS-first geo helper
 - The Network tab's Country column was hard-coded blank forever (no lookup ever
   ran). Now resolves live: `_geo_cache` + `_async_geo(ip)` do a keyless

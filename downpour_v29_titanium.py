@@ -12810,37 +12810,43 @@ class ThreatIntelEngine:
         if _host in _CERT_EXEMPT:
             _ctx.check_hostname = False
             _ctx.verify_mode    = _ssl.CERT_NONE
-        # Promote http:// -> https:// for domains that support it
-        _HTTP_OK: Any = frozenset({'sysctl.org', 'pgl.yoyo.org', 'data.phishtank.com', 'someonewhocares.org'})
-        _safe_url: Any = url
-        if _safe_url.startswith('http://') and _host not in _HTTP_OK:
-            _safe_url: Any = 'https://' + _safe_url[7:]
+        # FIX-v29.41k5c: HTTPS-first with plain-HTTP fallback. Previously feeds
+        # inside _HTTP_OK were hard-locked to http:// and feeds whose HTTPS
+        # fetch failed were skipped entirely — the ip-api style problem. Now
+        # every feed tries HTTPS first (permissive ctx for exempt hosts, which
+        # still completes a TLS handshake), and only falls back to plain HTTP
+        # if HTTPS fails outright. _HTTP_OK removed in favor of the fallback.
+        _https_url: Any = ('https://' + url[7:]) if url.startswith('http://') else url
+        _candidates: list = [_https_url]
+        if _https_url != url:
+            _candidates.append(url)   # plain-HTTP fallback
         # FIX-v29.17: retry with backoff — attempt 1 immediate, then 2s / 6s
         # sleeps so transient network failures (timeouts, 5xx, flaky certs)
         # recover instead of the feed being skipped for the whole cycle.
         _BACKOFF: Any = (0, 2, 6)
         import time as _tb
-        for attempt in range(3):
-            try:
-                req: Any = urllib.request.Request(_safe_url, headers=headers)
-                kw: Any = {'timeout': 15}
-                if _safe_url.startswith('https'):
-                    kw['context'] = _ctx
-                with urllib.request.urlopen(req, **kw) as resp:
-                    # Hard cap: 50 MB  -  prevents memory exhaustion from rogue feeds
-                    raw: Any = resp.read(52_428_800)
-                    if raw[:2] == b'\x1f\x8b':
-                        import gzip as _gz
-                        raw: Any = _gz.decompress(raw[:52_428_800])
-                    if self._verify_download(raw, name):
-                        return raw
-            except Exception as e:
-                if attempt < len(_BACKOFF) - 1:
-                    self._feed_errors[name] = str(e)
-                    try: _tb.sleep(_BACKOFF[attempt])
-                    except Exception: pass
-                else:
-                    self._feed_errors[name] = str(e)
+        for _cand in _candidates:
+            for attempt in range(3):
+                try:
+                    req: Any = urllib.request.Request(_cand, headers=headers)
+                    kw: Any = {'timeout': 15}
+                    if _cand.startswith('https'):
+                        kw['context'] = _ctx
+                    with urllib.request.urlopen(req, **kw) as resp:
+                        # Hard cap: 50 MB  -  prevents memory exhaustion from rogue feeds
+                        raw: Any = resp.read(52_428_800)
+                        if raw[:2] == b'\x1f\x8b':
+                            import gzip as _gz
+                            raw: Any = _gz.decompress(raw[:52_428_800])
+                        if self._verify_download(raw, name):
+                            return raw
+                except Exception as e:
+                    if attempt < len(_BACKOFF) - 1:
+                        self._feed_errors[name] = str(e)
+                        try: _tb.sleep(_BACKOFF[attempt])
+                        except Exception: pass
+                    else:
+                        self._feed_errors[name] = str(e)
         return None
 
     def update_all(self, callback=None):
