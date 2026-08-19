@@ -1,5 +1,16 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.41k5g - Feed-health refresh: zero Tcl calls for unchanged rows
+- After the DB read/writer split, the remaining 1.6-2.4s FREEZEs came from
+  `_apply_feed_health`: every periodic Intel-tab refresh re-issued per-row
+  `tree.item('tags')` + `tree.set` + `tree.item(tags=)` — a few hundred Tcl
+  round-trips even when no feed status changed, GIL-starving the Tk client
+  under the writer/training storm.
+- Now a `_feed_health_rendered` cache stores the last-rendered
+  `(value, tags, base_tag)` per row; unchanged rows skip the tree entirely
+  (base tag reused from cache, so no read either); iids that vanish from the
+  tree are pruned from the cache. 92/92 tests.
+
 ## v29.41k5f - DB reader/writer split: reads never block behind bulk writers
 - `Database` used one RLock across the single WAL connection — main-thread
   SELECTs stalled behind background bulk `executemany()` batches (the

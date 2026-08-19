@@ -2,6 +2,27 @@
 
 ## Branch: main
 
+## Session 2026-08-19g — v29.41k5g: feed-health refresh change-detection (kill remaining FREEZEs)
+- Post-k5f smoke (PID 13376, v29.41k5f code) still logged 13 FREEZEs
+  (1.6-2.4s, first batch 04:06-04:08, second 04:10) — but the main-thread
+  stacks had CHANGED: no more DB reads (k5f worked; worst block 4.9s → 2.4s).
+  Sampler dominant-loc + other-threads now showed `_apply_feed_health` →
+  `tree.get_children('')`/`tree.item`/`tree.set` (Tcl `tk.call` round-trips)
+  while other threads sat in `executemany`.
+- ✅ Root cause: `_apply_feed_health` re-issued per-row `tree.item('tags')`
+  read + `tree.set` + `tree.item(tags=)` on EVERY refresh — a few hundred Tcl
+  round-trips even when no feed status changed. Each Tcl call needs the Tcl
+  client mutex + GIL; under the writer/training storm those serialize and the
+  500ms mainloop tick drifts past 1.5s → FALSE FREEZE reports on a busy-but-
+  alive loop, and real latency for the user.
+- ✅ FIX (FIX-v29.41k5g): render change-detection. `_feed_health_rendered`
+  cache stores the last-rendered `(value, tags, base_tag)` per iid. Unchanged
+  rows issue ZERO Tcl calls (base tag reused from cache → no read either).
+  iids missing from `tree.get_children('')` are pruned so the cache never
+  grows stale. First render still seeds base tag from `tree.item(iid,'tags')`.
+- ✅ Verified: 92/92 tests (new `test_feed_health_render_skips_unchanged_rows`
+  asserts the cache, the `(value, tags)` skip, base-tag reuse, and pruning).
+
 ## Session 2026-08-19f — v29.41k5f: DB reader/writer split kills main-thread read stalls
 - ✅ Root cause of the startup/intel FREEZE warnings (1.5-5s main-thread
   blocks): `Database` serialised EVERY query through one `RLock` around the

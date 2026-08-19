@@ -38489,43 +38489,69 @@ Verification Status:
             for r in rows:
                 status[r.get('name', '')] = r
             updated: Any = False
+            # FIX-v29.41k5g: render change-detection. Every refresh previously
+            # issued a per-row tree.item('tags') read + tree.set + tree.item(
+            # tags=) — a few hundred Tcl round-trips that (a) ran even when
+            # nothing changed and (b) GIL-starved the Tcl client under the
+            # writer/training storm, producing the 1.6-2.4s FREEZEs. Now we
+            # cache the last rendered (value, tags) per row and issue ZERO
+            # Tcl calls for rows whose rendered state is unchanged.
+            cache: Any = getattr(self, '_feed_health_rendered', None)
+            if cache is None:
+                cache = {}
+                self._feed_health_rendered = cache
+            cur_ids: Any = set()
+            clears: Any = []
             for iid in tree.get_children(''):
+                cur_ids.add(iid)
                 name: Any = iid
                 row: Any = status.get(name)
-                try:
-                    base_tag: Any = tree.item(iid, 'tags')
-                    base_tag = base_tag[0] if base_tag else 'clearnet'
-                except Exception:
-                    base_tag = 'clearnet'
-                if row is None:
-                    tree.set(id=iid, column='Status',
-                             value='[PENDING] not updated yet')
-                    tree.item(iid, tags=('feed_stale',))
-                    updated = True
-                    continue
-                err: Any = row.get('error') or ''
-                last_up: Any = row.get('updated') or ''
-                count: Any = row.get('count') or 0
-                try:
-                    last_dt: Any = datetime.fromisoformat(last_up)
-                    last_str: Any = last_dt.strftime('%m-%d %H:%M')
-                    stale: Any = last_dt < max_age
-                except Exception:
-                    last_str = '?'
-                    stale = True
-                if err:
-                    tree.set(id=iid, column='Status',
-                             value=f'[FAIL] {str(err)[:48]}')
-                    tree.item(iid, tags=('feed_err',))
-                elif stale:
-                    tree.set(id=iid, column='Status',
-                             value=f'[STALE] {count:,} IOCs  -  {last_str}')
-                    tree.item(iid, tags=(base_tag, 'feed_stale'))
+                prev_state: Any = cache.get(iid)
+                maybe_base: Any = (prev_state[2] if prev_state else '')
+                if maybe_base:
+                    base_tag: Any = maybe_base
                 else:
-                    tree.set(id=iid, column='Status',
-                             value=f'[OK] {count:,} IOCs  -  {last_str}')
-                    tree.item(iid, tags=(base_tag,))
+                    try:
+                        prev: Any = tree.item(iid, 'tags')
+                        base_tag: Any = prev[0] if prev else 'clearnet'
+                    except Exception:
+                        base_tag = 'clearnet'
+                if row is None:
+                    value = '[PENDING] not updated yet'
+                    tags = ('feed_stale',)
+                else:
+                    err: Any = row.get('error') or ''
+                    last_up: Any = row.get('updated') or ''
+                    count: Any = row.get('count') or 0
+                    try:
+                        last_dt: Any = datetime.fromisoformat(last_up)
+                        last_str: Any = last_dt.strftime('%m-%d %H:%M')
+                        stale: Any = last_dt < max_age
+                    except Exception:
+                        last_str = '?'
+                        stale = True
+                    if err:
+                        value = f'[FAIL] {str(err)[:48]}'
+                        tags = ('feed_err',)
+                    elif stale:
+                        value = f'[STALE] {count:,} IOCs  -  {last_str}'
+                        tags = (base_tag, 'feed_stale')
+                    else:
+                        value = f'[OK] {count:,} IOCs  -  {last_str}'
+                        tags = (base_tag,)
+                if prev_state is not None and prev_state[:2] == (value, tags):
+                    cache[iid] = (value, tags, base_tag)
+                    continue
+                tree.set(id=iid, column='Status', value=value)
+                tree.item(iid, tags=tags)
+                cache[iid] = (value, tags, base_tag)
                 updated = True
+            if updated or cache:
+                for iid in list(cache):
+                    if iid not in cur_ids:
+                        clears.append(iid)
+                for iid in clears:
+                    cache.pop(iid, None)
             if updated:
                 errored: Any = sum(1 for r in rows if r.get('error'))
                 ok: Any = sum(1 for r in rows

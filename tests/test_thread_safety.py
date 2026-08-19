@@ -1062,4 +1062,22 @@ class TestV2941K5PerfTabLive:
             finally:
                 dp.DB_PATH = old
 
+    def test_feed_health_render_skips_unchanged_rows(self):
+        """_apply_feed_health must not re-issue Tcl tree.set/item round-trips
+        for rows whose rendered (value, tags) are unchanged — otherwise the
+        periodic Intel-tab refresh GIL-starves the Tk client under the writer/
+        training storm (the 1.6-2.4s FREEZEs). Assert the change-detection
+        cache + base-tag reuse exist."""
+        src = self._src()
+        idx = src.index('def _apply_feed_health')
+        chunk = src[idx:idx + 4200]
+        assert "getattr(self, '_feed_health_rendered', None)" in chunk
+        assert 'cache.get(iid)' in chunk
+        assert "prev_state[:2] == (value, tags)" in chunk
+        assert 'cache[iid] = (value, tags, base_tag)' in chunk
+        # Row identity cycle should be pruned from the cache when the row
+        # disappears from the tree so stale iids don't linger.
+        assert 'if iid not in cur_ids:' in chunk
+        assert 'cache.pop(iid, None)' in chunk
+
 
