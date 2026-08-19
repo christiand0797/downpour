@@ -1006,4 +1006,13 @@ class TestV2941K5PerfTabLive:
         # Plain-HTTP hosts in _HTTP_OK no longer stay HTTP-only.
         assert 'sysctl.org' not in calls[0][0] or 'https' in calls[0][0]
 
+    def test_vpn_source_fetch_is_https_first(self):
+        """_vpn_load_servers must promote http:// source URLs to https:// first
+        (Mirror 2 was configured plain-HTTP only)."""
+        src = self._src()
+        idx = src.index('def _vpn_load_servers')
+        chunk = src[idx:idx + 1800]
+        assert "if _raw_url.startswith('http://'):" in chunk
+        assert "_cands.insert(0, 'https://' + _raw_url[7:])" in chunk
+
 

@@ -189,6 +189,8 @@ Detects: **Mimikatz, CobaltStrike, Metasploit, Empire, PoshC2, AsyncRAT, NjRAT, 
 
 See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for full details.
 
+**v29.41k5d**: Full audit of every `urllib.request.urlopen` call site — the VPN tab's Mirror-2 server-list fetch (`lab.mahidol.ac.th`) was the last plain-HTTP-only egress; it now tries `https://` first and falls back to `http://` only on failure. All remaining 30+ fetch sites verified HTTPS or user-configured. 89/89 tests.
+
 **v29.41k5c**: Intel feed fetches are now HTTPS-first with a plain-HTTP fallback. `_fetch_feed` previously hard-locked a small set of hosts (`sysctl.org`, `data.phishtank.com`, `pgl.yoyo.org`, `someonewhocares.org`) to plain `http://` forever (via `_HTTP_OK`) and skipped any feed whose HTTPS fetch failed outright. Every feed now tries HTTPS first (permissive SSL context for the expired/self-signed-cert hosts, which still complete the handshake), and falls back to `http://` only if HTTPS fails — same pattern as the geo helper. `_HTTP_OK` removed. 88/88 tests.
 
 **v29.41k5b**: Made the Network tab's Country column live for the first time (it was hard-coded empty forever) — async keyless ip-api.com lookups populate it for public IPs while private IPs stay blank, defaulting to `--` on failure. Added a single shared HTTPS-first/HTTP-fallback `_ip_api_get` helper and routed all five geo call sites through it (live Country column, Intel tab GeoIP, alert-ac-tion GeoIP, Net tab Geo-Locate, alert-feed `_geolocate_one`); previously four of them were plain-HTT-P only (free tier is HTTP-only). 87/87 tests.

@@ -31019,11 +31019,26 @@ Verification Status:
                         loaded_sources.append(f'{src_name} ({len(entries)})')
                         continue
 
-                    req: Any = urllib.request.Request(
-                        src['url'],
-                        headers = {'User-Agent': 'Mozilla/5.0 (compatible; Downpour/26)'},
-                    )
-                    raw: Any = urllib.request.urlopen(req, timeout=12).read().decode('utf-8', errors='replace')
+                    # FIX-v29.41k5d: HTTPS-first with plain-HTTP fallback.
+                    # Mirror 2 (lab.mahidol.ac.th) was configured plain-HTTP
+                    # only — same gap fixed everywhere else. Try https:// first,
+                    # fall back to http:// only if the TLS fetch fails.
+                    _raw_url: Any = src['url']
+                    _cands: list = [_raw_url]
+                    if _raw_url.startswith('http://'):
+                        _cands.insert(0, 'https://' + _raw_url[7:])
+                    raw: Any = ''
+                    for _u in _cands:
+                        try:
+                            req: Any = urllib.request.Request(
+                                _u,
+                                headers = {'User-Agent': 'Mozilla/5.0 (compatible; Downpour/26)'},
+                            )
+                            raw = urllib.request.urlopen(req, timeout=12).read().decode('utf-8', errors='replace')
+                            if raw.strip():
+                                break
+                        except Exception:
+                            continue
 
                     if src_type == 'vpngate_csv':
                         lines: Any = [l for l in raw.splitlines() if not l.startswith('*')]

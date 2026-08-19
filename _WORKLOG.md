@@ -2,6 +2,21 @@
 
 ## Branch: main
 
+## Session 2026-08-19d — v29.41k5d: VPN Mirror-2 fetch HTTPS-first + full egress HTTPS audit
+- ✅ Completed an audit of every `urllib.request.urlopen` call site (38
+  found). All but one were already HTTPS or user-configurable (DoH template,
+  OSINT download URLs). The one remaining plain-HTTP-only egress was the VPN
+  tab's Mirror-2 server-list source (`http://lab.mahidol.ac.th/vpngate/api/
+  iphone/`).
+- ✅ FIX (FIX-v29.41k5d): `_vpn_load_servers` now builds an HTTPS-first
+  candidate list per source — `https://` promoted from `http://`, original
+  `http://` retained as terminal fallback. `raw` initialised to `''` so a
+  dead source degrades to a logged/skipped source instead of an unbound
+  NameError; both parsers (vpngate_csv, protonvpn_json, generic_json) handle
+  empty input gracefully within their existing try/except.
+- ✅ Regression test asserting the https-first promotion block. 89/89 tests.
+- ✅ Smoke PID 13756 stable through all edits (threads 23, RSS ~161MB).
+
 ## Session 2026-08-19c — v29.41k5c: intel feed fetches HTTPS-first with HTTP fallback
 - ✅ Audit of network egress found the same ip-api-style HTTPS gap in
   `_fetch_feed`: a `_HTTP_OK` host set (`sysctl.org`, `data.phishtank.com`,

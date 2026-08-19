@@ -1,5 +1,13 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.41k5d - VPN Mirror-2 fetch HTTPS-first + full egress audit
+- Audited all 38 `urllib.request.urlopen` call sites: 37 HTTPS or
+  user-configurable; one plain-HTTP-only left — VPN tab Mirror-2 source
+  (`lab.mahidol.ac.th`).
+- `_vpn_load_servers()` now prefers `https://` for every source and falls
+  back to `http://` only on failure; `raw` defaults to `''` so dead sources
+  degrade to logged skips (no NameError). 89/89 tests.
+
 ## v29.41k5c - Intel feed fetches: HTTPS-first with HTTP fallback
 - `_fetch_feed()` no longer hard-locks a `_HTTP_OK` host set (`sysctl.org`,
   `data.phishtank.com`, `pgl.yoyo.org`, `someonewhocares.org`) to plain
