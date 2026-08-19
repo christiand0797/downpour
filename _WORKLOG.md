@@ -2,6 +2,30 @@
 
 ## Branch: main
 
+## Session 2026-08-19f — v29.41k5f: DB reader/writer split kills main-thread read stalls
+- ✅ Root cause of the startup/intel FREEZE warnings (1.5-5s main-thread
+  blocks): `Database` serialised EVERY query through one `RLock` around the
+  single persistent WAL connection. A main-thread `SELECT` therefore blocked
+  behind background bulk `executemany()` batches (BEGIN + N inserts + COMMIT,
+  fsync-bound). WAL already supports concurrent readers — the app lock just
+  never allowed it.
+- ✅ FIX (FIX-v29.41k5f): dedicated reader connection + lock.
+  - `_read_conn` / `_read_lock`: lazy SQLite connection with identical PRAGMAs
+    (WAL, synchronous=NORMAL, 32MB cache, temp_store=MEMORY).
+  - `execute()` classifies via the existing `_needs_commit` regex; pure reads
+    (SELECT / non-mutating PRAGMA) route to `_read_conn`, DML/DDL stay on the
+    writer `_conn`/`_lock` unchanged. `executemany` untouched (still exclusive
+    writer).
+  - `_close()` closes both connections; `_read_reconnect_if_needed()` recreates
+    the reader.
+- ✅ Safety: no `RETURNING` / WITH-clause writes, no ATTACH/VACUUM/SAVEPOINT
+  across `execute`, no external code acquires `db._lock` (comment refs only).
+- ✅ Verified: concurrent stress (writer hammering 200-row INSERT OR REPLACE
+  batches; 50 reads) — 50 reads in 0.005s total, 0 reads >250ms. 91/91 tests
+  (new test builds an isolated temp-DB `Database` and asserts reader/writer are
+  distinct connections with WAL-visible reads). Smoke PID 13756 stable through
+  the edit.
+
 ## Session 2026-08-19e — v29.41k5e: DNS live-monitor dedup (kill duplicate rows + alarm spam)
 - ✅ `_dns_monitor_loop` polls the Windows DNS client cache — a full snapshot —
   every 3s. It re-inserted ALL cached entries each cycle: identical rows

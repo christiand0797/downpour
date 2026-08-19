@@ -1030,4 +1030,36 @@ class TestV2941K5PerfTabLive:
         cchunk = src[cidx:cidx + 500]
         assert "self._dns_mon_seen = set()" in cchunk
 
+    def test_db_reads_use_reader_connection(self):
+        """SELECTs must go over a dedicated reader connection so they never
+        block behind bulk writers (WAL allows concurrent readers)."""
+        import tempfile
+        import threading
+        from pathlib import Path as _Path
+        import downpour_v29_titanium as dp
+        # Isolate to a temp DB so we don't touch the real data dir.
+        with tempfile.TemporaryDirectory() as td:
+            old = dp.DB_PATH
+            dp.DB_PATH = _Path(td) / 'test.db'
+            try:
+                db = dp.Database()
+                try:
+                    # Writes land on the writer.
+                    db.execute('CREATE TABLE t (k TEXT PRIMARY KEY, v INTEGER)')
+                    db.executemany('INSERT INTO t (k, v) VALUES (?, ?)',
+                                   [('a', 1), ('b', 2)])
+                    # Reader is lazily created on FIRST read.
+                    rows = db.execute('SELECT k, v FROM t ORDER BY k')
+                    # Reader and writer must be DISTINCT connections.
+                    assert db._read_conn is not None
+                    assert db._read_conn is not db._conn
+                    # And reads are visible through the reader (WAL snapshot).
+                    assert [tuple(r) for r in rows] == [('a', 1), ('b', 2)]
+                    db.execute('UPDATE t SET v = 99 WHERE k = ?', ('a',))
+                    assert db.fetchone('SELECT v FROM t WHERE k = ?', ('a',))[0] == 99
+                finally:
+                    db._close()
+            finally:
+                dp.DB_PATH = old
+
 

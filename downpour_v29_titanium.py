@@ -5356,6 +5356,13 @@ class Database:
         self.path  = str(DB_PATH)
         self._lock = threading.RLock()   # RLock: same thread may re-enter
         self._conn = None
+        # FIX-v29.41k5f: split read path onto its OWN connection + lock.
+        # A single RLock around one connection means main-thread SELECTs block
+        # behind background bulk executemany() (the startup/info FREEZEs).
+        # WAL mode makes cross-connection reads free, so SELECTs go over
+        # _read_conn/_read_lock and never wait on the writers' _lock.
+        self._read_lock: Any = threading.RLock()
+        self._read_conn: Any = None
         self._connect()
         self._init()
         atexit.register(self._close)
@@ -5385,12 +5392,44 @@ class Database:
                     self._conn: Any = None
         except Exception:
             pass
+        # FIX-v29.41k5f: close the reader connection too.
+        try:
+            with self._read_lock:
+                if self._read_conn is not None:
+                    try: self._read_conn.close()
+                    except Exception: pass
+                    self._read_conn = None
+        except Exception:
+            pass
 
     def _reconnect_if_needed(self):
         """Reconnect if connection was closed (e.g. after a failed transaction)."""
         if self._conn is None:
             self._connect()
         assert self._conn is not None
+
+    def _read_connect(self):
+        """Open the dedicated read-only WAL connection."""
+        self._read_conn = sqlite3.connect(
+            self.path,
+            check_same_thread = False,   # serialised by self._read_lock
+            isolation_level = None,      # autocommit; read-only path
+            timeout = 30,
+        )
+        # Read connection never writes, but WAL must be set on any handle that
+        # touches the DB so it shares the same journal protocol (identical
+        # PRAGMAs keep cache/sync behaviour consistent).
+        self._read_conn.execute("PRAGMA journal_mode = WAL")
+        self._read_conn.execute("PRAGMA synchronous  = NORMAL")
+        self._read_conn.execute("PRAGMA cache_size   = -32768")
+        self._read_conn.execute("PRAGMA foreign_keys = ON")
+        self._read_conn.execute("PRAGMA temp_store   = MEMORY")
+
+    def _read_reconnect_if_needed(self):
+        """Reconnect the reader if it was closed."""
+        if self._read_conn is None:
+            self._read_connect()
+        assert self._read_conn is not None
 
     def _init(self):
         with self._lock:
@@ -5510,6 +5549,25 @@ class Database:
         _needs_commit: Any = bool(re.match(
             r'\s*(INSERT|UPDATE|DELETE|REPLACE|CREATE|DROP|ALTER|PRAGMA\s+\w+\s*=)',
             query, re.I))
+        if not _needs_commit:
+            # FIX-v29.41k5f: pure read (SELECT / non-mutating PRAGMA) — use the
+            # dedicated reader connection so it never blocks behind bulk
+            # writers, and bulk writers never block behind readers (WAL
+            # guarantees a consistent snapshot per statement).
+            with self._read_lock:
+                self._read_reconnect_if_needed()
+                try:
+                    cur: Any = self._read_conn.execute(query, params)
+                    return cur.fetchall()
+                except sqlite3.OperationalError as e:
+                    if 'locked' in str(e).lower():
+                        time.sleep(0.05)
+                        try:
+                            cur: Any = self._read_conn.execute(query, params)
+                            return cur.fetchall()
+                        except Exception:
+                            return []
+                    raise
         with self._lock:
             self._reconnect_if_needed()
             try:

@@ -1,5 +1,14 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.41k5f - DB reader/writer split: reads never block behind bulk writers
+- `Database` used one RLock across the single WAL connection — main-thread
+  SELECTs stalled behind background bulk `executemany()` batches (the
+  startup/intel FREEZE warnings, 1.5-5s).
+- New dedicated reader connection (`_read_conn`/`_read_lock`): pure reads
+  route there and never wait for writers; WAL guarantees a consistent
+  snapshot. Writers unchanged. Stress-tested: 50 reads in 0.005s while a
+  writer ran continuous 200-row batch inserts. 91/91 tests.
+
 ## v29.41k5e - DNS live-monitor dedup: no more duplicate rows or alarm spam
 - `_dns_monitor_loop` reads the full DNS client cache snapshot every 3s and
   was re-inserting every entry each cycle (duplicate rows, endless Queries

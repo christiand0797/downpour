@@ -189,6 +189,8 @@ Detects: **Mimikatz, CobaltStrike, Metasploit, Empire, PoshC2, AsyncRAT, NjRAT, 
 
 See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for full details.
 
+**v29.41k5f**: Killed the main-thread DB-read stalls (the startup/intel FREEZE warnings). The single persistent WAL connection was locked with one global RLock held by BOTH readers and writers — so a main-thread `SELECT count(*)` blocked behind every background bulk `executemany` (fsync-bound BEGIN/COMMIT batches). `Database` now keeps a dedicated **reader connection** (`_read_conn`, own `_read_lock`): pure reads route there and never wait for writers; WAL guarantees a consistent snapshot per read. Writers keep the original connection/lock untouched. Verified: 50 reads in 0.005s *total* while a writer hammered 200-row batch inserts continuously. 91/91 tests.
+
 **v29.41k5e**: Fixed the DNS live-monitor's duplicate-row/alarm-spam bug. The DNS client cache is a full snapshot, so the 3s poll re-returned every cached entry each cycle — identical rows inserted forever, `Queries` count ratcheted endlessly, and the same threatening domain re-fired its alert on every poll. Now a seen-set of `(domain,data,type)` keys skips already-observed entries (only genuinely new DNS activity inserts/counts/alerts), the live-monitor count label reads `Queries: n` instead of `Cache entries: n`, and Clear resets the seen-set so the view re-captures. 90/90 tests.
 
 **v29.41k5d**: Full audit of every `urllib.request.urlopen` call site — the VPN tab's Mirror-2 server-list fetch (`lab.mahidol.ac.th`) was the last plain-HTTP-only egress; it now tries `https://` first and falls back to `http://` only on failure. All remaining 30+ fetch sites verified HTTPS or user-configured. 89/89 tests.
