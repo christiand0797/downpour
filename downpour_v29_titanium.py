@@ -36812,7 +36812,7 @@ Verification Status:
             if not hasattr(self, '_rdns_cache'):
                 self._rdns_cache = {}   # ip → hostname (async filled)
             if not hasattr(self, '_geo_cache'):
-                self._geo_cache = {}    # ip → country code (async filled, FIX-v29.41k5)
+                self._geo_cache = {}    # ip → country code (async filled, FIX-v29.41k5b)
 
             now_ts = time.time()
             target: Any = {}
@@ -36850,7 +36850,7 @@ Verification Status:
                 # SPRINT2: rDNS hostname (if cached)
                 rdns = self._rdns_cache.get(rip, '')
                 display_ip = f'{rdns}' if rdns and rdns != rip else rip
-                # FIX-v29.41k5: populate the Country column live — Country was
+                # FIX-v29.41k5b: populate the Country column live — Country was
                 # hard-coded '' forever (column always blank). Async ip-api.com
                 # lookup fills _geo_cache; private IPs stay blank.
                 country = self._geo_cache.get(rip, '')
@@ -36928,7 +36928,7 @@ Verification Status:
             pass
 
     def _async_geo(self, ip: str):
-        """FIX-v29.41k5: Async country lookup for the Network tab's formerly
+        """FIX-v29.41k5b: Async country lookup for the Network tab's formerly
         always-empty Country column. Keyless ip-api.com endpoint, bounded
         timeout, on the executor — never blocks the UI. Failures leave the
         ip marked pending forever (''), which is the same graceful degradation
