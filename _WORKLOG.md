@@ -22,6 +22,15 @@
   grows stale. First render still seeds base tag from `tree.item(iid,'tags')`.
 - ✅ Verified: 92/92 tests (new `test_feed_health_render_skips_unchanged_rows`
   asserts the cache, the `(value, tags)` skip, base-tag reuse, and pruning).
+- ✅ Smoke PID 7904 (k5g code, launched 04:20): FREEZE classification by
+  stack — `_apply_feed_health` in blocks: **0** (was deterministic before),
+  `_fetch_feed`: 0. Remaining 26 FREEZEs over 27 min are 1.5-1.9s GIL
+  boundary bursts while `executemany` @ `_store_parsed_iocs` (IOC write
+  storm) + `_worker` threads saturate the GIL; two 5.8s outliers coincided
+  with a `subprocess.Popen` + alert-drain `createcommand` Tcl-lock wait.
+  Steady state clean: threads ~62-71, RSS ~690-815MB (training spike, then
+  flat), CPU 10-12%, ALIVE cadence steady. No DB read ever appears in the
+  main-thread stacks (k5f holds).
 
 ## Session 2026-08-19f — v29.41k5f: DB reader/writer split kills main-thread read stalls
 - ✅ Root cause of the startup/intel FREEZE warnings (1.5-5s main-thread
