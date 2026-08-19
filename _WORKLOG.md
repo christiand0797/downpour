@@ -2,6 +2,21 @@
 
 ## Branch: main
 
+## Session 2026-08-19e — v29.41k5e: DNS live-monitor dedup (kill duplicate rows + alarm spam)
+- ✅ `_dns_monitor_loop` polls the Windows DNS client cache — a full snapshot —
+  every 3s. It re-inserted ALL cached entries each cycle: identical rows
+  accumulated forever, the `Queries` counter ratcheted endlessly, and the same
+  threatening domain re-fired `[R] BLOCKLIST HIT` / DGA alerts on EVERY poll.
+- ✅ FIX (FIX-v29.41k5e): introduced a seen-set of `(domain,data,rtype)` keys
+  (`self._dns_mon_seen`, lazily init on the monitor thread). Only genuinely
+  new cache entries insert rows, bump `q_count`/`t_count`, or alert. Count
+  label changed from `Cache entries:` (was factually wrong — it counted
+  processed snapshot rows, not cached entries) to `Queries:`. `_dns_clear_
+  monitor` resets the seen-set so an explicit Clear re-captures the current
+  state instead of staying dark.
+- ✅ Regression test (source-level assertions for dedup guard + reset). 90/90
+  tests. Smoke PID 13756 stable through the edit.
+
 ## Session 2026-08-19d — v29.41k5d: VPN Mirror-2 fetch HTTPS-first + full egress HTTPS audit
 - ✅ Completed an audit of every `urllib.request.urlopen` call site (38
   found). All but one were already HTTPS or user-configurable (DoH template,

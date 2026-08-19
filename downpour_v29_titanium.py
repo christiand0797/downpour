@@ -44930,6 +44930,16 @@ Verification Status:
         q_count: Any = 0
         t_count: Any = 0
         import re
+        # FIX-v29.41k5e: the DNS client cache is a snapshot — every 3s poll
+        # re-returned ALL cached entries, so rows duplicated forever, q_count
+        # ratcheted, and the same threatening domain re-alerted on each poll
+        # (alert spam). Track a seen-set of (name,data,rtype) keys and only
+        # insert/count/alert NEW cache entries. Set lives on self so
+        # _dns_clear_monitor() can reset it and capture current state again.
+        _seen: set = getattr(self, '_dns_mon_seen', None)
+        if _seen is None:
+            _seen = set()
+            self._dns_mon_seen = _seen
         while self._dns_monitor_active:
             try:
                 # Use DNS Client cache as a proxy for recent queries
@@ -44942,6 +44952,10 @@ Verification Status:
                             domain: Any = parts[0].strip('"')
                             data: Any = parts[1].strip('"')
                             rtype: Any = parts[2].strip('"')
+                            _key: tuple = (domain, data, rtype)
+                            if _key in _seen:
+                                continue
+                            _seen.add(_key)
                             # Threat check
                             flag: Any = ''
                             threat: Any = False
@@ -44982,7 +44996,7 @@ Verification Status:
                                 self.after(0, _add)
                 def _upd(q=q_count, t=t_count):
                     try:
-                        self._dns_mon_count_var.set(f'Cache entries: {q}  |  Threats: {t}')
+                        self._dns_mon_count_var.set(f'Queries: {q}  |  Threats: {t}')
                     except Exception:
                         pass
                 self.after(0, _upd)
@@ -44994,6 +45008,9 @@ Verification Status:
         try:
             self._dns_mon_tree.delete(*self._dns_mon_tree.get_children())
             self._dns_mon_count_var.set('Queries: 0  |  Threats: 0')
+            # FIX-v29.41k5e: reset seen-set so cleared entries re-capture.
+            try: self._dns_mon_seen = set()
+            except Exception: pass
         except Exception:
             pass
 

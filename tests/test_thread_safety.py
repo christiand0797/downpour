@@ -1015,4 +1015,19 @@ class TestV2941K5PerfTabLive:
         assert "if _raw_url.startswith('http://'):" in chunk
         assert "_cands.insert(0, 'https://' + _raw_url[7:])" in chunk
 
+    def test_dns_monitor_dedupes_cache_snapshot(self):
+        """The DNS monitor polls a full cache snapshot every 3s. Without a
+        seen-set the same (domain,data,type) row re-inserts forever and the
+        same threat re-alerts every poll. Assert the dedup guard + reset."""
+        src = self._src()
+        idx = src.index('def _dns_monitor_loop')
+        chunk = src[idx:idx + 1700]
+        assert 'if _key in _seen:' in chunk
+        assert '_seen.add(_key)' in chunk
+        assert "getattr(self, '_dns_mon_seen', None)" in chunk
+        # Clear resets the seen-set so it re-captures on demand.
+        cidx = src.index('def _dns_clear_monitor')
+        cchunk = src[cidx:cidx + 500]
+        assert "self._dns_mon_seen = set()" in cchunk
+
 

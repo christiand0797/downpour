@@ -189,6 +189,8 @@ Detects: **Mimikatz, CobaltStrike, Metasploit, Empire, PoshC2, AsyncRAT, NjRAT, 
 
 See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for full details.
 
+**v29.41k5e**: Fixed the DNS live-monitor's duplicate-row/alarm-spam bug. The DNS client cache is a full snapshot, so the 3s poll re-returned every cached entry each cycle — identical rows inserted forever, `Queries` count ratcheted endlessly, and the same threatening domain re-fired its alert on every poll. Now a seen-set of `(domain,data,type)` keys skips already-observed entries (only genuinely new DNS activity inserts/counts/alerts), the live-monitor count label reads `Queries: n` instead of `Cache entries: n`, and Clear resets the seen-set so the view re-captures. 90/90 tests.
+
 **v29.41k5d**: Full audit of every `urllib.request.urlopen` call site — the VPN tab's Mirror-2 server-list fetch (`lab.mahidol.ac.th`) was the last plain-HTTP-only egress; it now tries `https://` first and falls back to `http://` only on failure. All remaining 30+ fetch sites verified HTTPS or user-configured. 89/89 tests.
 
 **v29.41k5c**: Intel feed fetches are now HTTPS-first with a plain-HTTP fallback. `_fetch_feed` previously hard-locked a small set of hosts (`sysctl.org`, `data.phishtank.com`, `pgl.yoyo.org`, `someonewhocares.org`) to plain `http://` forever (via `_HTTP_OK`) and skipped any feed whose HTTPS fetch failed outright. Every feed now tries HTTPS first (permissive SSL context for the expired/self-signed-cert hosts, which still complete the handshake), and falls back to `http://` only if HTTPS fails — same pattern as the geo helper. `_HTTP_OK` removed. 88/88 tests.

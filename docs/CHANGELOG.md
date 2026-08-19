@@ -1,5 +1,12 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.41k5e - DNS live-monitor dedup: no more duplicate rows or alarm spam
+- `_dns_monitor_loop` reads the full DNS client cache snapshot every 3s and
+  was re-inserting every entry each cycle (duplicate rows, endless Queries
+  ratchet, same-threat re-alert every poll).
+- Seen-set of `(domain,data,type)` keys now gates inserts/counts/alerts;
+  count label reads `Queries: n`; Clear resets the seen-set. 90/90 tests.
+
 ## v29.41k5d - VPN Mirror-2 fetch HTTPS-first + full egress audit
 - Audited all 38 `urllib.request.urlopen` call sites: 37 HTTPS or
   user-configurable; one plain-HTTP-only left — VPN tab Mirror-2 source
