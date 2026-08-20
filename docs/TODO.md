@@ -218,6 +218,75 @@ multiple sessions. Summary for future agents so this doesn't get re-done:
 
 ## MEDIUM PRIORITY
 
+- [x] **`_perf_loop` never started** — FIXED: the Performance tab's entire
+      live-refresh system (interval slider, pause/resume, adaptive
+      `self.after()` rescheduling, sparkline history via `_perf_history`)
+      was fully built but the initial kickoff call was left commented out,
+      so the tab only ever painted once and never updated. Wired into
+      `_auto_start` (runs from launch, not gated behind the manual "Start
+      Monitoring" button, since it's read-only telemetry with no side
+      effects). Verified against the real machine: `datetime.now()`-based
+      recency filters now compute correctly, CPU/network counters confirmed
+      genuinely live via a standalone psutil test (network bytes
+      monotonically increasing over 1.5s). This was the main "live real-
+      time data" gap — confirmed via full dead-method sweep below that the
+      rest of the Performance/hardware-monitoring code is either already
+      wired or genuinely obsolete, not additional gaps.
+
+- [x] **Full dead-method sweep performed** — wrote a scanner that checks
+      every method in the main `downpour` class for zero `.method_name`
+      references anywhere in the file (catches methods that are truly never
+      called, as opposed to the many false positives that are legitimately
+      wired via a single `command=self.X` Tkinter binding). Found 44 true
+      zero-reference candidates. Investigated the ones most relevant to
+      "live real-time data" specifically:
+      - `_performance_monitor_loop` + `self._performance_metrics` dict —
+        genuinely dead legacy code, NOT a gap. It's an older, superseded
+        rolling-history mechanism; the Performance tab's actual sparklines
+        read from `self._perf_history` (populated by `_perf_loop`, fixed
+        above) via a completely different code path. Wiring the dead loop
+        would just waste CPU/memory duplicating already-working data with
+        zero consumer. Safe to delete if doing a cleanup pass; not worth
+        wiring up.
+      - `_start_hw_thread` + `_update_hw_ui` + the `_cpu_lbl`/`_ram_lbl`/
+        `_gpu_lbl`/`_tmp_lbl`/`_net_lbl` labels it targets — genuinely
+        obsolete. Confirmed via grep that these five label widgets are
+        **never created anywhere** in the current UI build (`_update_hw_ui`
+        has a defensive `hasattr(self, '_cpu_lbl')` guard that would just
+        silently no-op forever). This looks like a leftover from an earlier
+        Dashboard layout that had inline mini hardware-gauges; the current
+        Dashboard evidently uses a different widget set. Wiring the thread
+        would produce zero visible change. Not a real gap.
+      - `_hw_get_parallel_workers` — a pure helper (hardware-profile-aware
+        worker-count calculator) with no call site. Executor pools are
+        currently created with fixed sizes at init time rather than
+        dynamically queried, so this was probably scaffolding for a design
+        that didn't ship. Harmless either way (no side effects, pure
+        function) — low priority to either wire in or remove.
+      - The remaining ~40 zero-ref candidates were NOT individually
+        investigated (time-boxed this pass to the "live real-time data"
+        theme specifically). Re-run the sweep script below if continuing
+        this work — most will likely be similar legacy/superseded code
+        given the pattern above, but each needs its own trace before
+        concluding that, the same way the three above were checked.
+
+  **Reusable dead-method sweep** (paste as a temp .py, run with the
+  project's Python 3.12, delete after):
+  ```python
+  import ast, re
+  with open("downpour_v29_titanium.py", encoding="utf-8", errors="replace") as f:
+      src = f.read()
+  tree = ast.parse(src)
+  for node in ast.walk(tree):
+      if isinstance(node, ast.ClassDef) and node.name == "downpour":
+          names = [n.name for n in node.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
+          break
+  for name in names:
+      count = len(re.findall(r'\.' + re.escape(name) + r'\b', src))
+      if count == 0:  # zero external references = genuinely never called
+          print(name)
+  ```
+
 - [ ] **Tab overlap on small windows** — PARTIAL v29.37: found the root
       cause — `self.minsize(1024, 650)` in `_build_ui` was silently
       overriding the adaptive hardware-profile minsize computed earlier in
