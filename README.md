@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/threat%20feeds-34%2B-orange?style=for-the-badge" />
   <img src="https://img.shields.io/badge/MITRE%20techniques-85%2B-purple?style=for-the-badge" />
   <img src="https://img.shields.io/badge/tabs-27-teal?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/tests-92%2B%20passing-brightgreen?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/tests-93%2B%20passing-brightgreen?style=for-the-badge" />
 </p>
 
 ---
@@ -189,6 +189,8 @@ Detects: **Mimikatz, CobaltStrike, Metasploit, Empire, PoshC2, AsyncRAT, NjRAT, 
 ## Changelog
 
 See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for full details.
+
+**v29.42b**: Merged 4× unthrottled full-system walks that defeated live cadence: `process_count/thread_count` (2 walks every 1-3s → 10s cache), `disk_partitions` (recomputed every tick, cache write-back missing → 60s cache), `net_connections` (3 walks per tick → single per-tick `_get_net_conns()` cache), WMI thermal (~300 ms COM every tick → 30s throttle + `sensors_temperatures()` fast path). Warm fetch `2.16s → 1.32s`. 93/93 tests.
 
 **v29.42a**: Fixed the Perf tab "black box covers parts of the gauges" — the dark sparkline strip (`#06080f` at `size+26..+42`) sat only ~8 px below the gauge label (`size+8`), so the strip visually touched the label. Canvas raised to `SIZE+60` (was +52), label to `size+10`, strip to `size+30..+46` (20 px gap, 14 px bottom margin). 93/93 tests.
 

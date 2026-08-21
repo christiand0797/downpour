@@ -25,6 +25,11 @@ except ImportError:
 from typing import Dict, List, Any, Tuple, Optional
 from dataclasses import dataclass, asdict
 import re
+import logging
+
+# FIX-v29.42: Define _adp_logger — was referenced at line ~224 but never
+# defined, causing NameError crash when 'net session' raised an exception.
+_adp_logger = logging.getLogger(__name__)
 
 try:
     from vulnerability_scanner import VulnerabilityScanner, get_epss_stats
@@ -118,37 +123,9 @@ kev_catalog[0].get('fetch_failed')):
         logging.getLogger(__name__).warning(f"KEV CVE check error: {e}")
 
     return result
-
-    try:
-        kev_catalog = fetch_cisa_kev_catalog()
-
-        if not kev_catalog or (isinstance(kev_catalog, list) and kev_catalog and kev_catalog[0].get('fetch_failed')):
-            return result
-
-        search_terms = []
-        if device_vendor:
-            search_terms.append(device_vendor.lower())
-        if device_product:
-            search_terms.append(device_product.lower())
-
-        for vuln in kev_catalog:
-            affected = vuln.get('affected_software', '').lower()
-            description = vuln.get('description', '').lower()
-
-            for term in search_terms:
-                if term in affected or term in description:
-                    result['matched_cves'].append(vuln)
-                    result['count'] += 1
-                    severity = vuln.get('severity', 'MEDIUM').upper()
-                    if severity in result['severity_breakdown']:
-                        result['severity_breakdown'][severity] += 1
-                    break
-
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning(f"KEV CVE check error: {e}")
-
-    return result
+    # FIX-v29.42: Removed unreachable duplicate try/except block (lines 122-151)
+    # that followed the return statement above. It was dead code left over from
+    # a botched refactoring and referenced undefined function fetch_cisa_kev_catalog().
 
 
 class AdvancedDeviceProfiler:

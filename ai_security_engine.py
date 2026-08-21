@@ -426,7 +426,7 @@ class AISecurityEngine:
             features['unique_remote_ports'] = len(set(remote_ports))
             
             # Suspicious ports
-            suspicious_ports = [22, 23, 80, 443, 3389, 5900]  # SSH, Telnet, HTTP, HTTPS, RDP, VNC
+            suspicious_ports = [22, 23, 3389, 5900]  # SSH, Telnet, RDP, VNC
             features['suspicious_port_connections'] = sum(1 for port in remote_ports if port in suspicious_ports)
             
             # Data transfer rates (if available)
@@ -490,19 +490,15 @@ class AISecurityEngine:
                 return True
             
             # Check private vs public
-            parts = ip.split('.')
-            if len(parts) != 4:
-                return True
-            
-            # Private ranges
-            if (parts[0] == '10' or
-                (parts[0] == '172' and 16 <= int(parts[1]) <= 31) or
-                (parts[0] == '192' and parts[1] == '168')):
-                return False
-            
-            # Known malicious ranges (simplified)
-            suspicious_prefixes = ['0.', '255.', '127.']
-            return any(ip.startswith(prefix) for prefix in suspicious_prefixes)
+            try:
+                import ipaddress
+                addr = ipaddress.ip_address(ip)
+                # Skip RFC 1918 private, loopback, link-local — those are not suspicious
+                if addr.is_private or addr.is_loopback or addr.is_link_local:
+                    return False
+                return False  # Valid IP, not inherently suspicious
+            except ValueError:
+                return True  # Can't parse = suspicious
             
         except Exception:
             return True
@@ -872,4 +868,4 @@ def get_ai_threat_score(process_features: Dict, network_features: Dict, kev_cont
     return min(100.0, score)
 
 
-print("[AISecurityEngine v3.1] Loaded - Enhanced with KEV/CEV correlation")
+logging.getLogger(__name__).info("[AISecurityEngine v3.1] Loaded - Enhanced with KEV/CEV correlation")

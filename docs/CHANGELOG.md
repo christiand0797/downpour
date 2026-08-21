@@ -1,5 +1,13 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.42b - Perf sweep — 4× unthrottled walks merged, live cadence restored
+- `process_count`/`thread_count` throttled to 10s cache (was 2 walks every
+  1-3s tick); `disk_partitions` 60s cache fixed (write-back was missing);
+  `net_connections(kind='inet')` merged from 3 walks per tick to 1 via per-
+  tick `_get_net_conns()` cache; WMI `MSAcpi_ThermalZoneTemperature` (~300 ms
+  COM) throttled to 30s with `psutil.sensors_temperatures()` fallback. Warm
+  fetch `2.16s → 1.32s`. 93/93 tests.
+
 ## v29.42a - Perf gauge visibility — black box no longer covers label
 - `c = Canvas(cell, width=SIZE, height=SIZE+60)` (was +52); label at
   `size+10` (was +8) and sparkline strip at `size+30..size+46` (was

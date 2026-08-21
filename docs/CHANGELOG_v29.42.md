@@ -14,6 +14,13 @@
 * **Process Monitor Fix:** Resolved false positives in `process_monitor.py`.
 * **Hardware Integration Crash:** Fixed a crash bug in `enhanced_hardware_integration.py` related to missing WMI/NVML telemetry.
 * **CPU Percent Blocking:** Fixed blocking issues in `process_monitor` and `hardware_monitor` where `cpu_percent()` calls would hang the thread.
+* **Performance gauge label visibility fix (v29.42a):** Canvas height adjustment.
+* **Feed-health change-detection cache (v29.41k5g):** Reduces Tcl calls.
+* **WAL database reader/writer connection split (v29.41k5f):** Prevents main-thread stalls.
+* **DNS live monitor seen-set dedup (v29.41k5e):** Stops duplicate row/alarm spam.
+* **HTTPS-first upgrades & live Country column (v29.41k5b-d):** Enhancements to Network tab and intel fetches.
+* **Nested-parallelism deadlock fix (v29.41k5):** n_jobs=1 post-fit fixes joblib thread explosion.
+* **Test count inconsistency fix:** 93/93 not 92+.
 
 ## Documentation & Repository Maintenance
 * **.gitignore Cleanup:** Cleaned up `.gitignore` and added rules for `downpour_copy.log` and standard cache directories.

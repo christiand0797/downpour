@@ -367,7 +367,7 @@ class BehaviorScanner:
                 
                 # Check 4: High CPU/memory with no visible window (potential cryptominer)
                 try:
-                    cpu = proc.cpu_percent(interval=0.1)
+                    cpu = proc.cpu_percent(interval=None)
                     mem = proc.memory_percent()
                     
                     if cpu > 80 and mem < 5:  # High CPU, low memory = possible miner
@@ -1226,6 +1226,8 @@ def get_technique_cve_mapping(technique_id: str) -> List[Dict]:
     """
     cve_mappings = []
     
+    # NOTE: These are example MITRE ATT&CK → CVE mappings for demonstration.
+    # Real deployments should query a live CVE database (e.g., NIST NVD API).
     technique_cve_db = {
         'T1056.001': ['CVE-2024-1234', 'CVE-2023-5678'],
         'T1055': ['CVE-2024-4567', 'CVE-2023-7890'],

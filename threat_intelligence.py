@@ -283,7 +283,16 @@ class ThreatIntelligenceManager:
                 'update_interval': 1800,
                 'last_update': 0,
                 'api_required': True
-            }
+            },
+            'cisa_ics': {'last_update': 0, 'interval': 3600, 'enabled': True, 'error_count': 0},
+            'blocklist_de': {'last_update': 0, 'interval': 3600, 'enabled': True, 'error_count': 0},
+            'nvd_recent': {'last_update': 0, 'interval': 3600, 'enabled': True, 'error_count': 0},
+            'greynoise': {'last_update': 0, 'interval': 3600, 'enabled': True, 'error_count': 0},
+            'abuseipdb': {'last_update': 0, 'interval': 3600, 'enabled': True, 'error_count': 0},
+            'urlscan': {'last_update': 0, 'interval': 3600, 'enabled': True, 'error_count': 0},
+            'darkapi_urlhaus': {'last_update': 0, 'interval': 900, 'enabled': True, 'error_count': 0},
+            'darkapi_malwarebazaar': {'last_update': 0, 'interval': 900, 'enabled': True, 'error_count': 0},
+            'threatbook_ioc': {'last_update': 0, 'interval': 3600, 'enabled': True, 'error_count': 0}
         }
         
         # Statistics
@@ -1205,7 +1214,7 @@ class ThreatIntelligenceManager:
             headers = {'Accept': 'application/json'}
             _get = self._session.get if self._session else requests.get
             
-            # Get recent noise IPs from GreyNoise
+            # Get recent noise IPs from GreyNoise (192.0.2.1 is a documentation-reserved test IP)
             response = _get('https://api.greynoise.io/v3/community/noise/quick/192.0.2.1', 
                           headers=headers, timeout=30)
             response.raise_for_status()

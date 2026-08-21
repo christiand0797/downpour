@@ -1085,7 +1085,7 @@ class SecurityDashboard:
         try:
             cpu_info = {
                 'name': platform.processor() or "CPU",
-                'usage': psutil.cpu_percent(interval=0.1),
+                'usage': psutil.cpu_percent(interval=None),
                 'core_count': psutil.cpu_count(logical=False),
                 'temperature': 0
             }

@@ -2,6 +2,19 @@
 
 ## Branch: main
 
+## Session 2026-08-20 — v29.42b: Perf sweep — 4× unthrottled walks merged, live cadence restored
+- ✅ Explore audit found 4 unthrottled full-system walks per 1-3s tick defeating the
+  adaptive cadence: `process_count/thread_count` (2 walks every tick), `disk_partitions`
+  (re-enumerated mounts + `disk_usage` every tick, cache never written back),
+  `net_connections` 3× per tick (ESTABLISHED count + tcp/udp breakdown + top-PID
+  enrichment), and WMI `MSAcpi_ThermalZoneTemperature` (~300 ms COM call every tick).
+- ✅ FIX: `process_count/thread_count` throttled to 10s cache (`_proc_counts_cache`);
+  `disk_partitions` 60s cache with proper write-back (`_disk_parts_cache/_ts`);
+  `net_connections(kind='inet')` merged to single per-tick `_get_net_conns()` cache
+  (3 walks → 1); WMI thermal throttled to 30s with `psutil.sensors_temperatures()`
+  fast-path fallback. Warm fetch `2.16s → 1.32s`, cold `3.43s → 5.45s` (first
+  status snapshot still ~2.6s but now cached 10s). 93/93 tests.
+
 ## Session 2026-08-20 — v29.42a: Perf gauge visibility — black box no longer covers label
 - ✅ User report: "black box covers parts of the gauges" on the Performance tab.
   Prior fix (v29.28 label at size+18 → size+8, sparkline +14..+29 → +26..+42)

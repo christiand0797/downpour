@@ -616,15 +616,20 @@ class NetworkMonitor:
             
             # v29.39: Check for DNS tunneling (port 53 with high query volume)
             if remote_port == 53:
-                # Track potential DNS tunneling
-                self._track_dns_tunneling()
-                # Note: In a full implementation, would analyze query patterns
-                # For now, we flag port 53 connections for monitoring
-                return (
-                    True,
-                    "MEDIUM",
-                    f"DNS traffic on port 53 (potential tunneling monitoring)"
-                )
+                if not hasattr(self, '_dns_counts'):
+                    self._dns_counts = {}
+                self._dns_counts[remote_ip] = self._dns_counts.get(remote_ip, 0) + 1
+                if self._dns_counts[remote_ip] > 50:
+                    # Track potential DNS tunneling
+                    self._track_dns_tunneling()
+                    # Note: In a full implementation, would analyze query patterns
+                    # For now, we flag port 53 connections for monitoring
+                    return (
+                        True,
+                        "MEDIUM",
+                        f"DNS traffic on port 53 (potential tunneling monitoring)"
+                    )
+                return (False, "LOW", "")
             
             # Check for suspicious country (if configured)
             if self.config and self.config.has_option('NETWORK_MONITORING', 'suspicious_countries'):

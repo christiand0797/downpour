@@ -43,3 +43,9 @@ GPUtil>=1.4.0
 joblib>=1.3.0
 tqdm>=4.65.0
 pyperclip>=1.8.0
+
+# ── Additional dependencies ──────────────
+netifaces>=0.11.0        # network interface enumeration
+scipy>=1.11.0            # signal/entropy calculations
+pefile>=2023.2.7         # PE header analysis
+pytest>=7.4.0            # test runner

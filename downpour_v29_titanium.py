@@ -964,7 +964,7 @@ class PerformanceOptimizer:
             current_time: Any = time.time()
             
             # Get current system metrics
-            cpu_percent: Any = psutil.cpu_percent(interval=0.1)
+            cpu_percent: Any = psutil.cpu_percent(interval=None)  # FIX-v29.42: non-blocking
             memory_percent: Any = psutil.virtual_memory().percent
             disk_io: Any = psutil.disk_io_counters()
             net_io: Any = psutil.net_io_counters()
@@ -1279,9 +1279,9 @@ class PerformanceOptimizer:
             import psutil
             
             # System metrics
-            cpu_percent: Any = psutil.cpu_percent(interval=0.1)
+            cpu_percent: Any = psutil.cpu_percent(interval=None)  # FIX-v29.42: non-blocking
             memory: Any = psutil.virtual_memory()
-            disk: Any = psutil.disk_usage('/')
+            disk: Any = psutil.disk_usage(os.environ.get('SystemDrive', 'C:') + '\\\\')  # FIX-v29.42
             
             # Our optimization metrics
             cache_hit_total: Any = sum(self._cache_hit_rates.values())
@@ -7175,7 +7175,7 @@ def init_aegis() -> Optional['AegisOrchestrator']:
         try:
             aegis = AegisOrchestrator()
         except Exception as e:
-            print(f"[Aegis] Init warning: {e}")
+            _log.warning(f"[Aegis] Init warning: {e}")  # FIX-v29.42: was print()
             aegis = None
     return aegis
 
@@ -9103,7 +9103,7 @@ class AdvancedProcessScanner:
                 except Exception:
                     pass
                 try:
-                    cpu: Any = proc.cpu_percent(interval=0.1)
+                    cpu: Any = proc.cpu_percent(interval=None)  # FIX-v29.42: non-blocking
                     if cpu > 90.0:  # v28p37: raised from 80
                         findings.append((10, f"Sustained high CPU: {cpu:.0f}%"))
                 except Exception:
@@ -9675,7 +9675,7 @@ class AdvancedProcessScanner:
                         lines_out.append(f"  USER:    {proc.username()}")
                         lines_out.append(f"  CWD:     {proc.cwd()}")
                         lines_out.append(f"  Created: {proc.create_time()}")
-                        lines_out.append(f"  CPU:     {proc.cpu_percent(interval=0.3):.1f}%")
+                        lines_out.append(f"  CPU:     {proc.cpu_percent(interval=None):.1f}%")  # FIX-v29.42: was 0.3s UI freeze
                         lines_out.append(f"  MEM:     {proc.memory_info().rss / 1048576:.1f} MB")
                     except Exception:
                         pass
@@ -17211,7 +17211,7 @@ class HardwareProfiler:
             is_laptop = is_laptop, is_ssd=is_ssd,
             cpu_freq_max_mhz = freq_max, cpu_score=cpu_score,
             description = desc, **params)
-        print(f'[HW] {p}')
+        _log.info(f'[HW] {p}')  # FIX-v29.42: was print()
         return p
 
     @classmethod
@@ -17468,6 +17468,13 @@ class HardwareMonitor:
 
     def _fetch_unsafe(self) -> dict:
         """The actual psutil sweep. Runs under single-flight + _PSUTIL_LOCK."""
+        # Per-tick net_connections cache — 3 walks per tick merged into 1
+        _net_tick_cache: Any = None
+        def _get_net_conns():
+            nonlocal _net_tick_cache
+            if _net_tick_cache is None:
+                _net_tick_cache = psutil.net_connections(kind='inet')
+            return _net_tick_cache
         stats: Any = {
             # CPU
             'cpu_percent': 0.0, 'cpu_freq_mhz': 0, 'cpu_temp': 0.0,
@@ -17838,8 +17845,8 @@ class HardwareMonitor:
         except Exception: pass
         # v29.38: Network connections count (ESTABLISHED only)
         try:
-            conns: Any = psutil.net_connections(kind='inet')
-            stats['connection_count'] = len([c for c in conns if c.status == 'ESTABLISHED'])
+            _conns_for_count: Any = _get_net_conns()
+            stats['connection_count'] = len([c for c in _conns_for_count if c.status == 'ESTABLISHED'])
         except Exception: pass
         # v29.39: Load average (Unix-style, emulated on Windows)
         try:
@@ -17971,7 +17978,7 @@ class HardwareMonitor:
             time_wait = 0
             close_wait = 0
             syn_sent = 0
-            for conn in psutil.net_connections(kind='inet'):
+            for conn in _get_net_conns():
                 if conn.type == socket.SOCK_STREAM:
                     tcp_conns += 1
                     if conn.status == 'ESTABLISHED':
@@ -18430,17 +18437,37 @@ class HardwareMonitor:
             self._prev_swap_in = swap.sin
             self._prev_swap_out = swap.sout
         except Exception: pass
-        # CPU temperature via WMI (optional)
-        if WMI_AVAILABLE and stats['cpu_temp'] == 0:
+        # CPU temperature via WMI (optional) — throttled 30s, fallback to psutil sensors
+        if stats['cpu_temp'] == 0:
             try:
-                # FIX-v28: CoInitialize required from background thread
-                try:
-                    import pythoncom  # type: ignore[import-untyped]; pythoncom.CoInitialize()
-                except Exception: pass
-                w: Any = wmi.WMI(namespace=r'root\wmi')
-                for t in w.MSAcpi_ThermalZoneTemperature():
-                    stats['cpu_temp'] = round((t.CurrentTemperature - 2732) / 10.0, 1)
-                    break
+                _wmi_now: Any = __import__('time').time()
+                if _wmi_now - getattr(self, '_wmi_temp_ts', 0.0) >= 30.0:
+                    self._wmi_temp_ts = _wmi_now
+                    # Fast path: psutil sensors_temperatures (no COM)
+                    try:
+                        _temps: Any = psutil.sensors_temperatures()
+                        if _temps:
+                            for _name, _entries in _temps.items():
+                                if _entries:
+                                    stats['cpu_temp'] = round(float(_entries[0].current), 1)
+                                    break
+                    except Exception: pass
+                    if stats['cpu_temp'] == 0 and WMI_AVAILABLE:
+                        try:
+                            import pythoncom  # type: ignore[import-untyped]; pythoncom.CoInitialize()
+                        except Exception: pass
+                        w: Any = wmi.WMI(namespace=r'root\wmi')
+                        for t in w.MSAcpi_ThermalZoneTemperature():
+                            stats['cpu_temp'] = round((t.CurrentTemperature - 2732) / 10.0, 1)
+                            break
+                else:
+                    # reuse last cached temp
+                    stats['cpu_temp'] = getattr(self, '_wmi_temp_cache', 0.0)
+                    if stats['cpu_temp']:
+                        self._wmi_temp_cache = stats['cpu_temp']
+                    else:
+                        stats['cpu_temp'] = getattr(self, '_wmi_temp_cache', 0.0)
+            except Exception: pass
             except Exception: pass
 
         # SPRINT1: Top-15 processes by CPU %  -  every row now carries live
@@ -18468,7 +18495,7 @@ class HardwareMonitor:
             _top_pids: Any = {t['pid'] for t in _top}
             _pid_con: Any = {}
             try:
-                for _cn in psutil.net_connections(kind='inet'):
+                for _cn in _get_net_conns():
                     _cp = _cn.pid
                     if _cp is None or _cp not in _top_pids:
                         continue

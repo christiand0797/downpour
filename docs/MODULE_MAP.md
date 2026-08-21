@@ -81,6 +81,12 @@ Downpour uses a modular architecture with over 40 supporting Python modules that
 | `parental_controls.py` | Web filtering and app execution restriction logic. | **Active** |
 | `backup_verifier.py` | Verifies integrity of critical system files/backups. | **Active** |
 | `revolutionary_enhancements.py` | Experimental/beta feature staging ground. | **Active** |
+| `advanced_file_analyzer.py` | Standalone file analysis tool (34.6 KB). | *Orphaned* |
+| `advanced_gauge_system.py` | Alternative gauge rendering (37.5 KB). | *Orphaned* |
+| `config.py` | Central config dict with ConfigWrapper (1.67 KB). | **Active** |
+| `downpour_remote_access.py` | Remote access module (31.0 KB). | **Active** |
+| `file_sandbox.py` | File sandboxing (2.1 KB). | *Orphaned* |
+| `gpu_detector_fix.py` | GPU detection fix utility (9.0 KB). | **Active** |
 
 ## Note on Architecture
 Many of these modules are designed to run in background daemon threads or ProcessPools. Communication back to the main UI (`downpour_v29_titanium.py`) is primarily handled through concurrent queues, Tkinter virtual events, or memory-mapped files to avoid blocking the main event loop.

@@ -41,6 +41,7 @@ class FileSystemMonitor:
         - config: Configuration object (optional)
         """
         self.running = True
+        self._stop_event = threading.Event()
         self.config = config
         
         # Track file operations
@@ -275,6 +276,63 @@ class FileSystemMonitor:
             
         except Exception as e:
             logging.error(f"Failed to start folder monitoring: {e}")
+
+    def _file_watch_loop(self, folder_handle, folder_path, buffer_size):
+        """
+        File watching loop using os.listdir() polling.
+        """
+        if folder_handle and _WIN32_AVAILABLE:
+            try:
+                win32file.CloseHandle(folder_handle)
+            except Exception:
+                pass
+
+        try:
+            current_state = {}
+            if os.path.exists(folder_path):
+                for filename in os.listdir(folder_path):
+                    path = os.path.join(folder_path, filename)
+                    try:
+                        current_state[filename] = os.path.getmtime(path)
+                    except OSError:
+                        pass
+
+            while not self._stop_event.is_set():
+                time.sleep(5.0)
+                if not os.path.exists(folder_path):
+                    continue
+
+                new_state = {}
+                try:
+                    for filename in os.listdir(folder_path):
+                        path = os.path.join(folder_path, filename)
+                        try:
+                            new_state[filename] = os.path.getmtime(path)
+                        except OSError:
+                            pass
+                except OSError as e:
+                    logging.error(f"Error reading directory {folder_path}: {e}")
+                    continue
+
+                for filename, mtime in new_state.items():
+                    path = os.path.join(folder_path, filename)
+                    if filename not in current_state:
+                        self._process_file_event(path, 'created')
+                    elif current_state[filename] != mtime:
+                        self._process_file_event(path, 'modified')
+
+                for filename in current_state:
+                    if filename not in new_state:
+                        path = os.path.join(folder_path, filename)
+                        self._process_file_event(path, 'deleted')
+
+                current_state = new_state
+        except Exception as e:
+            logging.error(f"Error in file watching loop for {folder_path}: {e}")
+
+    def _process_file_event(self, path, event_type):
+        """Process file events and record them."""
+        self.record_file_operation(path, event_type)
     
     def monitoring_loop(self):
         """
@@ -336,12 +394,13 @@ class FileSystemMonitor:
     def stop(self):
         """Stop file system monitoring."""
         self.running = False
+        self._stop_event.set()
         logging.info("File system monitoring stopped")
 
 # Global instance
 _monitor_instance = None
 
-def get_monitor(config=None) -> 'FileMonitor':
+def get_monitor(config=None) -> 'FileSystemMonitor':
     """Get global file monitor instance."""
     global _monitor_instance
     if _monitor_instance is None:
