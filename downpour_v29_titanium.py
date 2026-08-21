@@ -17560,15 +17560,21 @@ class HardwareMonitor:
             try:
                 per_core: Any = psutil.cpu_percent(interval=None, percpu=True)
                 stats['cpu_per_core'] = per_core or []
+            except Exception as _e:
+                try: error_logger.log('HwMonitor', 'cpu_per_core failed', _e)
+                except Exception: pass
+        except Exception as _e:
+            try: error_logger.log('HwMonitor', 'cpu block failed', _e)
             except Exception: pass
-        except Exception: pass
         # Swap
         try:
             sw: Any = psutil.swap_memory()
             stats['swap_percent'] = sw.percent
             stats['swap_used_gb'] = round(sw.used / 1073741824, 1)
             stats['swap_total_gb'] = round(sw.total / 1073741824, 1)
-        except Exception: pass
+        except Exception as _e:
+            try: error_logger.log('HwMonitor', 'swap failed', _e)
+            except Exception: pass
         # Disk usage (C: drive)
         try:
             du: Any = psutil.disk_usage('C:\\')
@@ -17589,7 +17595,9 @@ class HardwareMonitor:
                     stats['disk_write_rate'] = round((dk.write_bytes - prev_dk.write_bytes) / 1048576 / dt, 2)
                 self._prev_disk   = dk
                 self._prev_disk_t = now_t
-        except Exception: pass
+        except Exception as _e:
+            try: error_logger.log('HwMonitor', 'disk_io_rates failed', _e)
+            except Exception: pass
         # Network rates
         try:
             nt: Any = psutil.net_io_counters()
@@ -17609,7 +17617,9 @@ class HardwareMonitor:
                          (nt.packets_recv - prev_nt.packets_recv)) / dt2, 0)
                 self._prev_net   = nt
                 self._prev_net_t = now_t2
-        except Exception: pass
+        except Exception as _e:
+            try: error_logger.log('HwMonitor', 'net_io_rates failed', _e)
+            except Exception: pass
         # Processes + threads — throttled to 10s (was every 1-3s tick)
         try:
             _pc_now: Any = time.time()
@@ -17706,7 +17716,9 @@ class HardwareMonitor:
             if net:
                 stats['net_sent_mb'] = round(net.bytes_sent / 1048576, 1)
                 stats['net_recv_mb'] = round(net.bytes_recv / 1048576, 1)
-        except Exception: pass
+        except Exception as _e:
+            try: error_logger.log('HwMonitor', 'net_io failed', _e)
+            except Exception: pass
 
         # GPU via NVML (crash-safe)
         if NVML_AVAILABLE:
@@ -17721,13 +17733,19 @@ class HardwareMonitor:
                     mem_info: Any = nvmlDeviceGetMemoryInfo(handle)
                     stats['gpu_mem_used_gb']  = round(mem_info.used  / 1073741824, 1)
                     stats['gpu_mem_total_gb'] = round(mem_info.total / 1073741824, 1)
-                except Exception: pass
+                except Exception as _e:
+                    try: error_logger.log('HwMonitor', 'gpu meminfo failed', _e)
+                    except Exception: pass
                 try:
                     stats['gpu_fan'] = nvmlDeviceGetFanSpeed(handle)
-                except Exception: pass
+                except Exception as _e:
+                    try: error_logger.log('HwMonitor', 'gpu fan failed', _e)
+                    except Exception: pass
                 try:
                     stats['gpu_power_draw_w'] = round(nvmlDeviceGetPowerUsage(handle) / 1000.0, 1)  # mW -> W
-                except Exception: pass
+                except Exception as _e:
+                    try: error_logger.log('HwMonitor', 'gpu power failed', _e)
+                    except Exception: pass
                 try:
                     _clk = nvmlDeviceGetClockInfo(handle, 0)  # NVML_CLOCK_GRAPHICS = 0
                     stats['gpu_clock_mhz'] = _clk
@@ -17770,7 +17788,9 @@ class HardwareMonitor:
                 stats['disk_partitions'] = parts
                 self._disk_parts_cache: Any = parts
                 self._disk_parts_ts: Any = _dp_now
-        except Exception: pass
+        except Exception as _e:
+            try: error_logger.log('HwMonitor', 'nic_stats failed', _e)
+            except Exception: pass
         # Per-NIC rates
         try:
             nic_rates: Any = []
@@ -17787,21 +17807,28 @@ class HardwareMonitor:
                 try:
                     nic_info: Any = psutil.net_if_stats().get(name)
                     speed: Any = nic_info.speed if nic_info else 0
-                except Exception: speed = 0
+                except Exception as _e:
+                    try: error_logger.log('HwMonitor', 'net_if_stats failed', _e)
+                    except Exception: pass
+                    speed = 0
                 nic_rates.append({'name': name[:12], 'send_rate': send_rate,
                                    'recv_rate': recv_rate, 'speed_mbps': speed,
                                    'up': nic_info.isup if nic_info else False})
             stats['nic_stats'] = nic_rates
             self._prev_nic   = per_nic
             self._prev_nic_t = now_nic
-        except Exception: pass
+        except Exception as _e:
+            try: error_logger.log('HwMonitor', 'nic_rates failed', _e)
+            except Exception: pass
         # CPU freq min/max
         try:
             freq2: Any = psutil.cpu_freq()
             if freq2:
                 stats['cpu_freq_max'] = int(freq2.max) if freq2.max else 0
                 stats['cpu_freq_min'] = int(freq2.min) if freq2.min else 0
-        except Exception: pass
+        except Exception as _e:
+            try: error_logger.log('HwMonitor', 'cpu_freq failed', _e)
+            except Exception: pass
         # v29.38: Context switches and interrupts rates (per second)
         try:
             sc2: Any = psutil.cpu_stats()
@@ -17821,7 +17848,9 @@ class HardwareMonitor:
             self._prev_ctx_switches = sc2.ctx_switches
             self._prev_interrupts = sc2.interrupts
             self._prev_ctx_time = now_time
-        except Exception: pass
+        except Exception as _e:
+            try: error_logger.log('HwMonitor', 'ctx_switches failed', _e)
+            except Exception: pass
         # Open file handles count
         # FIX-v29.41k5: p.open_files() on Windows enumerates handles and costs
         # ~8.5s for 500 pids — that alone strangled every 1-3s fetch tick, so
@@ -17857,7 +17886,9 @@ class HardwareMonitor:
         try:
             _conns_for_count: Any = _get_net_conns()
             stats['connection_count'] = len([c for c in _conns_for_count if c.status == 'ESTABLISHED'])
-        except Exception: pass
+        except Exception as _e:
+            try: error_logger.log('HwMonitor', 'connection_count failed', _e)
+            except Exception: pass
         # v29.39: Load average (Unix-style, emulated on Windows)
         try:
             if hasattr(psutil, 'getloadavg'):
@@ -17890,7 +17921,9 @@ class HardwareMonitor:
             mem: Any = psutil.virtual_memory()
             if hasattr(mem, 'available') and hasattr(mem, 'total'):
                 stats['mem_fragmentation'] = round((1.0 - (mem.available / mem.total)) * 100, 1)
-        except Exception: pass
+        except Exception as _e:
+            try: error_logger.log('HwMonitor', 'mem_frag failed', _e)
+            except Exception: pass
         # v29.39: Disk queue depth (I/O pressure)
         try:
             disk_io: Any = psutil.disk_io_counters()
@@ -17904,7 +17937,9 @@ class HardwareMonitor:
                     stats['disk_queue_depth'] = int(total_ops / dt_io) if dt_io > 0 else 0
                 self._prev_io_counts = disk_io
                 self._prev_io_t = now_io
-        except Exception: pass
+        except Exception as _e:
+            try: error_logger.log('HwMonitor', 'disk_queue failed', _e)
+            except Exception: pass
         # v29.42: DNS latency — resolve a real hostname to measure actual DNS
         # resolver performance (the old code resolved '8.8.8.8' which is already
         # an IP so it measured nothing). Throttled to once per 30s because
