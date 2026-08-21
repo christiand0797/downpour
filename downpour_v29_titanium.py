@@ -17726,7 +17726,8 @@ class HardwareMonitor:
                     stats['gpu_clock_mhz'] = _clk
                 except Exception: pass
             except Exception: pass
-        elif GPUTIL_AVAILABLE:
+        # GPUTIL fallback even when NVML present but returned 0 (headless / no GPU)
+        if stats['gpu_percent'] == 0 and GPUTIL_AVAILABLE:
             try:
                 gpus: Any = GPUtil.getGPUs()
                 if gpus:
