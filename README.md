@@ -159,16 +159,16 @@ Detects: **Mimikatz, CobaltStrike, Metasploit, Empire, PoshC2, AsyncRAT, NjRAT, 
 
 ---
 
-## Configured Threat Feed Sources (34)
+## Configured Threat Feed Sources (24 high-fidelity)
 
 | Category | Count | Examples |
 |----------|-------|---------|
 | abuse.ch malware / C2 / hash feeds | 8 | URLhaus, Feodo Tracker, MalwareBazaar, ThreatFox, SSLBL |
 | Spamhaus blocklists | 2 | DROP, EDROP |
 | Phishing intelligence | 4 | PhishTank, OpenPhish, Phishing Army |
-| Malware analysis | 3 | Malpedia, MalShare, VirusShare |
-| C2 tracking | 2 | Malware Traffic Analysis, Fox-IT Cobalt Strike |
-| DNS security | 3 | HaGeZi, StevenBlack, AdGuard DNS |
+| Malware analysis | 1 | Malpedia (MalShare/VirusShare pruned — require API key, always 403 anon) |
+| C2 tracking | 2 | Malware Traffic Analysis, Fox-IT Cobalt Strike + C2IntelFeeds, Malware Patrol |
+| DNS security | 2 | HaGeZi light, StevenBlack (10 adblock lists pruned — not IOCs) |
 | IP reputation | 5 | AbuseIPDB, Binary Defense, CINS, Blocklist.de |
 | YARA rule sources | 2 | Yara-Rules, Malpedia |
 | CVE / exploit data | 3 | CISA KEV, NVD, ExploitDB |
