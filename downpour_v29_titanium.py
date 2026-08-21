@@ -10016,8 +10016,7 @@ class SecureThreatIntelligenceDownloader:
             # -- MALWARE ANALYSIS -------------------------------------------------
             'malware_analysis': {
                 'malpedia': 'https://malpedia.caad.fkie.fraunhofer.de/api/',
-                'malshare': 'https://malshare.com/api/',
-                'virusshare': 'https://virusshare.com/recent/'
+                # REMOVED-v29.42c: malshare/virusshare require API key (always 403 anon)
             },
             # -- C2 TRACKING -------------------------------------------------------
             'c2_tracking': {
@@ -12102,12 +12101,12 @@ class ThreatIntelEngine:
         # -- CRYPTO / MINING ---------------------------------------------------
         # -- MALWARE DOMAINS ----------------------------------------------------
         # REMOVED-v28: malwaredomainlist.com permanently offline (timeout)
-        'disconnect_track': ('https://s3.amazonaws.com/lists.disconnect.me/simple_tracking.txt', 'domain', 86400),
-        'disconnect_mal':   ('https://s3.amazonaws.com/lists.disconnect.me/simple_malware.txt', 'domain', 86400),
-        'disconnect_ad':    ('https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt', 'domain', 86400),
+        # REMOVED-v29.42c (adblock, not IOC — bloats DB, 100k+ tracking domains)
+        # REMOVED-v29.42c (adblock, not IOC)
+        # REMOVED-v29.42c (adblock, not IOC)
         # -- DNS BLOCKLISTS -----------------------------------------------------
-        'hagezi_pro':       ('https://raw.githubusercontent.com/hagezi/dns-blocklists/main/hosts/pro.txt', 'domain', 86400),
-        'hagezi_tif':       ('https://raw.githubusercontent.com/hagezi/dns-blocklists/main/hosts/tif.txt', 'domain', 86400),
+        # REMOVED-v29.42c (adblock — 300k+ ad domains, not IOC)
+        # REMOVED-v29.42c (adblock)
         'steven_black':     ('https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts', 'domain', 86400),
         'steven_black_fak': ('https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews-gambling-porn/hosts', 'domain', 86400),
         # -- FIREHOL -----------------------------------------------------------
@@ -12122,9 +12121,9 @@ class ThreatIntelEngine:
         # -- THREAT FEEDS (GitHub) ----------------------------------------------
         # -- SPAM / ABUSE ------------------------------------------------------
         # -- PRIVACY / TRACKING -------------------------------------------------
-        'easylist':         ('https://easylist.to/easylist/easylist.txt', 'domain', 86400),
-        'easyprivacy':      ('https://easylist.to/easylist/easyprivacy.txt', 'domain', 86400),
-        'fanboy_annoyance': ('https://secure.fanboy.co.nz/fanboy-annoyance.txt', 'domain', 86400),
+        # REMOVED-v29.42c (adblock easylist — 70k+ ad domains)
+        # REMOVED-v29.42c (adblock)
+        # REMOVED-v29.42c (adblock)
         # REMOVED-v28p19 (dead feed): 'pgl_yoyo':         ('https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0', 'domain', 86400),
         # -- MALSHARE / HASH FEEDS ---------------------------------------------
         # -- ICS / OT SPECIFIC -------------------------------------------------
@@ -12149,8 +12148,8 @@ class ThreatIntelEngine:
         # -- PHISHING EXTENDED ---------------------------------------------
         'phishtank_valid':  ('http://data.phishtank.com/data/online-valid.csv', 'url', 3600),
         # -- MORE DNS / ADBLOCK LISTS -------------------------------------
-        'hagezi_ultimate':  ('https://raw.githubusercontent.com/hagezi/dns-blocklists/main/hosts/ultimate.txt', 'domain', 86400),
-        'hagezi_multi':     ('https://raw.githubusercontent.com/hagezi/dns-blocklists/main/hosts/multi.txt', 'domain', 86400),
+        # REMOVED-v29.42c (adblock — 700k+ domains)
+        # REMOVED-v29.42c (adblock)
         'someonewhocares':  ('https://someonewhocares.org/hosts/hosts', 'domain', 86400),
         'mvps_winhelp':     ('https://winhelp2002.mvps.org/hosts.txt', 'domain', 86400),
         'cameleon':         ('http://sysctl.org/cameleon/hosts', 'domain', 86400),

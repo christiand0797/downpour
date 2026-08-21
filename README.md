@@ -190,6 +190,8 @@ Detects: **Mimikatz, CobaltStrike, Metasploit, Empire, PoshC2, AsyncRAT, NjRAT, 
 
 See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for full details.
 
+**v29.42c**: Pruned 12 dead/non-IOC feed sources that bloated `titanium.db` and wasted 48 MB parallel fetch budget every tick: `disconnect_track/mal/ad` (3 tracking lists), `hagezi_pro/tif/ultimate/multi` (4 adblock, 300-700k domains each), `easylist/easyprivacy/fanboy_annoyance` (3 adblock), plus `malshare`/`virusshare` API endpoints (always 403 anon). Kept one DNS blocklist (`hagezi_light`) for DNS security. `Malware Patrol` and `C2IntelFeeds` already present as keyless replacements. 93/93 tests.
+
 **v29.42b**: Merged 4× unthrottled full-system walks that defeated live cadence: `process_count/thread_count` (2 walks every 1-3s → 10s cache), `disk_partitions` (recomputed every tick, cache write-back missing → 60s cache), `net_connections` (3 walks per tick → single per-tick `_get_net_conns()` cache), WMI thermal (~300 ms COM every tick → 30s throttle + `sensors_temperatures()` fast path). Warm fetch `2.16s → 1.32s`. 93/93 tests.
 
 **v29.42a**: Fixed the Perf tab "black box covers parts of the gauges" — the dark sparkline strip (`#06080f` at `size+26..+42`) sat only ~8 px below the gauge label (`size+8`), so the strip visually touched the label. Canvas raised to `SIZE+60` (was +52), label to `size+10`, strip to `size+30..+46` (20 px gap, 14 px bottom margin). 93/93 tests.

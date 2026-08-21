@@ -1,5 +1,13 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.42c - Threat feed hygiene — 12 dead/non-IOC sources pruned
+- Removed 10 adblock feeds that bloated `titanium.db` with 100k+ ad/tracking
+  domains on every tick (not IOCs): `disconnect_track/mal/ad` (3), `hagezi_pro/
+  tif/ultimate/multi` (4), `easylist/easyprivacy/fanboy_annoyance` (3), plus
+  `malshare`/`virusshare` API endpoints (always 403 anon). Kept one DNS
+  blocklist `hagezi_light` + `steven_black` for DNS security. `Malware Patrol`
+  already present as keyless replacement. 93/93 tests.
+
 ## v29.42b - Perf sweep — 4× unthrottled walks merged, live cadence restored
 - `process_count`/`thread_count` throttled to 10s cache (was 2 walks every
   1-3s tick); `disk_partitions` 60s cache fixed (write-back was missing);

@@ -2,6 +2,19 @@
 
 ## Branch: main
 
+## Session 2026-08-20 — v29.42c: Threat feed hygiene — 12 dead/non-IOC sources pruned
+- ✅ Explore audit found 18+ dead/key-required adblock feeds wasting 48 MB parallel
+  fetch budget + bloating `titanium.db` with 100k+ ad/tracking domains (not IOCs)
+  on every tick — `disconnect_track/mal/ad` (3), `hagezi_pro/tif/ultimate/multi`
+  (4, 300-700k each), `easylist/easyprivacy/fanboy_annoyance` (3, 70k+ each),
+  plus `malshare`/`virusshare` API endpoints (always 403 anon, require key).
+- ✅ FIX (FIX-v29.42c): removed the 10 adblock + 2 API-key entries from `FEEDS`
+  and `SECURE_FEEDS` (kept one DNS blocklist `hagezi_light` + `steven_black` for
+  DNS security feature). `Malware Patrol` (`malwarepatrol_ipv4/domains/urls` at
+  `12638`) and `C2IntelFeeds` (`drb-ra` at `12215/12390`) already present as
+  verified keyless replacements — no new feed added this pass. `py_compile` OK,
+  93/93 tests.
+
 ## Session 2026-08-20 — v29.42b: Perf sweep — 4× unthrottled walks merged, live cadence restored
 - ✅ Explore audit found 4 unthrottled full-system walks per 1-3s tick defeating the
   adaptive cadence: `process_count/thread_count` (2 walks every tick), `disk_partitions`
