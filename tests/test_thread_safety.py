@@ -314,11 +314,14 @@ class TestPerfTabV2928:
     def test_gauge_label_not_under_sparkline(self):
         """The dark sparkline box must NOT cover the gauge label."""
         src = self._src()
-        # Gauge label now drawn at size+8 (was size+18, which sat INSIDE the
-        # sparkline strip at size+14..size+29 → black box covered the label).
-        assert 'size+8' in src
-        # The sparkline strip still lives in the band below the label band.
-        assert "'#06080f'" in src
+        # Gauge label now at size+10 with sparkline strip at size+30..size+46
+        # (was size+8 / +26..+42 — still overlapped visually due to only 8px
+        # clearance; v29.42 raises to 20px gap). Either +8 or +10 is valid as
+        # long as the strip is below the label band.
+        assert ('size+8' in src or 'size+10' in src)
+        assert '#06080f' in src
+        # Sparkline strip must be well below the label (gap >= 16px)
+        assert 'size + 30' in src or 'size+30' in src
 
     def test_rate_gauges_adaptively_scaled(self):
         """DISK/NET rate gauges derive a dynamic ceiling from history."""

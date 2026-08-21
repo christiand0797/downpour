@@ -29336,8 +29336,8 @@ Verification Status:
             cell.grid(row=row, column=col, sticky='nsew', padx=4, pady=4)
             grid_frame.grid_columnconfigure(col, weight=1)
 
-            c: Any = tk.Canvas(cell, width=SIZE, height=SIZE+52,
-                          bg = Colors.BG_VOID, highlightthickness=0)  # FIX-v28p18: match parent bg
+            c: Any = tk.Canvas(cell, width=SIZE, height=SIZE+60,
+                          bg = Colors.BG_VOID, highlightthickness=0)  # FIX-v29.42: +60 to fit sparkline with gap
             c.pack()
             self._perf_canvases[key] = c
             self._perf_gauge_meta[key] = (maxv, unit, scheme, label)
@@ -29531,10 +29531,11 @@ Verification Status:
         Renders a mini line chart in the last 16px of the canvas height, showing
         historical trend. Points are color-coded by current scheme.
 
-        v29.28: sparkline zone moved to y = size+26 .. size+42 and canvas height
-        raised to size+52 so the strip can never overlap the gauge **label** which
-        sits at size+18 — previously the dark strip (y 186-198) painted over the
-        label text (y 188) producing the "black box covering half of them" bug.
+        v29.42: sparkline zone at y = size+30 .. size+46 with canvas height
+        size+60 (label at size+10). The previous +26..+42 layout left only ~8px
+        between label descenders and the dark strip, so the strip's fill looked
+        like a black box touching the label. +30 gives a 20px gap and an 8px
+        bottom margin after the strip.
         """
         if not history or max_val <= 0:
             return
@@ -29542,8 +29543,8 @@ Verification Status:
             import tkinter as _tk
             # Sparkline area: bottom 16px of canvas height (below gauge label)
             W = size          # canvas width
-            H_TOP = size + 26  # y-start of sparkline strip (below label)
-            H_BOT = size + 42  # y-end (bottom of canvas)
+            H_TOP = size + 30  # y-start of sparkline strip (below label)
+            H_BOT = size + 46  # y-end (bottom of canvas)
             H = H_BOT - H_TOP  # height of sparkline strip
 
             # Background strip
@@ -29795,12 +29796,13 @@ Verification Status:
         canvas.create_text(cx, cy+30, text=unit,
                            font = ('Cascadia Code', 9) if _cascadia_available else ('Consolas', 9), fill=Colors.TEXT_LIGHT, anchor='center')
 
-        # -- Enhanced label with better typography --------------------------------
-        # FIX-v29p28: label was drawn at size+18, but the sparkline strip renders
-        # at size+14..size+29 and is drawn AFTER the gauge — its dark fill box
-        # covered the label ("black box over half the gauges"). Label now sits
-        # ABOVE the sparkline strip in its own reserved band.
-        canvas.create_text(cx, size+8, text=label,
+         # -- Enhanced label with better typography --------------------------------
+        # FIX-v29.42: label sits at size+10 with a 20px gap above the sparkline
+        # strip (size+30..size+46). Earlier layouts (label at +8 with strip at
+        # +26) left only ~8px of clearance after font padding, so the dark
+        # sparkline fill looked like a black box touching the label. +60 canvas
+        # height gives an 8px bottom margin after the strip.
+        canvas.create_text(cx, size+10, text=label,
                            font = ('Cascadia Code', 9, 'bold') if _cascadia_available else ('Consolas', 9, 'bold'), fill=Colors.TEXT_LIGHT, anchor='center')
 
         # -- Enhanced min/max labels ---------------------------------------------

@@ -2,6 +2,18 @@
 
 ## Branch: main
 
+## Session 2026-08-20 — v29.42a: Perf gauge visibility — black box no longer covers label
+- ✅ User report: "black box covers parts of the gauges" on the Performance tab.
+  Prior fix (v29.28 label at size+18 → size+8, sparkline +14..+29 → +26..+42)
+  left only ~8px between label descenders and the dark sparkline strip
+  (`#06080f` rectangle), so the strip visually touched the label on 170px
+  gauges — looked like a black box over the label.
+- ✅ FIX (FIX-v29.42a): canvas height `SIZE+52 → SIZE+60`, label `size+8 → size+10`,
+  sparkline strip `+26..+42 → +30..+46`. Gap label→strip 8px → 20px, bottom
+  margin 10px → 14px. Updated `test_gauge_label_not_under_sparkline` to accept
+  the new layout (still asserts `#06080f` strip exists but below label band).
+  93/93 tests.
+
 ## Session 2026-08-19h — v29.41k5h: psutil native crash hardened + Perf sweep live-data cadence
 - ✅ K9 smoke (PID 7904) died at 60 min with `0xc0000005` in `_psutil_windows.pyd`
   — Windows Event `Faulting module: _psutil_windows.pyd, Exception 0xc0000005,

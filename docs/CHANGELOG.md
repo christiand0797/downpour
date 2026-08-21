@@ -1,5 +1,12 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.42a - Perf gauge visibility — black box no longer covers label
+- `c = Canvas(cell, width=SIZE, height=SIZE+60)` (was +52); label at
+  `size+10` (was +8) and sparkline strip at `size+30..size+46` (was
+  +26..+42). Gap label→strip 8px → 20px so the dark `#06080f` strip no
+  longer visually touches the label. Test `test_gauge_label_not_under_
+  sparkline` updated to accept `size+10`/`size+30`.
+
 ## v29.41k5h - psutil native crash hardened + Perf sweep single-flight
 - Native crash `0xc0000005` in `_psutil_windows.pyd` (k9 smoke at 60 min):
   psutil keeps global mutable state with no lock; concurrent `process_iter`,
