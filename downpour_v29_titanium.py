@@ -17377,7 +17377,9 @@ class HardwareMonitor:
         # Prime cpu_percent  -  first call always returns 0.0
         try:
             import psutil as _p; _p.cpu_percent(interval=None)
-        except Exception: pass
+        except Exception as _e:
+            try: error_logger.log('HwMonitor', 'cpu_percent prime failed', _e)
+            except Exception: pass
 
     def start_background_refresh(self):
         """Start a background thread that refreshes stats at adaptive interval rate."""
@@ -21817,7 +21819,9 @@ class FloatingWidget(tk.Toplevel):
         self.title("")
         try:
             self.iconbitmap(str(Path(__file__).parent / 'downpour_moon.ico'))
-        except Exception: pass
+        except Exception as _e:
+            try: error_logger.log('Widget', 'iconbitmap failed', _e)
+            except Exception: pass
         self.overrideredirect(True)
         self.attributes('-topmost', True)
         self.configure(bg=Colors.GLASS_DARK)  # solid (no alpha)
