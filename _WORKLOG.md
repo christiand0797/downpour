@@ -2,6 +2,13 @@
 
 ## Branch: main
 
+## Session 2026-08-20 — v29.42e: WMI thermal throttled + sensors fallback — CPU temp now live without COM storm
+- ✅ WMI `MSAcpi_ThermalZoneTemperature` COM call (~300 ms) ran on EVERY tick
+  when `cpu_temp==0`, and the 30s throttle patch had a duplicate `except` and
+  broken cache write-back (`_wmi_temp_cache` never stored). Fixed to 30s throttle
+  with `psutil.sensors_temperatures()` fast-path first, cache write-back, and
+  single `except`. Warm fetch stays ~1.3s.
+
 ## Session 2026-08-20 — v29.42d: Silent exception swallowing hardened — HwMonitor + Intel feed health now log
 - ✅ Audit found 550× `except: pass` — critical path `HwMonitor` bg loop
   (`while _bg_running: try: _fetch() except: pass` at `17392`) swallowed the

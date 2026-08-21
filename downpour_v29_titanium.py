@@ -18444,7 +18444,6 @@ class HardwareMonitor:
             try:
                 _wmi_now: Any = __import__('time').time()
                 if _wmi_now - getattr(self, '_wmi_temp_ts', 0.0) >= 30.0:
-                    self._wmi_temp_ts = _wmi_now
                     # Fast path: psutil sensors_temperatures (no COM)
                     try:
                         _temps: Any = psutil.sensors_temperatures()
@@ -18462,14 +18461,10 @@ class HardwareMonitor:
                         for t in w.MSAcpi_ThermalZoneTemperature():
                             stats['cpu_temp'] = round((t.CurrentTemperature - 2732) / 10.0, 1)
                             break
+                    self._wmi_temp_ts = _wmi_now
+                    self._wmi_temp_cache = stats['cpu_temp']
                 else:
-                    # reuse last cached temp
                     stats['cpu_temp'] = getattr(self, '_wmi_temp_cache', 0.0)
-                    if stats['cpu_temp']:
-                        self._wmi_temp_cache = stats['cpu_temp']
-                    else:
-                        stats['cpu_temp'] = getattr(self, '_wmi_temp_cache', 0.0)
-            except Exception: pass
             except Exception: pass
 
         # SPRINT1: Top-15 processes by CPU %  -  every row now carries live
