@@ -1,5 +1,10 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.42g - Revolutionary enhancements dummy shim — now logs idle gpu_executor
+- Dummy shim at `downpour_v29_titanium.py:217` reserved 50% cores for
+  `gpu_executor` but never logged idle; next audit re-flagged it. Added
+  one-time `logger.info` at import.
+
 ## v29.42f - GPU fallback + WMI thermal cache fix
 - GPU `GPUTIL` fallback now tried even when `NVML_AVAILABLE` but `gpu_percent==0`
   (headless / no GPU) — previously `elif` never fired, gauges stayed `0` instead

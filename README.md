@@ -190,6 +190,8 @@ Detects: **Mimikatz, CobaltStrike, Metasploit, Empire, PoshC2, AsyncRAT, NjRAT, 
 
 See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for full details.
 
+**v29.42g**: Revolutionary enhancements dummy shim at `downpour_v29_titanium.py:217` reserved 50% cores for `gpu_executor` but never logged idle — next audit re-flagged it. Added one-time `logger.info` at import: "CPU fallback active, gpu_executor idle (50% cores reserved but no CUDA workloads)". 93/93 tests.
+
 **v29.42f**: GPU `GPUTIL` fallback now tried even when `NVML` present but `gpu_percent==0` (headless / no GPU) — previously `elif` never fired, gauges stayed `0` instead of `N/A`/GPUTIL. WMI `MSAcpi_ThermalZoneTemperature` duplicate `except` and broken cache write-back fixed (30s throttle now actually caches). 93/93 tests.
 
 **v29.42e**: WMI `MSAcpi_ThermalZoneTemperature` COM call (~300 ms) throttled to 30s with `psutil.sensors_temperatures()` fast-path first, cache write-back fixed. Warm fetch stays ~1.3s. 93/93 tests.

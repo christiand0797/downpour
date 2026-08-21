@@ -2,6 +2,12 @@
 
 ## Branch: main
 
+## Session 2026-08-20 — v29.42g: Revolutionary enhancements dummy shim — now logs idle gpu_executor
+- ✅ Dummy shim at `downpour_v29_titanium.py:217` reserved 50% cores for
+  `gpu_executor` but never logged that it was idle (torch `2.10.0+cpu` only).
+  Next audit re-flagged it. Added one-time `logger.info` at import: "CPU
+  fallback active, gpu_executor idle (50% cores reserved but no CUDA workloads)".
+
 ## Session 2026-08-20 — v29.42f: GPU fallback — GPUTIL even when NVML present but 0
 - ✅ NVML path `if NVML_AVAILABLE: ... elif GPUTIL_AVAILABLE: ...` never tried
   GPUTIL when NVML was present but returned `0` (headless / no GPU) — gauges
