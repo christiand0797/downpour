@@ -38740,6 +38740,8 @@ Verification Status:
             except Exception as _e:
                 try:
                     error_logger.log('IntelFeedHealth', 'load failed', _e)
+                    # Surface failure in UI instead of silent Pending forever
+                    self.after(0, lambda: getattr(self, '_intel_status', None) and self._intel_status.config(text="Feed health: load failed — see error log"))
                 except Exception:
                     pass
         try:
