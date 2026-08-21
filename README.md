@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/python-3.12%20recommended-yellow?style=for-the-badge&logo=python" />
   <img src="https://img.shields.io/badge/status-active%20WIP-brightgreen?style=for-the-badge" />
   <img src="https://img.shields.io/badge/YARA%20rules-104-red?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/threat%20feeds-24%2B%20high--fidelity-orange?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/threat%20feeds-20%2B%20high--fidelity-orange?style=for-the-badge" />
   <img src="https://img.shields.io/badge/MITRE%20techniques-85%2B-purple?style=for-the-badge" />
   <img src="https://img.shields.io/badge/tabs-27-teal?style=for-the-badge" />
   <img src="https://img.shields.io/badge/tests-93%2B%20passing-brightgreen?style=for-the-badge" />
@@ -159,7 +159,7 @@ Detects: **Mimikatz, CobaltStrike, Metasploit, Empire, PoshC2, AsyncRAT, NjRAT, 
 
 ---
 
-## Configured Threat Feed Sources (24 high-fidelity)
+## Configured Threat Feed Sources (20 high-fidelity)
 
 | Category | Count | Examples |
 |----------|-------|---------|
@@ -189,6 +189,8 @@ Detects: **Mimikatz, CobaltStrike, Metasploit, Empire, PoshC2, AsyncRAT, NjRAT, 
 ## Changelog
 
 See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for full details.
+
+**v29.42h**: Pruned 4 more adblock hosts (`someonewhocares`/`mvps_winhelp`/`cameleon`/`adguard_dns`, 15-40k ad domains each) — total pruned 16, feeds 34→20 high-fidelity. 93/93 tests.
 
 **v29.42g**: Revolutionary enhancements dummy shim at `downpour_v29_titanium.py:217` reserved 50% cores for `gpu_executor` but never logged idle — next audit re-flagged it. Added one-time `logger.info` at import: "CPU fallback active, gpu_executor idle (50% cores reserved but no CUDA workloads)". 93/93 tests.
 

@@ -2,6 +2,11 @@
 
 ## Branch: main
 
+## Session 2026-08-20 — v29.42h: Feed hygiene round 2 — 4 more adblock hosts pruned (SomeoneWhocares/MVPS/Cameleon/AdGuard)
+- ✅ Second pass removed `someonewhocares`/`mvps_winhelp`/`cameleon`/`adguard_dns`
+  (4 hosts, 15-40k ad domains each) — same class as the 12 pruned in v29.42c.
+  Total pruned 16, feeds 34 → 18 high-fidelity. `py_compile` OK, 93/93 tests.
+
 ## Session 2026-08-20 — v29.42g: Revolutionary enhancements dummy shim — now logs idle gpu_executor
 - ✅ Dummy shim at `downpour_v29_titanium.py:217` reserved 50% cores for
   `gpu_executor` but never logged that it was idle (torch `2.10.0+cpu` only).

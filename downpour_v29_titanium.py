@@ -12157,10 +12157,10 @@ class ThreatIntelEngine:
         # -- MORE DNS / ADBLOCK LISTS -------------------------------------
         # REMOVED-v29.42c (adblock — 700k+ domains)
         # REMOVED-v29.42c (adblock)
-        'someonewhocares':  ('https://someonewhocares.org/hosts/hosts', 'domain', 86400),
-        'mvps_winhelp':     ('https://winhelp2002.mvps.org/hosts.txt', 'domain', 86400),
-        'cameleon':         ('http://sysctl.org/cameleon/hosts', 'domain', 86400),
-        'adguard_dns':      ('https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt', 'domain', 86400),
+        # REMOVED-v29.42c (adblock hosts — 15k+ ad domains, not IOC)
+        # REMOVED-v29.42c (adblock)
+        # REMOVED-v29.42c (adblock)
+        # REMOVED-v29.42c (adblock DNS filter — 40k+ ad domains)
         # REMOVED-v28: AdGuard antiphishing path moved (404)
         # -- MORE FIREHOL EXTRA ---------------------------------------------
         'firehol_dshield':  ('https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/dshield.netset', 'ip', 86400),

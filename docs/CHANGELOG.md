@@ -1,5 +1,10 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.42h - Feed hygiene round 2 — 4 more adblock hosts pruned
+- Removed `someonewhocares`/`mvps_winhelp`/`cameleon`/`adguard_dns` (4 hosts,
+  15-40k ad domains each) — same class as the 12 pruned in v29.42c. Total
+  pruned 16, feeds 34 → 20 high-fidelity. 93/93 tests.
+
 ## v29.42g - Revolutionary enhancements dummy shim — now logs idle gpu_executor
 - Dummy shim at `downpour_v29_titanium.py:217` reserved 50% cores for
   `gpu_executor` but never logged idle; next audit re-flagged it. Added
