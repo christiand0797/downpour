@@ -17389,8 +17389,11 @@ class HardwareMonitor:
                             self._adaptive_interval = 2.0  # Normal
                         else:
                             self._adaptive_interval = 1.0  # Speed up under low load
-                except Exception:
-                    pass
+                except Exception as _e:
+                    try:
+                        error_logger.log('HwMonitor', 'bg fetch failed', _e)
+                    except Exception:
+                        pass
                 time.sleep(self._adaptive_interval)
         threading.Thread(target=_loop, daemon=True, name='hw-monitor').start()
 
@@ -38731,12 +38734,18 @@ Verification Status:
             try:
                 rows: Any = self.intel.get_feed_status()
                 self.after(0, lambda r=rows: self._apply_feed_health(r))
-            except Exception:
-                pass
+            except Exception as _e:
+                try:
+                    error_logger.log('IntelFeedHealth', 'load failed', _e)
+                except Exception:
+                    pass
         try:
             self._executor.submit(_load)
-        except Exception:
-            pass
+        except Exception as _e:
+            try:
+                error_logger.log('IntelFeedHealth', 'submit failed', _e)
+            except Exception:
+                pass
 
     def _apply_feed_health(self, rows):
         """Main-thread: refresh Intel-tab feed Status column from feed_status.

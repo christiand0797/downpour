@@ -1,5 +1,11 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.42d - Silent exception swallowing hardened
+- `HwMonitor` bg loop `while _bg_running: try: _fetch() except: pass` now
+  logs to `HwMonitor/bg fetch failed` instead of swallowing the `0xc0000005`
+  psutil crash; `IntelFeedHealth` `_load`/`submit` now log to
+  `IntelFeedHealth/load failed` so `Pending` status is traceable. 93/93 tests.
+
 ## v29.42c - Threat feed hygiene — 12 dead/non-IOC sources pruned
 - Removed 10 adblock feeds that bloated `titanium.db` with 100k+ ad/tracking
   domains on every tick (not IOCs): `disconnect_track/mal/ad` (3), `hagezi_pro/

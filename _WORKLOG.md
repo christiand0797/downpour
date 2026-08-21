@@ -2,6 +2,15 @@
 
 ## Branch: main
 
+## Session 2026-08-20 — v29.42d: Silent exception swallowing hardened — HwMonitor + Intel feed health now log
+- ✅ Audit found 550× `except: pass` — critical path `HwMonitor` bg loop
+  (`while _bg_running: try: _fetch() except: pass` at `17392`) swallowed the
+  `0xc0000005` psutil crash that killed k9, and `IntelFeedHealth` `_load`
+  (`38733`) swallowed DB failures leaving Status stuck `Pending`.
+- ✅ FIX: `HwMonitor` bg loop now `error_logger.log('HwMonitor','bg fetch failed',_e)`;
+  `_refresh_feed_health` `_load` and `submit` now log to `IntelFeedHealth`.
+  Adaptive interval still signals failure via health gauge instead of stale `0%`.
+
 ## Session 2026-08-20 — v29.42c: Threat feed hygiene — 12 dead/non-IOC sources pruned
 - ✅ Explore audit found 18+ dead/key-required adblock feeds wasting 48 MB parallel
   fetch budget + bloating `titanium.db` with 100k+ ad/tracking domains (not IOCs)
