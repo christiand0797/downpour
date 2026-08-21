@@ -190,6 +190,10 @@ Detects: **Mimikatz, CobaltStrike, Metasploit, Empire, PoshC2, AsyncRAT, NjRAT, 
 
 See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for full details.
 
+**v29.42f**: GPU `GPUTIL` fallback now tried even when `NVML` present but `gpu_percent==0` (headless / no GPU) — previously `elif` never fired, gauges stayed `0` instead of `N/A`/GPUTIL. WMI `MSAcpi_ThermalZoneTemperature` duplicate `except` and broken cache write-back fixed (30s throttle now actually caches). 93/93 tests.
+
+**v29.42e**: WMI `MSAcpi_ThermalZoneTemperature` COM call (~300 ms) throttled to 30s with `psutil.sensors_temperatures()` fast-path first, cache write-back fixed. Warm fetch stays ~1.3s. 93/93 tests.
+
 **v29.42d**: Hardened silent `except: pass` that hid the `0xc0000005` crash — `HwMonitor` bg loop (`17392`) and `IntelFeedHealth` loader (`38733`) now `error_logger.log` instead of swallowing, so `Pending` status and `0%` gauges are traceable. 93/93 tests.
 
 **v29.42c**: Pruned 12 dead/non-IOC feed sources that bloated `titanium.db` and wasted 48 MB parallel fetch budget every tick: `disconnect_track/mal/ad` (3 tracking lists), `hagezi_pro/tif/ultimate/multi` (4 adblock, 300-700k domains each), `easylist/easyprivacy/fanboy_annoyance` (3 adblock), plus `malshare`/`virusshare` API endpoints (always 403 anon). Kept one DNS blocklist (`hagezi_light`) for DNS security. `Malware Patrol` and `C2IntelFeeds` already present as keyless replacements. 93/93 tests.

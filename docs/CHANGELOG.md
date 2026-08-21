@@ -1,5 +1,17 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.42f - GPU fallback + WMI thermal cache fix
+- GPU `GPUTIL` fallback now tried even when `NVML_AVAILABLE` but `gpu_percent==0`
+  (headless / no GPU) — previously `elif` never fired, gauges stayed `0` instead
+  of `N/A` or GPUTIL fallback. WMI `MSAcpi_ThermalZoneTemperature` duplicate
+  `except` and broken cache write-back fixed (30s throttle now actually caches).
+  93/93 tests.
+
+## v29.42e - WMI thermal throttled + sensors fallback
+- WMI `MSAcpi_ThermalZoneTemperature` COM call (~300 ms) throttled to 30s with
+  `psutil.sensors_temperatures()` fast-path first, cache write-back fixed.
+  Warm fetch stays ~1.3s. 93/93 tests.
+
 ## v29.42d - Silent exception swallowing hardened
 - `HwMonitor` bg loop `while _bg_running: try: _fetch() except: pass` now
   logs to `HwMonitor/bg fetch failed` instead of swallowing the `0xc0000005`

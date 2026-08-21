@@ -2,6 +2,12 @@
 
 ## Branch: main
 
+## Session 2026-08-20 — v29.42f: GPU fallback — GPUTIL even when NVML present but 0
+- ✅ NVML path `if NVML_AVAILABLE: ... elif GPUTIL_AVAILABLE: ...` never tried
+  GPUTIL when NVML was present but returned `0` (headless / no GPU) — gauges
+  stayed `0` instead of `N/A` or GPUTIL fallback. Changed to `if NVML: try;
+  if gpu_percent==0 and GPUTIL: try` so headless boxes get GPUTIL fallback.
+
 ## Session 2026-08-20 — v29.42e: WMI thermal throttled + sensors fallback — CPU temp now live without COM storm
 - ✅ WMI `MSAcpi_ThermalZoneTemperature` COM call (~300 ms) ran on EVERY tick
   when `cpu_temp==0`, and the 30s throttle patch had a duplicate `except` and
