@@ -13074,8 +13074,11 @@ class ThreatIntelEngine:
                             f"[{done}/{total}] [OK] {loaded} ok  [X] {errors} failed")
 
         # FIX-v28p25: Shutdown parse pool
-        try: _parse_pool.shutdown(wait=False)
-        except Exception: pass
+        try:
+            _parse_pool.shutdown(wait=False)
+        except Exception as _e:
+            try: error_logger.log('ThreatIntel', 'parse_pool shutdown failed', _e)
+            except Exception: pass
         self.last_update = datetime.now()
         ioc_count: Any = self.db.count_intel()
         self.status = (f"Updated {datetime.now().strftime('%H:%M')} - "
@@ -16950,7 +16953,9 @@ def _write_hosts_file_elevated(new_content: str, hosts_path: str = r'C:\Windows\
     Works from any class/thread. Returns True on success."""
     import tempfile, shutil as _sh
     try: _sh.copy2(hosts_path, hosts_path + '.downpour.bak')
-    except Exception: pass
+    except Exception as _e:
+        try: error_logger.log('ParentalControls', 'hosts backup failed', _e)
+        except Exception: pass
     # Attempt 1: direct write
     try:
         with open(hosts_path, 'w', encoding='utf-8', newline='\n') as _f:
@@ -18149,7 +18154,9 @@ class HardwareMonitor:
                                                     if getattr(p, 'is_suspicious', False))
             elif pm is not None:
                 stats['process_threats_hour'] = getattr(pm, '_threats_last_hour', 0)
-        except Exception: pass
+        except Exception as _e:
+            try: error_logger.log('HwMonitor', 'proc_threats failed', _e)
+            except Exception: pass
         # network threat gauge ← live analyze_connections (NET THREATS)
         try:
             if _app_nm is not None and getattr(_app_nm, 'net_monitor', None) is not None:
@@ -18203,7 +18210,9 @@ class HardwareMonitor:
             stats['file_threats_hour'] = getattr(getattr(self, '_ti_ref', None),
                                                  '_file_threats_hour',
                                                  getattr(self, '_file_threats_last_hour', 0))
-        except Exception: pass
+        except Exception as _e:
+            try: error_logger.log('HwMonitor', 'file_threats failed', _e)
+            except Exception: pass
         try:
             # FIX-v29.41e: reuse cached TI manager (created once by the OSINT feed block)
             stats['ioc_hits_hour'] = getattr(getattr(self, '_ti_ref', None), '_ioc_hits_last_hour', 0)
@@ -21492,7 +21501,9 @@ class RainOverlayWindow(tk.Toplevel):
         if len(old) != n:
             for item in old:
                 try: c.delete(item)
-                except Exception: pass
+                except Exception as _e:
+                    try: error_logger.log('RainCanvas', 'delete item failed', _e)
+                    except Exception: pass
             self._drop_items  = [
                 c.create_line(0, 0, 0, 0, fill='#1e4878', width=1, tags='drop')
                 for _ in range(n)
@@ -24171,12 +24182,15 @@ class downpour(tk.Tk):
                         # Also update scrollregion to ensure proper scrolling
                         widget.configure(scrollregion=widget.bbox('all'))
                     break
-        except Exception:
-            # Silently fail to avoid breaking tab switching
-            pass
+        except Exception as _e:
+            try: error_logger.log('TabSwitch', 'canvas resize failed', _e)
+            except Exception: pass
         # FIX-v28p18: Update tab scroll indicator
-        try: self._update_tab_indicator()
-        except Exception: pass
+        try:
+            self._update_tab_indicator()
+        except Exception as _e:
+            try: error_logger.log('TabSwitch', '_update_tab_indicator failed', _e)
+            except Exception: pass
 
     def _scroll_tabs(self, direction):
         """FIX-v28p18: Navigate tabs left(-1) or right(+1)."""
