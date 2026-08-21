@@ -17594,14 +17594,25 @@ class HardwareMonitor:
                 self._prev_net   = nt
                 self._prev_net_t = now_t2
         except Exception: pass
-        # Processes + threads
+        # Processes + threads — throttled to 10s (was every 1-3s tick)
         try:
-            stats['process_count'] = len(psutil.pids())
-            try:
-                stats['thread_count'] = sum(
-                    p.info.get('num_threads', 0) or 0
-                    for p in psutil.process_iter(['num_threads']))
-            except Exception: stats['thread_count'] = 0
+            _pc_now: Any = time.time()
+            if _pc_now - getattr(self, '_proc_counts_ts', 0.0) >= 10.0:
+                stats['process_count'] = len(psutil.pids())
+                try:
+                    stats['thread_count'] = sum(
+                        p.info.get('num_threads', 0) or 0
+                        for p in psutil.process_iter(['num_threads']))
+                except Exception: stats['thread_count'] = 0
+                self._proc_counts_cache = (stats['process_count'], stats['thread_count'])
+                self._proc_counts_ts = _pc_now
+            else:
+                _cached: Any = getattr(self, '_proc_counts_cache', None)
+                if _cached:
+                    stats['process_count'], stats['thread_count'] = _cached
+                else:
+                    stats['process_count'] = len(psutil.pids())
+                    stats['thread_count'] = 0
         except Exception: pass
         # Uptime
         try:
@@ -17716,21 +17727,32 @@ class HardwareMonitor:
                     stats['gpu_temp']        = g.temperature
             except Exception: pass
 
-        # Per-disk partitions
+        # Per-disk partitions — cached 60s (mounts rarely change)
+        # FIX-v29: cache was never written back (_disk_parts_ts/_disk_parts_cache
+        # were only ever read via getattr(..., default), never assigned), so the
+        # cache-hit branch could never actually trigger — this recomputed
+        # psutil.disk_usage() for every mounted partition on EVERY poll cycle
+        # (every 2s via _perf_loop) instead of once per 60s as intended.
         try:
-            parts: Any = []
-            for dp in psutil.disk_partitions(all=False):
-                try:
-                    du2: Any = psutil.disk_usage(dp.mountpoint)
-                    parts.append({
-                        'mount': dp.mountpoint, 'fstype': dp.fstype,
-                        'used_pct': du2.percent,
-                        'used_gb':  round(du2.used  / 1073741824, 1),
-                        'total_gb': round(du2.total / 1073741824, 1),
-                        'free_gb':  round(du2.free  / 1073741824, 1),
-                    })
-                except Exception: pass
-            stats['disk_partitions'] = parts
+            _dp_now: Any = time.time()
+            if _dp_now - getattr(self, '_disk_parts_ts', 0.0) < 60.0:
+                stats['disk_partitions'] = getattr(self, '_disk_parts_cache', [])
+            else:
+                parts: Any = []
+                for dp in psutil.disk_partitions(all=False):
+                    try:
+                        du2: Any = psutil.disk_usage(dp.mountpoint)
+                        parts.append({
+                            'mount': dp.mountpoint, 'fstype': dp.fstype,
+                            'used_pct': du2.percent,
+                            'used_gb':  round(du2.used  / 1073741824, 1),
+                            'total_gb': round(du2.total / 1073741824, 1),
+                            'free_gb':  round(du2.free  / 1073741824, 1),
+                        })
+                    except Exception: pass
+                stats['disk_partitions'] = parts
+                self._disk_parts_cache: Any = parts
+                self._disk_parts_ts: Any = _dp_now
         except Exception: pass
         # Per-NIC rates
         try:
