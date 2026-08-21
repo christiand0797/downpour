@@ -433,8 +433,14 @@ class AdvancedGauge:
                 self.current_value += step
                 self.animation_progress += 0.1
                 
-                # Update visual
-                self.update_visual()
+                # FIX-v29.42: Route canvas updates through the main thread.
+                # The old code called update_visual() directly from this
+                # background thread, violating Tkinter's threading model and
+                # causing intermittent crashes/freezes on Windows.
+                try:
+                    self.canvas.after(0, self.update_visual)
+                except Exception:
+                    self.update_visual()  # fallback if after() unavailable
                 
                 # Control animation speed
                 time.sleep(0.05)
@@ -461,7 +467,7 @@ class AdvancedGauge:
             elif self.gauge_type == GaugeType.PROGRESS:
                 self.update_progress_visual()
         except Exception as e:
-            print(f"Visual update error: {e}")
+            _log.warning(f"Visual update error: {e}")
     
     def update_circular_visual(self):
         """Update circular gauge visual"""
@@ -583,7 +589,21 @@ class AdvancedGauge:
         self.canvas.itemconfig(self.elements['percentage'], text=f"{int(self.current_value)}%")
     
     def add_glow_effect(self, center_x: int, center_y: int, radius: int, color: str):
-        """Add glow effect to gauge"""
+        """Add glow effect to gauge.
+
+        FIX-v29.42: Delete previous glow items before creating new ones.
+        The old code created 3 new canvas ovals every 50ms animation tick
+        without ever deleting them — a severe memory leak that accumulated
+        thousands of canvas items and degraded UI performance over time.
+        """
+        # Delete previous glow items to prevent memory leak
+        for _old in getattr(self, '_glow_items', []):
+            try:
+                self.canvas.delete(_old)
+            except Exception:
+                pass
+        self._glow_items = []
+
         # Create glow circles
         for i in range(3):
             glow_radius = radius + (i + 1) * 5
@@ -596,6 +616,7 @@ class AdvancedGauge:
                     center_x + glow_radius, center_y + glow_radius,
                     fill="", outline=glow_color, width=2
                 )
+                self._glow_items.append(glow)
                 self.canvas.tag_lower(glow)
             except Exception:
                 pass

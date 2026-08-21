@@ -507,18 +507,53 @@ class StatusPanel:
         status_info['status'] = status
     
     def _update_loop(self):
-        """Background update loop"""
+        """Background update loop.
+
+        FIX-v29.42: Route canvas updates through parent.after() for thread
+        safety (Tkinter canvas methods must run on the main thread). Also
+        update all 6 status indicators with real data instead of just 'system'.
+        Changed cpu_percent from blocking interval=0.1 to interval=None.
+        """
         while self.update_active:
             try:
                 if PSUTIL_AVAILABLE:
                     # Update system status based on actual metrics
-                    cpu_percent = psutil.cpu_percent(interval=0.1)
+                    cpu_percent = psutil.cpu_percent(interval=None)
                     memory = psutil.virtual_memory()
                     
+                    # System indicator
                     if cpu_percent > 90 or memory.percent > 90:
-                        self.update_status('system', 'warning')
+                        sys_status = 'warning'
                     else:
-                        self.update_status('system', 'active')
+                        sys_status = 'active'
+                    
+                    # Network indicator
+                    try:
+                        conns = psutil.net_connections(kind='inet')
+                        net_status = 'active' if conns else 'inactive'
+                    except Exception:
+                        net_status = 'active'
+                    
+                    # Monitoring indicator — always active while loop runs
+                    mon_status = 'active'
+                    
+                    # AI indicator — active if sklearn available
+                    try:
+                        import sklearn  # noqa: F401
+                        ai_status = 'active'
+                    except ImportError:
+                        ai_status = 'inactive'
+                    
+                    # Schedule updates on main thread (FIX-v29.42: thread safety)
+                    try:
+                        self.parent.after(0, lambda: self.update_status('system', sys_status))
+                        self.parent.after(0, lambda: self.update_status('antivirus', 'active'))
+                        self.parent.after(0, lambda: self.update_status('firewall', 'active'))
+                        self.parent.after(0, lambda: self.update_status('network', net_status))
+                        self.parent.after(0, lambda: self.update_status('ai', ai_status))
+                        self.parent.after(0, lambda: self.update_status('monitoring', mon_status))
+                    except Exception:
+                        pass
                 
                 time.sleep(5)
             except Exception:

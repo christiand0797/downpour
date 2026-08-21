@@ -1,5 +1,22 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.41k5h - psutil native crash hardened + Perf sweep single-flight
+- Native crash `0xc0000005` in `_psutil_windows.pyd` (k9 smoke at 60 min):
+  psutil keeps global mutable state with no lock; concurrent `process_iter`,
+  `net_connections`, `cpu_percent` from hw-monitor (1-3s), Perf executor
+  fetch, heartbeat (60s) and scan workers corrupted the C buffers.
+- Global `_PSUTIL_LOCK` (RLock) now wraps 19 psutil system-wide functions at
+  module import via attribute patching (`process_iter` generator wrapper holds
+  the lock for the whole iteration). Every `import psutil` hits the locked
+  wrappers. Per-Process instance methods already have their own lock.
+- `HardwareMonitor._fetch` single-flight: concurrent callers share one Future;
+  `get_stats`/`_fetch`/`Refresh Now` no longer run duplicate 3-9s sweeps.
+- Sweep itself trimmed: `open_files` uses `num_handles()` (~6× cheaper than
+  `open_files()` enumeration, 0.9s→0.15s per 100 pids) and `process_iter`
+  status snapshot cached to 10s (was twice per fetch, ~1.9s). DNS latency
+  already throttled to 30s. 92/92 tests (12-thread concurrent psutil hammer
+  + single-flight coalescing verified).
+
 ## v29.41k5g - Feed-health refresh: zero Tcl calls for unchanged rows
 - After the DB read/writer split, the remaining 1.6-2.4s FREEZEs came from
   `_apply_feed_health`: every periodic Intel-tab refresh re-issued per-row

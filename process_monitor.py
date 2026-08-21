@@ -192,7 +192,7 @@ class ProcessMonitor:
         
         # Check for suspicious name patterns
         for suspicious in self.suspicious_names:
-            if suspicious in name:
+            if suspicious == name:
                 return (True, f"Process name similar to system process: {name}")
         
         # Check if system process name running from wrong location
@@ -453,7 +453,7 @@ class ProcessMonitor:
             
             # Check CPU usage (cryptominers use lots of CPU)
             try:
-                cpu = proc.cpu_percent(interval=0.1)
+                cpu = proc.cpu_percent(interval=None)
                 if cpu > 80:
                     score += 15
                     alerts.append(f"High CPU usage: {cpu:.1f}%")

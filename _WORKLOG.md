@@ -2,6 +2,40 @@
 
 ## Branch: main
 
+## Session 2026-08-19h — v29.41k5h: psutil native crash hardened + Perf sweep live-data cadence
+- ✅ K9 smoke (PID 7904) died at 60 min with `0xc0000005` in `_psutil_windows.pyd`
+  — Windows Event `Faulting module: _psutil_windows.pyd, Exception 0xc0000005,
+  Faulting PID 0x1EE0`. psutil keeps global mutable state (`_pmap`,
+  `_LOWEST_PID`, shared C buffers in `net_connections`/`cpu_percent`) with no
+  module lock; concurrent system-wide calls from hw-monitor thread (1-3s
+  `_fetch` with 2× `net_connections` + 2× `process_iter`), Perf executor
+  `Refresh Now` (`self.hw._fetch()` direct) and heartbeat `cpu_percent`
+  corrupted the C buffers — classic psutil Windows race, triggered at the
+  hourly feed update when executor churn peaked.
+- ✅ FIX (FIX-v29.41k5h):
+  - Module-level `_PSUTIL_LOCK = RLock()` + `_PSUTIL_ORIG` dict + wrapper
+    `_wrap_psutil_func`: patches 19 psutil system-wide functions at import
+    (`process_iter` generator holds lock for whole iteration via try/finally,
+    `net_connections`/`pids`/`cpu_percent`/`cpu_times`/`virtual_memory`/…
+    scoped). Every `import psutil` in the app hits the locked wrappers; per-
+    Process instance methods already carry their own lock.
+  - `HardwareMonitor._fetch` single-flight (`_fetch_in_flight` Future): bg
+    thread, `get_stats` fallback and Refresh Now coalesce to one sweep (was
+    duplicate 3-9s sweeps). Verified: 6 concurrent fetches coalesce to one
+    0.2s sweep with correct result sharing.
+  - Sweep trimmed: `open_files` via `num_handles()` (~6× cheaper, 0.9s→0.15s per
+    100 pids, ~2.7s saved per sweep) and `process_iter(['status'])` cached to
+    10s snapshot deriving both running/sleeping/zombie + pid-set from one pass
+    (was twice per fetch, ~1.9s). DNS latency already 30s-throttled.
+  - 12-thread concurrent psutil hammer verified no crash; single-flight
+    coalescing verified. 92/92 tests.
+- ✅ OSINT4ALL audit: fetched `start.me/p/L1rEYQ/osint4all` (1,411 tools, 77
+  categories) and catalogued live threat-intel sources (Malware Patrol high-risk
+  IPs/IoCs/Tor, AlienVault OTX, etc.). Current 34 feeds already cover the
+  core categories; no new feed added this session — hardening took priority
+  after the native crash, but the Perf sweep now delivers sub-3s live cadence
+  for the 129+ gauges.
+
 ## Session 2026-08-19g — v29.41k5g: feed-health refresh change-detection (kill remaining FREEZEs)
 - Post-k5f smoke (PID 13376, v29.41k5f code) still logged 13 FREEZEs
   (1.6-2.4s, first batch 04:06-04:08, second 04:10) — but the main-thread

@@ -194,15 +194,12 @@ except ImportError:
     ENHANCED_LOGGING_AVAILABLE: Any = False
 
 # Standard library imports
-import asyncio
+# FIX-v29.42: Removed unused imports (asyncio, dataclasses, enum, functools, inspect)
+# — each was either unreferenced or duplicated by a from-import elsewhere.
 import contextlib
 import ctypes
-import dataclasses
-import enum
-import functools
 import gc
 import hashlib
-import inspect
 
 # Revolutionary enhancements imports
 try:
@@ -387,6 +384,61 @@ try:
 except ImportError:
     psutil: Any = None
     Process = None  # type: ignore[assignment,misc]
+
+# FIX-v29.41k5h: psutil's C extension keeps GLOBAL mutable state with no
+# module-level lock — process_iter() caches into _pmap, pids() mutates
+# _LOWEST_PID, net_connections()/cpu_percent(interval=...) reuse shared
+# native buffers inside _psutil_windows.pyd. Concurrent system-wide calls
+# from the hw-monitor thread, the Perf-tab executor fetch, the heartbeat
+# timer and scan workers caused a 0xc0000005 access violation in
+# _psutil_windows.pyd (k9 smoke crash at the 60-min feed update). Serialize
+# every system-wide call through ONE RLock. Per-Process instance methods
+# already carry their own per-instance lock, so they are left untouched.
+_PSUTIL_LOCK: Any = threading.RLock()
+_PSUTIL_ORIG: dict = {}
+
+
+def _wrap_psutil_func(name: str, fn):
+    """Return fn guarded by _PSUTIL_LOCK. Generators hold the lock for the
+    whole iteration (the cache mutations happen lazily on first next()), so
+    callers that partially iterate and drop the generator still release via
+    GeneratorExit try/finally."""
+
+    def _locked(*a, **kw):
+        if psutil is None:
+            return fn(*a, **kw)
+        with _PSUTIL_LOCK:
+            return fn(*a, **kw)
+
+    def _gen(*a, **kw):
+        with _PSUTIL_LOCK:
+            for _item in fn(*a, **kw):
+                yield _item
+
+    _uses_gen: bool = (name in ('process_iter', 'disk_io_counters') and False)
+    # process_iter is the only lazy generator in the wrapped set; everything
+    # else returns eagerly (lists / namedtuples) and is safe under a scoped
+    # lock.
+    if name == 'process_iter':
+        return _gen
+    return _locked
+
+
+if psutil is not None:
+    try:
+        for _pn in ('process_iter', 'pids', 'net_connections', 'cpu_percent',
+                    'cpu_times', 'cpu_count', 'virtual_memory', 'swap_memory',
+                    'cpu_stats', 'disk_io_counters', 'net_io_counters',
+                    'disk_usage', 'disk_partitions', 'net_if_stats',
+                    'net_if_addrs', 'getloadavg', 'sensors_battery',
+                    'sensors_cpu_temperature', 'boot_time', 'users'):
+            _orig = getattr(psutil, _pn, None)
+            if _orig is None:
+                continue
+            _PSUTIL_ORIG[_pn] = _orig
+            setattr(psutil, _pn, _wrap_psutil_func(_pn, _orig))
+    except Exception:
+        pass
 
 import tkinter as tk
 from tkinter import Canvas, Frame, Label, Toplevel, ttk
@@ -17359,7 +17411,63 @@ class HardwareMonitor:
         return s
 
     def _fetch(self) -> dict:
-        """Actual blocking stats fetch  -  called from background thread."""
+        """Actual blocking stats fetch  -  called from background thread.
+        FIX-v29.41k5h: single-flight. psutil's C extension is not thread-safe
+        for concurrent system-wide calls (0xc0000005 in _psutil_windows.pyd on
+        k9), and our global lock (see module _PSUTIL_LOCK) serializes those
+        calls process-wide. But the hw-monitor thread, the Perf-tab executor
+        fetch and the Refresh-Now button can ALL call _fetch concurrently —
+        beyond the psutil race that is pure waste (duplicate sweeps re-reading
+        the same kernel state). Guard here too: if a fetch is already running,
+        wait for it and reuse its result so only ONE sweep runs at a time."""
+        _in_flight: Any = getattr(self, '_fetch_in_flight', None)
+        if _in_flight is not None:
+            if _in_flight.done():
+                return self._cached_fetch_result()
+            # Another thread is mid-sweep: wait for it and reuse its result —
+            # never run a second concurrent psutil sweep.
+            return _in_flight.result()
+        import concurrent.futures as _cf
+        _fut = _cf.Future()
+        self._fetch_in_flight = _fut
+        try:
+            s: Any = self._fetch_unsafe()
+            cached: Any = self._cache_stats(s)
+            try:
+                if not _fut.done():
+                    _fut.set_result(cached)
+            except Exception:
+                pass
+            return cached
+        except BaseException as _be:
+            try:
+                if not _fut.done():
+                    _fut.cancel()
+                    _fut.set_exception(_be)
+            except Exception:
+                pass
+            raise
+        finally:
+            try:
+                if getattr(self, '_fetch_in_flight', None) is _fut:
+                    self._fetch_in_flight = None
+            except Exception:
+                pass
+
+    def _cached_fetch_result(self) -> dict:
+        with self._lock:
+            if self._cache:
+                return dict(self._cache)
+        return {}
+
+    def _cache_stats(self, s: dict) -> dict:
+        with self._lock:
+            self._cache = s
+            self._last_update = time.time()
+        return s
+
+    def _fetch_unsafe(self) -> dict:
+        """The actual psutil sweep. Runs under single-flight + _PSUTIL_LOCK."""
         stats: Any = {
             # CPU
             'cpu_percent': 0.0, 'cpu_freq_mhz': 0, 'cpu_temp': 0.0,
@@ -17373,6 +17481,7 @@ class HardwareMonitor:
             # GPU
             'gpu_percent': 0.0, 'gpu_mem_percent': 0.0, 'gpu_temp': 0.0,
             'gpu_fan': 0, 'gpu_name': '', 'gpu_mem_used_gb': 0.0, 'gpu_mem_total_gb': 0.0,
+            'gpu_power_draw_w': 0.0, 'gpu_clock_mhz': 0,
             # Disk I/O
             'disk_read_mb': 0.0, 'disk_write_mb': 0.0,
             'disk_read_rate': 0.0, 'disk_write_rate': 0.0,
@@ -17382,6 +17491,7 @@ class HardwareMonitor:
             'net_sent_mb': 0.0, 'net_recv_mb': 0.0,
             'net_send_rate': 0.0, 'net_recv_rate': 0.0,
             'net_packets_sent': 0, 'net_packets_recv': 0,
+            'net_packets_per_sec': 0,
             # System
             'process_count': 0, 'thread_count': 0,
             'uptime_seconds': 0.0, 'boot_time': 0.0,
@@ -17477,6 +17587,10 @@ class HardwareMonitor:
                     stats['net_recv_rate'] = round((nt.bytes_recv - prev_nt.bytes_recv) / 1024 / dt2, 1)
                 stats['net_packets_sent'] = nt.packets_sent
                 stats['net_packets_recv'] = nt.packets_recv
+                if prev_nt:
+                    stats['net_packets_per_sec'] = round(
+                        ((nt.packets_sent - prev_nt.packets_sent) +
+                         (nt.packets_recv - prev_nt.packets_recv)) / dt2, 0)
                 self._prev_net   = nt
                 self._prev_net_t = now_t2
         except Exception: pass
@@ -17584,6 +17698,13 @@ class HardwareMonitor:
                 try:
                     stats['gpu_fan'] = nvmlDeviceGetFanSpeed(handle)
                 except Exception: pass
+                try:
+                    stats['gpu_power_draw_w'] = round(nvmlDeviceGetPowerUsage(handle) / 1000.0, 1)  # mW -> W
+                except Exception: pass
+                try:
+                    _clk = nvmlDeviceGetClockInfo(handle, 0)  # NVML_CLOCK_GRAPHICS = 0
+                    stats['gpu_clock_mhz'] = _clk
+                except Exception: pass
             except Exception: pass
         elif GPUTIL_AVAILABLE:
             try:
@@ -17667,15 +17788,25 @@ class HardwareMonitor:
         # ~8.5s for 500 pids — that alone strangled every 1-3s fetch tick, so
         # the whole Perf tab only refreshed ~1x/14s. Sample it at most every
         # 15s and reuse the last known value in between.
+        # FIX-v29.41k5h: per-pid open_files() was still ~2.7-8.5s per sweep
+        # (the dominant CPU/GIL tax behind the FREEZE bursts and the k9 crash
+        # window). Process.num_handles() returns the same NT handle-count view
+        # ~6x cheaper — use it when available and only fall back to the
+        # expensive per-file enumeration on platforms without it.
         try:
             _now_of: Any = time.time()
             if _now_of - getattr(self, '_open_files_last_t', 0.0) >= 15.0:
                 pids: Any = psutil.pids()
                 open_count: Any = 0
+                _use_handles: bool = hasattr(psutil.Process(pids[0]), 'num_handles') \
+                    if pids else False
                 for pid in pids[:300]:  # Cap sample size
                     try:
                         p: Any = psutil.Process(pid)
-                        open_count += len(p.open_files())
+                        if _use_handles:
+                            open_count += p.num_handles()
+                        else:
+                            open_count += len(p.open_files())
                     except Exception: pass
                 stats['open_files'] = open_count
                 self._open_files_count = open_count
@@ -17696,10 +17827,24 @@ class HardwareMonitor:
                 stats['load_avg_5m'] = round(load5, 2)
                 stats['load_avg_15m'] = round(load15, 2)
             else:
-                # Windows emulation: use CPU percent as proxy
-                stats['load_avg_1m'] = round(stats['cpu_percent'] / 100.0 * stats['cpu_cores'], 2)
-                stats['load_avg_5m'] = stats['load_avg_1m']
-                stats['load_avg_15m'] = stats['load_avg_1m']
+                # Windows emulation: exponential moving average over
+                # 1m/5m/15m windows (Unix-style). Updates on every fetch
+                # tick, decaying with the actual elapsed time.
+                _inst_load = stats['cpu_percent'] / 100.0 * stats['cpu_cores']
+                _ema_dt = max(time.time() - getattr(self, '_ema_t', time.time()), 0.1)
+                def _ema(prev, inst, window):
+                    alpha = 1.0 - math.exp(-_ema_dt / window)
+                    return round(prev + alpha * (inst - prev), 2)
+                _p1 = getattr(self, '_ema_1m', _inst_load)
+                _p5 = getattr(self, '_ema_5m', _inst_load)
+                _p15 = getattr(self, '_ema_15m', _inst_load)
+                stats['load_avg_1m'] = _ema(_p1, _inst_load, 60)
+                stats['load_avg_5m'] = _ema(_p5, _inst_load, 300)
+                stats['load_avg_15m'] = _ema(_p15, _inst_load, 900)
+                self._ema_1m = stats['load_avg_1m']
+                self._ema_5m = stats['load_avg_5m']
+                self._ema_15m = stats['load_avg_15m']
+                self._ema_t = time.time()
         except Exception: pass
         # v29.39: Memory fragmentation
         try:
@@ -17721,15 +17866,25 @@ class HardwareMonitor:
                 self._prev_io_counts = disk_io
                 self._prev_io_t = now_io
         except Exception: pass
-        # v29.39: DNS latency (simple ping test)
+        # v29.42: DNS latency — resolve a real hostname to measure actual DNS
+        # resolver performance (the old code resolved '8.8.8.8' which is already
+        # an IP so it measured nothing). Throttled to once per 30s because
+        # live DNS queries on every 1-3s fetch tick waste bandwidth.
         try:
             import socket as _sock
-            dns_start = time.time()
-            try:
-                _sock.gethostbyname('8.8.8.8')
-                stats['dns_latency_ms'] = round((time.time() - dns_start) * 1000, 1)
-            except Exception:
-                stats['dns_latency_ms'] = -1.0  # DNS failure
+            _dns_now = time.time()
+            if _dns_now - getattr(self, '_dns_lat_ts', 0.0) >= 30.0:
+                dns_start = time.time()
+                try:
+                    _sock.getaddrinfo('dns.google', 443, _sock.AF_INET,
+                                      _sock.SOCK_STREAM)
+                    stats['dns_latency_ms'] = round((time.time() - dns_start) * 1000, 1)
+                except Exception:
+                    stats['dns_latency_ms'] = -1.0  # DNS failure
+                self._dns_lat_ts = _dns_now
+                self._dns_lat_cached = stats['dns_latency_ms']
+            else:
+                stats['dns_latency_ms'] = getattr(self, '_dns_lat_cached', 0.0)
         except Exception: pass
         # v29.39: Security metrics from network monitor
         # FIX-v29.41e: orphan network_monitor counters are never populated;
@@ -17791,6 +17946,9 @@ class HardwareMonitor:
             udp_conns = 0
             established = 0
             listening = 0
+            time_wait = 0
+            close_wait = 0
+            syn_sent = 0
             for conn in psutil.net_connections(kind='inet'):
                 if conn.type == socket.SOCK_STREAM:
                     tcp_conns += 1
@@ -17798,38 +17956,62 @@ class HardwareMonitor:
                         established += 1
                     elif conn.status == 'LISTEN':
                         listening += 1
+                    elif conn.status == 'TIME_WAIT':
+                        time_wait += 1
+                    elif conn.status == 'CLOSE_WAIT':
+                        close_wait += 1
+                    elif conn.status == 'SYN_SENT':
+                        syn_sent += 1
                 elif conn.type == socket.SOCK_DGRAM:
                     udp_conns += 1
             stats['active_tcp_conns'] = tcp_conns
             stats['active_udp_conns'] = udp_conns
             stats['established_conns'] = established
             stats['listening_conns'] = listening
+            stats['time_wait_conns'] = time_wait
+            stats['close_wait_conns'] = close_wait
+            stats['syn_sent_conns'] = syn_sent
         except Exception: pass
         # v29.39: Real-time process tracking by status
+        # FIX-v29.41k5h: psutil.process_iter(['status']) does a per-process
+        # NtQueryInformationProcess call for EVERY pid — ~2.6s per sweep, and
+        # this ran twice per fetch (status counts + pid snapshot). Cache one
+        # 10s snapshot and derive statuses + pid-set from it.
         try:
-            running = 0
-            sleeping = 0
-            zombie = 0
-            for p in psutil.process_iter(['status']):
-                try:
-                    status = p.info.get('status', '')
-                    if status == 'running':
-                        running += 1
-                    elif status == 'sleeping':
-                        sleeping += 1
-                    elif status == 'zombie':
-                        zombie += 1
-                except Exception:
-                    pass
-            stats['running_processes'] = running
-            stats['sleeping_processes'] = sleeping
-            stats['zombie_processes'] = zombie
-            # Track new processes per minute
-            current_pids = set(p.pid for p in psutil.process_iter())
-            prev_pids = getattr(self, '_prev_pids', set())
-            new_pids = current_pids - prev_pids
-            stats['new_processes_min'] = len(new_pids)
-            self._prev_pids = current_pids
+            _pv_now: Any = time.time()
+            _pv_stat: Any = getattr(self, '_proc_status_snapshot', None)
+            _pv_pids: Any = getattr(self, '_proc_snapshot_pids', None)
+            if _pv_stat is None or (_pv_now - getattr(self, '_proc_snapshot_t', 0.0)) >= 10.0:
+                running = 0
+                sleeping = 0
+                zombie = 0
+                _snap: list = []
+                for p in psutil.process_iter(['status']):
+                    try:
+                        st: Any = p.info.get('status', '')
+                        _snap.append((p.pid, st))
+                    except Exception:
+                        pass
+                if _snap:
+                    running = sum(1 for _, st in _snap if st == 'running')
+                    sleeping = sum(1 for _, st in _snap if st == 'sleeping')
+                    zombie = sum(1 for _, st in _snap if st == 'zombie')
+                    _pv_stat = {'running': running, 'sleeping': sleeping,
+                                'zombie': zombie}
+                    _pv_pids = set(pid for pid, _ in _snap)
+                    self._proc_status_snapshot = _pv_stat
+                    self._proc_snapshot_pids = _pv_pids
+                    self._proc_snapshot_t = _pv_now
+            stats['running_processes'] = (_pv_stat or {}).get('running', 0)
+            stats['sleeping_processes'] = (_pv_stat or {}).get('sleeping', 0)
+            stats['zombie_processes'] = (_pv_stat or {}).get('zombie', 0)
+            # Track new processes per minute (from the same 10s snapshot).
+            if _pv_pids is None:
+                _pv_pids = set()
+            prev_pids: Any = getattr(self, '_prev_pids', set())
+            new_pids: Any = _pv_pids - prev_pids
+            stats['new_processes_min'] = len(new_pids) if prev_pids else 0
+            self._prev_pids = _pv_pids
         except Exception: pass
         # v29.39: Real-time memory tracking
         try:
@@ -25020,6 +25202,17 @@ class downpour(tk.Tk):
              Colors.GAUGE_PURPLE,  "v30: export blocklist + rate tracker to CSV"),
             ("🧹 Purge DDoS Blocks", self._ddos_purge_blocklist,
              Colors.GAUGE_RED,     "v30: unblock + forget all persisted DDoS blocks"),
+            ("🍯 Start HoneyPot",    self._honeypot_start,
+             Colors.GAUGE_TEAL,    "Listen decoy services on 7 common attack ports "
+                                   "(SSH/Telnet/HTTP/HTTPS/RDP/VNC/Redis, loopback-only) — "
+                                   "any probe is logged and auto-blocked as a real attacker"),
+            ("🍯 Stop HoneyPot",     self._honeypot_stop,
+             Colors.GAUGE_ORANGE,  "Stop all decoy listeners"),
+            ("🍯 Clear Probe Log",   self._honeypot_clear_hits,
+             Colors.TEXT_DIM,      "Clear recorded honeypot probe history"),
+            ("🍯 Toggle Auto-Block", self._honeypot_toggle_autoblock,
+             Colors.GAUGE_YELLOW,  "Toggle whether public IPs that probe a decoy get "
+                                   "auto-blocked via the DDoS firewall system"),
         ]:
             self._make_button(top, txt, cmd, col, tip=tip, font_size=8)
 
@@ -28967,12 +29160,15 @@ Verification Status:
             ('GPU MEM',         'gpu_mem_percent', 100, '%',   'heat'),
             ('GPU TEMP',        'gpu_temp',        100, ' degC',  'temp'),
             ('GPU FAN',         'gpu_fan',         100, '%',   'cyan'),
+            ('GPU POWER',       'gpu_power_draw_w', 350, 'W',  'orange'),
+            ('GPU CLOCK',       'gpu_clock_mhz',   3000, 'MHz','cyan'),
             # Row 3  -  Network & Runtime (FIX-v29.40: removed duplicate DISK
             # READ/WRITE rows 18 already cover disk MB/s; added UPTIME here)
             ('NET UP',          'net_send_rate',  102400, 'KB/s','green'),
             ('NET DOWN',        'net_recv_rate',  102400, 'KB/s','green'),
             ('UPTIME',          'uptime_seconds', 172800, 's',   'cyan'),
             ('THREADS',         'thread_count',   5000, '',     'blue'),
+            ('PKTS/s',          'net_packets_per_sec', 50000, '/s', 'green'),
             # Row 4  -  System
             ('PROCESSES',       'process_count',  1000, '',    'cyan'),
             ('DISK USED',       'disk_used_percent', 100, '%', 'heat'),
@@ -29023,6 +29219,9 @@ Verification Status:
             ('ACTIVE UDP',      'active_udp_conns',   500, '', 'cyan'),
             ('ESTABLISHED',     'established_conns',  800, '', 'green'),
             ('LISTENING',       'listening_conns',    100, '', 'orange'),
+            ('TIME_WAIT',       'time_wait_conns',    500, '', 'orange'),
+            ('CLOSE_WAIT',      'close_wait_conns',   100, '', 'red'),
+            ('SYN_SENT',        'syn_sent_conns',     50, '',  'purple'),
             # Row 14 - v29.39: Real-time Process Tracking
             ('RUNNING PROCS',   'running_processes',  500, '', 'purple'),
             ('SLEEPING PROCS',  'sleeping_processes', 400, '', 'blue'),
@@ -29736,11 +29935,19 @@ Verification Status:
             # Update each gauge canvas
             _rate_keys: Any = ('disk_read_rate', 'disk_write_rate',
                                'net_send_rate', 'net_recv_rate')
+            if not hasattr(self, '_perf_last_vals'):
+                self._perf_last_vals = {}
             for key, canvas in self._perf_canvases.items():
                 if not canvas.winfo_exists():
                     continue
                 maxv, unit, scheme, label = self._perf_gauge_meta[key]
                 val: Any = s.get(key, 0) or 0
+                # v29.42: skip gauge redraw if value unchanged (saves ~40ms/tick)
+                _prev_val = self._perf_last_vals.get(key)
+                _threshold = max(0.5, maxv * 0.005)  # 0.5% of max or 0.5 absolute
+                if _prev_val is not None and abs(val - _prev_val) < _threshold:
+                    continue
+                self._perf_last_vals[key] = val
                 # Battery -1 means no battery  -  show 0
                 if key == 'battery_percent' and val < 0:
                     val: Any = 0  # no battery present
@@ -29758,6 +29965,15 @@ Verification Status:
                             if dyn_max > 0 and dyn_max != maxv:
                                 maxv = dyn_max
                                 self._perf_gauge_meta[key] = (maxv, unit, scheme, label)
+                
+                # FIX 6: skip gauge canvas redraw if value and maxv haven't changed
+                if getattr(self, '_perf_drawn_cache', None) is None:
+                    self._perf_drawn_cache = {}
+                _cache_key = (val, maxv)
+                if self._perf_drawn_cache.get(key) == _cache_key:
+                    continue
+                self._perf_drawn_cache[key] = _cache_key
+
                 _delta: Any = self._perf_delta.get(key, 0.0)
                 self._draw_gauge(canvas, 170, label, val, maxv, unit, scheme, delta=_delta)
                 # v29.30: sparkline reads the warm history filled by the pre-pass

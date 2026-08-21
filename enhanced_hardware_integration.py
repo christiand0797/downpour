@@ -74,6 +74,12 @@ except ImportError:
     GaugeConfiguration = None
 
 try:
+    import psutil
+    _PSUTIL_AVAILABLE = True
+except ImportError:
+    _PSUTIL_AVAILABLE = False
+
+try:
     import tkinter as tk
     from tkinter import ttk, Canvas
     GUI_AVAILABLE = True

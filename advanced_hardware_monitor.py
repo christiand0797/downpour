@@ -277,7 +277,7 @@ class AdvancedHardwareMonitor:
         timestamp = time.time()
         
         # CPU metrics
-        cpu_percent = psutil.cpu_percent(interval=0.1)
+        cpu_percent = psutil.cpu_percent(interval=None)
         cpu_freq = psutil.cpu_freq()
         cpu_freq_current = cpu_freq.current if cpu_freq else 0.0
         
@@ -295,7 +295,7 @@ class AdvancedHardwareMonitor:
         memory_available_gb = memory.available / (1024**3)
         
         # Disk metrics
-        disk = psutil.disk_usage('/')
+        disk = psutil.disk_usage(os.environ.get('SystemDrive', 'C:') + '\\\\')
         disk_percent = disk.percent
         disk_used_gb = disk.used / (1024**3)
         disk_total_gb = disk.total / (1024**3)

@@ -3,7 +3,7 @@
 > **Work in progress** — Personal antivirus, anti-malware, anti-RAT, and comprehensive Windows threat-defense platform built in Python with a full Tkinter GUI.
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v29.36%20Titanium-blue?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/version-v29.42%20Titanium-blue?style=for-the-badge" />
   <img src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078d7?style=for-the-badge&logo=windows" />
   <img src="https://img.shields.io/badge/python-3.12%20recommended-yellow?style=for-the-badge&logo=python" />
   <img src="https://img.shields.io/badge/status-active%20WIP-brightgreen?style=for-the-badge" />
@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/threat%20feeds-34%2B-orange?style=for-the-badge" />
   <img src="https://img.shields.io/badge/MITRE%20techniques-85%2B-purple?style=for-the-badge" />
   <img src="https://img.shields.io/badge/tabs-27-teal?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/tests-60%2B%20passing-brightgreen?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/tests-92%2B%20passing-brightgreen?style=for-the-badge" />
 </p>
 
 ---
@@ -93,6 +93,7 @@ LAUNCH_V29_TITANIUM.bat
 | 📊 **60-Second History Chart** | Rolling sparkline timeline canvas in the Performance tab showing CPU%, RAM%, GPU%, and combined NET KB/s over the last 60 samples in real-time (v29.36) |
 | 🚨 **Perf Threshold Alerts** | Auto-fires alerts into the main feed when CPU>90%, RAM>90%, CPU temp>85°C, GPU temp>85°C, Disk>95%, Swap>80% — with 120s cooldown to prevent spam; also detects CPU spikes >40% in one sample (v29.36) |
 | ⚡ **Alert Rate Meter** | Status bar badge showing how many alerts fired in the last 60 seconds (⚡ N/min) with color coding: green→orange→red (v29.36) |
+| 📊 **v29.42 New Features** | GPU Power Draw & Clock Speed monitoring, Real DNS latency measurement, Network packets/sec tracking, TCP state breakdown (TIME_WAIT, CLOSE_WAIT, SYN_SENT), Improved Windows load average with exponential moving average, and performance-optimized gauge rendering. Now features 129+ unique live gauges on the Performance tab (v29.42) |
 
 ---
 
@@ -188,6 +189,8 @@ Detects: **Mimikatz, CobaltStrike, Metasploit, Empire, PoshC2, AsyncRAT, NjRAT, 
 ## Changelog
 
 See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for full details.
+
+**v29.41k5h**: Fixed the **native crash** (`0xc0000005` in `_psutil_windows.pyd`, k9 smoke at 60 min) — psutil keeps global mutable state (`_pmap` in `process_iter`, `_LOWEST_PID`, shared C buffers in `net_connections`/`cpu_percent`) with no module lock, so concurrent calls from the hw-monitor thread, Perf-tab executor fetch, heartbeat timer and scan workers corrupted the C buffers. Added a process-wide `_PSUTIL_LOCK` (RLock) wrapping 19 psutil system-wide functions (`process_iter`, `pids`, `net_connections`, `cpu_percent`, `cpu_times`, `virtual_memory`, …) via module attribute patching, so every `import psutil` in the app hits the locked wrappers (generators hold the lock for the whole iteration). `HardwareMonitor._fetch` also gained **single-flight** coalescing: concurrent callers (bg thread vs Refresh Now) now share one sweep instead of running duplicate 3-9 s sweeps. Perf sweep itself cut from ~9 s to ~3 s: `open_files` now uses `num_handles()` (~6× cheaper) and `process_iter(['status'])` is cached to a 10 s snapshot (was 2× per tick). 92/92 tests.
 
 **v29.41k5g**: Squashed the post-k5f FREEZE class. With DB reads off the writer lock, the remaining 1.6-2.4s main-thread blocks were `_apply_feed_health` re-issuing per-row `tree.item('tags')`/`tree.set`/`tree.item(tags=)` Tcl round-trips on *every* periodic Intel-tab refresh — a few hundred Tcl calls even when nothing changed, GIL-starving the Tk client under the writer/training storm. The refresh now renders **change-detection** via a `_feed_health_rendered` cache: rows whose `(value, tags)` are unchanged issue **zero** Tcl calls (base tag is reused from the cache), and stale iids are pruned when rows disappear. 92/92 tests.
 

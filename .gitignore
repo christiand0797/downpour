@@ -20,6 +20,7 @@ fim_baseline.json
 shutdown_trace.txt
 crash_fault.log
 downpour.log
+downpour_copy.log
 dp_stderr.txt
 tk_callback_errors.txt
 downpour_quarantine/

@@ -1080,4 +1080,25 @@ class TestV2941K5PerfTabLive:
         assert 'if iid not in cur_ids:' in chunk
         assert 'cache.pop(iid, None)' in chunk
 
+    def test_psutil_global_lock_and_single_flight(self):
+        """psutil's C extension is not thread-safe for concurrent
+        system-wide calls (0xc0000005 in _psutil_windows.pyd on k9).
+        The fix wraps 19 psutil functions under a global RLock and
+        coalesces concurrent HardwareMonitor._fetch calls via a
+        single-flight Future."""
+        src = self._src()
+        assert '_PSUTIL_LOCK' in src
+        assert '_PSUTIL_ORIG' in src
+        assert '_wrap_psutil_func' in src
+        assert 'process_iter' in src and 'net_connections' in src
+        assert 'cpu_percent' in src
+        # Single-flight guard in HardwareMonitor._fetch
+        assert '_fetch_in_flight' in src
+        assert '_fetch_unsafe' in src
+        assert 'single-flight' in src.lower() or 'single_flight' in src.lower() or '_fetch_in_flight' in src
+        # Verify the open_files path prefers num_handles (6x cheaper)
+        assert 'num_handles()' in src
+        # Process status snapshot must be cached, not twice per fetch
+        assert '_proc_status_snapshot' in src
+
 

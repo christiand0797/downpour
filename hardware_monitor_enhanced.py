@@ -218,7 +218,7 @@ class EnhancedHardwareMonitor:
             # Get total disk space
             if PSUTIL_AVAILABLE:
                 try:
-                    disk_usage = psutil.disk_usage('/')
+                    disk_usage = psutil.disk_usage(os.environ.get('SystemDrive', 'C:') + '\\\\')
                     self.system_info['disk_total'] = disk_usage.total
                 except Exception:
                     pass
@@ -435,8 +435,8 @@ class EnhancedHardwareMonitor:
         
         try:
             # CPU usage
-            cpu_percent = psutil.cpu_percent(interval=0.1)
-            cpu_per_core = psutil.cpu_percent(interval=0.1, percpu=True)
+            cpu_percent = psutil.cpu_percent(interval=None)
+            cpu_per_core = psutil.cpu_percent(interval=None, percpu=True)
             
             # Update CPU info
             self.cpu_info.update({
