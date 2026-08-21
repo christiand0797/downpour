@@ -17673,13 +17673,19 @@ class HardwareMonitor:
                 stats['kev_count'] = kev_data.get('total_kev', 0)
                 stats['kev_critical'] = kev_data.get('critical', 0)
                 stats['kev_high'] = kev_data.get('high', 0)
-            except Exception: pass
+            except Exception as _e:
+                try: error_logger.log('HwMonitor', 'kev failed', _e)
+                except Exception: pass
             try:
                 from vulnerability_scanner import _KEV_STATS
                 stats['epss_avg'] = _KEV_STATS.get('epss_threshold', 0.5) * 100
                 stats['epss_high_count'] = 0
+            except Exception as _e:
+                try: error_logger.log('HwMonitor', 'epss failed', _e)
+                except Exception: pass
+        except Exception as _e:
+            try: error_logger.log('HwMonitor', 'cev/kev block failed', _e)
             except Exception: pass
-        except Exception: pass
         
         # Threat Actor & Feed Tracking Stats (v29)
         try:
@@ -17688,15 +17694,21 @@ class HardwareMonitor:
                 actor_stats: Any = get_threat_actor_stats()
                 stats['actor_count'] = actor_stats.get('total_actors', 0) + actor_stats.get('db_actors', 0)
                 stats['indicator_count'] = actor_stats.get('db_indicators', 0)
-            except Exception: pass
+            except Exception as _e:
+                try: error_logger.log('HwMonitor', 'actor_stats failed', _e)
+                except Exception: pass
             try:
                 # Feed count from the working aggregator (ultimate_threat_intel was a stub-only package)
                 from threat_feed_aggregator import get_aggregator
                 _agg = get_aggregator()
                 stats['feed_count'] = _agg.get_statistics().get('feeds_enabled', 0)
-            except Exception: pass
+            except Exception as _e:
+                try: error_logger.log('HwMonitor', 'feed_count failed', _e)
+                except Exception: pass
             stats['active_alerts'] = 0
-        except Exception: pass
+        except Exception as _e:
+            try: error_logger.log('HwMonitor', 'actor/feed block failed', _e)
+            except Exception: pass
         
         try:
             mem: Any = psutil.virtual_memory()
@@ -17704,19 +17716,25 @@ class HardwareMonitor:
             stats['ram_used_gb']  = round(mem.used      / 1073741824, 1)
             stats['ram_total_gb'] = round(mem.total     / 1073741824, 1)
             stats['ram_avail_gb'] = round(mem.available / 1073741824, 1)
-        except Exception: pass
+        except Exception as _e:
+            try: error_logger.log('HwMonitor', 'ram failed', _e)
+            except Exception: pass
         try:
             disk: Any = psutil.disk_io_counters()
             if disk:
                 stats['disk_read_mb']  = round(disk.read_bytes  / 1048576, 1)
                 stats['disk_write_mb'] = round(disk.write_bytes / 1048576, 1)
-        except Exception: pass
+        except Exception as _e:
+            try: error_logger.log('HwMonitor', 'disk_io failed', _e)
+            except Exception: pass
         try:
             net: Any = psutil.net_io_counters()
             if net:
                 stats['net_sent_mb'] = round(net.bytes_sent / 1048576, 1)
                 stats['net_recv_mb'] = round(net.bytes_recv / 1048576, 1)
         except Exception as _e:
+            try: error_logger.log('HwMonitor', 'net_io failed', _e)
+            except Exception: pass
             try: error_logger.log('HwMonitor', 'net_io failed', _e)
             except Exception: pass
 
