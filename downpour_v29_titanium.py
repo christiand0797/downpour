@@ -9924,7 +9924,9 @@ class PortScanDetector:
                     })
                     for cb in self._callbacks:
                         try: cb(alerts[-1])
-                        except Exception: pass
+                        except Exception as _e:
+                            try: error_logger.log('NetworkMonitor', 'alert generation failed', _e)
+                            except Exception: pass
         return alerts
 
     def detect_data_exfil(self, threshold_mb: float = 500) -> Optional[dict]:
