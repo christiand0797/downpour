@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/python-3.12%20recommended-yellow?style=for-the-badge&logo=python" />
   <img src="https://img.shields.io/badge/status-active%20WIP-brightgreen?style=for-the-badge" />
   <img src="https://img.shields.io/badge/YARA%20rules-104-red?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/threat%20feeds-34%2B-orange?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/threat%20feeds-24%2B%20high--fidelity-orange?style=for-the-badge" />
   <img src="https://img.shields.io/badge/MITRE%20techniques-85%2B-purple?style=for-the-badge" />
   <img src="https://img.shields.io/badge/tabs-27-teal?style=for-the-badge" />
   <img src="https://img.shields.io/badge/tests-93%2B%20passing-brightgreen?style=for-the-badge" />
