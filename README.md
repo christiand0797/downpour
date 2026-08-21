@@ -190,6 +190,8 @@ Detects: **Mimikatz, CobaltStrike, Metasploit, Empire, PoshC2, AsyncRAT, NjRAT, 
 
 See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for full details.
 
+**v29.42i**: Intel feed health now surfaces DB load failures in UI (`Feed health: load failed — see error log`) instead of silently leaving `Status` stuck `Pending` forever (`downpour_v29_titanium.py:38736`). 93/93 tests.
+
 **v29.42h**: Pruned 4 more adblock hosts (`someonewhocares`/`mvps_winhelp`/`cameleon`/`adguard_dns`, 15-40k ad domains each) — total pruned 16, feeds 34→20 high-fidelity. 93/93 tests.
 
 **v29.42g**: Revolutionary enhancements dummy shim at `downpour_v29_titanium.py:217` reserved 50% cores for `gpu_executor` but never logged idle — next audit re-flagged it. Added one-time `logger.info` at import: "CPU fallback active, gpu_executor idle (50% cores reserved but no CUDA workloads)". 93/93 tests.

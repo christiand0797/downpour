@@ -2,6 +2,12 @@
 
 ## Branch: main
 
+## Session 2026-08-20 — v29.42i: Intel feed health — surface load failure instead of silent Pending
+- ✅ `_refresh_feed_health` `_load` swallowed DB failures (`except: pass`) leaving
+  `Status` stuck `Pending` forever. Now logs to `IntelFeedHealth/load failed`
+  and surfaces `Feed health: load failed — see error log` in `_intel_status`
+  so the operator sees the failure instead of silent stale.
+
 ## Session 2026-08-20 — v29.42h: Feed hygiene round 2 — 4 more adblock hosts pruned (SomeoneWhocares/MVPS/Cameleon/AdGuard)
 - ✅ Second pass removed `someonewhocares`/`mvps_winhelp`/`cameleon`/`adguard_dns`
   (4 hosts, 15-40k ad domains each) — same class as the 12 pruned in v29.42c.

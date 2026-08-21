@@ -1,5 +1,10 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.42i - Intel feed health — surface load failure instead of silent Pending
+- `_refresh_feed_health` `_load` now surfaces DB load failures in UI
+  (`Feed health: load failed — see error log`) instead of silently leaving
+  `Pending` forever. 93/93 tests.
+
 ## v29.42h - Feed hygiene round 2 — 4 more adblock hosts pruned
 - Removed `someonewhocares`/`mvps_winhelp`/`cameleon`/`adguard_dns` (4 hosts,
   15-40k ad domains each) — same class as the 12 pruned in v29.42c. Total
