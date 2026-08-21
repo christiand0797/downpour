@@ -24735,8 +24735,9 @@ class downpour(tk.Tk):
             self._alert_list.selection_set(idx)
             self._alert_list.activate(idx)
             self._alert_menu.tk_popup(event.x_root, event.y_root)
-        except Exception:
-            pass
+        except Exception as _e:
+            try: error_logger.log('AlertMenu', 'popup failed', _e)
+            except Exception: pass
         finally:
             self._alert_menu.grab_release()
 
