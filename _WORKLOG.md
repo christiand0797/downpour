@@ -2,6 +2,40 @@
 
 ## Branch: main
 
+## Session 2026-09-08 — v29.44d: persistence watchers (registry + DLL hijack + BYOVD) — final 3 audit blind spots closed
+
+**Sync:** tree clean at `ccc8858 v29.44c`, origin synced, no concurrent changes.
+
+**persistence_watchers.py (new, 262 lines, stdlib-only)** — the last three
+audit blind spots in one module, wired into `_manual_start_security_monitors`
+via a 60s `_persistence_watch_loop` + `[PERSIST]` alert bridge:
+1. `RegistryPersistenceWatcher` — Run/RunOnce (HKCU+HKLM) + Winlogon
+   baseline + diff (T1060 new value / T1574.011 modification). Baselines
+   PERSIST to `downpour_data/persistence_baseline.json`, so a Run key
+   written while Downpour is OFF is flagged on the next start.
+2. `DLLHijackDetector` — writable PATH-order dirs + cwd scanned for
+   planted DLLs shadowing 19 known system DLL names (T1574.001);
+   System32-tree and read-only dirs excluded.
+3. `DriverMonitor` — TOFU baseline + diff over `System32\drivers\*.sys`
+   (new driver = MEDIUM T1068) plus a 10-entry notorious BYOVD blocklist
+   (gdrv.sys/dbutil_2_3.sys/RTCore64.sys/iqvw64e.sys/... = CRITICAL).
+
+**Bug found via testing (real production bug):** `_save_baseline` used
+`BASELINE_PATH.parent.mkdir(...)` — when the path is overridden as a
+plain string (any caller or test doing so), saves **silently vanished**
+(broad except). Fixed with `Path(BASELINE_PATH)` coercion; the silent-
+vanish failure mode is exactly the audit §8 class. Test fixture bugs also
+fixed en route: stub keying on (hive, subkey) — HKCU/HKLM Run share the
+same subkey string — and a patch-target typo (`w` vs `w2`).
+
+**Tests:** +14 (`tests/test_persistence_watchers.py`: 5 registry incl.
+offline-baseline detection, 3 DLL hijack, 3 driver incl. BYOVD + missing
+dir, 1 combined runner, 2 main-wiring) — **250/250 pass**.
+
+**Audit blind-spot scorecard after this: #1 WMI subs (partial), #2 tasks
+(4698), #3 services (7045), #4 DLL hijack, #5 hollowing, #6 registry,
+#7 DNS/DGA, #8 beaconing, #9 BYOVD, #10 AMSI — 9.5/10 closed.**
+
 ## Session 2026-09-08 — v29.44c: PE static analysis + Windows Event Log monitor (improvement catalog execution)
 
 **Sync:** HEAD was `f69e555 v29.45` (concurrent agent shipped `c2_beacon_detector`,

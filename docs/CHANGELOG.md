@@ -1,5 +1,14 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.44d - persistence watchers (final 3 audit blind spots closed)
+- NEW persistence_watchers.py (stdlib-only):
+  - RegistryPersistenceWatcher: Run/RunOnce (HKCU+HKLM) + Winlogon baseline+diff — T1060 new value / T1574.011 modification; baselines persist to downpour_data so offline writes are flagged at next start
+  - DLLHijackDetector: writable PATH-order dirs + cwd scanned for planted DLLs shadowing 19 system DLL names (T1574.001)
+  - DriverMonitor: System32\drivers baseline+diff (new .sys = MEDIUM T1068) + 10-entry BYOVD blocklist (gdrv.sys, dbutil_2_3.sys, RTCore64.sys... = CRITICAL)
+- Wired into `_manual_start_security_monitors` via 60s `_persistence_watch_loop` with `[PERSIST]` severity-colored alerts
+- Fixed silent-vanish baseline-save bug (Path coercion) found by tests
+- 14 new tests — 250/250 pass; audit blind-spot scorecard now 9.5/10
+
 ## v29.44c - PE static analysis + Windows Event Log monitor
 - NEW pe_analyzer.py: static PE analysis (pefile) — section entropy, RWX detection, packer identification (UPX/Themida/VMProtect/MPRESS + 12 more), suspicious import clustering (injection/keylogging/anti-analysis/ransomware-crypto), overlay detection, aggregate 0-100 risk score
 - NEW event_log_monitor.py: Windows Event Log watcher — 7045 service install, 4698/4699 task create/delete, 4720 account create, 4732 privileged-group add, 1102/104 log clear (CRITICAL tamper), hostile-content 4104 PowerShell blocks, 4625 brute-force bursts; per-log bookmarks, 15s poll

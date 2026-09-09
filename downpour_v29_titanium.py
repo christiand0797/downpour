@@ -37544,6 +37544,42 @@ Verification Status:
         self._orig_after(6000, self._ctrl_loop)
         self._queue_alert('[OK] Process, Network, Hardware monitors active', Colors.GAUGE_GREEN)
 
+    def _persistence_alert_bridge(self, alert):
+        """v29.44d: bridge persistence-watch alerts into the alert queue."""
+        try:
+            severity_color = {
+                'CRITICAL': Colors.GAUGE_RED,
+                'HIGH': Colors.GAUGE_ORANGE,
+                'MEDIUM': Colors.GAUGE_YELLOW,
+                'LOW': Colors.GAUGE_TEAL,
+            }.get(getattr(alert, 'severity', 'LOW'), Colors.GAUGE_TEAL)
+            self._queue_alert(
+                '[PERSIST] {} ({}): {}'.format(
+                    getattr(alert, 'description', 'finding'),
+                    getattr(alert, 'technique', ''),
+                    (getattr(alert, 'detail', '') or '')[:160]),
+                severity_color)
+        except Exception:
+            pass
+
+    def _persistence_watch_loop(self):
+        """v29.44d: 60s cycle over registry/DLL-hijack/driver watchers."""
+        def _loop():
+            try:
+                from persistence_watchers import run_all_persistence_checks
+                while True:
+                    try:
+                        for _alert in run_all_persistence_checks():
+                            self._persistence_alert_bridge(_alert)
+                    except Exception as _e:
+                        _safe_log('PersistenceWatch',
+                                  'persistence check error', _e)
+                    time.sleep(60)
+            except Exception as _e:
+                _safe_log('PersistenceWatch', 'watch loop failed', _e)
+        threading.Thread(target=_loop, daemon=True,
+                         name='PersistenceWatch').start()
+
     def _event_log_alert_bridge(self, alert):
         """v29.44b: bridge EventLogMonitor alerts into the app alert queue."""
         try:
@@ -37599,6 +37635,13 @@ Verification Status:
                         Colors.GAUGE_GREEN)
             except Exception as _e:
                 _safe_log('SecMonitors', 'event log monitor start failed', _e)
+        # v29.44d: persistence watchers — registry auto-start keys (T1060),
+        # DLL planting in writable PATH dirs (T1574.001), new/vulnerable
+        # kernel drivers incl. BYOVD blocklist (T1068). Closes the last
+        # three audit blind spots (#4, #6, #9).
+        if not getattr(self, '_persistence_watch_started', False):
+            self._persistence_watch_started = True
+            self._orig_after(1000, self._persistence_watch_loop)
         # v29.43: one-shot IoT device check for known-vulnerable Realtek/
         # Mirai-target devices on the LAN (was also never called).
         if not getattr(self, '_iot_startup_check_done', False):
