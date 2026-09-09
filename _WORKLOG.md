@@ -2,6 +2,12 @@
 
 ## Branch: main
 
+## Session 2026-09-08 — v29.44b: process mitigation policies (anti-tamper self-protection)
+- NEW process_mitigation.py (improvement catalog P0 #3): applies Windows Process Mitigation Policies via ctypes - ProcessDynamicCodePolicy (blocks shellcode injection), ProcessExtensionPointDisablePolicy (blocks AppInit_DLLs/Winlogon DLL injection), ProcessControlFlowGuardPolicy (enables CFG). Applied on import before monitoring threads start. get_mitigation_status() for health-check dashboards.
+- Fixed concurrent agent IndentationError in main:24996-25004 (status bar _sb_threats/_sb_tamper widgets).
+- 205/205 tests pass.
+
+
 ## Session 2026-09-08 — v29.44: improvement catalog (external security tooling research)
 - ✅ Created `docs/IMPROVEMENT_CATALOG.md` — 21 actionable improvements sourced
   from the security tooling landscape, organized by impact/effort:

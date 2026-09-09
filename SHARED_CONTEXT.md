@@ -67,6 +67,10 @@
 24. **Test suite expanded**: 205 total tests passing (added 6 code integrity tests + updated TASK-007 notes).
 25. **TASK-010 deferred**: GPU YARA acceleration confirmed infeasible — yara-python compiles to CPU-only VM; requires custom Hyperscan/regex-CUDA port.
 
+### ✅ COMPLETED v29.43f (2026-09-08)
+
+26. **TASK-014 surface complete**: `ConfigManager.tamper_detected` now surfaced in status bar as "Config: OK" / "Config: TAMPERED!" pill with 30s refresh. Added `_sb_tamper` label in status bar, `_refresh_tamper_pill()` method, and scheduled it in `_auto_start` after status pills.
+
 ### ✅ COMPLETED - Security Hardening v29.42w (2026-09-08)
 
 15. **TASK-011 (CRITICAL)** — Defender exclusions narrowed to DATA DIRS ONLY
@@ -146,7 +150,7 @@
 | TASK-011: Narrow Defender exclusions | ✅ DONE v29.42w | ~~CRITICAL~~ | enhanced_bypass_system.py, defender_compatibility.py, all 3 launchers |
 | TASK-012: PS command-injection hardening | ✅ DONE v29.42w | ~~CRITICAL~~ | advanced_threat_remediation.py (analyzer call was already escaped) |
 | TASK-013: Feed integrity (hash manifests, corroboration) | ✅ DONE v29.43d (HTTPS-only both fetch paths + sha256 audit lines; HMAC manifest class merged + wired into threat_intelligence.py legacy updater path) | ~~CRITICAL~~ | downpour_v29_titanium.py, threat_feed_aggregator.py, threat_intelligence.py |
-| TASK-014: Config.json signing / tamper alerting | ✅ DONE v29.42w | ~~High~~ | config.py + tests |
+| TASK-014: Config.json signing / tamper alerting | ✅ DONE v29.42w + surface v29.43f | ~~High~~ | config.py + tests + status bar pill |
 | TASK-015: Signature-bound allowlists | ✅ DONE v29.42y (trust_check.py; behavior_scanner substring-skip fixed) | ~~High~~ | trust_check.py (new), behavior_scanner.py, threat_response_center.py |
 | TASK-016: Quarantine unification (AES-GCM + verified restore) | ✅ DONE v29.42x | ~~High~~ | quarantine_core.py (new), downpour_v29_titanium.py, advanced_threat_remediation.py, system_cleanup.py |
 | TASK-017: KEV/EPSS hot-path cache | ✅ DONE v29.42w | ~~Medium~~ | file_scanner.py, process_monitor.py, threat_detection_engine.py |
@@ -242,7 +246,6 @@
 
 ## Next Steps for Other Agents
 
-**agent-config-003**: surface `ConfigManager.tamper_detected` in the UI (flag + `register_tamper_callback` exist since v29.42w)
 **agent-perf-002**: TASK-010 (GPU YARA — DEFERRED: yara-python has no GPU execution model; needs custom matcher e.g. Hyperscan)
 **agent-audit-007**: all audit CRITICAL/HIGH items closed; §11 architectural horizon (privilege split, PPL) is the long-term path
-**unclaimed**: code_integrity baseline needs to be generated on the production machine (`python code_integrity.py baseline`) and `ConfigManager.tamper_detected` surfaced in the GUI
+**unclaimed**: code_integrity baseline needs to be generated on the production machine (`python code_integrity.py baseline`)

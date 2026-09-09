@@ -1,5 +1,13 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.44b - process mitigation policies (anti-tamper self-protection)
+- **New `process_mitigation.py`** (improvement catalog P0 #3): applies
+  Windows Process Mitigation Policies via ctypes — blocks dynamic code
+  generation (shellcode), disables extension point DLL injection, enables
+  Control Flow Guard. Applied on import before monitoring threads start.
+- Fixed IndentationError from concurrent agent's status-bar edit.
+- 205/205 tests pass.
+
 ## v29.44 - improvement catalog (external security tooling research)
 - Created `docs/IMPROVEMENT_CATALOG.md`: 21 actionable improvements organized
   by impact/effort with priority matrix and quick wins. Key P0 items:

@@ -24997,36 +24997,40 @@ class downpour(tk.Tk):
                                      font = ('Consolas', 8), fg=Colors.GAUGE_TEAL,
                                      bg = Colors.GLASS_DARK)
         self._sb_threats.grid(row=0, column=3, padx=6, sticky='e')
+        # Config tamper indicator (TASK-014 surface)
+        self._sb_tamper = tk.Label(status_bar, text="Config: OK",
+                                      font=('Consolas', 8), fg=Colors.GAUGE_TEAL,
+                                      bg=Colors.GLASS_DARK)
+        self._sb_tamper.grid(row=0, column=4, padx=6, sticky='e')
         # v29.28: live system telemetry ticker (CPU / RAM / DISK / NET) —
         # updates every monitor tick via _hw_loop, visible from every tab.
         self._sb_sysinfo = tk.Label(status_bar, text="CPU -- | RAM -- | DISK -- | NET --",
-                                    font = ('Consolas', 8), fg=Colors.GAUGE_GREEN,
-                                    bg = Colors.GLASS_DARK)
-        self._sb_sysinfo.grid(row=0, column=4, padx=6, sticky='e')
+                                     font = ('Consolas', 8), fg=Colors.GAUGE_GREEN,
+                                     bg = Colors.GLASS_DARK)
+        self._sb_sysinfo.grid(row=0, column=5, padx=6, sticky='e')
         # Uptime counter
         self._uptime_start = time.time()
         self._sb_uptime = tk.Label(status_bar, text="\u23f1 00:00:00",
-                                    font=('Consolas', 8), fg=Colors.TEXT_DIM,
-                                    bg=Colors.GLASS_DARK)
-        self._sb_uptime.grid(row=0, column=5, padx=6, sticky='e')
+                                     font=('Consolas', 8), fg=Colors.TEXT_DIM,
+                                     bg=Colors.GLASS_DARK)
+        self._sb_uptime.grid(row=0, column=6, padx=6, sticky='e')
         # Heartbeat label for freeze detection
         self._sb_heartbeat = tk.Label(status_bar, text='♥', font=('Consolas', 8), fg=Colors.TEXT_DIM, bg=Colors.GLASS_DARK)
-        self._sb_heartbeat.grid(row=0, column=6, padx=4, sticky='e')
+        self._sb_heartbeat.grid(row=0, column=7, padx=4, sticky='e')
         # Alerts‑per‑minute meter
         self._sb_alert_rate = tk.Label(status_bar, text='⚡ 0/min', font=('Consolas', 8), fg=Colors.TEXT_DIM, bg=Colors.GLASS_DARK)
-        self._sb_alert_rate.grid(row=0, column=7, padx=4, sticky='e')
+        self._sb_alert_rate.grid(row=0, column=8, padx=4, sticky='e')
         # Start heartbeat updater
         self.after(500, self._heartbeat_tick)
         # Start alert‑rate updater
         self.after(15000, self._update_alert_rate_meter)
-        self._sb_uptime.grid(row=0, column=5, padx=6, sticky='e')
         # Scrolling threat ticker on far right
         self._last_alert_var = tk.StringVar(value="")
         self._ticker_label = tk.Label(status_bar, textvariable=self._last_alert_var,
-                 font = ('Consolas', 8), fg=Colors.GAUGE_ORANGE,
-                 bg = Colors.GLASS_DARK, anchor='e')
-        self._ticker_label.grid(row=0, column=6, padx=(0, 8), sticky='e')
-        status_bar.grid_columnconfigure(6, weight=1)
+                  font = ('Consolas', 8), fg=Colors.GAUGE_ORANGE,
+                  bg = Colors.GLASS_DARK, anchor='e')
+        self._ticker_label.grid(row=0, column=7, padx=(0, 8), sticky='e')
+        status_bar.grid_columnconfigure(7, weight=1)
         # Start uptime ticker
         self.after(1000, self._update_uptime_ticker)
         # FIX: _refresh_status_pills moved to _auto_start
@@ -38121,6 +38125,8 @@ Verification Status:
 
         # Status pills (one-shot UI refresh)
         self.after(10_000, self._refresh_status_pills)
+        # Config tamper indicator (TASK-014 surface)
+        self.after(15_000, self._refresh_tamper_pill)
 
         # v29.45: NSA-style security assessment — was defined but never
         # scheduled anywhere (dead code). Run one assessment shortly after
@@ -38425,6 +38431,24 @@ Verification Status:
                     self.rain.set_threat_level(min(count * 10, 100))
         except Exception:
             pass
+
+    def _refresh_tamper_pill(self):
+        """Refresh the config tamper status pill every 30 seconds."""
+        try:
+            if not self.winfo_exists():
+                return
+            if not hasattr(self, '_sb_tamper'):
+                return
+            if hasattr(self, 'cfg') and hasattr(self.cfg, 'tamper_detected'):
+                if self.cfg.tamper_detected:
+                    self._sb_tamper.config(text="Config: TAMPERED!", fg=Colors.GAUGE_RED)
+                else:
+                    self._sb_tamper.config(text="Config: OK", fg=Colors.GAUGE_TEAL)
+            else:
+                self._sb_tamper.config(text="Config: --", fg=Colors.TEXT_DIM)
+        except Exception:
+            pass
+        self.after(30000, self._refresh_tamper_pill)
 
     def _on_aegis_alert(self, msg: str, level: str = 'HIGH'):
         color: Any = (Colors.GAUGE_RED if level == 'CRITICAL' else
