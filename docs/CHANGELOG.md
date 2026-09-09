@@ -1,5 +1,14 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.43i - sensor hub lifecycle fix + heartbeat liveness surfacing (TASK-018 completion)
+- **Found the missing hub start**: `start_sensor_hub()` was defined and
+  imported but never called — the rewired orphan monitors consumed from a
+  hub that never ran. `_manual_start_monitoring` now starts it.
+- **Heartbeat liveness surfacing** (audit §8.5): the [ALIVE] heartbeat line
+  includes `sensors_alive=N`; stalled sensors (no mark for >180s) are
+  logged via warning + error_logger ('SensorLiveness').
+- 3 new source-structure tests. 205/205 tests pass.
+
 ## v29.43h - boot self-checks + sensor liveness + personal-path scrub
 - **Boot-time self-checks** in `_auto_start` (daemon, 30s stagger):
   `code_integrity.verify_baseline` (TOFU baseline on first run; modified /

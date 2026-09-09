@@ -37463,7 +37463,27 @@ Verification Status:
             mem: Any = psutil.virtual_memory().percent
             alerts: Any = len(self._alert_queue) if hasattr(self, '_alert_queue') else 0
             pending: Any = len(self._pending_after) if hasattr(self, '_pending_after') else 0
-            logger.info(f"[ALIVE] CPU={cpu:.0f}% MEM={mem:.0f}% alerts={alerts} pending_after={pending}")
+            # v29.43h (audit §8.5): surface sensor liveness — stalled sensors
+            # are logged loudly instead of dying silently.
+            stalled: Any = []
+            alive: Any = 0
+            if SENSOR_HUB_AVAILABLE:
+                try:
+                    rep: Any = get_sensor_hub().liveness_report()
+                    alive = len(rep)
+                    stalled = [f'{n} ({d["age_seconds"]}s)' for n, d in rep.items()
+                               if d['stale']]
+                except Exception:
+                    pass
+            live_suffix: str = f' sensors_alive={alive}' if SENSOR_HUB_AVAILABLE else ''
+            stall_suffix: str = f' STALLED={stalled}' if stalled else ''
+            logger.info(f"[ALIVE] CPU={cpu:.0f}% MEM={mem:.0f}% alerts={alerts} "
+                        f"pending_after={pending}{live_suffix}{stall_suffix}")
+            for s in stalled:
+                try:
+                    error_logger.log('SensorLiveness', f'stalled sensor: {s}', None)
+                except Exception:
+                    pass
         except Exception:
             logger.info("[ALIVE] Downpour running - mainloop active")
         self._orig_after(60_000, self._heartbeat_loop)
@@ -37491,6 +37511,14 @@ Verification Status:
             return
         self._manual_engines_started.add('monitoring')
         self._queue_alert('[START] Starting monitoring engines...', Colors.GAUGE_TEAL)
+        # v29.43h (TASK-018): start the unified sensor hub — the rewired
+        # orphan monitors consume its snapshots and the heartbeat surfaces
+        # liveness from it.
+        try:
+            if SENSOR_HUB_AVAILABLE:
+                start_sensor_hub()
+        except Exception as _e:
+            _safe_log('AutoStart', 'sensor hub start failed', _e)
         try:
             self.hw.start_background_refresh()
         except Exception as _e:

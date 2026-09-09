@@ -2,6 +2,20 @@
 
 ## Branch: main
 
+## Session 2026-09-08 — v29.43i: sensor hub lifecycle + liveness surfacing (TASK-018 completion)
+- 🐞 **Found the missing hub start**: `start_sensor_hub()` was defined and
+  imported but NEVER CALLED — the "rewired" orphan monitors
+  (process_monitor/network_monitor) consumed from a hub that never ran.
+  Fixed: `_manual_start_monitoring` now starts the hub when monitoring
+  begins (guarded by SENSOR_HUB_AVAILABLE).
+- ✅ **Heartbeat liveness surfacing** (audit §8.5): `_heartbeat_loop` now
+  queries `get_sensor_hub().liveness_report()` — the [ALIVE] line includes
+  `sensors_alive=N`, and any sensor past the 180s staleness threshold is
+  logged via logger.warning + error_logger ('SensorLiveness').
+- ✅ **3 new source-structure tests** (suite pattern — main file read as
+  text, never imported): hub start on monitoring, heartbeat liveness
+  surfacing, boot self-checks wiring. **205/205 tests pass.**
+
 ## Session 2026-09-08 — v29.43h: boot self-checks wiring + sensor liveness + personal-path scrub
 - ✅ **Boot-time self-checks wired into `_auto_start`** (audit §8.4/§9 — the
   last unwired piece): a daemon thread 30s after launch runs (a)

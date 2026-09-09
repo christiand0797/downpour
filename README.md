@@ -190,6 +190,8 @@ Detects: **Mimikatz, CobaltStrike, Metasploit, Empire, PoshC2, AsyncRAT, NjRAT, 
 
 See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for full details.
 
+**v29.43i**: Sensor hub lifecycle fix + heartbeat liveness surfacing (TASK-018 completion) — `start_sensor_hub()` was defined and imported but NEVER CALLED by the app (the rewired orphan monitors consumed from a hub that never ran); now started in `_manual_start_monitoring`. The [ALIVE] heartbeat includes `sensors_alive=N` and logs stalled sensors via error_logger. 3 new source-structure tests — 205/205 pass.
+
 **v29.43h**: Boot-time self-checks wired into `_auto_start` (code-integrity verify with TOFU baseline + legacy quarantine migration/reconciliation — audit §8.4/§9 wiring complete) and a **sensor liveness registry** in `sensor_hub.py` (`mark_alive`/`liveness_report` — stalled sensors surfaced instead of silently dead; audit §8.5). Personal-path scrub finished (`docs/SMART_REPAIR_GUIDE.md`). 3 new tests — 202/202 pass.
 
 **v29.43a**: TASK-013 fully closed — the HMAC manifest verifier is wired into the feed store path (TOFU baseline + rolling re-sign for dynamic feeds + opt-in strict pinning + signature-tamper rejection). TASK-018 partial: `_dns_counts` memory-DoS cap. TASK-007 partial: 7 port-profile tests (found a duplicate 1433 definition in PORT_PROFILES). `trust_check.py` merged with the concurrent rewrite (public API restored, PSModulePath env fix, System32 prefix hole closed, mtime/size cache keys). 165/165 tests.

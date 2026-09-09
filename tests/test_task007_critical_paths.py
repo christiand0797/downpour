@@ -489,5 +489,37 @@ def test_isolate_host_uses_full_block_policy():
     assert "'blockinbound,blockoutbound'" in src
 
 
+# ---------------------------------------------------------------------------
+# Sensor hub lifecycle + liveness surfacing (v29.43h, audit §8.5/TASK-018)
+# ---------------------------------------------------------------------------
+
+def test_manual_monitoring_starts_sensor_hub():
+    """_manual_start_monitoring must start the unified sensor hub (the
+    rewired orphan monitors consume its snapshots)."""
+    src = MAIN_FILE.read_text(encoding='utf-8', errors='replace')
+    assert 'start_sensor_hub()' in src, \
+        "_manual_start_monitoring must start the sensor hub"
+
+
+def test_heartbeat_surfaces_sensor_liveness():
+    """_heartbeat_loop must surface hub liveness — stalled sensors are
+    logged loudly instead of dying silently (audit §8.5)."""
+    src = MAIN_FILE.read_text(encoding='utf-8', errors='replace')
+    assert 'liveness_report' in src, \
+        "_heartbeat_loop must query hub liveness_report"
+    assert 'SENSOR STALLED' in src or 'stalled sensor' in src, \
+        "_heartbeat_loop must log stalled sensors"
+
+
+def test_boot_self_checks_wired():
+    """_auto_start must run code-integrity verify + quarantine migration/
+    reconciliation at boot (audit §8.4/§9)."""
+    src = MAIN_FILE.read_text(encoding='utf-8', errors='replace')
+    assert 'verify_baseline' in src
+    assert 'migrate_legacy_entries' in src
+    assert 'reconcile_quarantine' in src
+    assert 'BootSelfChecks' in src
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])
