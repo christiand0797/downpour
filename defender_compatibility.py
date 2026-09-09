@@ -55,28 +55,17 @@ class DefenderCompatibility:
         return signature_info
     
     def create_defender_exclusions(self):
-        """Create comprehensive Defender exclusions"""
+        """Create Defender exclusion whitelist (DATA DIRECTORIES ONLY).
+
+        v29.42w (TASK-011): process and file-extension exclusions removed —
+        global python.exe / .py / .pyc exclusions gave same-user malware a
+        standing Defender blind spot. Only data directories belong here.
+        """
         exclusions = {
             'folder_exclusions': [
-                str(self.script_dir.absolute()),
-                str(self.script_dir / "downpour_v27_data"),
-                str(self.script_dir / "logs"),
-                tempfile.gettempdir()
-            ],
-            'process_exclusions': [
-                'python.exe',
-                'pythonw.exe',
-'downpour_v29_titanium.py'
-            ],
-            'file_extension_exclusions': [
-                '.py',
-                '.log',
-                '.tmp',
-                '.cache'
-            ],
-            'registry_exclusions': [
-                'HKEY_LOCAL_MACHINE\\SOFTWARE\\Downpour',
-                'HKEY_CURRENT_USER\\SOFTWARE\\Downpour'
+                str((self.script_dir / "downpour_v27_data").absolute()),
+                str((self.script_dir / "downpour_data").absolute()),
+                str((self.script_dir / "downpour_tmp").absolute()),
             ]
         }
         
@@ -86,16 +75,23 @@ class DefenderCompatibility:
         return exclusions
     
     def apply_defender_settings(self):
-        """Apply Windows Defender path exclusions for Downpour's directory."""
+        """Apply Windows Defender path exclusions for Downpour's DATA dirs.
+
+        v29.42w (TASK-011): no longer excludes the whole install directory
+        or python.exe as a process — those exclusions handed same-user
+        malware a standing Defender blind spot. Only the write-heavy data
+        directories are excluded.
+        """
         import logging as _log
         _logger = _log.getLogger(__name__)
         try:
-            script_path = str(self.script_dir.absolute())
-            data_path   = str((self.script_dir / "downpour_v27_data").absolute())
-            ps_cmd = (
-                f'Add-MpPreference -ExclusionPath "{script_path}" -Force; '
-                f'Add-MpPreference -ExclusionPath "{data_path}" -Force; '
-                f'Add-MpPreference -ExclusionProcess "python.exe" -Force'
+            data_paths = [
+                str((self.script_dir / "downpour_v27_data").absolute()),
+                str((self.script_dir / "downpour_data").absolute()),
+            ]
+            ps_cmd = '; '.join(
+                f'Add-MpPreference -ExclusionPath "{p}" -Force'
+                for p in data_paths
             )
             result = subprocess.run(
                 ['powershell', '-NoProfile', '-Command', ps_cmd],
@@ -104,7 +100,7 @@ class DefenderCompatibility:
             )
             ok = result.returncode == 0
             if ok:
-                _logger.info("Defender exclusions applied for %s", script_path)
+                _logger.info("Defender data-dir exclusions applied (%d dirs)", len(data_paths))
             else:
                 _logger.warning("Defender exclusion warning: %s", result.stderr.strip())
             return ok

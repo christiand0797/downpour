@@ -22,20 +22,53 @@ except ImportError:
     _KEV_AVAILABLE = False
 
 
+# v29.42w (TASK-017): cached KEV product index. check_process_kev used to
+# construct a fresh VulnerabilityScanner (full SQLite init) PER PROCESS and
+# linearly scan the whole catalog. One shared fetch per hour instead.
+_KEV_CACHE: list = []
+_KEV_CACHE_TS: float = 0.0
+_KEV_CACHE_LOCK = threading.Lock()
+_KEV_CACHE_TTL = 3600.0
+_KEV_SCANNER = None
+
+
+def _get_kev_products() -> list:
+    """Return [(product_lower, entry), ...] refreshed at most hourly."""
+    global _KEV_SCANNER, _KEV_CACHE, _KEV_CACHE_TS
+    now = time.monotonic()
+    if _KEV_CACHE and (now - _KEV_CACHE_TS) < _KEV_CACHE_TTL:
+        return _KEV_CACHE
+    with _KEV_CACHE_LOCK:
+        now = time.monotonic()
+        if _KEV_CACHE and (now - _KEV_CACHE_TS) < _KEV_CACHE_TTL:
+            return _KEV_CACHE
+        try:
+            if _KEV_SCANNER is None:
+                _KEV_SCANNER = VulnerabilityScanner()
+            kev_data = _KEV_SCANNER.get_kev_catalog() or []
+            products: list = []
+            for entry in kev_data:
+                prod = (entry.get('product') or '').lower().strip()
+                if prod:
+                    products.append((prod, entry))
+            _KEV_CACHE = products
+        except Exception:
+            pass  # keep previous cache; timestamp below backs off retries
+        _KEV_CACHE_TS = now
+    return _KEV_CACHE
+
+
 def check_process_kev(process_name: str) -> dict:
-    """Check process against CISA KEV catalog for known vulnerabilities."""
+    """Check process against CISA KEV catalog (cached product index, v29.42w)."""
     if not _KEV_AVAILABLE:
         return {'matched_cves': [], 'kev_available': False}
     try:
-        scanner = VulnerabilityScanner()
-        kev_data = scanner.get_kev_catalog()
-        if not kev_data:
+        proc_lower = (process_name or '').lower().strip()
+        if not proc_lower:
             return {'matched_cves': [], 'kev_available': False}
         
         matches = []
-        proc_lower = process_name.lower()
-        for entry in kev_data:
-            prod = entry.get('product', '').lower()
+        for prod, entry in _get_kev_products():
             if proc_lower in prod or prod in proc_lower:
                 matches.append({
                     'cve': entry.get('cveID'),
@@ -99,6 +132,9 @@ class ProcessMonitor:
         self._high_cpu_history = []
         
         # Legitimate system processes (exact names)
+        # NOTE (v29.42y, TASK-015): this set is currently unreferenced in this
+        # module — the live system-process gating is the path-bound check in
+        # downpour_v29_titanium._analyze and trust_check.trusted_system_process.
         self.system_processes = {
             'System', 'smss.exe', 'csrss.exe', 'wininit.exe',
             'services.exe', 'lsass.exe', 'svchost.exe', 'winlogon.exe',

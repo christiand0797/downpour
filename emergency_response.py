@@ -188,32 +188,45 @@ class EmergencyResponse:
         """
         Immediately disconnect from all networks.
         Disables WiFi and Ethernet adapters.
+
+        v29.43f (audit §9 fix): verification now checks ADAPTER STATUS via
+        psutil instead of a socket probe — the old probe treated ANY
+        connection failure (firewall rule, DNS outage, no default route) as
+        "isolated", reporting success while adapters were still up.
         """
         logger.info("  Disabling network adapters...")
-        
+
         try:
             # Disable all network adapters
             result = subprocess.run(
-                ['powershell', '-Command', 
+                ['powershell', '-Command',
                  'Get-NetAdapter | Where-Object {$_.Status -eq "Up"} | Disable-NetAdapter -Confirm:$false'],
                 capture_output=True, timeout=10
             )
-            
-            # Verify network is down
-            try:
-                # Try to connect to Google DNS (8.8.8.8)
-                socket.create_connection(("8.8.8.8", 53), timeout=2)
-                # If we get here, network is still up
-                logger.warning("  [!]  Network still appears to be active")
-                return False
-            except Exception:
-                # Connection failed = network is down = success
-                logger.info("  [OK] Network successfully isolated")
-                return True
-        
         except Exception as e:
             logger.warning(f"  [FAIL] Error isolating network: {e}")
             return False
+
+        # Verify via adapter status, not a connectivity probe: any
+        # non-loopback adapter still up means we are NOT isolated.
+        still_up = []
+        try:
+            import psutil
+            for name, stats in psutil.net_if_stats().items():
+                lname = name.lower()
+                if stats.isup and 'loopback' not in lname and lname != 'lo':
+                    still_up.append(name)
+        except Exception:
+            pass
+
+        if still_up:
+            logger.warning("  [FAIL] Adapters still up after disable: %s",
+                           ', '.join(still_up))
+            return False
+
+        logger.info("  [OK] Network successfully isolated "
+                    "(no physical adapters up)")
+        return True
     
     def take_system_snapshot(self, response_id: str) -> str:
         """

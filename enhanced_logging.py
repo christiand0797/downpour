@@ -195,21 +195,14 @@ class EnhancedLogger:
                   exc: Optional[Exception] = None) -> LogEvent:
         """Log an error with optional exception traceback."""
         data: Dict[str, Any] = {"component": component, "message": message}
-        tb = traceback.format_exc() if exc else None
-        event = LogEvent(
-            event_type="ERROR", level="ERROR",
-            session_id=self.session_id,
-            message=f"[{component}] {message}",
-            data=data, traceback_str=tb,
+        if exc:
+            data["traceback"] = traceback.format_exc()
+        event = self._log_event(
+            f"[{component}] {message}", data, level="ERROR",
         )
-        with self._lock:
-            self.metrics.errors += 1
-            self._recent_errors.append(time.time())
-            self.metrics.total_events += 1
-        try: self._queue.put_nowait(event)
-        except queue.Full: pass
-        self.logger.error("[%s] %s", component, message, exc_info=exc is not None)
-        self._check_alert_thresholds()
+        # Enrich the event with traceback info for the JSON log
+        if exc:
+            event.traceback_str = data["traceback"]
         return event
 
     def log_warning(self, component: str, message: str) -> LogEvent:

@@ -52,7 +52,7 @@ except ImportError:
         return ThreatDatabase()
 
 from mega_threat_signatures import (
-    MALWARE_FAMILIES, SUSPICIOUS_PORTS, MINER_PORTS,
+    MALWARE_FAMILIES, SUSPICIOUS_PORTS, MINER_PORTS, PORT_PROFILES, PortCategory,
     SUSPICIOUS_PROCESS_PATTERNS, SUSPICIOUS_CMDLINE_PATTERNS,
     RISKY_EXTENSIONS, RANSOMWARE_EXTENSIONS, RANSOMWARE_NOTE_NAMES,
     get_all_signatures
@@ -323,21 +323,77 @@ class ThreatDetectionEngine:
     # PORT ANALYSIS
     # ========================================================================
 
-    def check_port(self, port: int, direction: str = "outbound") -> DetectionResult:
-        """Check if a port is suspicious"""
+    def check_port(self, port: int, direction: str = "outbound", 
+                   process_name: str = "", process_path: str = "",
+                   pid: int = 0) -> DetectionResult:
+        """Check if a port is suspicious with context-aware analysis.
+        
+        Args:
+            port: The port number to check
+            direction: 'inbound' or 'outbound'
+            process_name: Name of the process using this port
+            process_path: Full path of the process
+            pid: Process ID
+            
+        Returns:
+            DetectionResult with confidence-based scoring
+        """
         result = DetectionResult()
-
-        if port in SUSPICIOUS_PORTS:
+        
+        # Build context for analysis
+        context = {
+            'process_name': process_name,
+            'process_path': process_path,
+            'pid': pid,
+            'direction': direction
+        }
+        
+        # Check enhanced port profiles first
+        if port in PORT_PROFILES:
+            profile = PORT_PROFILES[port]
+            confidence = profile.calculate_confidence(context)
+            
+            # Only flag if confidence exceeds threshold
+            if profile.should_flag(context, threshold=60.0):
+                result.detected = True
+                result.threat_type = "suspicious_port"
+                result.category = ThreatCategory.NETWORK
+                result.severity = min(100, int(confidence))
+                result.confidence = int(confidence)
+                result.description = f"{profile.name} (Port {port}): {profile.category.value.replace('_', ' ').title()}"
+                result.indicators.append(f"Port {port}: {profile.name} [Confidence: {confidence:.0f}%]")
+                
+                # Add context info
+                if profile.known_malware:
+                    result.indicators.append(f"Known malware: {', '.join(profile.known_malware)}")
+                if profile.legitimate_uses and process_name:
+                    result.indicators.append(f"Process '{process_name}' may be legitimate for this port")
+                
+                if confidence >= 80:
+                    result.recommendations = [
+                        f"Investigate port {port} usage by {process_name or 'unknown process'}",
+                        "Check for RAT, backdoor, or C2 infection",
+                        "Consider blocking in firewall if confirmed malicious"
+                    ]
+                elif confidence >= 60:
+                    result.recommendations = [
+                        f"Monitor port {port} - suspicious activity detected",
+                        f"Verify if {process_name or 'process'} is legitimate",
+                        "Check process integrity and network behavior"
+                    ]
+        
+        # Fallback to basic SUSPICIOUS_PORTS for ports not in enhanced profiles
+        elif port in SUSPICIOUS_PORTS:
             port_info = SUSPICIOUS_PORTS[port]
-            result.detected = True
-            result.threat_type = "suspicious_port"
-            result.category = ThreatCategory.NETWORK
-            result.severity = port_info['risk']
-            result.confidence = 70
-            result.description = f"{port_info['name']}: {port_info['reason']}"
-            result.indicators.append(f"Port {port}: {port_info['name']}")
-
-            if port_info['risk'] >= 80:
+            # Only flag if it's a definitely malicious category or requires verification passed
+            if port_info.get('category') == 'definitely_malicious':
+                result.detected = True
+                result.threat_type = "suspicious_port"
+                result.category = ThreatCategory.NETWORK
+                result.severity = port_info['risk']
+                result.confidence = 85
+                result.description = f"{port_info['name']}: {port_info['reason']}"
+                result.indicators.append(f"Port {port}: {port_info['name']}")
                 result.recommendations = [
                     f"Block port {port} in firewall",
                     "Identify the process using this port",
@@ -349,6 +405,7 @@ class ThreatDetectionEngine:
             result.threat_type = "miner_port"
             result.category = ThreatCategory.MALWARE_MINER
             result.severity = max(result.severity, 70)
+            result.confidence = max(result.confidence, 75)
             result.indicators.append(f"Port {port}: Known mining pool port")
             result.recommendations.append("Check for cryptominer infection")
 
@@ -756,6 +813,24 @@ if __name__ == "__main__":
 # v29: KEV INTEGRATION
 # ========================================================================
 
+# v29.42w (TASK-017): process-wide VulnerabilityScanner singleton.
+# correlate_cve_with_detection() used to construct a fresh scanner (full
+# SQLite init) on EVERY CVE correlated. One shared instance is created once.
+_VULN_SCANNER: Any = None
+_VULN_SCANNER_LOCK = threading.Lock()
+
+
+def _get_vuln_scanner() -> Any:
+    """Return the shared VulnerabilityScanner, constructing it lazily."""
+    global _VULN_SCANNER
+    if _VULN_SCANNER is None:
+        with _VULN_SCANNER_LOCK:
+            if _VULN_SCANNER is None:
+                from vulnerability_scanner import VulnerabilityScanner
+                _VULN_SCANNER = VulnerabilityScanner()
+    return _VULN_SCANNER
+
+
 def correlate_cve_with_detection(cve_id: str) -> Dict:
     """Correlate detected threat with KEV CVE data."""
     result = {
@@ -769,8 +844,7 @@ def correlate_cve_with_detection(cve_id: str) -> Dict:
     }
     
     try:
-        from vulnerability_scanner import VulnerabilityScanner
-        scanner = VulnerabilityScanner()
+        scanner = _get_vuln_scanner()
         
         kev_data = scanner.search_kev(cve_id)
         if kev_data:

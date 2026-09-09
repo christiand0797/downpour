@@ -209,6 +209,17 @@ class ThreatDatabase:
             ).fetchall())
         return {"total_indicators": total, "indicators_by_type": by_type}
 
+    def get_indicator_sources(self, value: str, indicator_type: str) -> List[str]:
+        """Get list of unique sources that have reported this indicator.
+        Used for corroboration gate (TASK-013): require 2+ sources before auto-action.
+        """
+        with self.lock, sqlite3.connect(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT source FROM indicators WHERE value=? AND indicator_type=?",
+                (str(value).strip(), str(indicator_type).strip().lower()),
+            ).fetchall()
+        return [row[0] for row in rows if row[0]]
+
 
 _database: Optional[ThreatDatabase] = None
 _database_lock = threading.Lock()

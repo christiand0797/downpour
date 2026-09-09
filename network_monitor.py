@@ -137,6 +137,39 @@ class NetworkMonitor:
                 except ValueError:
                     pass
         
+        # MITRE ATT&CK tagging for network detections
+        self.NETWORK_MITRE_MAP = {
+            'malicious_ip': 'T1071.001',  # Application Layer Protocol
+            'c2_channel': 'T1071',        # Application Layer Protocol
+            'c2_dns': 'T1071.004',        # Application Layer Protocol: DNS
+            'dns_tunneling': 'T1071.004', # Application Layer Protocol: DNS
+            'dns_tunneling_monitoring': 'T1071.004',
+            'exfiltration': 'T1041',       # Exfiltration Over C2 Channel
+            'exfiltration_dns': 'T1048.003', # Exfiltration Over Alternative Protocol: DNS
+            'exfiltration_http': 'T1041',
+            'data_exfiltration': 'T1041',
+            'port_scan': 'T1046',          # Network Service Scanning
+            'port_scanning': 'T1046',
+            'cryptomining': 'T1496',       # Resource Hijacking
+            'mining_pool': 'T1496',
+            'lateral_movement': 'T1021',   # Remote Services
+            'smb_lateral': 'T1021.002',
+            'rdp_brute': 'T1110.001',      # Brute Force: Password Guessing
+            'ssh_brute': 'T1110.001',
+            'smb_exploit': 'T1210',        # Exploitation of Remote Services
+            'dns_tunneling_detection': 'T1071.004',
+            'osint_reputation': 'T1590',   # Active Scanning
+            'greynoise': 'T1590.005',      # Active Scanning: Vulnerability Scanning
+            'abuseipdb': 'T1590',
+            'shodan': 'T1590.005',
+            'cobalt_strike': 'T1071.001',  # Application Layer Protocol
+            'metasploit': 'T1071.001',
+            'mimikatz': 'T1003.001',       # OS Credential Dumping: LSASS Memory
+            'powershell_empire': 'T1059.001', # Command and Scripting Interpreter: PowerShell
+            'irc_bot': 'T1071.002',        # Application Layer Protocol: File Transfer Protocols
+            'tor_connection': 'T1090.003', # Proxy: Domain Fronting
+        }
+        
         # Suspicious ports commonly used by malware
         self.suspicious_ports = [
             4444,   # Metasploit default
@@ -162,6 +195,15 @@ class NetworkMonitor:
                 custom_ports = [int(p.strip()) for p in port_str.split(',') if p.strip().isdigit()]
                 if custom_ports:
                     self.suspicious_ports.extend(custom_ports)
+    
+    def _get_mitre_tag(self, detection_type: str) -> str:
+        """Get MITRE ATT&CK technique ID for a detection type."""
+        return self.NETWORK_MITRE_MAP.get(detection_type, '')
+    
+    def _get_mitre_tag_full(self, detection_type: str) -> str:
+        """Get full MITRE ATT&CK tag with technique name."""
+        tid = self._get_mitre_tag(detection_type)
+        return f"[MITRE {tid}]" if tid else ""
     
     def is_private_ip(self, ip: str) -> bool:
         """
@@ -541,12 +583,12 @@ class NetworkMonitor:
         - proc_name: Name of process making connection
         
         Returns:
-        - (is_suspicious: bool, severity: str, reason: str)
+        - (is_suspicious: bool, severity: str, reason: str, mitre_tag: str)
         """
         try:
             # Skip if no remote address (listening socket)
             if not conn.raddr:
-                return (False, "LOW", "")
+                return (False, "LOW", "", "")
             
             remote_ip = conn.raddr.ip
             remote_port = conn.raddr.port
@@ -554,7 +596,7 @@ class NetworkMonitor:
             
             # Skip private/local IPs
             if self.is_private_ip(remote_ip):
-                return (False, "LOW", "")
+                return (False, "LOW", "", "")
             
             # Check against known malicious IPs (exact match + CIDR ranges)
             if self._is_malicious_ip(remote_ip):
@@ -574,7 +616,8 @@ class NetworkMonitor:
                 return (
                     True,
                     "CRITICAL",
-                    reason
+                    reason,
+                    self._get_mitre_tag_full('malicious_ip')
                 )
             
             # v29.39: Check OSINT reputation for enhanced threat detection
@@ -593,7 +636,8 @@ class NetworkMonitor:
                 return (
                     True,
                     threat_level if threat_level in ['CRITICAL', 'HIGH', 'MEDIUM'] else 'MEDIUM',
-                    ', '.join(reason_parts)
+                    ', '.join(reason_parts),
+                    self._get_mitre_tag_full('osint_reputation')
                 )
             
             # Check for suspicious ports
@@ -603,7 +647,8 @@ class NetworkMonitor:
                 return (
                     True,
                     "HIGH",
-                    f"Connection to suspicious port {remote_port} (commonly used by malware)"
+                    f"Connection to suspicious port {remote_port} (commonly used by malware)",
+                    self._get_mitre_tag_full('suspicious_port')
                 )
             
             # Check for mining pool ports
@@ -611,13 +656,19 @@ class NetworkMonitor:
                 return (
                     True,
                     "MEDIUM",
-                    f"Possible cryptocurrency mining: connection to port {remote_port}"
+                    f"Possible cryptocurrency mining: connection to port {remote_port}",
+                    self._get_mitre_tag_full('cryptomining')
                 )
             
             # v29.39: Check for DNS tunneling (port 53 with high query volume)
             if remote_port == 53:
                 if not hasattr(self, '_dns_counts'):
                     self._dns_counts = {}
+                # v29.42z (TASK-018): cap the per-IP dict — an attacker could
+                # otherwise grow it unboundedly (memory DoS) by connecting to
+                # many unique IPs. Clear when oversized; counts rebuild.
+                if len(self._dns_counts) > 4096:
+                    self._dns_counts.clear()
                 self._dns_counts[remote_ip] = self._dns_counts.get(remote_ip, 0) + 1
                 if self._dns_counts[remote_ip] > 50:
                     # Track potential DNS tunneling
@@ -627,9 +678,10 @@ class NetworkMonitor:
                     return (
                         True,
                         "MEDIUM",
-                        f"DNS traffic on port 53 (potential tunneling monitoring)"
+                        f"DNS traffic on port 53 (potential tunneling monitoring)",
+                        self._get_mitre_tag_full('dns_tunneling_monitoring')
                     )
-                return (False, "LOW", "")
+                return (False, "LOW", "", "")
             
             # Check for suspicious country (if configured)
             if self.config and self.config.has_option('NETWORK_MONITORING', 'suspicious_countries'):
@@ -645,11 +697,11 @@ class NetworkMonitor:
                         )
             
             # Connection seems normal
-            return (False, "LOW", "")
+            return (False, "LOW", "", "")
             
         except Exception as e:
             logging.debug(f"Error checking connection: {e}")
-            return (False, "LOW", "")
+            return (False, "LOW", "", "")
     
     def scan_connections(self) -> None:
         """Scan all active network connections for suspicious activity.
@@ -679,12 +731,15 @@ class NetworkMonitor:
                     
                     # Check each connection
                     for conn in conns:
-                        is_suspicious, severity, reason = self.check_connection(conn, proc_name)
+                        is_suspicious, severity, reason, mitre_tag = self.check_connection(conn, proc_name)
                         
                         if is_suspicious:
-                            # Log the suspicious connection
+                            # Log the suspicious connection with MITRE tag
+                            full_reason = reason
+                            if mitre_tag:
+                                full_reason = f"{reason} {mitre_tag}"
                             logging.warning(f"[{severity}] Network Alert: {proc_name} (PID {pid})")
-                            logging.warning(f"  {reason}")
+                            logging.warning(f"  {full_reason}")
                             
                             if conn.raddr:
                                 logging.warning(f"  Remote: {conn.raddr.ip}:{conn.raddr.port}")

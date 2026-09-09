@@ -214,6 +214,30 @@ check("pywin32 listed in requirements",
 check("cryptography listed in requirements",
       "cryptography>=" in req)
 
+# ── 6b · Code integrity (v29.43f, audit §8.4) ────────────────────
+section('6b · Code Integrity (signed manifest)')
+try:
+    from code_integrity import verify_baseline
+    rep = verify_baseline(str(BASE))
+    if rep.get('no_baseline'):
+        check_warn('Code integrity: no baseline yet',
+                   'run: python code_integrity.py baseline')
+    elif rep.get('baseline_tampered'):
+        check('Code integrity: BASELINE TAMPERED', False,
+              'baseline signature invalid - verify from a trusted copy')
+    else:
+        mods = rep.get('modified', [])
+        miss = rep.get('missing', [])
+        extra = rep.get('extra', [])
+        if mods or miss:
+            check('Code integrity', False,
+                  str(len(mods)) + ' modified, ' + str(len(miss)) + ' missing')
+        else:
+            check('Code integrity', True,
+                  str(rep['file_count']) + ' files verified')
+except Exception as exc:
+    check_warn('Code integrity check failed', str(exc)[:80])
+
 # ── 7. Summary ────────────────────────────────────────────────────────────────
 section("Summary")
 total   = len([r for r in results if r[1] is not None])

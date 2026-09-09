@@ -285,6 +285,37 @@ class KimwolfBotnetDetector:
         self._running = False
         self._stop.set()
 
+    def _get_db(self):
+        """Get threat database instance (lazy init)."""
+        if self.db is None:
+            try:
+                from ultimate_threat_intel import get_database
+                self.db = get_database()
+            except Exception:
+                self.db = None
+        return self.db
+
+    def _check_corroboration(self, indicator: str, indicator_type: str, min_sources: int = 2) -> bool:
+        """
+        Check if indicator appears in multiple independent threat feeds (TASK-013).
+        Returns True if indicator has corroboration from >= min_sources feeds.
+        This is the corroboration gate — prevents auto-action on single-source IOCs.
+        """
+        db = self._get_db()
+        if db is None:
+            log.debug("Corroboration check: no DB available, allowing action")
+            return True  # Allow action if DB unavailable (fail-open for critical threats)
+        try:
+            sources = db.get_indicator_sources(indicator, indicator_type)
+            if len(sources) >= min_sources:
+                log.info(f"Corroboration PASSED for {indicator_type}:{indicator} — sources: {sources}")
+                return True
+            log.warning(f"Corroboration FAILED for {indicator_type}:{indicator} — sources: {sources} (need {min_sources})")
+            return False
+        except Exception as e:
+            log.error(f"Corroboration check error for {indicator}: {e}")
+            return True  # Fail-open
+
     def _loop(self):
         # Stagger initial scan to not hammer on startup
         self._stop.wait(8)
@@ -406,16 +437,21 @@ class KimwolfBotnetDetector:
                 self._dns_alerted.add(domain)
                 with self._lock:
                     self.stats["dns_hits"] += 1
-                # Block it at DNS level
-                subprocess.run(
-                    ["powershell", "-NoProfile", "-NonInteractive", "-Command",
-                     f'Add-Content "C:\\Windows\\System32\\drivers\\etc\\hosts" "`r`n0.0.0.0 {domain}"'],
-                    capture_output=True, creationflags=_NO_WIN, timeout=5, check=False)
+                # Corroboration gate (TASK-013): require 2+ feed sources before auto-block
+                if self._check_corroboration(domain, "domain", min_sources=2):
+                    # Block it at DNS level
+                    subprocess.run(
+                        ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+                         f'Add-Content "C:\\Windows\\System32\\drivers\\etc\\hosts" "`r`n0.0.0.0 {domain}"'],
+                        capture_output=True, creationflags=_NO_WIN, timeout=5, check=False)
+                    action = f"hosts-blocked: {domain}"
+                else:
+                    action = "hosts-block-skipped (no corroboration)"
                 self._alert(self._make_alert(
                     family, domain,
                     f"Botnet C2 domain found in DNS cache — device on this network is infected and phoning home. "
-                    f"Domain added to hosts block.",
-                    "CRITICAL", action=f"hosts-blocked: {domain}"))
+                    f"Domain {'added to hosts block' if 'blocked' in action else 'NOT blocked (corroboration required)'}.",
+                    "CRITICAL", action=action))
 
             # ENS/blockchain C2 pattern (Kimwolf EtherHiding)
             if domain.endswith(".eth") or "pawsatyou" in domain:
@@ -460,7 +496,13 @@ class KimwolfBotnetDetector:
                 self._known_c2_conns.add(rip)
                 with self._lock:
                     self.stats["c2_ip_hits"] += 1
-                blocked = self._block_ip_firewall(rip, "Kimwolf C2")
+                # Corroboration gate (TASK-013): require 2+ feed sources before auto-block
+                if self._check_corroboration(rip, "ip", min_sources=2):
+                    blocked = self._block_ip_firewall(rip, "Kimwolf C2")
+                    action = "firewall-blocked" if blocked else "firewall-block-failed"
+                else:
+                    blocked = False
+                    action = "firewall-block-skipped (no corroboration)"
                 proc = ""
                 try:
                     p = psutil.Process(conn.pid)
@@ -471,7 +513,7 @@ class KimwolfBotnetDetector:
                     "Kimwolf", rip,
                     f"Active connection to Kimwolf C2 infrastructure{proc}. "
                     f"Port: {conn.laddr.port}->{conn.raddr.port}",
-                    "CRITICAL", action="firewall-blocked" if blocked else ""))
+                    "CRITICAL", action=action))
                 continue
             # CIDR range match
             try:
@@ -479,11 +521,17 @@ class KimwolfBotnetDetector:
                 for cidr in KIMWOLF_C2_CIDRS:
                     if addr in cidr:
                         self._known_c2_conns.add(rip)
-                        blocked = self._block_ip_firewall(rip, "Kimwolf range")
+                        # Corroboration gate (TASK-013): require 2+ feed sources before auto-block
+                        if self._check_corroboration(rip, "ip", min_sources=2):
+                            blocked = self._block_ip_firewall(rip, "Kimwolf range")
+                            action = "firewall-blocked" if blocked else "firewall-block-failed"
+                        else:
+                            blocked = False
+                            action = "firewall-block-skipped (no corroboration)"
                         self._alert(self._make_alert(
                             "Kimwolf", rip,
                             f"Connection to Kimwolf C2 CIDR {cidr}. Port: {conn.raddr.port}",
-                            "CRITICAL", action="firewall-blocked" if blocked else ""))
+                            "CRITICAL", action=action))
                         break
             except Exception:
                 pass

@@ -63,28 +63,265 @@ class BehaviorScanner:
     KNOWN_MALWARE_HASHES = set()
     
     # MITRE ATT&CK Technique Mappings (v29)
+    # MITRE ATT&CK Technique Mappings (v29) - EXPANDED
     MITRE_TECHNIQUE_MAP = {
-        'keylogging': 'T1056.001 - Keylogging',
-        'screen_capture': 'T1113 - Screen Capture',
+        # Process Injection & Execution
         'process_injection': 'T1055 - Process Injection',
-        'credential_theft': 'T1003 - OS Credential Dumping',
-        'persistence': 'T1547 - Boot or Logon Autostart Execution',
-        'evasion': 'T1562 - Impair Defenses',
-        'network_exfil': 'T1041 - Exfiltration Over C2 Channel',
-        'registry_modification': 'T1112 - Modify Registry',
-        'service_creation': 'T1543 - Create/Modify System Process',
-        'scheduled_task': 'T1053 - Scheduled Task/Job',
-        'lateral_movement': 'T1021 - Remote Services',
-        'wmi_persistence': 'T1546.003 - WMI Event Subscription',
-        'dll_search hijacking': 'T1574.001 - DLL Search Order Hijacking',
+        'dll_injection': 'T1055.001 - DLL Injection',
         'process_hollowing': 'T1055.012 - Process Hollowing',
+        'thread_hijack': 'T1055.003 - Process Injection: Thread Hijacking',
+        'atom_bombing': 'T1055.014 - Process Injection: VDSO Hijacking',
+        'apc_injection': 'T1055.004 - Process Injection: Asynchronous Procedure Call',
+        'proc_thread_hijack': 'T1055.003 - Process Injection: Thread Hijacking',
+        'extra_window_memory': 'T1055.011 - Process Injection: Extra Window Memory Injection',
+        'process_doppelganging': 'T1055.013 - Process Injection: Process Doppelgänging',
+        'vdsso_hijacking': 'T1055.014 - Process Injection: VDSO Hijacking',
+        'reflective_dll': 'T1620 - Reflective Code Loading',
         'fileless_execution': 'T1059 - Command and Scripting Interpreter',
-        'encrypted_communication': 'T1573 - Encrypted Channel',
-        'dns_tunneling': 'T1071.004 - DNS',
-        'domain_generation': 'T1568.002 - Domain Generation Algorithms',
+        'fileless_execution': 'T1620 - Reflective Code Loading',
+        'syscall_evasion': 'T1106 - Native API / Direct Syscalls',
+        'ppid_spoofing': 'T1134.004 - Access Token Manipulation: Parent PID Spoofing',
+
+        # Defense Evasion
+        'dll_injection': 'T1055.001 - DLL Injection',
+        'dll_hijack': 'T1574.001 - DLL Search Order Hijacking',
+        'dll_search hijacking': 'T1574.001 - DLL Search Order Hijacking',
+        'dll_sideloading': 'T1574.002 - Hijack Execution Flow: DLL Side-Loading',
+        'timestomp': 'T1070.006 - Indicator Removal: Timestomping',
+        'timestomping': 'T1070.006 - Indicator Removal: Timestomp',
+        'log_clearing': 'T1070.001 - Indicator Removal: Clear Windows Event Logs',
+        'uac_bypass': 'T1548.002 - Abuse Elevation Control: UAC Bypass',
+        'rootkit': 'T1014 - Rootkit',
+        'bootkit': 'T1542.003 - Pre-OS Boot: Bootkit',
+        'binary_padding': 'T1027.001 - Obfuscated/Stored Files: Binary Padding',
+        'software_packing': 'T1027.002 - Obfuscated/Stored Files: Software Packing',
+        'compile_after_delivery': 'T1027.004 - Obfuscated/Stored Files: Compile After Delivery',
+        'indicator_removal': 'T1070 - Indicator Removal on Host',
+        'file_deletion': 'T1070.004 - Indicator Removal: File Deletion',
+        'modify_registry': 'T1112 - Modify Registry',
+        'disable_security_tools': 'T1562.001 - Impair Defenses: Disable or Modify Tools',
+        'masquerading': 'T1036 - Masquerading',
+        'code_signing': 'T1553.002 - Subvert Trust Controls: Code Signing',
+        'install_root_cert': 'T1553.004 - Subvert Trust Controls: Install Root Certificate',
+        'shim_database': 'T1546.011 - Event Triggered Execution: Application Shimming',
+        'process_hollowing': 'T1055.012 - Process Hollowing',
+        'thread_hijack': 'T1055.003 - Process Injection: Thread Hijacking',
+        'atom_bombing': 'T1055.014 - Process Injection: VDSO Hijacking',
+
+        # Persistence
+        'persistence': 'T1547 - Boot or Logon Autostart Execution',
+        'registry_modification': 'T1112 - Modify Registry',
+        'registry_run_key': 'T1547.001 - Registry Run Keys / Startup Folder',
+        'schtask_create': 'T1053.005 - Scheduled Task / Job',
+        'scheduled_task': 'T1053.005 - Scheduled Task/Job: Scheduled Task',
+        'service_creation': 'T1543.003 - Create or Modify System Process: Windows Service',
+        'service_create': 'T1543.003 - Create or Modify System Process: Windows Service',
+        'bits_job': 'T1197 - BITS Jobs',
+        'wmi_subscription': 'T1546.003 - WMI Event Subscription',
+        'wmi_persistence': 'T1546.003 - Event Triggered Execution: WMI',
+        'startup_items': 'T1547.001 - Boot or Logon Autostart Execution: Registry Run Keys / Startup Folder',
+        'winlogon_helper': 'T1547.004 - Winlogon Helper DLL',
+        'auth_package': 'T1547.005 - Security Support Provider',
+        'time_provider': 'T1547.003 - Time Providers',
+
+        # Credential Access
+        'credential_theft': 'T1003 - OS Credential Dumping',
+        'lsass_dump': 'T1003.001 - OS Credential Dumping: LSASS Memory',
+        'ntds_dump': 'T1003.003 - OS Credential Dumping: NTDS',
+        'dcsync': 'T1003.006 - OS Credential Dumping: DCSync',
+        'token_impersonation': 'T1134 - Access Token Manipulation',
+        'kerberoasting': 'T1558.003 - Steal Kerberos Tickets: Kerberoasting',
+        'golden_ticket': 'T1558.001 - Steal Kerberos Tickets: Golden Ticket',
+        'credential_stuffing': 'T1110.004 - Credential Stuffing',
+        'browser_credential': 'T1555.003 - Credentials from Password Stores: Browser',
+        'ntlm_relay': 'T1557.001 - Adversary-in-the-Middle: LLMNR/NBT-NS Poisoning',
+        'unsecured_credentials': 'T1552 - Unsecured Credentials',
+        'credentials_in_files': 'T1552.001 - Credentials In Files',
+        'credentials_in_registry': 'T1552.002 - Credentials In Registry',
+        'bash_history': 'T1552.003 - Bash History',
+        'private_keys': 'T1552.004 - Private Keys',
+        'cloud_instance_metadata': 'T1552.005 - Cloud Instance Metadata API',
+
+        # Discovery & Lateral Movement
+        'lateral_movement': 'T1021 - Remote Services',
+        'lateral_movement_smb': 'T1021.002 - Remote Services: SMB/Windows Admin Shares',
+        'named_pipe_c2': 'T1090.001 - Proxy: Internal Proxy (Named Pipes)',
+        'brute_force': 'T1110 - Brute Force',
+        'password_spraying': 'T1110.003 - Brute Force: Password Spraying',
+        'rdp_hijacking': 'T1563.002 - Remote Service Session Hijacking: RDP Session Hijacking',
+        'pass_the_hash': 'T1550.002 - Use Alternate Authentication Material: Pass the Hash',
+        'pass_the_ticket': 'T1550.003 - Use Alternate Authentication Material: Pass the Ticket',
+        'ssh_hijacking': 'T1563.001 - Remote Service Session Hijacking: SSH Hijacking',
+        'internal_spearphishing': 'T1534 - Internal Spearphishing',
+        'remote_services': 'T1021 - Remote Services',
+        'smb_admin_shares': 'T1021.002 - Remote Services: SMB/Windows Admin Shares',
+        'distributed_component': 'T1021.003 - Remote Services: Distributed Component Object Model',
+        'wmi_execution': 'T1047 - Windows Management Instrumentation',
+        'psexec': 'T1021.002 - Remote Services: PsExec',
+
+        # Command & Control
+        'network_exfil': 'T1041 - Exfiltration Over C2 Channel',
+        'data_exfil_dns': 'T1048.003 - Exfiltration Over Alternative Protocol: DNS',
+        'data_exfil_http': 'T1041 - Exfiltration Over Web Service',
+        'data_exfil_c2': 'T1041 - Exfiltration Over C2 Channel',
+        'automated_exfil': 'T1020 - Automated Exfiltration',
+        'scheduled_transfer': 'T1029 - Scheduled Transfer',
+        'c2_dns_tunnel': 'T1071.004 - Application Layer Protocol: DNS',
+        'dns_tunneling': 'T1071.004 - Application Layer Protocol: DNS',
+        'data_exfil_dns': 'T1048.003 - Exfiltration Over Alternative Protocol: DNS',
+        'c2_http': 'T1071.001 - Application Layer Protocol: Web Protocols',
+        'c2_https': 'T1071.001 - Application Layer Protocol: Web Protocols',
+        'c2_custom': 'T1071.002 - Application Layer Protocol: Custom Protocols',
+        'domain_fronting': 'T1090.003 - Proxy: Domain Fronting',
+        'protocol_tunneling': 'T1572 - Protocol Tunneling',
+        'fallback_channels': 'T1008 - Fallback Channels',
+        'multi_stage_c2': 'T1102 - Web Service',
+
+        # Exfiltration
         'data_staging': 'T1074 - Data Staged',
         'compression': 'T1002 - Data Compressed',
+        'encrypted_communication': 'T1573 - Encrypted Channel',
+        'dns_tunneling': 'T1071.004 - Application Layer Protocol: DNS',
+        'domain_generation': 'T1568.002 - Domain Generation Algorithms',
+
+        # Impact
+        'ransomware_encrypt': 'T1486 - Data Encrypted for Impact',
+        'clipboard_hijack': 'T1115 - Clipboard Data',
+        'data_destruction': 'T1485 - Data Destruction',
+        'disk_wipe': 'T1485.002 - Data Destruction: Disk Wipe',
+        'service_stop': 'T1489 - Service Stop',
+        'defacement': 'T1491.001 - Defacement: Internal Defacement',
+        'firmware_corruption': 'T1495 - Firmware Corruption',
+
+        # Supply Chain
+        'supply_chain': 'T1195 - Supply Chain Compromise',
+        'compromise_software': 'T1195.001 - Supply Chain Compromise: Compromise Software Dependencies and Development Tools',
+        'compromise_hardware': 'T1195.002 - Supply Chain Compromise: Compromise Hardware Supply Chain',
+
+        # LOLBins & System Binary Proxy Execution
+        'lolbin_execution': 'T1218 - System Binary Proxy Execution',
+        'mshta': 'T1218.005 - System Binary Proxy Execution: Mshta',
+        'regsvr32': 'T1218.010 - System Binary Proxy Execution: Regsvr32',
+        'rundll32': 'T1218.011 - System Binary Proxy Execution: Rundll32',
+        'certutil': 'T1218.004 - System Binary Proxy Execution: Certutil',
+        'bitsadmin': 'T1197 - BITS Jobs',
+        'wmic': 'T1047 - Windows Management Instrumentation',
+        'powershell': 'T1059.001 - Command and Scripting Interpreter: PowerShell',
+        'cmd': 'T1059.003 - Command and Scripting Interpreter: Windows Command Shell',
+        'wscript': 'T1059.005 - Command and Scripting Interpreter: Visual Basic',
+        'cscript': 'T1059.005 - Command and Scripting Interpreter: Visual Basic',
+        'msbuild': 'T1218.009 - System Binary Proxy Execution: MSBuild',
+        'installutil': 'T1218.004 - System Binary Proxy Execution: InstallUtil',
+        'msiexec': 'T1218.007 - System Binary Proxy Execution: Msiexec',
+        'regasm': 'T1218.009 - System Binary Proxy Execution: RegAsm',
+        'regsvcs': 'T1218.009 - System Binary Proxy Execution: RegSvcs',
+        'odbcconf': 'T1218.008 - System Binary Proxy Execution: Odbcconf',
+        'cmstp': 'T1218.003 - System Binary Proxy Execution: Cmstp',
+        'inf_default_install': 'T1218.003 - System Binary Proxy Execution: InfDefaultInstall',
+
+        # Reconnaissance
+        'port_scan': 'T1046 - Network Service Scanning',
+        'network_sniffing': 'T1040 - Network Sniffing',
+        'active_directory_recon': 'T1069.002 - Permission Groups Discovery: Permission Groups',
+        'system_info_discovery': 'T1082 - System Information Discovery',
+        'file_dir_discovery': 'T1083 - File and Directory Discovery',
+        'process_discovery': 'T1057 - Process Discovery',
+        'network_share_discovery': 'T1135 - Network Share Discovery',
+        'remote_system_discovery': 'T1018 - Remote System Discovery',
+        'account_discovery': 'T1087 - Account Discovery',
+        'permission_groups': 'T1069 - Permission Groups Discovery',
+        'system_network_config': 'T1016 - System Network Configuration Discovery',
+        'browser_bookmark': 'T1217 - Browser Bookmark Discovery',
+
+        # Original mappings for backward compatibility
+        'keylogging': 'T1056.001 - Keylogging',
+        'screen_capture': 'T1113 - Screen Capture',
+        'credential_theft': 'T1003 - OS Credential Dumping',
+        'evasion': 'T1562 - Impair Defenses',
+        'encrypted_communication': 'T1573 - Encrypted Channel',
+        'domain_generation': 'T1568.002 - Domain Generation Algorithms',
     }
+    
+    # Map behavior types to MITRE techniques for auto-tagging
+    BEHAVIOR_TO_MITRE = {
+        'keylogging': 'T1056.001',
+        'screen_capture': 'T1113',
+        'process_injection': 'T1055',
+        'dll_injection': 'T1055.001',
+        'process_hollowing': 'T1055.012',
+        'thread_hijack': 'T1055.003',
+        'credential_theft': 'T1003',
+        'lsass_dump': 'T1003.001',
+        'persistence': 'T1547',
+        'registry_run_key': 'T1547.001',
+        'schtask_create': 'T1053.005',
+        'service_creation': 'T1543.003',
+        'bits_job': 'T1197',
+        'wmi_subscription': 'T1546.003',
+        'evasion': 'T1562',
+        'uac_bypass': 'T1548.002',
+        'rootkit': 'T1014',
+        'bootkit': 'T1542.003',
+        'log_clearing': 'T1070.001',
+        'timestomp': 'T1070.006',
+        'lolbin_execution': 'T1218',
+        'supply_chain': 'T1195',
+        'dns_hijack': 'T1584.002',
+        'clipboard_hijack': 'T1115',
+        'ransomware_encrypt': 'T1486',
+        'data_exfil_dns': 'T1048.003',
+        'c2_dns_tunnel': 'T1071.004',
+        'lateral_movement': 'T1021',
+        'lateral_movement_smb': 'T1021.002',
+        'registry_modification': 'T1112',
+        'service_creation': 'T1543.003',
+        'scheduled_task': 'T1053.005',
+        'lateral_movement_smb': 'T1021.002',
+        'named_pipe_c2': 'T1090.001',
+        'brute_force': 'T1110',
+        'credential_stuffing': 'T1110.004',
+        'token_impersonation': 'T1134',
+        'kerberoasting': 'T1558.003',
+        'dcsync': 'T1003.006',
+        'golden_ticket': 'T1558.001',
+        'browser_credential': 'T1555.003',
+        'ntlm_relay': 'T1557.001',
+        'encrypted_communication': 'T1573',
+        'dns_tunneling': 'T1071.004',
+        'domain_generation': 'T1568.002',
+        'data_staging': 'T1074',
+        'compression': 'T1002',
+        'dll_hijack': 'T1574.001',
+        'dll_sideloading': 'T1574.002',
+        'dll_search_hijacking': 'T1574.001',
+        'process_hollowing': 'T1055.012',
+        'fileless_execution': 'T1620',
+        'encrypted_communication': 'T1573',
+        'dns_tunneling': 'T1071.004',
+        'registry_modification': 'T1112',
+        'service_creation': 'T1543.003',
+        'scheduled_task': 'T1053.005',
+        'wmi_persistence': 'T1546.003',
+        'dll_search_hijacking': 'T1574.001',
+        'process_hollowing': 'T1055.012',
+        'fileless_execution': 'T1059',
+        'encrypted_communication': 'T1573',
+        'dns_tunneling': 'T1071.004',
+        'domain_generation': 'T1568.002',
+    }
+    
+    @classmethod
+    def get_mitre_tag(cls, behavior_type: str) -> str:
+        """Get MITRE ATT&CK technique ID for a behavior type."""
+        return cls.BEHAVIOR_TO_MITRE.get(behavior_type, '')
+    
+    @classmethod
+    def get_mitre_tag_full(cls, behavior_type: str) -> str:
+        """Get full MITRE ATT&CK tag with technique name."""
+        tid = cls.get_mitre_tag(behavior_type)
+        if tid and tid in cls.MITRE_TECHNIQUE_MAP:
+            return f"[MITRE {tid}: {cls.MITRE_TECHNIQUE_MAP[tid]}]"
+        return f"[MITRE {tid}]" if tid else ""
     
     # Suspicious behaviors to detect in running processes
     SUSPICIOUS_BEHAVIORS = {
@@ -158,7 +395,15 @@ class BehaviorScanner:
         ],
     }
     
-    # Suspicious network ports commonly used by malware
+    # Import enhanced port profiles
+    try:
+        from mega_threat_signatures import PORT_PROFILES, PortCategory
+        ENHANCED_PORTS_AVAILABLE = True
+    except ImportError:
+        PORT_PROFILES = {}
+        ENHANCED_PORTS_AVAILABLE = False
+    
+    # Suspicious network ports commonly used by malware (fallback)
     SUSPICIOUS_PORTS = {
         4444: 'Metasploit default',
         5555: 'Android ADB exploit',
@@ -309,9 +554,21 @@ class BehaviorScanner:
                 pinfo = proc.info
                 name = pinfo['name'].lower() if pinfo['name'] else ''
                 
-                # Skip known safe processes
-                if any(safe in name for safe in self.KNOWN_SAFE_PROCESSES):
-                    continue
+                # Skip known safe processes — v29.42y (TASK-015): the old
+                # substring check ('safe' in name) skipped ANY process whose
+                # name merely CONTAINED e.g. 'system'. Now: exact name match
+                # AND image path under %SystemRoot% AND (best-effort) valid
+                # signature — see trust_check.trusted_system_process.
+                exe_u = pinfo['exe'] or ''
+                if name in self.KNOWN_SAFE_PROCESSES and exe_u:
+                    try:
+                        from trust_check import trusted_system_process
+                        if trusted_system_process(
+                                name, exe_u,
+                                system_names=self.KNOWN_SAFE_PROCESSES):
+                            continue
+                    except Exception:
+                        pass
                 
                 # Skip if no exe path (system processes)
                 if not pinfo['exe']:
@@ -358,10 +615,31 @@ class BehaviorScanner:
                     if connections:
                         for conn in connections:
                             if conn.status == 'ESTABLISHED':
-                                # Check if connecting to suspicious port
-                                if conn.raddr and conn.raddr.port in self.SUSPICIOUS_PORTS:
-                                    threat_indicators.append(f"Connected to suspicious port {conn.raddr.port} ({self.SUSPICIOUS_PORTS[conn.raddr.port]})")
-                                    severity = 'critical'
+                                # Check if connecting to suspicious port using enhanced analysis
+                                if conn.raddr:
+                                    remote_port = conn.raddr.port
+                                    # Use enhanced port profiles if available
+                                    if ENHANCED_PORTS_AVAILABLE and remote_port in PORT_PROFILES:
+                                        profile = PORT_PROFILES[remote_port]
+                                        # Build context
+                                        context = {
+                                            'process_name': name,
+                                            'process_path': exe_path,
+                                            'direction': 'outbound'
+                                        }
+                                        confidence = profile.calculate_confidence(context)
+                                        if profile.should_flag(context, threshold=70.0):
+                                            threat_indicators.append(
+                                                f"Connected to {profile.name} port {remote_port} "
+                                                f"[Confidence: {confidence:.0f}%]"
+                                            )
+                                            severity = 'critical' if confidence >= 80 else 'high'
+                                    elif remote_port in self.SUSPICIOUS_PORTS:
+                                        threat_indicators.append(
+                                            f"Connected to suspicious port {remote_port} "
+                                            f"({self.SUSPICIOUS_PORTS[remote_port]})"
+                                        )
+                                        severity = 'critical'
                 except (psutil.AccessDenied, psutil.NoSuchProcess):
                     pass
                 
@@ -408,6 +686,14 @@ class BehaviorScanner:
                     if 'lateral' in str(threat_indicators).lower() or 'remote' in str(threat_indicators).lower():
                         self._track_lateral_movement()
                     
+                    # Auto-tag with MITRE ATT&CK techniques
+                    mitre_tags = []
+                    for behavior_type in self.BEHAVIOR_TO_MITRE:
+                        if behavior_type in str(threat_indicators).lower():
+                            tag = self.get_mitre_tag_full(behavior_type)
+                            if tag:
+                                mitre_tags.append(tag)
+                    
                     suspicious.append({
                         'pid': pinfo['pid'],
                         'name': pinfo['name'],
@@ -415,7 +701,8 @@ class BehaviorScanner:
                         'cmdline': ' '.join(pinfo['cmdline']) if pinfo['cmdline'] else '',
                         'indicators': threat_indicators,
                         'severity': severity,
-                        'type': 'process_behavior'
+                        'type': 'process_behavior',
+                        'mitre': '; '.join(mitre_tags) if mitre_tags else ''
                     })
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 pass  # Process may have exited during scan - skip it
@@ -459,8 +746,23 @@ class BehaviorScanner:
                     threat_indicators.append(f"Connected to known malicious IP: {remote_ip}")
                     severity = 'critical'
                 
-                # Check 2: Connection on suspicious port
-                if remote_port in self.SUSPICIOUS_PORTS:
+                # Check 2: Connection on suspicious port using enhanced analysis
+                if ENHANCED_PORTS_AVAILABLE and remote_port in PORT_PROFILES:
+                    profile = PORT_PROFILES[remote_port]
+                    # Build context
+                    context = {
+                        'process_name': proc_name,
+                        'process_path': proc_exe,
+                        'direction': 'outbound'
+                    }
+                    confidence = profile.calculate_confidence(context)
+                    if profile.should_flag(context, threshold=65.0):
+                        threat_indicators.append(
+                            f"Connection on {profile.name} port {remote_port} "
+                            f"[Confidence: {confidence:.0f}%]"
+                        )
+                        severity = 'high' if confidence >= 75 else 'medium'
+                elif remote_port in self.SUSPICIOUS_PORTS:
                     threat_indicators.append(f"Connection on RAT port {remote_port}")
                     severity = 'high'
                 
@@ -483,6 +785,14 @@ class BehaviorScanner:
                     except Exception:
                         pass
                     
+                    # Auto-tag with MITRE ATT&CK techniques
+                    mitre_tags = []
+                    for behavior_type in self.BEHAVIOR_TO_MITRE:
+                        if behavior_type in str(threat_indicators).lower():
+                            tag = self.get_mitre_tag_full(behavior_type)
+                            if tag:
+                                mitre_tags.append(tag)
+                    
                     suspicious.append({
                         'pid': conn.pid,
                         'process': proc_name,
@@ -491,7 +801,8 @@ class BehaviorScanner:
                         'remote': f"{remote_ip}:{remote_port}",
                         'indicators': threat_indicators,
                         'severity': severity,
-                        'type': 'network_behavior'
+                        'type': 'network_behavior',
+                        'mitre': '; '.join(mitre_tags) if mitre_tags else ''
                     })
             except Exception:
                 continue
@@ -562,13 +873,22 @@ class BehaviorScanner:
                                     severity = 'medium'
                             
                             if threat_indicators:
+                                # Auto-tag with MITRE ATT&CK techniques
+                                mitre_tags = []
+                                for behavior_type in self.BEHAVIOR_TO_MITRE:
+                                    if behavior_type in str(threat_indicators).lower():
+                                        tag = self.get_mitre_tag_full(behavior_type)
+                                        if tag:
+                                            mitre_tags.append(tag)
+                                
                                 suspicious.append({
                                     'location': f"{hive_name}\\{location}",
                                     'name': name,
                                     'value': value[:200] + '...' if len(str(value)) > 200 else value,
                                     'indicators': threat_indicators,
                                     'severity': severity,
-                                    'type': 'persistence'
+                                    'type': 'persistence',
+                                    'mitre': '; '.join(mitre_tags) if mitre_tags else ''
                                 })
                         except OSError:
                             break
@@ -613,13 +933,22 @@ class BehaviorScanner:
                             pass
                     
                     if threat_indicators:
+                        # Auto-tag with MITRE ATT&CK techniques
+                        mitre_tags = []
+                        for behavior_type in self.BEHAVIOR_TO_MITRE:
+                            if behavior_type in str(threat_indicators).lower():
+                                tag = self.get_mitre_tag_full(behavior_type)
+                                if tag:
+                                    mitre_tags.append(tag)
+                        
                         suspicious.append({
                             'location': folder,
                             'name': item,
                             'path': item_path,
                             'indicators': threat_indicators,
                             'severity': severity,
-                            'type': 'persistence'
+                            'type': 'persistence',
+                            'mitre': '; '.join(mitre_tags) if mitre_tags else ''
                         })
         
         return suspicious

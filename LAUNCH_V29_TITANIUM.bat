@@ -178,21 +178,26 @@ if !errorlevel!==0 (
     echo   [OK] Removed deprecated pynvml (nvidia-ml-py is the maintained replacement)
 )
 
-:: ── 8. DEFENDER EXCLUSIONS ────────────────────────────────────────────────────
+:: ── 8. DEFENDER EXCLUSIONS (data dirs only) ──────────────────────────────────
 echo   [..] Configuring Defender + ASR exclusions...
 
-:: Real-time protection exclusion
-powershell -NoProfile -NonInteractive -Command "Add-MpPreference -ExclusionPath '%APPDIR%' -ErrorAction SilentlyContinue" >nul 2>&1
-powershell -NoProfile -NonInteractive -Command "Add-MpPreference -ExclusionProcess '!PY!' -ErrorAction SilentlyContinue" >nul 2>&1
+:: v29.42w (TASK-011, audit 2026-09-07): DATA DIRECTORIES ONLY. Never exclude
+:: the install dir, python.exe as a process, or .pyc/.pyd globally -- that
+:: hands same-user malware a standing Defender blind spot (anything dropped in
+:: an excluded dir, or delivered as Python bytecode, becomes invisible to
+:: real-time scanning). Only write-heavy data dirs (logs, DBs, quarantine,
+:: analysis temp) are excluded.
+powershell -NoProfile -NonInteractive -Command "Add-MpPreference -ExclusionPath '%APPDIR%downpour_data' -ErrorAction SilentlyContinue" >nul 2>&1
+powershell -NoProfile -NonInteractive -Command "Add-MpPreference -ExclusionPath '%APPDIR%downpour_v27_data' -ErrorAction SilentlyContinue" >nul 2>&1
+powershell -NoProfile -NonInteractive -Command "Add-MpPreference -ExclusionPath '%APPDIR%downpour_tmp' -ErrorAction SilentlyContinue" >nul 2>&1
 
 :: ASR exclusions -- DIFFERENT subsystem from ExclusionPath.
 :: Without AttackSurfaceReductionOnlyExclusions, ASR rule 3b576869 still fires
-:: even if ExclusionPath is set (this was the v28 launcher bug).
-powershell -NoProfile -NonInteractive -Command "Add-MpPreference -AttackSurfaceReductionOnlyExclusions '%APPDIR%' -ErrorAction SilentlyContinue" >nul 2>&1
-powershell -NoProfile -NonInteractive -Command "Add-MpPreference -AttackSurfaceReductionOnlyExclusions '!PY!' -ErrorAction SilentlyContinue" >nul 2>&1
+:: even if ExclusionPath is set (this was the v28 launcher bug). Data dirs only.
+powershell -NoProfile -NonInteractive -Command "Add-MpPreference -AttackSurfaceReductionOnlyExclusions '%APPDIR%downpour_tmp' -ErrorAction SilentlyContinue" >nul 2>&1
 
-:: Disable ASR 3b576869 during pip/startup (blocks new/unrecognised executables)
-:: We restore it to AuditMode after deps are installed
+:: Disable ASR 3b576869 ONLY while pip installs run (blocks new/unrecognised
+:: executables). Restored to ENABLED (not AuditMode) after deps are installed.
 powershell -NoProfile -NonInteractive -Command "Set-MpPreference -AttackSurfaceReductionRules_Ids '3b576869-a4ec-4529-8536-b80a7769e899' -AttackSurfaceReductionRules_Actions Disabled -ErrorAction SilentlyContinue" >nul 2>&1
 
 echo   [OK] Defender + ASR configured
@@ -235,9 +240,11 @@ if defined FREE_MEM (
     )
 )
 
-:: ── 12. RESTORE ASR RULE TO AUDIT MODE ───────────────────────────────────────
-:: Deps installed -- put rule back to audit (logs but doesn't block)
-powershell -NoProfile -NonInteractive -Command "Set-MpPreference -AttackSurfaceReductionRules_Ids '3b576869-a4ec-4529-8536-b80a7769e899' -AttackSurfaceReductionRules_Actions AuditMode -ErrorAction SilentlyContinue" >nul 2>&1
+:: ── 12. RESTORE ASR RULE (ENABLED) ────────────────────────────────────────────
+:: Deps installed -- put the rule back to ENABLED. v29.42w (TASK-011): the
+:: previous AuditMode restore left the rule log-only forever; a hardening rule
+:: should end up enforcing, not just auditing.
+powershell -NoProfile -NonInteractive -Command "Set-MpPreference -AttackSurfaceReductionRules_Ids '3b576869-a4ec-4529-8536-b80a7769e899' -AttackSurfaceReductionRules_Actions Enabled -ErrorAction SilentlyContinue" >nul 2>&1
 
 :: ── 13. STATUS BANNER ─────────────────────────────────────────────────────────
 echo.

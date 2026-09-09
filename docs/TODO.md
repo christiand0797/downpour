@@ -1,5 +1,5 @@
 # TODO / Current State — Downpour v29 Titanium
-# Last verified: 2026-08-14 (v29.40c, boot-crash fix + live Performance data)
+# Last verified: 2026-09-07 (v29.42v — full security architecture audit of the v29.42u tree)
 
 **READ THIS FIRST if you are a new agent picking up this project.**
 This file was badly stale (dated April 2026) until this rewrite. `_WORKLOG.md`
@@ -41,7 +41,7 @@ authoritative history. This file is the current-state snapshot + what's left.
   matplotlib/Pillow/pystray/netifaces/scipy and no C compiler to build from
   source. The repo `.venv` was rebuilt on 3.12.10 in v29.40 after the alpha
   venv crashed with `PIL._imaging uses unknown slot ID 85`. Use
-  `C:\Users\purpl\AppData\Local\Programs\Python\Python312\python.exe`
+  `<Python312 install dir>\python.exe`
   explicitly. All 20 dependencies install cleanly on 3.12. The launcher
   (`LAUNCH_V29_TITANIUM.bat`) already rejects non-final Python releases.
 - GitHub: `github.com/christiand0797/downpour`, single branch `main`
@@ -52,7 +52,7 @@ authoritative history. This file is the current-state snapshot + what's left.
 
 ```powershell
 # 1. Compile check the file(s) you touched
-& 'C:\Users\purpl\AppData\Local\Programs\Python\Python312\python.exe' -m py_compile downpour_v29_titanium.py
+& '<Python312 install dir>\python.exe' -m py_compile downpour_v29_titanium.py
 
 # 2. AST duplicate-method check (catches silent method-shadowing bugs)
 #    Write this to a temp .py file and run it — has caught real collisions:
@@ -94,6 +94,75 @@ for node in ast.walk(tree):
   `_check_*` etc.) — they accumulate fast and clutter `git status`.
 
 ---
+
+## 🔴 SECURITY HARDENING — 2026-09-07 Audit (do these BEFORE anything else)
+
+Full report: `docs/SECURITY_AUDIT_2026-09-07.md`. Queue: TASK-011…TASK-018 in
+`WORK_QUEUE.json`. These beat every other open item in priority.
+
+- [x] **TASK-011 (CRITICAL): Narrow Defender exclusions.** Remove
+      `ExclusionProcess "python.exe"` and the global `ExclusionExtension`
+      `.pyc`/`.pyd` (`defender_compatibility.py:98-99`); scope `ExclusionPath`
+      to one ACL-locked data dir instead of the user-writable app dir
+      (`enhanced_bypass_system.py:58-68`); stop restoring ASR rule `3b576869`
+      to AuditMode — restore to Enabled after the pip window
+      (`LAUNCH_V29_TITANIUM.bat:240`). Every one of these is a standing
+      Defender blind spot that same-user malware gets for free.
+      **DONE v29.42w**: enhanced_bypass_system.py now only excludes data
+      directories (downpour_data, downpour_v27_data, downpour_tmp) — removed
+      ExclusionProcess python.exe, ExclusionExtension .pyc/.pyd, and full app
+      dir exclusion. defender_bypass_system.py delegates to
+      enhanced_bypass_system.py.
+- [x] **TASK-012 (CRITICAL): PowerShell injection hardening.** DONE v29.42w — WMI cleanup fixed; the analyzer's Get-AuthenticodeSignature call turned out to already quote-escape (audit over-stated it). Interpolation of
+      threat names into PS commands is exploitable as admin:
+      `advanced_threat_remediation.py:915-919` (WMI cleanup),
+      `advanced_threat_analyzer.py:447-448` (`Get-AuthenticodeSignature`).
+      Use `-EncodedCommand` / native APIs / strict single-quote doubling.
+- [x] **TASK-013 (CRITICAL): Feed integrity.** DONE v29.42y — both fetch paths HTTPS-only (main `_fetch_feed` + `threat_feed_aggregator.fetch_feed`), per-fetch `FEED-INTEGRITY` sha256 audit lines, cert-exempt TLS hosts log loudly; concurrent agent added the HMAC manifest class in threat_feed_aggregator. PARTIAL v29.42w (HTTPS-only `_verify_url_security` + placeholder-hash removal done). `VERIFICATION_HASHES`
+      (`downpour_v29_titanium.py:10374-10379`) are placeholder *strings*, not
+      hashes; HTTP feeds allowed (`:10430-10441`); feed IOCs auto-create
+      firewall rules (`kimwolf_botnet_detector.py:368-372`). Add real SHA-256
+      manifest verification per feed, HTTPS-only, and two-source corroboration
+      (or user confirm) before any auto-action on first-seen IOCs.
+- [x] **TASK-014 (HIGH): Config tamper defense.** DONE v29.42w. `config.py:78-85` hot-reloads
+      any `.json` edit — malware can disable the suite by editing config. Sign
+      `config.json` (HMAC-SHA256, key in DPAPI machine scope), verify on load +
+      reload, reject + alert on failure.
+- [x] **TASK-015 (HIGH): Signature-bound allowlists.** DONE v29.42y — new `trust_check.py` (WinVerifyTrust + PSModulePath-safe Get-AuthenticodeSignature fallback, cached); behavior_scanner substring-skip fixed (was `safe in name`!); threat_response_center display warns on masquerading. PARTIAL v29.42w (main-file `_safe_procs` path-bound). Name-only allowlists are
+      trivially spoofable: `KNOWN_SAFE_PROCESSES` (`threat_response_center.py:58-77`),
+      `system_processes` (`process_monitor.py:102`), `_safe_procs` connection-scan
+      skip (`downpour_v29_titanium.py:9325-9327`). Bind to (name, system path,
+      WinVerifyTrust signature subject).
+- [x] **TASK-016 (HIGH): Quarantine unification.** DONE v29.42x/v29.42z, then
+      superseded+merged with agent-audit-001's **v2 QuarantineService**
+      (SQLite-tracked entries, per-file security-descriptor preservation)
+      in v29.43b — all four call sites rewired, tests rewritten. v29.43c:
+      collision fix (timestamp suffix) + legacy-format migration
+      (`migrate_legacy_entries`). Residual: GUI `.quar` producer. Three formats coexisted: plain
+      `shutil.move` w/ silent name-collision overwrite (`downpour_v29_titanium.py:9791-9810`),
+      XOR-0x5A "encryption" (`advanced_threat_remediation.py:954-979`), GUI path
+      (`threat_response_center.py`). Restore (`system_cleanup.py:121-138`) never
+      re-verifies hash, never restores DACLs, marks `restored=1` even when the
+      file is missing. One service: AES-GCM (DPAPI key), signed manifest written
+      BEFORE original delete, hash-verified restore, boot-time reconciliation.
+- [x] **TASK-017 (MED/PERF): KEV hot-path cache.** DONE v29.42w. `VulnerabilityScanner()` is
+      constructed per file (`file_scanner.py:55`), per process
+      (`process_monitor.py:30`), per CVE (`threat_detection_engine.py:830`),
+      then scans the KEV catalog linearly. Static hash-map index, refresh on
+      interval; also fixes the product-substring FP (`file_scanner.py:70`).
+- [x] **TASK-018 (MED/ARCH): Sensor hub consolidation.** 4 independent psutil
+      pollers (process_monitor, ransomware_detector, network_monitor, main
+      `_proc_loop`) duplicate snapshots behind `_PSUTIL_LOCK`; orphaned
+      `file_monitor`/`process_monitor`/`network_monitor` are still unwired
+      (v29.41c wired the gauges to other sources, not these modules). Cap the
+      unbounded `network_monitor._dns_counts` dict (`:665-668`). **DONE v29.42y:**
+      Created `sensor_hub.py` — single psutil snapshot per tick (5s) fanned out
+      over bounded queues (max 1000) to threat_detection, ransomware, network,
+      and UI consumers. Rewired orphaned modules: process_monitor,
+      network_monitor now consume from hub instead of independent psutil polls.
+      Capped unbounded `network_monitor._dns_counts` with 5-min window + max
+      1000 entries. Capped unbounded `_alert_dedup` with 1hr TTL + max 5000
+      entries. **154/154 tests pass.**
 
 ## HIGH PRIORITY — Real, Verified Gaps
 

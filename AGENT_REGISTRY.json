@@ -1,0 +1,74 @@
+{
+  "agents": [
+    {
+      "id": "agent-main-001",
+      "name": "Primary Downpour Agent",
+      "specialization": ["full-stack", "coordination", "ui", "threats", "performance", "network"],
+      "status": "idle",
+      "current_task": null,
+      "heartbeat": "2026-09-03T19:15:00Z",
+      "started_at": "2026-09-03T12:00:00Z",
+      "capabilities": ["code_edit", "file_ops", "bash", "git", "test_run"]
+    },
+    {
+      "id": "agent-perf-002",
+      "name": "Performance Optimizer",
+      "specialization": ["performance", "memory", "cpu", "gpu", "rendering"],
+      "status": "idle",
+      "current_task": null,
+      "heartbeat": "2026-09-03T12:15:00Z",
+      "started_at": "2026-09-03T12:15:00Z",
+      "capabilities": ["code_edit", "file_ops", "bash", "profiling", "optimization"]
+    },
+    {
+      "id": "agent-config-003",
+      "name": "Configuration Specialist",
+      "specialization": ["config", "settings", "hot-reload", "hardware-profiles"],
+      "status": "idle",
+      "current_task": null,
+      "heartbeat": "2026-09-03T12:15:00Z",
+      "started_at": "2026-09-03T12:15:00Z",
+      "capabilities": ["code_edit", "file_ops", "bash", "config_mgmt"]
+    },
+    {
+      "id": "agent-net-004",
+      "name": "Network Security Engineer",
+      "specialization": ["network", "vpn", "dns", "firewall", "kill-switch", "anomaly-detection"],
+      "status": "idle",
+      "current_task": null,
+      "heartbeat": "2026-09-03T12:15:00Z",
+      "started_at": "2026-09-03T12:15:00Z",
+      "capabilities": ["code_edit", "file_ops", "bash", "net_monitor", "firewall"]
+    },
+    {
+      "id": "agent-test-005",
+      "name": "Test Automation Engineer",
+      "specialization": ["testing", "thread-safety", "integration", "unit-tests"],
+      "status": "idle",
+      "current_task": null,
+      "heartbeat": "2026-09-03T12:15:00Z",
+      "started_at": "2026-09-03T12:15:00Z",
+      "capabilities": ["code_edit", "file_ops", "bash", "pytest", "test_design"]
+    },
+    {
+      "id": "agent-security-006",
+      "name": "Threat Intelligence Analyst",
+      "specialization": ["threat-intel", "mitre-attack", "yara", "behavioral-analysis"],
+      "status": "idle",
+      "current_task": null,
+      "heartbeat": "2026-09-03T12:15:00Z",
+      "started_at": "2026-09-03T12:15:00Z",
+      "capabilities": ["code_edit", "file_ops", "bash", "threat_intel", "mitre"]
+    },
+    {
+      "id": "agent-audit-007",
+      "name": "Security Architecture Auditor",
+      "specialization": ["security-audit", "attack-surface", "threat-modeling", "hardening", "code-review"],
+      "status": "idle",
+      "current_task": null,
+      "heartbeat": "2026-09-08T19:00:00Z",
+      "started_at": "2026-09-07T20:00:00Z",
+      "capabilities": ["code_review", "file_ops", "bash", "threat_modeling", "mitre"]
+    }
+  ]
+}

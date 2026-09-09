@@ -87,14 +87,25 @@ def banner(text: str) -> None:
 # ---------------------------------------------------------------------------
 
 def restore_quarantined_files(db: sqlite3.Connection) -> int:
-    """Restore files that were falsely quarantined (e.g., Windows Defender)."""
+    """Restore files that were falsely quarantined (e.g., Windows Defender).
+
+    v29.42w (TASK-016): hash-verified restore via the unified quarantine
+    core. A file is only restored when its decrypted content matches the
+    recorded SHA-256 (quarantine manifest, or the DB `hash` column for
+    manifest-less legacy rows); a mismatch is reported and the row is NOT
+    marked restored. Rows whose quarantine file is missing are marked
+    restored=2 (evidence lost) instead of 1, so they no longer reappear but
+    stay distinguishable from successful restores.
+    """
     banner("RESTORING FALSELY QUARANTINED FILES")
 
-    rows = db.execute("SELECT id, original_path, quarantine_path, metadata "
+    rows = db.execute("SELECT id, original_path, quarantine_path, metadata, hash "
                       "FROM quarantine WHERE restored = 0").fetchall()
 
     restored = 0
-    for row_id, orig_path, q_path, metadata in rows:
+    failed = 0
+    missing = 0
+    for row_id, orig_path, q_path, metadata, db_hash in rows:
         orig_lower = orig_path.lower()
         fname = os.path.basename(orig_path).lower()
 
@@ -117,33 +128,104 @@ def restore_quarantined_files(db: sqlite3.Connection) -> int:
         print(f"    FROM: {q_path}")
         print(f"    TO:   {orig_path}")
 
-        # Restore the file
+        # Restore the file (v29.43b: hash + preserved-DACL restore via the
+        # quarantine service; raw DB-hash-verified fallback for legacy rows)
         if os.path.exists(q_path):
             try:
-                # Ensure parent directory exists
                 os.makedirs(os.path.dirname(orig_path), exist_ok=True)
-                shutil.move(q_path, orig_path)
-                db.execute("UPDATE quarantine SET restored = 1 WHERE id = ?", (row_id,))
-                db.commit()
-                restored += 1
-                print(f"    [OK] Restored successfully")
-            except PermissionError:
-                print(f"    [FAIL] Permission denied — run as Administrator")
             except Exception as e:
                 print(f"    [FAIL] {e}")
-        else:
-            print(f"    [WARN] Quarantine file not found at {q_path}")
-            # Still mark as restored so it doesn't keep appearing
+                failed += 1
+                continue
+            verified = False
+            try:
+                from quarantine_core import restore_by_original_path
+                # The service keys restores by original path (its own DB
+                # tracks the content hash + preserved security descriptor).
+                verified = bool(restore_by_original_path(orig_path))
+                if not verified:
+                    print("    [WARN] no verified service entry — raw fallback")
+            except ImportError:
+                pass  # core unavailable — raw move below
+            except Exception as e:
+                print(f"    [FAIL] {e}")
+                failed += 1
+                continue
+            if not verified:
+                # Raw fallback move, DB-hash-verified when the hash is known
+                try:
+                    tmp_path = orig_path + '.downpour_restore.tmp'
+                    shutil.copyfile(q_path, tmp_path)
+                    if db_hash:
+                        import hashlib
+                        h = hashlib.sha256()
+                        with open(tmp_path, 'rb') as fh:
+                            for chunk in iter(lambda: fh.read(65536), b''):
+                                h.update(chunk)
+                        if h.hexdigest().lower() != db_hash.lower():
+                            os.remove(tmp_path)
+                            print("    [FAIL] hash mismatch vs DB — NOT restoring")
+                            failed += 1
+                            continue
+                    else:
+                        print("    [WARN] no DB hash — restored WITHOUT verification")
+                    os.replace(tmp_path, orig_path)
+                except PermissionError:
+                    print("    [FAIL] Permission denied — run as Administrator")
+                    failed += 1
+                    continue
+                except Exception as e:
+                    print(f"    [FAIL] {e}")
+                    failed += 1
+                    continue
             db.execute("UPDATE quarantine SET restored = 1 WHERE id = ?", (row_id,))
             db.commit()
+            restored += 1
+            print(f"    [OK] Restored (hash verified: {verified})")
+        else:
+            print(f"    [WARN] Quarantine file not found at {q_path} — "
+                  f"marking restored=2 (evidence lost, NOT a successful restore)")
+            db.execute("UPDATE quarantine SET restored = 2 WHERE id = ?", (row_id,))
+            db.commit()
+            missing += 1
 
     # Also undo firewall blocks for restored files
     if restored > 0:
         print(f"\n  Cleaning up firewall rules for restored files...")
         _remove_downpour_firewall_rules()
 
-    print(f"\n  Result: {restored} files restored out of {len(rows)} quarantined")
+    print(f"\n  Result: {restored} restored, {failed} failed, {missing} missing "
+          f"(out of {len(rows)} quarantined)")
     return restored
+
+
+# ---------------------------------------------------------------------------
+# 1b. Quarantine reconciliation (v29.42z — TASK-016 follow-up)
+# ---------------------------------------------------------------------------
+
+def reconcile_quarantine_state(db: sqlite3.Connection) -> dict:
+    """Run the quarantine service's reconciliation scan and report counts.
+
+    v29.43b: reconciliation lives in the quarantine service (its own DB
+    tracks entries, restored state, and per-file security descriptors).
+    The main `quarantine` table rows are reconciled separately by
+    restore_quarantined_files (restored=2 = evidence lost).
+    """
+    banner("QUARANTINE RECONCILIATION")
+    try:
+        from quarantine_core import reconcile_quarantine, list_quarantined
+        stats = reconcile_quarantine()
+        active = list_quarantined()
+        print(f"  Quarantine service entries (active): {len(active)}")
+        for key, val in sorted(stats.items()):
+            print(f"  {key}: {val}")
+        return stats
+    except ImportError:
+        print("  [WARN] quarantine_core unavailable — reconciliation skipped")
+        return {}
+    except Exception as e:
+        print(f"  [ERR] Quarantine reconciliation failed: {e}")
+        return {}
 
 
 # ---------------------------------------------------------------------------
@@ -394,6 +476,16 @@ def main():
     auto = '--auto' in sys.argv
     restore_only = '--restore' in sys.argv
     purge_only = '--purge-db' in sys.argv
+    reconcile_only = '--reconcile' in sys.argv
+
+    if reconcile_only:
+        if not QUARANTINE_DIR.parent.exists():
+            print(f"  [ERR] Quarantine dir not found: {QUARANTINE_DIR.parent}")
+            db.close()
+            return
+        reconcile_quarantine_state(db)
+        db.close()
+        return
 
     if not (auto or restore_only or purge_only):
         # Interactive menu
@@ -427,6 +519,7 @@ def main():
     stats = {}
 
     if auto or restore_only:
+        reconcile_quarantine_state(db)
         restored = restore_quarantined_files(db)
 
     if auto or purge_only:

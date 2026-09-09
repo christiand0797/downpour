@@ -38,6 +38,53 @@ VERIFIED_PROVIDERS: Dict[str, Dict] = {
     "cyberghost":     {"domains": ["cyberghostvpn.com"], "trusted": True},
 }
 
+# QUIC protocol error handling - common error codes
+QUIC_ERROR_CODES = {
+    0x0: "QUIC_NO_ERROR",
+    0x1: "QUIC_INTERNAL_ERROR",
+    0x2: "QUIC_CONNECTION_REFUSED",
+    0x3: "QUIC_FLOW_CONTROL_ERROR",
+    0x4: "QUIC_STREAM_LIMIT_ERROR",
+    0x5: "QUIC_STREAM_STATE_ERROR",
+    0x6: "QUIC_FINAL_SIZE_ERROR",
+    0x7: "QUIC_FRAME_ENCODING_ERROR",
+    0x8: "QUIC_TRANSPORT_PARAMETER_ERROR",
+    0x9: "QUIC_CONNECTION_ID_LIMIT_ERROR",
+    0xa: "QUIC_PROTOCOL_VIOLATION",
+    0xb: "QUIC_INVALID_TOKEN",
+    0xc: "QUIC_APPLICATION_ERROR",
+    0xd: "QUIC_CRYPTO_BUFFER_EXCEEDED",
+    0xe: "QUIC_KEY_UPDATE_ERROR",
+    0xf: "QUIC_AEAD_LIMIT_REACHED",
+    0x10: "QUIC_NO_VIABLE_PATH",
+    0x100: "QUIC_CRYPTO_ERROR",
+    0x101: "QUIC_TLS_FATAL_ALERT",
+}
+
+def _handle_quic_error(error_code: int) -> str:
+    """Translate QUIC error code to human-readable message."""
+    return QUIC_ERROR_CODES.get(error_code, f"QUIC_ERROR_{hex(error_code)}")
+
+def _safe_network_call(func, *args, **kwargs):
+    """Wrapper for network calls that handles QUIC protocol errors gracefully."""
+    import ssl
+    import urllib.error
+    try:
+        return func(*args, **kwargs)
+    except urllib.error.URLError as e:
+        if hasattr(e, 'reason') and isinstance(e.reason, ssl.SSLError):
+            reason_str = str(e.reason)
+            if 'QUIC' in reason_str or 'PROTOCOL_ERROR' in reason_str:
+                logger.warning(f"QUIC protocol error detected, falling back to HTTP/1.1: {reason_str}")
+                # Retry with HTTP/1.1 if possible
+                if 'http://' in str(args[0]):
+                    return func(*args, **kwargs)
+        raise
+    except Exception as e:
+        if 'QUIC' in str(e) or 'PROTOCOL_ERROR' in str(e):
+            logger.warning(f"QUIC protocol error in network call: {e}")
+        raise
+
 SUSPICIOUS_VPN_INDICATORS: List[str] = [
     "tor exit", "anonymous proxy", "hosting", "datacenter",
     "vpn", "proxy", "anonymizer", "darknet",
@@ -157,16 +204,30 @@ class VPNDetector:
         return found
 
     def _fetch_ip_info(self) -> Optional[Dict]:
-        """Fetch public IP metadata from ipinfo.io."""
-        try:
+        """Fetch public IP metadata from ipinfo.io with QUIC error handling."""
+        def _do_fetch():
             req = urllib.request.Request(
                 IP_INFO_URL,
                 headers={"User-Agent": "Downpour-Security/27.0"}
             )
             with urllib.request.urlopen(req, timeout=IP_TIMEOUT_SECONDS) as resp:
                 return json.loads(resp.read().decode())
+        
+        try:
+            return _safe_network_call(_do_fetch)
         except Exception as exc:
             logger.debug("_fetch_ip_info: %s", exc)
+            # Fallback: try alternative IP service
+            try:
+                alt_req = urllib.request.Request(
+                    "https://api.ipify.org?format=json",
+                    headers={"User-Agent": "Downpour-Security/27.0"}
+                )
+                with urllib.request.urlopen(alt_req, timeout=IP_TIMEOUT_SECONDS) as resp:
+                    data = json.loads(resp.read().decode())
+                    return {"ip": data.get("ip", ""), "country": "", "org": ""}
+            except Exception as alt_exc:
+                logger.debug("Fallback IP fetch failed: %s", alt_exc)
             return None
 
     def _check_suspicious_exit(self, ip_info: Dict) -> bool:
@@ -234,27 +295,74 @@ class VPNKillSwitch:
         return self._active
 
     def enable(self) -> bool:
-        """Block all outbound traffic (user should whitelist VPN adapter separately)."""
+        """Block all outbound traffic except allowed protocols (DNS, HTTP, HTTPS, QUIC, LAN)."""
         try:
+            # Block all outbound by default
             subprocess.run([
                 "netsh", "advfirewall", "firewall", "add", "rule",
-                f"name={self.RULE_NAME}", "dir=out", "action=block",
+                f"name={self.RULE_NAME}_BlockAll", "dir=out", "action=block",
                 "protocol=any", "enable=yes", "profile=any"
             ], check=True, capture_output=True, creationflags=self._NO_WIN)
+            
+            # Allow DNS (UDP 53)
+            subprocess.run([
+                "netsh", "advfirewall", "firewall", "add", "rule",
+                f"name={self.RULE_NAME}_Allow_DNS", "dir=out", "action=allow",
+                "protocol=UDP", "remoteport=53", "enable=yes", "profile=any"
+            ], check=True, capture_output=True, creationflags=self._NO_WIN)
+            
+            # Allow HTTPS (TCP 443)
+            subprocess.run([
+                "netsh", "advfirewall", "firewall", "add", "rule",
+                f"name={self.RULE_NAME}_Allow_HTTPS", "dir=out", "action=allow",
+                "protocol=TCP", "remoteport=443", "enable=yes", "profile=any"
+            ], check=True, capture_output=True, creationflags=self._NO_WIN)
+            
+            # Allow HTTP (TCP 80)
+            subprocess.run([
+                "netsh", "advfirewall", "firewall", "add", "rule",
+                f"name={self.RULE_NAME}_Allow_HTTP", "dir=out", "action=allow",
+                "protocol=TCP", "remoteport=80", "enable=yes", "profile=any"
+            ], check=True, capture_output=True, creationflags=self._NO_WIN)
+            
+            # Allow QUIC (UDP 443)
+            subprocess.run([
+                "netsh", "advfirewall", "firewall", "add", "rule",
+                f"name={self.RULE_NAME}_Allow_QUIC", "dir=out", "action=allow",
+                "protocol=UDP", "remoteport=443", "enable=yes", "profile=any"
+            ], check=True, capture_output=True, creationflags=self._NO_WIN)
+            
+            # Allow local subnet (LAN)
+            subprocess.run([
+                "netsh", "advfirewall", "firewall", "add", "rule",
+                f"name={self.RULE_NAME}_Allow_LAN", "dir=out", "action=allow",
+                "remoteip=192.168.0.0/16,10.0.0.0/8,172.16.0.0/12", "enable=yes", "profile=any"
+            ], check=True, capture_output=True, creationflags=self._NO_WIN)
+            
             self._active = True
-            logger.warning("VPN kill-switch ENABLED — outbound traffic blocked")
+            logger.warning("VPN kill-switch ENABLED — outbound traffic blocked except DNS, HTTP/HTTPS/QUIC, and LAN")
             return True
         except Exception as exc:
             logger.error("VPN kill-switch enable failed: %s", exc)
             return False
 
     def disable(self) -> bool:
-        """Remove kill-switch firewall rule."""
+        """Remove kill-switch firewall rules."""
         try:
-            subprocess.run([
-                "netsh", "advfirewall", "firewall", "delete", "rule",
-                f"name={self.RULE_NAME}"
-            ], check=True, capture_output=True, creationflags=self._NO_WIN)
+            # Delete all kill-switch rules
+            rule_names = [
+                f"{self.RULE_NAME}_BlockAll",
+                f"{self.RULE_NAME}_Allow_DNS",
+                f"{self.RULE_NAME}_Allow_HTTPS",
+                f"{self.RULE_NAME}_Allow_HTTP",
+                f"{self.RULE_NAME}_Allow_QUIC",
+                f"{self.RULE_NAME}_Allow_LAN",
+            ]
+            for rule_name in rule_names:
+                subprocess.run([
+                    "netsh", "advfirewall", "firewall", "delete", "rule",
+                    f"name={rule_name}"
+                ], check=True, capture_output=True, creationflags=self._NO_WIN)
             self._active = False
             logger.info("VPN kill-switch disabled")
             return True

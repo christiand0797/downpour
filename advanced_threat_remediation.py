@@ -200,10 +200,25 @@ class ThreatRemediationEngine:
         return actions
 
     def _block_ip(self, ip: str, label: str) -> RemediationAction:
-        """Add bidirectional firewall block for an IP."""
+        """Add bidirectional firewall block for an IP.
+
+        v29.43b (TASK-007 finding): the rule NAME was sanitized but
+        ``remoteip={ip}`` passed the raw value — a crafted "IP" containing
+        spaces could inject extra netsh arguments (parameter injection in
+        list-form subprocess). The IP is now validated with
+        ipaddress.ip_address() and the call is refused otherwise.
+        """
         safe_ip = re.sub(r'[^\d.:]', '_', ip)[:40]
         rule = f"DOWNPOUR_BLOCK_{safe_ip}"
         try:
+            import ipaddress as _ipaddr
+            try:
+                _ipaddr.ip_address(ip)
+            except ValueError:
+                return RemediationAction(
+                    "firewall_block", ip,
+                    f"Refused to block invalid IP: {ip!r}",
+                    success=False, requires_admin=True)
             # Delete existing rule first
             self._run_cmd(["netsh", "advfirewall", "firewall", "delete",
                            "rule", f"name={rule}"], timeout=6)
@@ -912,10 +927,24 @@ class ThreatRemediationEngine:
             cls = parts[0] if parts else ''
             name = parts[1] if len(parts) > 1 else wmi_name
 
+            # v29.42w (TASK-012): cls/name come from *detected threat data*
+            # and were interpolated straight into a PowerShell -Command
+            # string — a quote or $(...) in a name executed as admin.
+            # Validate the class name against the legal WMI identifier
+            # charset, and single-quote escape the consumer name (PS treats
+            # '...' as a literal string and '' as an escaped quote, so no
+            # subexpression can expand).
+            if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', cls or ''):
+                return RemediationAction(
+                    "wmi_clean", wmi_name[:100],
+                    f"Skipped WMI cleanup — invalid class identifier: {cls!r}",
+                    success=False, requires_admin=True)
+            safe_name = (name or '').replace("'", "''")
+
             self._run_cmd([
                 'powershell', '-NoProfile', '-Command',
                 f'Get-WMIObject -Namespace root\\subscription -Class {cls} '
-                f'| Where-Object {{$_.Name -eq "{name}"}} | Remove-WMIObject'
+                f"| Where-Object {{$_.Name -eq '{safe_name}'}} | Remove-WMIObject"
             ], timeout=10)
             return RemediationAction(
                 "wmi_clean", wmi_name,
@@ -944,50 +973,28 @@ class ThreatRemediationEngine:
                 success=False, requires_admin=True)
 
     def _quarantine_file(self, file_path: str) -> RemediationAction:
-        """Move malicious file to quarantine with XOR encryption."""
+        """Move malicious file to quarantine via the unified core (v29.42w).
+
+        TASK-016: the old inline XOR-0x5A writer is replaced by
+        quarantine_core.quarantine_file() — AES-256-GCM when `cryptography`
+        is available (XOR fallback otherwise), manifest written and
+        self-verified BEFORE the original is deleted, collision-safe naming,
+        hash-verified restore. Legacy .meta.json sidecars from the old
+        format are still restorable by quarantine_core.
+        """
         if not file_path or not os.path.exists(file_path):
             return RemediationAction(
                 "quarantine", file_path or "(empty)",
                 "File not found or already removed",
                 success=True)
         try:
-            q_dir = self.quarantine_dir / "locked"
-            q_dir.mkdir(parents=True, exist_ok=True)
-
-            # Calculate hash before quarantine
-            sha256 = hashlib.sha256()
-            with open(file_path, 'rb') as f:
-                for chunk in iter(lambda: f.read(65536), b''):
-                    sha256.update(chunk)
-            file_hash = sha256.hexdigest()
-
-            # XOR encrypt the file to prevent accidental execution
-            dest = q_dir / f"{os.path.basename(file_path)}.{file_hash[:8]}.quarantined"
-            xor_key = 0x5A
-            with open(file_path, 'rb') as src, open(str(dest), 'wb') as dst:
-                while True:
-                    chunk = src.read(65536)
-                    if not chunk:
-                        break
-                    dst.write(bytes(b ^ xor_key for b in chunk))
-
-            # Write metadata
-            meta = {
-                'original_path': file_path,
-                'hash_sha256': file_hash,
-                'quarantined_at': datetime.now().isoformat(),
-                'xor_key': xor_key,
-                'original_size': os.path.getsize(file_path),
-            }
-            with open(str(dest) + '.meta.json', 'w') as f:
-                json.dump(meta, f, indent=2)
-
-            # Remove original
-            os.remove(file_path)
-
+            from quarantine_core import quarantine_file
+            entry = quarantine_file(file_path, threat_type="remediation",
+                                    threat_name=os.path.basename(file_path))
             return RemediationAction(
                 "quarantine", file_path,
-                f"Quarantined: {os.path.basename(file_path)} (SHA256: {file_hash[:16]}...)",
+                f"Quarantined: {os.path.basename(file_path)} "
+                f"(SHA256: {entry.file_hash[:16]}..., entry {entry.id})",
                 success=True)
         except Exception as e:
             return RemediationAction(

@@ -69,6 +69,14 @@ from pathlib import Path
 import configparser
 from typing import Dict, List, Set, Tuple, Optional
 
+# Feed manifest verification (TASK-013 follow-up)
+try:
+    from threat_feed_aggregator import FeedManifestVerifier
+    _MANIFEST_VERIFIER_AVAILABLE = True
+except ImportError:
+    _MANIFEST_VERIFIER_AVAILABLE = False
+    FeedManifestVerifier = None
+
 class ThreatIntelligenceManager:
     """
     Central manager for all threat intelligence feeds.
@@ -138,6 +146,9 @@ class ThreatIntelligenceManager:
         # Initialize local database
         self.db_path = Path("threat_intel.db")
         self.init_database()
+
+        # Feed manifest verifier (TASK-013 follow-up)
+        self._manifest_verifier = FeedManifestVerifier() if _MANIFEST_VERIFIER_AVAILABLE else None
         
         # Threat data containers
         self.malicious_ips = set()
@@ -411,6 +422,18 @@ class ThreatIntelligenceManager:
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_domain_last_seen ON malicious_domains(last_seen)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_hash_first_seen ON malware_hashes(first_seen)')
 
+            # v29.41: Malicious URLs table for persistence across launches
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS malicious_urls (
+                    url TEXT PRIMARY KEY,
+                    source TEXT,
+                    first_seen TIMESTAMP,
+                    last_seen TIMESTAMP,
+                    tags TEXT
+                )
+            ''')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_url_last_seen ON malicious_urls(last_seen)')
+
             conn.commit()
 
             logging.info("[OK] Threat intelligence database initialized")
@@ -458,6 +481,46 @@ class ThreatIntelligenceManager:
         except Exception:
             pass
 
+    def _verify_feed_content(self, feed_name: str, content_bytes: bytes) -> bool:
+        """Verify feed content against signed manifest (TASK-013 follow-up).
+        
+        Returns True if content is verified (or baseline created), False if rejected.
+        """
+        if not self._manifest_verifier:
+            logging.warning(f"Feed manifest verifier unavailable — skipping verification for {feed_name}")
+            return True  # Allow if verifier not available
+        
+        try:
+            content_hash = hashlib.sha256(content_bytes).hexdigest()
+            expected = self._manifest_verifier.get_expected_hash(feed_name)
+            
+            if expected is None:
+                # Trust-on-first-use: create baseline manifest
+                if self._manifest_verifier.create_manifest(feed_name, content_hash):
+                    logging.warning(
+                        "FEED-INTEGRITY feed=%s baseline manifest created "
+                        "(trust-on-first-use, sha256=%s)",
+                        feed_name, content_hash[:16])
+                    return True
+                else:
+                    logging.error("FEED-INTEGRITY feed=%s baseline creation failed — feed rejected", feed_name)
+                    return False
+            elif content_hash == expected:
+                return True  # unchanged since last accepted fetch
+            else:
+                # Content changed — rolling re-sign (dynamic feeds legitimately change)
+                if self._manifest_verifier.resign(feed_name, content_hash):
+                    logging.info(
+                        "FEED-INTEGRITY feed=%s content changed — manifest "
+                        "re-signed (sha256=%s)", feed_name, content_hash[:16])
+                    return True
+                else:
+                    logging.error("FEED-INTEGRITY feed=%s re-sign failed — feed rejected", feed_name)
+                    return False
+        except Exception as e:
+            logging.error("FEED-INTEGRITY feed=%s verification error: %s", feed_name, e)
+            return False
+
     def update_threatfox_feed(self):
         """Update threat intelligence from ThreatFox (abuse.ch)."""
         try:
@@ -466,6 +529,11 @@ class ThreatIntelligenceManager:
             _get = self._session.get if self._session else requests.get
             response = _get(self.feeds['threatfox']['url'], timeout=30)
             response.raise_for_status()
+            
+            # Verify feed content against manifest (TASK-013 follow-up)
+            content_bytes = response.content
+            if not self._verify_feed_content('threatfox', content_bytes):
+                return 0
             
             data = response.json()
             iocs_added = 0
@@ -514,6 +582,11 @@ class ThreatIntelligenceManager:
             response = _get(self.feeds['urlhaus']['url'], timeout=30)
             response.raise_for_status()
             
+            # Verify feed content against manifest (TASK-013 follow-up)
+            content_bytes = response.content
+            if not self._verify_feed_content('urlhaus', content_bytes):
+                return 0
+            
             lines = response.text.strip().split('\n')
             iocs_added = 0
             
@@ -559,6 +632,11 @@ class ThreatIntelligenceManager:
             _get = self._session.get if self._session else requests.get
             response = _get(self.feeds['phishtank']['url'], timeout=30)
             response.raise_for_status()
+            
+            # Verify feed content against manifest (TASK-013 follow-up)
+            content_bytes = response.content
+            if not self._verify_feed_content('phishtank', content_bytes):
+                return 0
             
             lines = response.text.strip().split('\n')
             iocs_added = 0
@@ -833,6 +911,11 @@ class ThreatIntelligenceManager:
             response = _get(self.feeds['malwarebazaar']['url'], timeout=30)
             response.raise_for_status()
             
+            # Verify feed content against manifest (TASK-013 follow-up)
+            content_bytes = response.content
+            if not self._verify_feed_content('malwarebazaar', content_bytes):
+                return 0
+            
             # MalwareBazaar returns CSV
             lines = response.text.strip().split('\n')
             iocs_added = 0
@@ -1039,6 +1122,11 @@ class ThreatIntelligenceManager:
             response = _get(rules_url, timeout=30)
             response.raise_for_status()
             
+            # Verify feed content against manifest (TASK-013 follow-up)
+            content_bytes = response.content
+            if not self._verify_feed_content('emerging_threats', content_bytes):
+                return 0
+            
             lines = response.text.strip().split('\n')
             iocs_added = 0
             
@@ -1132,6 +1220,11 @@ class ThreatIntelligenceManager:
             _get = self._session.get if self._session else requests.get
             response = _get(self.feeds['blocklist_de']['url'], timeout=30)
             response.raise_for_status()
+            
+            # Verify feed content against manifest (TASK-013 follow-up)
+            content_bytes = response.content
+            if not self._verify_feed_content('blocklist_de', content_bytes):
+                return 0
             
             lines = response.text.strip().split('\n')
             iocs_added = 0

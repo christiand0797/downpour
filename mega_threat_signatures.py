@@ -305,71 +305,262 @@ MALWARE_FAMILIES = {
 }
 
 # ============================================================================
-# SUSPICIOUS PORT DATABASE - 500+ Ports
+# ENHANCED PORT ANALYSIS SYSTEM - Context-Aware with Confidence Scoring
 # ============================================================================
 
-SUSPICIOUS_PORTS = {
-    # RAT Default Ports
-    21: {"name": "FTP", "risk": 40, "reason": "File transfer, often abused"},
-    22: {"name": "SSH", "risk": 30, "reason": "Secure shell, check if expected"},
-    23: {"name": "Telnet", "risk": 60, "reason": "Insecure remote access"},
-    25: {"name": "SMTP", "risk": 35, "reason": "Mail transfer, spam risk"},
-    53: {"name": "DNS", "risk": 30, "reason": "DNS, check if expected"},
-    81: {"name": "HTTP Alt", "risk": 45, "reason": "Alternative HTTP, C2"},
-    82: {"name": "HTTP Alt", "risk": 45, "reason": "Alternative HTTP, C2"},
-    83: {"name": "HTTP Alt", "risk": 45, "reason": "Alternative HTTP, C2"},
-    84: {"name": "HTTP Alt", "risk": 45, "reason": "Alternative HTTP, C2"},
-    1177: {"name": "NjRAT", "risk": 90, "reason": "NjRAT default"},
-    1234: {"name": "SubSeven/Generic", "risk": 85, "reason": "Common RAT port"},
-    1243: {"name": "SubSeven", "risk": 90, "reason": "SubSeven backdoor"},
-    1337: {"name": "Elite/Leet", "risk": 85, "reason": "Classic hacker port"},
-    1433: {"name": "MSSQL", "risk": 50, "reason": "Database, check if expected"},
-    1604: {"name": "DarkComet", "risk": 90, "reason": "DarkComet default"},
-    2222: {"name": "SSH Alt", "risk": 50, "reason": "Alternative SSH"},
-    2323: {"name": "Telnet Alt", "risk": 60, "reason": "Alternative Telnet"},
-    2404: {"name": "Remcos", "risk": 90, "reason": "Remcos RAT default"},
-    3128: {"name": "Proxy", "risk": 55, "reason": "Squid proxy, C2 tunnel"},
-    3333: {"name": "Miner/RAT", "risk": 70, "reason": "Mining pool or RAT"},
-    3360: {"name": "NetWire", "risk": 90, "reason": "NetWire RAT"},
-    3389: {"name": "RDP", "risk": 60, "reason": "Remote Desktop"},
-    3460: {"name": "Poison Ivy", "risk": 90, "reason": "Poison Ivy RAT"},
-    4443: {"name": "HTTPS Alt", "risk": 55, "reason": "Alternative HTTPS, C2"},
-    4444: {"name": "Metasploit", "risk": 95, "reason": "Metasploit default"},
-    4445: {"name": "Meterpreter", "risk": 95, "reason": "Meterpreter shell"},
-    4449: {"name": "VenomRAT", "risk": 90, "reason": "VenomRAT default"},
-    4782: {"name": "Quasar", "risk": 90, "reason": "Quasar RAT default"},
-    5000: {"name": "AsyncRAT", "risk": 85, "reason": "AsyncRAT/UPnP"},
-    5001: {"name": "AsyncRAT Alt", "risk": 85, "reason": "AsyncRAT alternative"},
-    5200: {"name": "Warzone", "risk": 90, "reason": "Warzone RAT"},
-    5552: {"name": "Beast", "risk": 90, "reason": "Beast RAT default"},
-    5555: {"name": "Android ADB", "risk": 80, "reason": "Android Debug Bridge"},
-    5900: {"name": "VNC", "risk": 60, "reason": "Virtual Network Computing"},
-    6318: {"name": "Luminosity", "risk": 85, "reason": "Luminosity RAT"},
-    6606: {"name": "AsyncRAT", "risk": 90, "reason": "AsyncRAT port"},
-    6666: {"name": "DarkComet", "risk": 90, "reason": "DarkComet/IRC"},
-    6667: {"name": "IRC", "risk": 65, "reason": "IRC, botnet C2"},
-    6697: {"name": "IRC SSL", "risk": 65, "reason": "IRC over SSL"},
-    6969: {"name": "BlackShades", "risk": 85, "reason": "BlackShades RAT"},
-    7707: {"name": "AsyncRAT", "risk": 90, "reason": "AsyncRAT port"},
-    7777: {"name": "Tini/NjRAT", "risk": 90, "reason": "Common RAT port"},
-    8000: {"name": "GhostRAT", "risk": 85, "reason": "Gh0st RAT default"},
-    8080: {"name": "HTTP Proxy", "risk": 50, "reason": "HTTP proxy, C2"},
-    8808: {"name": "AsyncRAT", "risk": 90, "reason": "AsyncRAT port"},
-    8888: {"name": "HTTP Alt", "risk": 50, "reason": "Alternative HTTP"},
-    8989: {"name": "LimeRAT", "risk": 85, "reason": "LimeRAT default"},
-    9001: {"name": "Tor", "risk": 70, "reason": "Tor network"},
-    9050: {"name": "Tor SOCKS", "risk": 70, "reason": "Tor SOCKS proxy"},
-    9999: {"name": "DarkComet", "risk": 90, "reason": "DarkComet/BitRAT"},
-    10134: {"name": "Orcus", "risk": 90, "reason": "Orcus RAT default"},
-    12345: {"name": "NetBus", "risk": 90, "reason": "NetBus backdoor"},
-    12346: {"name": "NetBus", "risk": 90, "reason": "NetBus alternative"},
-    20000: {"name": "Poison Ivy", "risk": 90, "reason": "Poison Ivy alt"},
-    27374: {"name": "SubSeven", "risk": 90, "reason": "SubSeven default"},
-    31337: {"name": "Back Orifice", "risk": 95, "reason": "Classic backdoor"},
-    31338: {"name": "Back Orifice", "risk": 95, "reason": "Back Orifice alt"},
-    54321: {"name": "BO2K", "risk": 90, "reason": "Back Orifice 2000"},
-    54984: {"name": "NanoCore", "risk": 90, "reason": "NanoCore RAT"},
-    65535: {"name": "RC1", "risk": 80, "reason": "Various trojans"},
+from dataclasses import dataclass
+from typing import Dict, List, Set, Optional
+from enum import Enum
+
+class PortCategory(Enum):
+    """Port categories for context-aware analysis."""
+    DEFINITELY_MALICIOUS = "definitely_malicious"      # Known RAT/C2 ports - almost never legitimate
+    HIGH_RISK = "high_risk"                            # Commonly abused, rarely legitimate
+    MEDIUM_RISK = "medium_risk"                        # Sometimes abused, often legitimate
+    LOW_RISK = "low_risk"                              # Standard service ports, rarely malicious
+    LEGITIMATE_SERVICE = "legitimate_service"          # Well-known legitimate services
+
+@dataclass
+class PortProfile:
+    """Enhanced port profile with context-aware analysis."""
+    port: int
+    name: str
+    category: PortCategory
+    base_risk: int  # 0-100
+    known_malware: List[str]  # Specific malware families using this port
+    legitimate_uses: List[str]  # Legitimate services using this port
+    requires_verification: bool = False  # If True, needs additional context before flagging
+    
+    def calculate_confidence(self, context: Dict) -> float:
+        """Calculate confidence score (0-100) based on context."""
+        confidence = self.base_risk
+        
+        # Reduce confidence if legitimate process is using the port
+        proc_name = context.get('process_name', '').lower()
+        proc_path = context.get('process_path', '').lower()
+        direction = context.get('direction', 'outbound')
+        
+        # Known legitimate processes for this port
+        legitimate_procs = self.legitimate_uses
+        for legit in legitimate_procs:
+            if legit.lower() in proc_name or legit.lower() in proc_path:
+                confidence *= 0.1  # Drastically reduce confidence
+                break
+        
+        # Increase confidence for known malware processes
+        for malware in self.known_malware:
+            if malware.lower() in proc_name or malware.lower() in proc_path:
+                confidence = min(100, confidence * 1.5)
+                break
+        
+        # Direction matters - inbound connections to listening ports are more suspicious
+        if direction == 'inbound' and self.category in [PortCategory.HIGH_RISK, PortCategory.DEFINITELY_MALICIOUS]:
+            confidence = min(100, confidence * 1.2)
+        
+        # Time-based context (night time connections more suspicious for some ports)
+        import datetime
+        hour = datetime.datetime.now().hour
+        if 0 <= hour <= 6 and self.category != PortCategory.LEGITIMATE_SERVICE:
+            confidence = min(100, confidence * 1.1)
+        
+        return min(100, max(0, confidence))
+    
+    def should_flag(self, context: Dict, threshold: float = 70.0) -> bool:
+        """Determine if this port should be flagged based on context."""
+        confidence = self.calculate_confidence(context)
+        return confidence >= threshold
+
+
+# Port profiles with context-aware analysis
+PORT_PROFILES: Dict[int, PortProfile] = {
+    # DEFINITELY MALICIOUS - Known RAT/C2 default ports, almost never legitimate
+    1177: PortProfile(1177, "NjRAT", PortCategory.DEFINITELY_MALICIOUS, 95, 
+                      ["njrat"], [], requires_verification=False),
+    1234: PortProfile(1234, "SubSeven/Generic", PortCategory.DEFINITELY_MALICIOUS, 90,
+                      ["subseven"], [], requires_verification=False),
+    1243: PortProfile(1243, "SubSeven", PortCategory.DEFINITELY_MALICIOUS, 95,
+                      ["subseven"], [], requires_verification=False),
+    1337: PortProfile(1337, "Elite/Leet", PortCategory.DEFINITELY_MALICIOUS, 90,
+                      ["leet"], [], requires_verification=False),
+    1604: PortProfile(1604, "DarkComet", PortCategory.DEFINITELY_MALICIOUS, 95,
+                      ["darkcomet"], [], requires_verification=False),
+    2404: PortProfile(2404, "Remcos", PortCategory.DEFINITELY_MALICIOUS, 95,
+                      ["remcos"], [], requires_verification=False),
+    3360: PortProfile(3360, "NetWire", PortCategory.DEFINITELY_MALICIOUS, 95,
+                      ["netwire"], [], requires_verification=False),
+    3460: PortProfile(3460, "Poison Ivy", PortCategory.DEFINITELY_MALICIOUS, 95,
+                      ["poison ivy"], [], requires_verification=False),
+    4444: PortProfile(4444, "Metasploit", PortCategory.DEFINITELY_MALICIOUS, 98,
+                      ["metasploit", "meterpreter"], [], requires_verification=False),
+    4445: PortProfile(4445, "Meterpreter", PortCategory.DEFINITELY_MALICIOUS, 98,
+                      ["metasploit", "meterpreter"], [], requires_verification=False),
+    4449: PortProfile(4449, "VenomRAT", PortCategory.DEFINITELY_MALICIOUS, 95,
+                      ["venomrat"], [], requires_verification=False),
+    4782: PortProfile(4782, "Quasar", PortCategory.DEFINITELY_MALICIOUS, 95,
+                      ["quasar"], [], requires_verification=False),
+    5000: PortProfile(5000, "AsyncRAT", PortCategory.DEFINITELY_MALICIOUS, 90,
+                      ["asyncrat"], ["upnp"], requires_verification=True),
+    5200: PortProfile(5200, "Warzone", PortCategory.DEFINITELY_MALICIOUS, 95,
+                      ["warzone"], [], requires_verification=False),
+    5552: PortProfile(5552, "Beast", PortCategory.DEFINITELY_MALICIOUS, 95,
+                      ["beast"], [], requires_verification=False),
+    6318: PortProfile(6318, "Luminosity", PortCategory.DEFINITELY_MALICIOUS, 90,
+                      ["luminosity"], [], requires_verification=False),
+    6606: PortProfile(6606, "AsyncRAT", PortCategory.DEFINITELY_MALICIOUS, 95,
+                      ["asyncrat"], [], requires_verification=False),
+    6666: PortProfile(6666, "DarkComet/IRC", PortCategory.DEFINITELY_MALICIOUS, 90,
+                      ["darkcomet"], ["ircd"], requires_verification=True),
+    6969: PortProfile(6969, "BlackShades", PortCategory.DEFINITELY_MALICIOUS, 90,
+                      ["blackshades"], [], requires_verification=False),
+    7707: PortProfile(7707, "AsyncRAT", PortCategory.DEFINITELY_MALICIOUS, 95,
+                      ["asyncrat"], [], requires_verification=False),
+    7777: PortProfile(7777, "Tini/NjRAT", PortCategory.DEFINITELY_MALICIOUS, 95,
+                      ["tini", "njrat"], [], requires_verification=False),
+    8000: PortProfile(8000, "GhostRAT", PortCategory.DEFINITELY_MALICIOUS, 90,
+                      ["gh0st", "ghostrat"], ["http-alt"], requires_verification=True),
+    8808: PortProfile(8808, "AsyncRAT", PortCategory.DEFINITELY_MALICIOUS, 95,
+                      ["asyncrat"], [], requires_verification=False),
+    8989: PortProfile(8989, "LimeRAT", PortCategory.DEFINITELY_MALICIOUS, 90,
+                      ["limerat"], [], requires_verification=False),
+    9999: PortProfile(9999, "DarkComet/BitRAT", PortCategory.DEFINITELY_MALICIOUS, 95,
+                      ["darkcomet", "bitrat"], [], requires_verification=False),
+    10134: PortProfile(10134, "Orcus", PortCategory.DEFINITELY_MALICIOUS, 95,
+                       ["orcus"], [], requires_verification=False),
+    12345: PortProfile(12345, "NetBus", PortCategory.DEFINITELY_MALICIOUS, 95,
+                       ["netbus"], [], requires_verification=False),
+    12346: PortProfile(12346, "NetBus", PortCategory.DEFINITELY_MALICIOUS, 95,
+                       ["netbus"], [], requires_verification=False),
+    20000: PortProfile(20000, "Poison Ivy", PortCategory.DEFINITELY_MALICIOUS, 95,
+                       ["poison ivy"], [], requires_verification=False),
+    27374: PortProfile(27374, "SubSeven", PortCategory.DEFINITELY_MALICIOUS, 95,
+                       ["subseven"], [], requires_verification=False),
+    31337: PortProfile(31337, "Back Orifice", PortCategory.DEFINITELY_MALICIOUS, 98,
+                       ["back orifice", "bo2k"], [], requires_verification=False),
+    31338: PortProfile(31338, "Back Orifice", PortCategory.DEFINITELY_MALICIOUS, 98,
+                       ["back orifice"], [], requires_verification=False),
+    54321: PortProfile(54321, "BO2K", PortCategory.DEFINITELY_MALICIOUS, 95,
+                       ["back orifice 2000"], [], requires_verification=False),
+    54984: PortProfile(54984, "NanoCore", PortCategory.DEFINITELY_MALICIOUS, 95,
+                       ["nanocore"], [], requires_verification=False),
+    
+    # HIGH RISK - Commonly abused ports, requires verification
+    21: PortProfile(21, "FTP", PortCategory.HIGH_RISK, 60,
+                    ["generic ftp malware"], ["ftp", "filezilla", "vsftpd", "proftpd"], requires_verification=True),
+    23: PortProfile(23, "Telnet", PortCategory.HIGH_RISK, 70,
+                    ["mirai", "iot botnets"], ["telnet"], requires_verification=True),
+    3128: PortProfile(3128, "Squid Proxy", PortCategory.HIGH_RISK, 65,
+                      ["proxy tunneling"], ["squid", "proxy"], requires_verification=True),
+    3333: PortProfile(3333, "Miner/RAT", PortCategory.HIGH_RISK, 75,
+                      ["miners", "rats"], ["mining pool"], requires_verification=True),
+    3389: PortProfile(3389, "RDP", PortCategory.HIGH_RISK, 70,
+                      ["rdp exploits", "brute force"], ["mstsc", "rdp", "remmina"], requires_verification=True),
+    4443: PortProfile(4443, "HTTPS Alt", PortCategory.HIGH_RISK, 65,
+                      ["c2 over https"], ["https-alt"], requires_verification=True),
+    5555: PortProfile(5555, "Android ADB", PortCategory.HIGH_RISK, 75,
+                      ["adb exploits", "android malware"], ["adb"], requires_verification=True),
+    5900: PortProfile(5900, "VNC", PortCategory.HIGH_RISK, 70,
+                      ["vnc exploits", "remote access"], ["vnc", "tightvnc", "realvnc", "tigervnc"], requires_verification=True),
+    6667: PortProfile(6667, "IRC", PortCategory.HIGH_RISK, 70,
+                      ["botnet c2"], ["ircd", "irssi", "weechat", "hexchat"], requires_verification=True),
+    6697: PortProfile(6697, "IRC SSL", PortCategory.HIGH_RISK, 70,
+                      ["botnet c2 ssl"], ["ircd"], requires_verification=True),
+    8080: PortProfile(8080, "HTTP Proxy", PortCategory.HIGH_RISK, 60,
+                      ["c2 proxy", "malware proxy"], ["http-proxy", "tomcat", "jetty", "jenkins"], requires_verification=True),
+    8888: PortProfile(8888, "HTTP Alt", PortCategory.HIGH_RISK, 60,
+                      ["c2"], ["http-alt", "jupyter"], requires_verification=True),
+    9001: PortProfile(9001, "Tor", PortCategory.HIGH_RISK, 75,
+                      ["tor exit", "hidden services"], ["tor"], requires_verification=True),
+    9050: PortProfile(9050, "Tor SOCKS", PortCategory.HIGH_RISK, 75,
+                      ["tor proxy"], ["tor"], requires_verification=True),
+    
+    # MEDIUM RISK - Sometimes abused, often legitimate
+    22: PortProfile(22, "SSH", PortCategory.MEDIUM_RISK, 35,
+                    ["ssh brute force", "tunneling"], ["ssh", "openssh", "putty", "winscp"], requires_verification=True),
+    25: PortProfile(25, "SMTP", PortCategory.MEDIUM_RISK, 40,
+                    ["spam", "mail relay"], ["postfix", "sendmail", "exchange", "smtp"], requires_verification=True),
+    53: PortProfile(53, "DNS", PortCategory.MEDIUM_RISK, 30,
+                    ["dns tunneling", "dga"], ["dns", "bind", "unbound", "dnsmasq"], requires_verification=True),
+    81: PortProfile(81, "HTTP Alt", PortCategory.MEDIUM_RISK, 45,
+                    ["c2"], ["http-alt"], requires_verification=True),
+    82: PortProfile(82, "HTTP Alt", PortCategory.MEDIUM_RISK, 45,
+                    ["c2"], ["http-alt"], requires_verification=True),
+    83: PortProfile(83, "HTTP Alt", PortCategory.MEDIUM_RISK, 45,
+                    ["c2"], ["http-alt"], requires_verification=True),
+    84: PortProfile(84, "HTTP Alt", PortCategory.MEDIUM_RISK, 45,
+                    ["c2"], ["http-alt"], requires_verification=True),
+    1433: PortProfile(1433, "MSSQL", PortCategory.MEDIUM_RISK, 50,
+                      ["sql exploits"], ["sqlserver", "mssql"], requires_verification=True),
+    2222: PortProfile(2222, "SSH Alt", PortCategory.MEDIUM_RISK, 50,
+                      ["ssh alt"], ["ssh"], requires_verification=True),
+    2323: PortProfile(2323, "Telnet Alt", PortCategory.MEDIUM_RISK, 60,
+                      ["telnet alt", "iot"], ["telnet"], requires_verification=True),
+    5001: PortProfile(5001, "AsyncRAT Alt", PortCategory.MEDIUM_RISK, 75,
+                      ["asyncrat"], [], requires_verification=True),
+    65535: PortProfile(65535, "RC1/Various", PortCategory.MEDIUM_RISK, 70,
+                       ["various trojans"], [], requires_verification=True),
+    
+    # LOW RISK - Standard service ports, rarely malicious on their own
+    80: PortProfile(80, "HTTP", PortCategory.LOW_RISK, 15,
+                    ["web exploits", "drive-by"], ["http", "nginx", "apache", "iis"], requires_verification=True),
+    443: PortProfile(443, "HTTPS", PortCategory.LOW_RISK, 10,
+                     ["malware c2 over https"], ["https", "nginx", "apache", "iis"], requires_verification=True),
+    135: PortProfile(135, "RPC", PortCategory.LOW_RISK, 25,
+                     ["rpc exploits"], ["rpc", "epmap"], requires_verification=True),
+    139: PortProfile(139, "NetBIOS", PortCategory.LOW_RISK, 25,
+                     ["smb exploits"], ["smb", "netbios"], requires_verification=True),
+    445: PortProfile(445, "SMB", PortCategory.LOW_RISK, 30,
+                     ["eternalblue", "smb exploits"], ["smb", "samba"], requires_verification=True),
+    1433: PortProfile(1433, "MSSQL", PortCategory.LOW_RISK, 30,
+                      ["sql exploits"], ["sqlserver"], requires_verification=True),
+    3306: PortProfile(3306, "MySQL", PortCategory.LOW_RISK, 30,
+                      ["mysql exploits"], ["mysql", "mariadb"], requires_verification=True),
+    5432: PortProfile(5432, "PostgreSQL", PortCategory.LOW_RISK, 25,
+                      ["postgres exploits"], ["postgres"], requires_verification=True),
+    6379: PortProfile(6379, "Redis", PortCategory.LOW_RISK, 30,
+                      ["redis exploits"], ["redis"], requires_verification=True),
+    27017: PortProfile(27017, "MongoDB", PortCategory.LOW_RISK, 30,
+                       ["mongodb exploits"], ["mongodb"], requires_verification=True),
+    
+    # LEGITIMATE SERVICES - Well-known legitimate services
+    67: PortProfile(67, "DHCP Server", PortCategory.LEGITIMATE_SERVICE, 5,
+                    [], ["dhcp", "dhcpd"], requires_verification=False),
+    68: PortProfile(68, "DHCP Client", PortCategory.LEGITIMATE_SERVICE, 5,
+                    [], ["dhcp", "dhclient"], requires_verification=False),
+    123: PortProfile(123, "NTP", PortCategory.LEGITIMATE_SERVICE, 5,
+                     [], ["ntp", "ntpd", "chronyd", "w32time"], requires_verification=False),
+    161: PortProfile(161, "SNMP", PortCategory.LEGITIMATE_SERVICE, 15,
+                     ["snmp exploits"], ["snmp", "snmpd"], requires_verification=True),
+    389: PortProfile(389, "LDAP", PortCategory.LEGITIMATE_SERVICE, 20,
+                     ["ldap exploits"], ["ldap", "activedirectory"], requires_verification=True),
+    636: PortProfile(636, "LDAPS", PortCategory.LEGITIMATE_SERVICE, 15,
+                     [], ["ldaps", "activedirectory"], requires_verification=True),
+    3268: PortProfile(3268, "Global Catalog", PortCategory.LEGITIMATE_SERVICE, 10,
+                      [], ["activedirectory"], requires_verification=False),
+    3269: PortProfile(3269, "Global Catalog SSL", PortCategory.LEGITIMATE_SERVICE, 10,
+                      [], ["activedirectory"], requires_verification=False),
+    5353: PortProfile(5353, "mDNS", PortCategory.LEGITIMATE_SERVICE, 5,
+                      [], ["mdns", "avahi", "bonjour"], requires_verification=False),
+    5355: PortProfile(5355, "LLMNR", PortCategory.LEGITIMATE_SERVICE, 5,
+                      [], ["llmnr"], requires_verification=False),
+}
+
+# Backward compatibility - SUSPICIOUS_PORTS dict for existing code
+SUSPICIOUS_PORTS = {}
+for port, profile in PORT_PROFILES.items():
+    SUSPICIOUS_PORTS[port] = {
+        "name": profile.name,
+        "risk": profile.base_risk,
+        "reason": f"Category: {profile.category.value}",
+        "category": profile.category.value,
+        "known_malware": profile.known_malware,
+        "legitimate_uses": profile.legitimate_uses,
+        "requires_verification": profile.requires_verification
+    }
+
+# Miner pool ports
+MINER_PORTS = {
+    3333, 3334, 3335, 3336, 4444, 5555, 6666, 7777,
+    8888, 9999, 14444, 14433, 45560, 45700
 }
 
 # Miner pool ports

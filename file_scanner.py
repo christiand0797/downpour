@@ -20,6 +20,8 @@ import hashlib
 import mimetypes
 import logging
 import json
+import threading
+import time
 from pathlib import Path
 from datetime import datetime
 import zipfile
@@ -47,28 +49,70 @@ except ImportError:
     VULN_SCANNER_AVAILABLE = False
 
 
+# v29.42w (TASK-017): process-wide cached KEV index. check_file_kev used to
+# construct a fresh VulnerabilityScanner (full SQLite init) and linearly scan
+# the whole KEV catalog PER FILE — O(files x catalog). The index is built once
+# and refreshed at most once per hour.
+_KEV_INDEX: dict = {}
+_KEV_INDEX_TS: float = 0.0
+_KEV_INDEX_LOCK = threading.Lock()
+_KEV_TTL_SECONDS = 3600
+_KEV_SCANNER = None
+
+
+def _get_kev_index() -> dict:
+    """Return the shared KEV index {'by_hash': {...}, 'products': [...]}, lazily refreshed."""
+    global _KEV_SCANNER, _KEV_INDEX, _KEV_INDEX_TS
+    now = time.monotonic()
+    if _KEV_INDEX and (now - _KEV_INDEX_TS) < _KEV_TTL_SECONDS:
+        return _KEV_INDEX
+    with _KEV_INDEX_LOCK:
+        now = time.monotonic()
+        if _KEV_INDEX and (now - _KEV_INDEX_TS) < _KEV_TTL_SECONDS:
+            return _KEV_INDEX
+        by_hash: dict = {}
+        products: list = []
+        try:
+            if _KEV_SCANNER is None:
+                _KEV_SCANNER = VulnerabilityScanner()
+            kev_data = _KEV_SCANNER.get_kev_catalog() or []
+            for entry in kev_data:
+                for fh in (entry.get('fileHashes') or []):
+                    if fh:
+                        by_hash.setdefault(str(fh).lower(), []).append(entry)
+                prod = (entry.get('product') or '').lower().strip()
+                if prod:
+                    products.append((prod, entry))
+            _KEV_INDEX = {'by_hash': by_hash, 'products': products}
+        except Exception:
+            # Broken scanner/DB: keep whatever index we have (possibly empty)
+            # but refresh the timestamp so we back off instead of hammering it
+            # on every file scanned.
+            _KEV_INDEX = _KEV_INDEX if _KEV_INDEX else {'by_hash': {}, 'products': []}
+        _KEV_INDEX_TS = now
+    return _KEV_INDEX
+
+
 def check_file_kev(file_hash: str, file_name: str) -> dict:
-    """Check file hash/name against CISA KEV catalog."""
+    """Check file hash/name against CISA KEV catalog (cached index, v29.42w)."""
     if not VULN_SCANNER_AVAILABLE:
         return {'matched_cves': [], 'kev_available': False}
     try:
-        scanner = VulnerabilityScanner()
-        kev_data = scanner.get_kev_catalog()
-        if not kev_data:
-            return {'matched_cves': [], 'kev_available': False}
-        
-        matches = []
-        file_name_lower = file_name.lower()
-        hash_lower = file_hash.lower() if file_hash else ''
-        
-        for entry in kev_data:
-            entry_hashes = entry.get('fileHashes', [])
-            for fh in entry_hashes:
-                if fh.lower() == hash_lower:
+        index = _get_kev_index()
+        matches: list = []
+        hash_lower = (file_hash or '').lower()
+        if hash_lower:
+            matches.extend(index['by_hash'].get(hash_lower, []))
+        file_name_lower = (file_name or '').lower().strip()
+        if file_name_lower:
+            # v29.42w: whole-token product match. The old bidirectional
+            # substring check flagged any file whose name merely appeared
+            # inside (or contained) a product string.
+            for prod, entry in index['products']:
+                if (file_name_lower == prod
+                        or re.search(r'(?<![a-z0-9])' + re.escape(prod) + r'(?![a-z0-9])',
+                                     file_name_lower)):
                     matches.append(entry)
-                    break
-            if file_name_lower in entry.get('product', '').lower():
-                matches.append(entry)
         
         return {
             'matched_cves': matches[:5],

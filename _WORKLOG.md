@@ -2,6 +2,364 @@
 
 ## Branch: main
 
+## Session 2026-09-08 — v29.43g: cross-agent bug fixes (manifest init crash + migration over-scan)
+- 🐞 **Fixed FeedManifestVerifier first-run crash** (found via the concurrent
+  agent's wiring of it into `threat_intelligence.py`): `__init__` called
+  `_load_or_create_key()` BEFORE `MANIFEST_DIR.mkdir()` — on a fresh checkout
+  the DPAPI write AND the RAW fallback write both failed with
+  FileNotFoundError (the except-block re-raised). Dir is now created before
+  any key write. This un-breaks `test_functional.py::test_threat_intelligence`.
+- 🐞 **Fixed migrate_legacy_entries over-scan** (found via
+  test_migrate_skips_v2_owned_files): the migration scanned EVERY file in
+  the legacy root and ingested the service's OWN storage — renaming
+  `.quarantine_key` and `quarantine.db` as "legacy" artifacts, corrupting
+  the v2 service on the next run. Now ingests only known content types
+  (`.quarantined` / `.locked` / `.quar`).
+- ✅ Confirmed the concurrent agent completed the TASK-013 follow-up
+  themselves: `threat_intelligence.py` now constructs the manifest verifier
+  (task noted in queue).
+- ✅ Verification: py_compile OK; **199/199 tests pass**.
+
+## Session 2026-09-08 — v29.43f: code_integrity self-check + isolate_network fix
+- ✅ **New `code_integrity.py`** (audit §8.4 — the app dir is Defender-
+  excluded and user-writable, so code replacement was undetectable): signed
+  self-integrity manifest — every .py/.yar under the app dir is sha256'd,
+  the manifest is HMAC-signed with a DPAPI-protected key
+  (`downpour_data/code_integrity.key`), and `verify_baseline()` reports
+  modified/missing/extra files + baseline tamper. CLI: `python
+  code_integrity.py baseline|verify`. Wired as section 6b in
+  downpour_health_check.py. Honest limitation documented: a same-user
+  attacker can delete key+baseline, but that act is itself a loud alert.
+- 🐞 Fixed `emergency_response.isolate_network` false-success (audit §9):
+  verification now checks ADAPTER STATUS via psutil instead of a socket
+  probe — the old code treated any connection failure (firewall rule, DNS
+  outage) as "isolated" while adapters were still up.
+- 🐞 Fixed 2 self-bugs during testing: build_manifest skip-check used
+  ABSOLUTE path parts (misfired when the tree lives under a skipped dir
+  name like downpour_tmp — pytest tmp_path); verify_baseline popped _meta
+  before signing (save signs the whole dict — shapes must match).
+- ✅ Verification: py_compile OK; **199/199 tests pass** (8 new).
+
+## Session 2026-09-08 — v29.43e: quarantine streaming format (memory-DoS fix) + TASK-010 deferred
+- 🐞 **Memory-DoS fix in the v2 quarantine service**: `quarantine()` read the
+  WHOLE file into RAM and `_encrypt()` doubled it (a multi-GB sample = a
+  multi-GB spike); `restore()` did read + decrypt + write + re-read (~3×).
+  New streamed format: `DQS2` magic + 8B nonce prefix + per-64KiB-chunk
+  AES-GCM (nonce = prefix + counter BE32 — unique per chunk, constant
+  memory). Files ≤64MB keep the single-shot format; ≥threshold use the
+  stream path with a decrypt-hash self-verification at quarantine and a
+  streaming-hash verify on restore. Old v0/v1 formats remain restorable
+  (format detected by the first 4 bytes).
+- ✅ 2 new tests (stream roundtrip with forced 1KB threshold + stream tamper
+  refusal) — **191/191 tests pass**.
+- ⏸️ **TASK-010 deferred (honest close-out)**: yara-python compiles rules to
+  a CPU VM — there is no GPU execution model to offload to, so the claimed
+  CUDA acceleration is not achievable with the current matcher. A real
+  implementation needs a custom engine (e.g. Hyperscan-class) + a rule
+  translator. Machine has an RTX 3050 (hardware verified) — the gap is
+  software. Recommend re-scoping or closing permanently.
+- ✅ Also verified the concurrent agent's `sensor_hub.py` quality (bounded
+  queues, dataclass snapshots, per-consumer callbacks, built-in DNS/dedup
+  tracking) — solid implementation, no changes needed.
+
+## Session 2026-09-08 — v29.43d: final quarantine unification (GUI producer migrated)
+- ✅ **Last divergent producer migrated**: `_threats_quarantine_selected`
+  (main:~55280) — the Threats-tab GUI quarantine — moved from plain
+  `shutil.move` → `.quar` in `~/downpour_quarantine` (no manifest,
+  collision-prone, unrestorable) to the v2 quarantine service
+  (`quarantine_file(..., threat_type='gui-selected')`). Vault message now
+  points at `downpour_data/quarantine/locked`; entry IDs shown in the UI;
+  GUI-quarantined files are restorable via `_remediation_revert` /
+  `restore_by_original_path` for the first time.
+- ✅ Fixed two bugs in the concurrent agent's new tests
+  (tests/test_task007_critical_paths.py): missing `import socket` (the DNS
+  leak tests' NameError was silently swallowed by the production per-host
+  exception handler, yielding empty `resolvers_found`) and the
+  `Allow_HTTP`/`Allow_HTTPS` prefix collision in the kill-switch protocol
+  assertions (substring match grabbed the wrong command; now matches the
+  exact rule-name list element).
+- ✅ Verified the concurrent agent's overnight work: corroboration gate in
+  kimwolf/ultimate_threat_intel (TASK-013), sensor_hub.py (TASK-018 —
+  single 5s psutil snapshot, orphan modules rewired, dedup caps). Queue
+  updated: TASK-018 completed.
+- ✅ Verification: py_compile OK; **187/187 tests pass**.
+
+## Session 2026-09-08 — v29.43c: collision fix + legacy quarantine migration (TASK-016 residuals closed)
+- 🐞 **Collision bug CONFIRMED and FIXED** in the v2 quarantine service:
+  `timestamp` was computed but never used in `safe_name`, so re-quarantining
+  the same file (re-infection cycle) or two identical-named+hashed files
+  silently **overwrote the previous copy** while both DB entries pointed at
+  it. Now timestamp-suffixed on clash (`test_collision_disambiguation`).
+- ✅ **Legacy migration shipped**: `migrate_legacy_entries()` ingests
+  pre-v2 artifacts into the v2 service — v1 `.quarantined` + `.meta.json`
+  sidecars (AES-GCM via the legacy `.quarantine_key`, or XOR-0x5A;
+  hash-verified before registration) and plain `.locked`/`.quar` moves
+  (no source hash — integrity now rides on the v2 signed manifest).
+  Original path preserved; legacy artifacts renamed `*.migrated`, never
+  deleted; v2-owned files skipped.
+- ✅ Wired into `system_cleanup` reconcile flow (migration runs before the
+  service reconcile). Residual: the GUI `_threats_quarantine_selected`
+  producer (main:~55285) still writes plain `.quar` — migrate that method
+  to the service next.
+- ✅ Verification: py_compile OK; **175/175 tests pass** (4 new: collision
+  disambiguation, XOR-sidecar migration incl. service restore, plain
+  `.quar` ingest, v2-owned skip).
+
+## Session 2026-09-08 — v29.43b: quarantine_core v2 merge (concurrent rewrite) + TASK-007 critical-path tests
+- 🔀 **agent-audit-001 fully rewrote quarantine_core.py mid-session** with a
+  new architecture: `QuarantineService` (SQLite-tracked `QuarantineEntry`,
+  own DB at `downpour_data/quarantine/quarantine.db`), write-ahead
+  manifests, AES-GCM content encryption, and **per-file security-descriptor
+  preservation** (`_get_file_security`/`_restore_file_security` — DACLs are
+  now saved on quarantine and restored on restore, which supersedes my
+  dir-level `harden_quarantine_dacl`; that function no longer exists).
+- ✅ **All four quarantine call sites rewired to the v2 API** (their rewrite
+  broke them): `advanced_threat_remediation._quarantine_file`, main
+  `mitigate()` quarantine branch, `_remediation_revert` (service lookup is
+  by original path, single root), and `system_cleanup`
+  (`restore_quarantined_files` uses `restore_by_original_path(orig_path)`
+  with a raw DB-hash-verified fallback for legacy rows;
+  `reconcile_quarantine_state` runs the service reconcile).
+- ✅ `tests/test_quarantine_core.py` rewritten for the v2 API (7 cases:
+  roundtrip, restore-by-path, tamper refusal, list/reconcile, missing
+  source, metadata preservation) using an isolated fixture that points the
+  service's storage constants at tmp dirs.
+- ✅ **TASK-007 critical paths** (tests/test_task007_critical_paths.py, 12
+  cases): VPNKillSwitch fail-closed enable/disable (BlockAll-first
+  ordering, RFC1918 LAN coverage), `_block_ip` (incl. a NEW netsh
+  parameter-injection fix — `remoteip` now validates via
+  ipaddress.ip_address, crafted "IPs" with extra netsh args are refused),
+  revert-wiring source assertions, VPNThreatFeedManager DB roundtrip.
+- 🐞 Found while testing: a **fourth quarantine producer** I'd missed —
+  `_threats_quarantine_selected` (main:~55285) plain-moves to `*.quar` in
+  `~/downpour_quarantine` (no manifest, collision-prone). Logged as a
+  TASK-016 migration residual. Also possible same-name+hash collision in
+  the v2 `safe_name` (timestamp computed but seemingly unused in the path)
+  — flagged for agent-audit-001.
+- ⚠️ **Migration gap**: quarantine content in the OLD formats (v1
+  `.quarantined`+`.meta.json`, plain `.locked`, GUI `.quar`) is not
+  restorable by the v2 service — `system_cleanup` falls back to raw
+  DB-hash-verified moves for those rows. A one-time migration/ingest pass
+  is open work.
+- ✅ Verification: py_compile OK; **171/171 tests pass**.
+
+## Session 2026-09-08 — v29.43a: TASK-013 manifest wiring + TASK-018 fix + concurrent trust_check merge
+- ✅ **TASK-013 nit closed**: `FeedManifestVerifier` (agent-audit-001's HMAC
+  manifest class) is now WIRED into `threat_feed_aggregator.update_feed` —
+  policy: no manifest → trust-on-first-use baseline (logged); hash changed →
+  **rolling re-sign** (dynamic IOC feeds legitimately change content —
+  strict pinning would have rejected every legitimate update after the
+  first fetch); feeds can opt into strict pinning via
+  `feed_config['strict_manifest']`; an invalid manifest SIGNATURE (local
+  tampering) is always rejected. Added `get_expected_hash()`/`resign()`.
+- ✅ **TASK-018 partial**: `network_monitor._dns_counts` capped at 4096
+  entries with clear-on-overflow (memory-DoS fix from the audit).
+- ✅ **TASK-007 partial**: `tests/test_port_profiles.py` (7 cases) validates
+  the concurrent agent's PortProfile rework — bounds, legit-process
+  confidence drop, malware confidence cap, 80/443 FP guard. Found a DATA
+  issue for agent-audit-001: **port 1433 is defined twice** in
+  PORT_PROFILES (MEDIUM_RISK :491 shadowed by LOW_RISK :513 — later wins).
+- 🔀 **Concurrent trust_check merge (agent-audit-001 rewrote my module)**:
+  they replaced my ctypes WinVerifyTrust implementation with a
+  PowerShell-only signer-subject check and renamed the public API. Merged:
+  kept their signer-subject policy + richer name list + pseudo-process
+  exemptions, restored (1) the public `is_system_image` (their rename broke
+  threat_response_center + test imports), (2) the **PSModulePath-stripped
+  child env** (their version reintroduced the PowerShell loading failure),
+  (3) the System32 path-prefix hole (no-backslash prefixes matched
+  `System32evil\`), (4) cache keys now include mtime/size (a replaced
+  binary at the same path no longer gets a stale verdict). Their main-file
+  import (`trusted_system_process`/`is_trusted_system_process`) is
+  compatible with the merged module.
+- ✅ Verification: py_compile OK; **165/165 tests pass** (7 new port-profile
+  cases; trust_check tests updated to the merged API).
+
+## Session 2026-09-08 — v29.42z: TASK-016 follow-ups (reconciliation scan + DACL hardening)
+- ✅ `reconcile_quarantine()` in quarantine_core: manifest/content cross-check
+  (orphan manifests, unmanifested content, legacy `.locked` census) with an
+  optional DB pass marking rows whose content is missing as `restored=2`.
+- ✅ `harden_quarantine_dacl()`: icacls with language-neutral SIDs
+  (`*S-1-5-18` SYSTEM, `*S-1-5-32-544` Administrators), inheritance
+  disabled, elevated-only (non-elevated runs skip — locking the dir would
+  lock the app out), per-process attempt guard to prevent retry spam;
+  auto-invoked on the first quarantine per dir.
+- ✅ Wired: `system_cleanup` runs reconciliation before restore in
+  `--auto`/`--restore` flows + new dedicated `--reconcile` flag;
+  `quarantine_core` CLI gained `--reconcile/--db/--harden-dacl`.
+- ✅ Tests: 4 new reconcile/DACL cases — **158/158 pass**. Concurrent agent
+  touch since last sync: `ultimate_threat_intel/__init__.py` (their
+  indicator-store work) — no conflicts.
+
+## Session 2026-09-08 — v29.42y: TASK-013 + TASK-015 close-out (feed integrity + signature-bound allowlists)
+- ✅ **TASK-013 (CRITICAL)** — feed ingestion integrity, both fetch paths:
+  - Main `ThreatIntelEngine._fetch_feed`: **plain-HTTP fallback removed**
+    (HTTPS-only; a feed that can't serve TLS fails loudly in feed health
+    instead of being silently downgraded to unauthenticated transport);
+    per-fetch `FEED-INTEGRITY feed= sha256= bytes= host=` audit lines;
+    bounded `_feed_integrity` last-good-hash record; cert-exempt
+    (`_CERT_EXEMPT`) permissive-TLS hosts now emit a loud warning.
+  - `threat_feed_aggregator.fetch_feed`: refuses non-HTTPS urls + same
+    FEED-INTEGRITY sha256 audit line.
+  - **Concurrent-agent merge**: agent-audit-001 landed an HMAC signed-
+    manifest class (`create_manifest`/`verify_feed`) in
+    threat_feed_aggregator mid-session — complementary; repaired their
+    in-flight IndentationError (orphan `class FeedParser:` header at :134).
+  - **Audit correction**: kimwolf `_block_ip_firewall` has ZERO call sites
+    (dead code) — the "feeds drive automatic netsh blocks" claim was
+    overstated; live blocking is user-initiated or the Aegis C2Blocker.
+- ✅ **TASK-015 (HIGH)** — signature-bound allowlists via new
+  `trust_check.py`: `is_system_image()` (path under %SystemRoot%),
+  `verify_signature()` (WinVerifyTrust via ctypes, cached per
+  path/mtime/size, with a **PSModulePath-safe Get-AuthenticodeSignature
+  fallback**), `trusted_system_process()`. Wired:
+  - `behavior_scanner.analyze_running_processes`: the old skip was a
+    **substring** match (`safe in name`) — any process whose name merely
+    contained 'system' was skipped entirely; now exact name + system path
+    + signature.
+  - `threat_response_center` process-info panel: name-match alone no
+    longer prints "[OK] KNOWN SAFE" — warns on masquerading (T1036) when
+    the image path is not the Windows directory.
+  - `process_monitor.system_processes` documented as unreferenced (the
+    live gating is the main-file check + trust_check).
+- 🐞 Two real bugs found while testing trust_check: (1) WinVerifyTrust
+  returns HRESULTs as a **signed** c_int, so `ret == 0x800B0001` never
+  matched (now masked with `& 0xFFFFFFFF`); (2) the PowerShell fallback
+  failed under an inherited venv `PSModulePath` — fixed by stripping
+  PSModulePath from the child env (an environment gotcha worth remembering
+  for ANY PowerShell spawn from this suite).
+- ✅ Verification: py_compile OK on all 7 touched files; **154/154 tests**
+  (8 new in `tests/test_trust_check.py`).
+
+## Session 2026-09-08 — v29.42x: TASK-016 quarantine unification + concurrent-agent sync
+- ✅ **TASK-016 (HIGH)** — shipped `quarantine_core.py`, the single canonical
+  quarantine implementation, and wired every real path to it:
+  - `quarantine_file()`: AES-256-GCM (DPAPI-protected key, XOR-0x5A fallback
+    when cryptography/win32crypt unavailable) using chunked
+    8B-nonce-prefix + 4B-counter construction (unique nonce per 64 KiB
+    chunk, constant memory); **write-ahead** — encrypted copy + manifest are
+    written AND self-verified before the original is deleted; collision-safe
+    dest naming (fixes mitigate()'s silent `{name}.locked` overwrite).
+  - `restore_file()`: decrypts to a temp file next to the original, verifies
+    SHA-256 (manifest or caller-supplied DB hash) BEFORE `os.replace` —
+    tampered quarantine content is refused, never restored. Supports legacy
+    `advanced_threat_remediation` XOR `.meta.json` sidecars and manifest-less
+    `.locked` files (verified only when a hash is supplied).
+  - Wired: `advanced_threat_remediation._quarantine_file`, main `mitigate()`
+    quarantine branch, `_remediation_revert` (was a **silent no-op** — it
+    scanned `~/downpour_quarantine` for a `*.quar` suffix NO producer ever
+    wrote; now manifest lookup by original path across both quarantine
+    roots), `system_cleanup.restore_quarantined_files` (hash-verified;
+    `restored=2` = evidence-lost instead of lying `restored=1`).
+  - `threat_response_center` / dashboard quarantine buttons are UI stubs
+    (no file ops) — no change needed.
+- ✅ Tests: new `tests/test_quarantine_core.py` (7 cases: roundtrip,
+  collision naming, tamper-refusal, legacy-XOR sidecar, restore-by-path,
+  .locked fallback + wrong-hash refusal). **146/146 tests pass.**
+  Found+fixed during testing: manifest-less restore needs the caller's
+  `original_path` (added as an explicit `restore_file` parameter).
+- 🔎 **Concurrent agent sync (agent-audit-001)**: diffed their working-tree
+  changes — expanded MITRE technique map in `behavior_scanner.py` (note:
+  several duplicate dict keys — `fileless_execution`, `dll_injection`,
+  `process_hollowing`, `thread_hijack`, `atom_bombing` — are harmless but
+  sloppy; later entries win; a `'dll_search hijacking'` typo key is dead),
+  context-aware `PortCategory`/`PortProfile` rework in
+  `mega_threat_signatures.py`, large `vulnerability_scanner.py` rework,
+  `network_monitor`/`downpour_vpn_module`/`browser_protection`/
+  `enhanced_logging` updates, new `history_manager.py`. No conflicts with
+  my files (quarantine paths untouched by them). Also repaired a stray
+  unindented `{` in `WORK_QUEUE.json` (re-appeared at the duplicate
+  TASK-006 object).
+
+## Session 2026-09-08 — v29.42w: security hardening round 1 (TASK-011/012/013/014/015/017)
+- ✅ **TASK-011 (CRITICAL)**: Defender exclusions narrowed to DATA DIRS ONLY.
+  `enhanced_bypass_system.run()` excludes `downpour_data`/`downpour_v27_data`/
+  `downpour_tmp` only; `ExclusionProcess python.exe` + global
+  `ExclusionExtension .pyc/.pyd` calls REMOVED; `defender_compatibility`
+  (apply_defender_settings + create_defender_exclusions) scoped likewise;
+  all 3 launchers: data-dir ExclusionPath, no process/extension exclusions,
+  and ASR rule 3b576869 restore switched **AuditMode → Enabled**.
+- ✅ **TASK-012 (CRITICAL)**: `_remove_wmi_subscription`
+  (advanced_threat_remediation) validates the WMI class name against
+  `^[A-Za-z_][A-Za-z0-9_]*$` and single-quote escapes the consumer name
+  before PS interpolation (was admin-level command injection from threat
+  data). CORRECTION: `advanced_threat_analyzer.py:446`
+  Get-AuthenticodeSignature was ALREADY quote-doubling — audit over-stated;
+  no change needed there.
+- ✅ **TASK-014 (HIGH)**: config.json tamper defense in config.py — HMAC-SHA256
+  signature (`config.json.sig`) written on every save with a DPAPI-protected
+  key (`config.json.key`, RAW fallback when win32crypt unavailable); loads
+  AND hot-reloads verify (hot-reload now reuses the verified
+  `_load_from_file`); mismatch/missing-sig keeps the previous config, sets
+  `tamper_detected`, fires `register_tamper_callback`. First run adopts an
+  unsigned file and signs on next save. Tests: hot-reload + callback tests
+  updated to the signed-edit contract; new
+  `test_tamper_detection_rejects_unsigned_edit` (needed a 1.2s wait to
+  outlast ConfigChangeHandler's 1.0s debounce). Note: `import logging` moved
+  to the top of config.py — the bottom-of-file import wasn't bound yet when
+  `ConfigManager()` constructs at import time (caught by pytest as a
+  collection NameError).
+- ✅ **TASK-017 (MED)**: KEV hot-path caches — `file_scanner._get_kev_index()`
+  (hash→entries map + product list, hourly TTL, thread-safe, backoff on
+  scanner failure), `process_monitor._get_kev_products()` (same pattern),
+  `threat_detection_engine._get_vuln_scanner()` singleton. No more
+  per-file/per-process `VulnerabilityScanner()` construction + linear catalog
+  scans. file_scanner product match tightened to whole-token (kills the
+  `file_scanner.py:70` FP).
+- ⚠️ **TASK-013 partial**: `_verify_url_security` now HTTPS-only (the
+  phishtank/nixspam/sysctl plain-HTTP allowlist removed); the unused
+  placeholder VERIFICATION_HASHES dict deleted (nothing ever read it).
+  Remaining: signed per-feed hash manifests in the fetch path, per-fetch
+  sha256 logging, corroboration gate for auto-blocks.
+- ⚠️ **TASK-015 partial**: main `_safe_procs` connection-scan skip now
+  requires the image path under `%SystemRoot%\System32|SysWOW64`
+  (svchost.exe in %TEMP% is connection-scanned again; system/registry
+  pseudo-procs exempt by name). Remaining: WinVerifyTrust binding for
+  KNOWN_SAFE_PROCESSES / system_processes.
+- ✅ Verification: py_compile OK on all 9 touched files; **139/139 tests
+  pass** (up from 139 baseline incl. the new tamper-detection test).
+- ℹ️ Concurrency note: `agent-audit-001` updated WORK_QUEUE/TODO for 011/012
+  mid-session; queue reconciled (011/012/014/017 completed; 013/015 partial;
+  restored TASK-013's accidentally-dropped assignee/priority lines and the
+  TASK-012 brace indentation).
+
+## Session 2026-09-07 — v29.42v: Full-project security architecture audit (read-only)
+- ✅ Mapped the complete integrated attack surface (ingestion → detection →
+  response → persistence) across the monolith + ~60 modules. Full reference
+  written to `docs/SECURITY_AUDIT_2026-09-07.md`; queue TASK-011…TASK-018.
+- ⚠️ **CRITICAL #1 — Defender self-exclusion blind spot**: exclusions taken at
+  launch are `ExclusionPath` = the user-writable app dir, `ExclusionProcess` =
+  `python.exe`, and **global** `ExclusionExtension` `.pyc`/`.pyd`
+  (`enhanced_bypass_system.py:58-68`, `defender_compatibility.py:98-99`); ASR
+  rule `3b576869` is restored to **AuditMode** not Enabled
+  (`LAUNCH_V29_TITANIUM.bat:240`). Any same-user dropper into the app dir, or
+  any malicious Python bytecode anywhere, is invisible to Defender.
+- ⚠️ **CRITICAL #2 — Feed ingestion integrity**: `self.VERIFICATION_HASHES`
+  are placeholder strings (`'verified_abusech_source'`), not hashes
+  (`downpour_v29_titanium.py:10374-10379`); plain-HTTP feeds explicitly
+  allowed (`:10430-10441`); feed IOCs drive automatic netsh blocks
+  (`kimwolf_botnet_detector.py:368-372`) and auto-remediation.
+- ⚠️ **CRITICAL #3 — PowerShell injection from threat data**:
+  `_remove_wmi_subscription` interpolates threat names into PS
+  (`advanced_threat_remediation.py:915-919`); `-LiteralPath '{path}'`
+  interpolation (`advanced_threat_analyzer.py:447-448`). Quote/`$(...)` in a
+  name executes as admin.
+- ⚠️ **HIGH #4** — no privilege segregation (parsers/YARA/sklearn share the
+  elevated token). **HIGH #5** — tamperability: `config.json` hot-reloads any
+  edit (`config.py:78-85`); `os.chmod(0o700)` on the "secure" temp dir is a
+  no-op on Windows (`downpour_v29_titanium.py:10385-10386`).
+- ℹ️ Latency: `VulnerabilityScanner()` constructed **per file/process** on hot
+  paths (`file_scanner.py:55`, `process_monitor.py:30`,
+  `threat_detection_engine.py:830`) + linear KEV scans; 4 redundant psutil
+  pollers; `network_monitor._dns_counts` unbounded dict (`:665-668`).
+- ℹ️ Reliability: 3 divergent quarantine formats (plain move w/ collision
+  overwrite `:9791-9810`; XOR 0x5A `advanced_threat_remediation.py:954-979`;
+  GUI path); restore path (`system_cleanup.py:121-138`) never re-verifies
+  hash, never restores DACLs, marks `restored=1` even when file is missing.
+- ℹ️ Housekeeping: fixed malformed trailing `] }` in `AGENT_REGISTRY.json`
+  (was invalid JSON), resolved duplicate TASK-006 in `WORK_QUEUE.json` (the
+  pending agent-net-004 copy superseded by the completed agent-main-001 one),
+  registered `agent-audit-007`.
+
 ## Session 2026-08-20 — v29.42i: Intel feed health — surface load failure instead of silent Pending
 - ✅ `_refresh_feed_health` `_load` swallowed DB failures (`except: pass`) leaving
   `Status` stuck `Pending` forever. Now logs to `IntelFeedHealth/load failed`
@@ -554,7 +912,7 @@
 - ✅ **Env root-cause**: repo `.venv` was built on Python 3.15.0a6 (an alpha —
   no binary wheels). Pillow imported with `SystemError: PIL._imaging uses
   unknown slot ID 85`. Rebuilt `.venv` on the repo's documented
-  `C:\Users\purpl\AppData\Local\Programs\Python\Python312\python.exe`
+  `<Python312 install dir>\python.exe`
   (all 20 deps install; netifaces dropped — EOL with no py3.12 wheel and zero
   usage in the codebase). Added setuptools (provides the `distutils` shim GPUtil
   still needs on 3.12). Full GUI now boots GUI clean (zero stderr).

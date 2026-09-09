@@ -706,7 +706,26 @@ Connections: {item[5]}
 
 """
         if name.lower() in self.KNOWN_SAFE_PROCESSES:
-            info += f"[OK] KNOWN SAFE: {self.KNOWN_SAFE_PROCESSES[name.lower()]}\n\n"
+            # v29.42y (TASK-015): a name match alone is spoofable — also
+            # require the image path to live in the Windows directory before
+            # declaring "KNOWN SAFE". item[1] is the path column in the row.
+            _p = ''
+            try:
+                _p = str(item[1]) if len(item) > 1 else ''
+            except Exception:
+                _p = ''
+            _sys_ok = True
+            try:
+                from trust_check import is_system_image
+                _sys_ok = (not _p) or is_system_image(_p)
+            except Exception:
+                _sys_ok = True  # helper unavailable — keep legacy display
+            if _sys_ok:
+                info += f"[OK] KNOWN SAFE: {self.KNOWN_SAFE_PROCESSES[name.lower()]}\n\n"
+            else:
+                info += (f"[WARN]️ Name matches a system process but the image "
+                         f"path is NOT the Windows directory: {_p} — treat as "
+                         f"suspicious (possible masquerading, T1036)\n\n")
         else:
             info += "[WARN]️ Unknown process - investigate further\n\n"
             

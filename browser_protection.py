@@ -58,22 +58,24 @@ class BrowserProtection:
         self.logger.info("Browser Protection initialized")
     
     def setup_logging(self):
-        """Configure logging for browser protection."""
+        """Configure logging for browser protection (does not modify root logger)."""
         log_dir = Path(__file__).parent / "logs"
         log_dir.mkdir(exist_ok=True)
         
         log_file = log_dir / f"browser_protection_{datetime.now().strftime('%Y-%m-%d')}.log"
         
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler(log_file),
-                logging.StreamHandler()
-            ]
-        )
+        bp_logger = logging.getLogger('BrowserProtection')
+        if not bp_logger.handlers:
+            bp_logger.setLevel(logging.INFO)
+            fmt = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+            fh = logging.FileHandler(log_file)
+            fh.setFormatter(fmt)
+            sh = logging.StreamHandler()
+            sh.setFormatter(fmt)
+            bp_logger.addHandler(fh)
+            bp_logger.addHandler(sh)
         
-        return logging.getLogger('BrowserProtection')
+        return bp_logger
     
     def get_browser_paths(self):
         """Get paths to browser extension directories."""

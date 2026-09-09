@@ -56,14 +56,19 @@ class SophisticatedDefenderCompatibility:
         self._results: List[ExclusionEntry] = []
 
     def run(self) -> List[ExclusionEntry]:
-        """Add exclusions for Downpour's folder and key files."""
-        self._add_exclusion("ExclusionPath", str(self._app_dir))
-        self._add_exclusion("ExclusionProcess", sys.executable)
+        """Add Defender exclusions for Downpour's DATA directories only.
 
-        # Exclude key Downpour files by extension
-        for ext in [".pyc", ".pyd"]:
-            self._add_exclusion(
-                "ExclusionExtension", ext)
+        v29.42w (TASK-011, audit 2026-09-07): previous versions excluded the
+        whole install directory, sys.executable as a process, and .pyc/.pyd
+        GLOBALLY via ExclusionExtension — handing any same-user malware a
+        standing Defender blind spot (malware dropped in the install dir, or
+        delivered as Python bytecode anywhere, was invisible to real-time
+        scanning). Only the write-heavy data directories (logs, DBs,
+        quarantine, analysis temp) are excluded now; executables in the
+        install dir are scanned normally.
+        """
+        for data_dir in ("downpour_data", "downpour_v27_data", "downpour_tmp"):
+            self._add_exclusion("ExclusionPath", str(self._app_dir / data_dir))
 
         return self._results
 

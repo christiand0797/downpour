@@ -23,6 +23,9 @@ import re
 import json
 import time
 import sqlite3
+import hashlib
+import hmac
+import base64
 try:
     import requests
     _REQUESTS_AVAILABLE = True
@@ -39,7 +42,128 @@ from typing import Dict, List, Set, Optional, Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-# Global threat actor tracking
+# Feed manifest verification (TASK-013)
+# Each feed should have a manifest file at <feed_dir>/manifests/<feed_id>.json
+# containing expected SHA-256 hashes. Feeds without manifests are rejected.
+# Manifests are signed with HMAC-SHA256 using a DPAPI-protected key.
+# Manifest directory: downpour_data/feed_manifests/
+# Key file: downpour_data/feed_manifests/.manifest_key (DPAPI-protected)
+
+class FeedManifestVerifier:
+    """Verifies feed integrity using signed SHA-256 manifests."""
+
+    MANIFEST_DIR = Path("downpour_data") / "feed_manifests"
+    KEY_FILE = MANIFEST_DIR / ".manifest_key"
+
+    def __init__(self):
+        # v29.43f fix: create the manifest dir BEFORE the key write — the
+        # original order crashed on first run (FileNotFoundError on the
+        # key file because the parent dir did not exist yet).
+        self.MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
+        self._key = self._load_or_create_key()
+
+    def _load_or_create_key(self) -> bytes:
+        """Load or create HMAC key (DPAPI-protected)."""
+        try:
+            self.MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
+            if self.KEY_FILE.exists():
+                blob = self.KEY_FILE.read_bytes().strip()
+                if blob.startswith(b'DPAPI:'):
+                    import win32crypt
+                    protected = base64.b64decode(blob[6:])
+                    _desc, key = win32crypt.CryptUnprotectData(protected, None, None, None, 0)
+                    return key
+                if blob.startswith(b'RAW:'):
+                    return base64.b64decode(blob[4:])
+        except Exception:
+            pass
+        # Create new key
+        import secrets
+        key = secrets.token_bytes(32)
+        try:
+            import win32crypt
+            protected = win32crypt.CryptProtectData(key, 'downpour-feed-manifest-key', None, None, None, 0)
+            self.KEY_FILE.write_bytes(b'DPAPI:' + base64.b64encode(protected))
+        except Exception:
+            self.KEY_FILE.write_bytes(b'RAW:' + base64.b64encode(key))
+        return key
+
+    def _manifest_path(self, feed_id: str) -> Path:
+        return self.MANIFEST_DIR / f"{feed_id}.json"
+
+    def create_manifest(self, feed_id: str, expected_sha256: str) -> bool:
+        """Create a signed manifest for a feed."""
+        try:
+            manifest = {
+                "feed_id": feed_id,
+                "expected_sha256": expected_sha256,
+                "created": datetime.now().isoformat(),
+                "version": 1
+            }
+            canonical = json.dumps(manifest, sort_keys=True).encode('utf-8')
+            sig = hmac.new(self._key, canonical, hashlib.sha256).hexdigest()
+            manifest["signature"] = sig
+            self._manifest_path(feed_id).write_text(json.dumps(manifest, indent=2), encoding='utf-8')
+            return True
+        except Exception as e:
+            logger.error(f"Failed to create manifest for {feed_id}: {e}")
+            return False
+
+    def verify_feed(self, feed_id: str, content: bytes) -> bool:
+        """Verify feed content against signed manifest."""
+        manifest_path = self._manifest_path(feed_id)
+        if not manifest_path.exists():
+            logger.warning(f"No manifest for {feed_id} — feed rejected (TASK-013)")
+            return False
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+            expected = manifest.get("expected_sha256", "").lower()
+            actual = hashlib.sha256(content).hexdigest().lower()
+            if not hmac.compare_digest(expected, actual):
+                logger.error(f"Manifest mismatch for {feed_id}: expected {expected}, got {actual}")
+                return False
+            # Verify signature
+            sig = manifest.pop("signature", "")
+            canonical = json.dumps(manifest, sort_keys=True).encode('utf-8')
+            expected_sig = hmac.new(self._key, canonical, hashlib.sha256).hexdigest()
+            if not hmac.compare_digest(sig, expected_sig):
+                logger.error(f"Manifest signature invalid for {feed_id}")
+                return False
+            return True
+        except Exception as e:
+            logger.error(f"Manifest verification failed for {feed_id}: {e}")
+            return False
+
+    def get_expected_hash(self, feed_id: str) -> Optional[str]:
+        """Expected content hash from the manifest, or None when absent.
+
+        A corrupt/unreadable manifest also returns None — the caller's
+        baseline path will overwrite it (self-healing).
+        """
+        manifest_path = self._manifest_path(feed_id)
+        if not manifest_path.exists():
+            return None
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+            return manifest.get('expected_sha256', '').lower() or None
+        except Exception as e:
+            logger.error(f"Manifest read failed for {feed_id}: {e}")
+            return None
+
+    def resign(self, feed_id: str, new_sha256: str) -> bool:
+        """Re-sign the manifest with a new content hash (rolling update).
+
+        Dynamic IOC feeds legitimately change content between fetches; the
+        rolling manifest keeps a signed, tamper-evident record of the last
+        accepted content instead of hard-pinning a hash that would reject
+        every legitimate update.
+        """
+        return self.create_manifest(feed_id, new_sha256)
+
+
+# NOTE (agent-audit-007): the concurrent editor left an orphan `class FeedParser:`
+# header here with no body (IndentationError) above a module-level
+# _THREAT_ACTORS/import block; the real FeedParser base class is defined below.
 _THREAT_ACTORS = {
     'APT29': {'aliases': ['Cozy Bear', 'The Dukes', 'Nobelium'], 'motivation': 'espionage', 'sectors': ['government', 'tech']},
     'APT41': {'aliases': ['Wicked Panda', 'BARIUM'], 'motivation': 'espionage', 'sectors': ['tech', 'gaming', 'healthcare']},
@@ -571,12 +695,26 @@ class ThreatFeedAggregator:
             'last_update': None,
             'errors': []
         }
+        # Feed manifest verifier (TASK-013)
+        self._manifest_verifier = FeedManifestVerifier()
 
     def fetch_feed(self, feed_id: str, feed_config: Dict) -> Optional[str]:
-        """Fetch content from a single feed"""
+        """Fetch content from a single feed.
+
+        v29.42y (TASK-013): HTTPS-ONLY — plain-HTTP feed URLs are refused
+        (feed content drives IOC matching, so transport must be
+        authenticated), and every successful fetch logs a FEED-INTEGRITY
+        sha256 audit line. Feed content is verified against signed manifest
+        before being returned for parsing.
+        """
         try:
             url = feed_config['url']
             timeout = feed_config.get('timeout', 30)
+
+            if not str(url).lower().startswith('https://'):
+                logger.warning("FEED-INTEGRITY feed=%s REFUSED non-HTTPS url: %s",
+                               feed_id, url)
+                return None
 
             response = self.session.get(url, timeout=timeout)
             response.raise_for_status()
@@ -584,11 +722,25 @@ class ThreatFeedAggregator:
             # Handle compressed content
             content_type = response.headers.get('Content-Type', '')
             if 'gzip' in content_type or url.endswith('.gz'):
-                content = gzip.decompress(response.content).decode('utf-8', errors='ignore')
+                raw_content = gzip.decompress(response.content)
             else:
-                content = response.text
+                raw_content = response.content
 
-            logger.info(f"Fetched {feed_id}: {len(content)} bytes")
+            # Verify against signed manifest (TASK-013)
+            if not self._manifest_verifier.verify_feed(feed_id, raw_content):
+                logger.error("FEED-INTEGRITY feed=%s MANIFEST_VERIFICATION_FAILED", feed_id)
+                return None
+
+            import hashlib as _hh
+            content_hash = _hh.sha256(raw_content).hexdigest()
+            logger.info("FEED-INTEGRITY feed=%s sha256=%s bytes=%d scheme=https manifest=verified",
+                        feed_id, content_hash, len(raw_content))
+
+            # Decode to text for parsing
+            if 'gzip' in content_type or url.endswith('.gz'):
+                content = raw_content.decode('utf-8', errors='ignore')
+            else:
+                content = raw_content.decode('utf-8', errors='ignore')
             return content
 
         except requests.exceptions.Timeout:
@@ -622,9 +774,70 @@ class ThreatFeedAggregator:
             return []
 
     def update_feed(self, feed_id: str, feed_config: Dict) -> int:
-        """Update a single feed"""
+        """Update a single feed.
+
+        v29.42z (TASK-013 nit): content is checked against the signed
+        manifest (FeedManifestVerifier) BEFORE parsing/storing. Policy:
+          * no manifest      -> trust-on-first-use baseline (logged)
+          * hash unchanged   -> proceed
+          * hash changed     -> rolling manifest re-sign (dynamic IOC feeds
+                                legitimately change content between
+                                fetches); logged
+          * strict pinning   -> a feed may opt in via feed_config
+                                'strict_manifest': True — a hash change is
+                                REJECTED instead of re-signed
+          * invalid signature-> always rejected (local manifest tampering)
+        """
         content = self.fetch_feed(feed_id, feed_config)
         if not content:
+            return 0
+
+        content_bytes = content.encode('utf-8', errors='ignore')
+        content_hash = hashlib.sha256(content_bytes).hexdigest()
+        strict = bool(feed_config.get('strict_manifest', False))
+        try:
+            verifier = getattr(self, '_manifest_verifier', None)
+            if verifier is None:
+                verifier = FeedManifestVerifier()
+                self._manifest_verifier = verifier
+
+            expected = verifier.get_expected_hash(feed_id)
+            if expected is None:
+                if verifier.create_manifest(feed_id, content_hash):
+                    logger.warning(
+                        "FEED-INTEGRITY feed=%s baseline manifest created "
+                        "(trust-on-first-use, sha256=%s)",
+                        feed_id, content_hash[:16])
+                else:
+                    logger.error("FEED-INTEGRITY feed=%s baseline creation "
+                                 "failed — feed rejected", feed_id)
+                    return 0
+            elif content_hash == expected:
+                pass  # unchanged since the last accepted fetch
+            elif strict:
+                logger.error(
+                    "FEED-INTEGRITY feed=%s REJECTED — strict manifest pin: "
+                    "expected %s…, got %s…",
+                    feed_id, expected[:16], content_hash[:16])
+                return 0
+            else:
+                if verifier.resign(feed_id, content_hash):
+                    logger.info(
+                        "FEED-INTEGRITY feed=%s content changed — manifest "
+                        "re-signed (sha256=%s)", feed_id, content_hash[:16])
+                else:
+                    logger.error("FEED-INTEGRITY feed=%s re-sign failed — "
+                                 "feed rejected", feed_id)
+                    return 0
+
+            if not verifier.verify_feed(feed_id, content_bytes):
+                logger.error("FEED-INTEGRITY feed=%s final verification "
+                             "failed — feed rejected (manifest tampered?)",
+                             feed_id)
+                return 0
+        except Exception as e:
+            logger.error("FEED-INTEGRITY feed=%s verification error: %s",
+                         feed_id, e)
             return 0
 
         indicators = self.parse_feed(feed_id, content, feed_config)

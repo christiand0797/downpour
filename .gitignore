@@ -89,8 +89,25 @@ _check_*.ps1
 zz_*.ps1
 zz_*.py
 _python_paths.txt
+analyze_status.py
+check_dbs.py
+update_intel.py
 test.txt
 
 # ─── Runtime databases ────────────────────────────────────────────────────────
 vulnerability_scanner.db
 downpour_v27_data/
+
+# ─── Agent scratch files (v29.43d) ────────────────────────────────────────────
+_*.txt
+_*.json
+_*.py
+!_WORKLOG.md
+.aicode/
+.aura/
+import_err.txt
+pyerr.txt
+pyflakes_critical.txt
+build_ui_crash.txt
+config.json.sig
+config.json

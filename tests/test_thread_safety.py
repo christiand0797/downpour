@@ -158,11 +158,11 @@ class TestExecutorPostBack:
                    encoding='utf-8', errors='replace').read()
         # _fp_load_cache submits to executor and marshals via self.after
         start = src.index('def _fp_load_cache')
-        end = src.index('def _fp_cache_update', start)
-        chunk = src[start:end]
+        # The method now calls load_fp_cache from fp_suppression module
+        # which handles the after(0) callback internally
+        chunk = src[start:start + 1200]
         assert '_executor.submit' in chunk
-        assert 'self.after(0' in chunk
-        assert '_fp_cache_update(c)' in chunk
+        assert 'load_fp_cache' in chunk
 
     def test_after_never_raises_during_shutdown(self):
         """_proc_loop wraps self.after in try/except RuntimeError."""
@@ -585,7 +585,12 @@ class TestV2940Reliability:
         assert '_rw_src' in src
         assert '_file_changes' in src
         # The live path must read from the deque, not orphan-module counters.
-        idx = src.index('app = getattr(self, \'_app\', None)')
+        # v29.43: `_nm_app = getattr(self, '_app', None)` was added earlier in
+        # _fetch_unsafe for the blocked-connections gauge; that line CONTAINS
+        # the substring the old index() searched for, so a plain index() now
+        # lands ~350 lines before the real file-gauge block. Anchor on the
+        # LAST occurrence, which is the file-gauge block.
+        idx = src.rindex('app = getattr(self, \'_app\', None)')
         chunk = src[idx:idx + 3000]
         assert "_c.get('time', 0)" in chunk
         assert 'KnownThreats.RANSOMWARE_EXTENSIONS' in chunk
@@ -599,7 +604,7 @@ class TestV2940Reliability:
         """Without the app backref the file gauges still fall back to the
         orphan binding instead of raising."""
         src = self._src()
-        idx = src.index('app = getattr(self, \'_app\', None)')
+        idx = src.rindex('app = getattr(self, \'_app\', None)')
         chunk = src[idx:idx + 5000]
         assert '_file_monitor_ref' in chunk
         assert 'getattr(fm, \'_file_modifications_hour\', 0)' in chunk
