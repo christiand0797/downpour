@@ -2,6 +2,21 @@
 
 ## Branch: main
 
+## Session 2026-09-08 — v29.44: improvement catalog (external security tooling research)
+- ✅ Created `docs/IMPROVEMENT_CATALOG.md` — 21 actionable improvements sourced
+  from the security tooling landscape, organized by impact/effort:
+  - **Detection**: YARA-X (Rust, 5-10× faster), Hyperscan (multi-pattern DFA),
+    ETW kernel telemetry (replaces polling), EMBER ML static PE analysis,
+    Sigma rules (3000+ community detections), AMSI integration, LOLBins
+  - **Performance**: Aho-Corasick IOC matching (O(n) for 750+ patterns),
+    RE2 (no ReDoS), functools.lru_cache on hot paths
+  - **Self-Protection**: Process mitigation policies (SetProcessMitigationPolicy
+    via ctypes — blocks shellcode injection, DLL hijacking, direct syscalls),
+    Windows Job Objects (child process restriction)
+  - **Threat Intel**: STIX/TAXII, MISP, government feeds
+  - **Code Quality**: structlog, pydantic, tenacity, rich
+- ✅ Baseline re-verified: **205/205 tests pass** (no regressions).
+
 ## Session 2026-09-08 — v29.43j: streaming legacy migration (memory-blowup fix in migration path)
 - 🐞 **Same memory-blowup class as v29.43e, in the migration path**:
   `migrate_legacy_entries` read whole legacy artifacts into RAM

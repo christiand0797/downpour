@@ -1,5 +1,12 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.44 - improvement catalog (external security tooling research)
+- Created `docs/IMPROVEMENT_CATALOG.md`: 21 actionable improvements organized
+  by impact/effort with priority matrix and quick wins. Key P0 items:
+  YARA-X (Rust rewrite, 5-10× faster), Aho-Corasick IOC matching (O(n) for
+  750+ patterns), ETW kernel telemetry (replaces polling with push events),
+  process mitigation policies (anti-tamper via ctypes). 205/205 tests.
+
 ## v29.43j - streaming legacy migration (memory-blowup fix in migration path)
 - `migrate_legacy_entries` now streams: legacy artifacts are decrypted
   chunk-by-chunk into a tmp plaintext (hash verified against the sidecar),
