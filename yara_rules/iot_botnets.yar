@@ -177,5 +177,5 @@ rule Android_Botnet_Patterns {
     
     strings:
         $android1 = "android.intent.action" nocase $android2 = "getDeviceId" nocase $android3 = "SmsManager" nocase $android4 = "sendTextMessage" nocase $android5 = "BotManager" nocase $cnc = "cnc" nocase $port = ":23" nocase $port2 = ":6667" nocase $sms = "SMS" nocase $contacts = "Contacts" nocase $location = "Location" nocase condition:
-        all of ($android*) and any of ($cnc, $sms, $contacts) and filesize < 5MB
+        all of ($android*) and any of ($cnc, $sms, $contacts, $port, $port2, $location) and filesize < 5MB
 }

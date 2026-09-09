@@ -2,6 +2,50 @@
 
 ## Branch: main
 
+## Session 2026-09-09 — v29.48: push-based event delivery (EvtSubscribe — catalog 1c, last P0)
+
+**Sync:** HEAD was `5cf0f90 v29.47`, tree clean. A concurrent agent
+continued the yara_rules strict-compile fixes (comprehensive_malware,
+iot_botnets) mid-session — verified against the YARA-X engine (14/14
+rulesets, more matches post-fix) and included in this commit.
+
+**Catalog item executed: 1c (P0, event-log push portion).**
+
+**New module: `event_push_monitor.py` (~275 lines)** — EvtSubscribe-based
+push delivery: Windows pushes each event to a callback the instant it is
+written, replacing the 15 s poll latency for subscribed channels.
+- Same hostile-event set + EVENT_MAP as event_log_monitor (7045/4698/
+  4699/4720/4732/1102/104/4625/4104/4688), same alert-shape fields —
+  bridges feed the pipeline uniformly ([EVT-PUSH] tag).
+- **Cross-feature integration:** push-delivered 4104 script blocks are
+  evaluated through sigma_engine — a hostile script block now arrives as
+  a HIGH Sigma finding the moment PowerShell executes it (live-verified:
+  DownloadString cradle → `[SIGMA] PowerShell Download Cradle (Script
+  Block)` HIGH + the informational 4104).
+- 4625 brute-force burst detection (10 / 300 s, cross-channel).
+- `start_push()` returns {covered, failed}; the main wiring drops covered
+  channels from the poll monitor's bookmarks — zero duplicate alerts, and
+  the poll monitor stays as fallback for channels push cannot subscribe
+  (Security without admin failed live, exactly as designed).
+- Callback signature verified live on the System channel (7,040 historical
+  events delivered instantly with StartAtOldestRecord in the probe;
+  production uses ToFutureEvents = new-only).
+
+**Wiring:** `_event_push_alert_bridge` ([EVT-PUSH], gauge-color map); in
+`_manual_start_security_monitors` the push start happens before
+`_poll_mon.start()` in the same synchronous block, so bookmark pops are
+race-free. Ordering regression-tested.
+
+**Bug caught by tests:** `_handle_event` raised KeyError on unmapped event
+IDs when called directly — guarded (never-raise rule) after the test
+flagged it.
+
+**Tests:** +13 (`tests/test_v2948_event_push.py`: XML parsing, alert
+mapping, 4625 burst threshold, 4104→Sigma bridge, callback-exception
+containment, live subscription coverage + idempotence, no-evtlib path,
+wiring incl. no-duplicate-alerting assertion). **310/310 pass** (297+13).
+AST: 799 methods, 0 duplicates.
+
 ## Session 2026-09-09 — v29.47: DNS-cache surveillance + MISP + Job Object guard + entropy cache
 
 **Sync:** HEAD was `d15de6d v29.46`, tree clean.

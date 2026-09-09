@@ -74,7 +74,7 @@ rule SuspiciousBatchScript
         $bypass = "bypass" nocase
     
     condition:
-        any of ($powershell, $cmd, $del, $rmdir, $format, $shutdown, $taskkill, $net, $reg, $bypass) and 
+        any of ($powershell, $cmd, $del, $rmdir, $format, $shutdown, $taskkill, $net, $reg, $bypass, $echo_off) and 
         filesize < 100KB
 }
 

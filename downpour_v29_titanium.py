@@ -326,6 +326,16 @@ except ImportError:
     child_process_guard: Any = None
     CHILD_PROCESS_GUARD_AVAILABLE: Any = False
 
+# v29.48: push-based event delivery (catalog 1c) — EvtSubscribe makes
+# Windows PUSH security events the instant they are written (zero polling
+# latency for 7045/4698/1102/4625-burst/4104+Sigma).
+try:
+    import event_push_monitor
+    EVENT_PUSH_AVAILABLE: Any = True
+except ImportError:
+    event_push_monitor: Any = None
+    EVENT_PUSH_AVAILABLE: Any = False
+
 is_trusted_system_process = trusted_system_process
 
 # Revolutionary enhancements imports
@@ -37864,6 +37874,24 @@ Verification Status:
         except Exception:
             pass
 
+    def _event_push_alert_bridge(self, alert):
+        """v29.48: bridge push-delivered events into the alert queue."""
+        try:
+            severity_color = {
+                'CRITICAL': Colors.GAUGE_RED,
+                'HIGH': Colors.GAUGE_ORANGE,
+                'MEDIUM': Colors.GAUGE_YELLOW,
+                'LOW': Colors.GAUGE_TEAL,
+            }.get(getattr(alert, 'severity', 'LOW'), Colors.GAUGE_TEAL)
+            self._queue_alert(
+                '[EVT-PUSH] {} ({}): {}'.format(
+                    getattr(alert, 'description', 'event'),
+                    getattr(alert, 'technique', ''),
+                    (getattr(alert, 'detail', '') or '')[:160]),
+                severity_color)
+        except Exception:
+            pass
+
     def _manual_start_security_monitors(self):
         """User-triggered: start USB, service, ARP, WMI, FIM monitors."""
         if 'sec_monitors' in self._manual_engines_started:
@@ -37910,13 +37938,44 @@ Verification Status:
         # v29.44b: Windows Event Log monitor — OS-level persistence and
         # tamper events (service install, task create, account create,
         # log clear = tamper, suspicious PowerShell blocks, brute force).
+        # v29.48: push delivery is attempted FIRST (EvtSubscribe = zero
+        # latency); channels it covers are dropped from the poll monitor's
+        # bookmarks so no event is alerted twice. Channels push could not
+        # subscribe (missing channel / non-admin Security) stay polled.
         if not getattr(self, '_evt_log_monitor_started', False):
             self._evt_log_monitor_started = True
+            _poll_mon = None
             try:
                 if EVENT_LOG_MONITOR_AVAILABLE:
-                    _mon = get_event_log_monitor(
+                    _poll_mon = get_event_log_monitor(
                         callback=self._event_log_alert_bridge)
-                    _mon.start(interval=15.0)
+            except Exception as _e:
+                _safe_log('SecMonitors', 'poll monitor setup failed', _e)
+            if EVENT_PUSH_AVAILABLE and not getattr(
+                    self, '_event_push_started', False):
+                self._event_push_started = True
+                try:
+                    _st = event_push_monitor.start_push(
+                        callback=self._event_push_alert_bridge)
+                    _covered = _st.get('covered', [])
+                    _failed = _st.get('failed', [])
+                    if _covered:
+                        self._queue_alert(
+                            '[EVT-PUSH] live on: ' + ', '.join(_covered),
+                            Colors.GAUGE_TEAL)
+                        if _poll_mon is not None:
+                            for _ch in _covered:
+                                _poll_mon._bookmarks.pop(_ch, None)
+                    if _failed:
+                        self._queue_alert(
+                            '[EVT-PUSH] poll fallback for: '
+                            + ', '.join(_failed),
+                            Colors.GAUGE_YELLOW)
+                except Exception as _e:
+                    _safe_log('SecMonitors', 'event push start failed', _e)
+            try:
+                if _poll_mon is not None:
+                    _poll_mon.start(interval=15.0)
                     self._queue_alert(
                         '[OK] Windows Event Log monitor active (7045/4698/1102)',
                         Colors.GAUGE_GREEN)

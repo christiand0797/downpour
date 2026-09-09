@@ -1,5 +1,18 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.48 - push-based event delivery (EvtSubscribe — catalog 1c)
+- NEW event_push_monitor.py: EvtSubscribe makes Windows PUSH security
+  events the instant they are written — zero polling latency for 7045/
+  4698/4699/4720/4732/1102/104/4625-burst/4688/4104 (was 15 s poll).
+- Push-delivered 4104 script blocks are evaluated through sigma_engine —
+  hostile script blocks surface as HIGH Sigma findings in real time
+  (live-verified: PowerShell DownloadString cradle → [SIGMA] HIGH).
+- Coverage-aware wiring: covered channels are dropped from the poll
+  monitor's bookmarks (no duplicate alerts); poll stays as fallback for
+  channels push cannot subscribe (non-admin Security log).
+- [EVT-PUSH] alert bridge with the standard severity-color map.
+- Tests: +13 — **310/310 pass**; AST: 799 methods, 0 duplicates.
+
 ## v29.47 - DNS-cache surveillance + MISP + Job Object guard + entropy cache
 - NEW dns_cache_watch.py (catalog 5a): polls the Windows resolver cache
   and scores every cached domain with DGA heuristics (entropy/digits/

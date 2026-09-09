@@ -3,7 +3,7 @@
 > **Work in progress** — Personal antivirus, anti-malware, anti-RAT, and comprehensive Windows threat-defense platform built in Python with a full Tkinter GUI.
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v29.47%20Titanium-blue?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/version-v29.48%20Titanium-blue?style=for-the-badge" />
   <img src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078d7?style=for-the-badge&logo=windows" />
   <img src="https://img.shields.io/badge/python-3.12%20recommended-yellow?style=for-the-badge&logo=python" />
   <img src="https://img.shields.io/badge/status-active%20WIP-brightgreen?style=for-the-badge" />
@@ -63,6 +63,7 @@ LAUNCH_V29_TITANIUM.bat
 | 🏢 **MISP Feed Client** | Standard MISP REST API ingestion (incremental timestamp watermark, domain\|ip split) — disabled by default until configured (v29.47) |
 | 📡 **DNS Cache Surveillance** | 180s DGA scoring (entropy/digits/risky-TLD) over every cached resolver lookup — catches beacons whose query happened between polls; each suspect alerts exactly once (v29.47) |
 | 🔒 **Job Object Child Guard** | Every spawned probe is kernel-contained: dies with Downpour, breakaway refused, one-call tree-kill panic switch (v29.47) |
+| ⚡ **Push Event Telemetry** | EvtSubscribe push delivery — service installs, task creation, log-clearing, brute-force bursts and PowerShell script blocks arrive the instant they're written (was 15 s poll); 4104 blocks get real-time Sigma evaluation (v29.48) |
 | 🛰️ **FireHOL/Spamhaus/DShield feeds** | firehol_level1/2/3 aggregated blocklists, Spamhaus DROP, bruteforceblocker, CINS Army — 6 high-fidelity IP feeds added to the intel engine (v29.46) |
 | 🌐 **OSINT4ALL Indicator Stack** | One-click deep-links for any IP/hash/domain → VirusTotal, AbuseIPDB, Talos, GreyNoise, Shodan, Censys, OTX, Pulsedive, ONYPHE, urlscan.io + more |
 | 🔎 **Inline Reputation Lookups** | AbuseIPDB, Shodan, Pulsedive, ONYPHE, EmailRep, GreyNoise via free API keys (web-page fallback when keyless); Settings → OSINT API Keys |

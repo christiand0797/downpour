@@ -1,5 +1,5 @@
 # TODO / Current State — Downpour v29 Titanium
-# Last verified: 2026-09-09 (v29.47 — DNS-cache surveillance + MISP + Job Object guard)
+# Last verified: 2026-09-09 (v29.48 — push-based event delivery)
 
 **READ THIS FIRST if you are a new agent picking up this project.**
 This file was badly stale (dated April 2026) until this rewrite. `_WORKLOG.md`
@@ -11,7 +11,7 @@ authoritative history. This file is the current-state snapshot + what's left.
 ## Verified Current State (as of this rewrite)
 
 - `downpour_v29_titanium.py`: ~52,780 lines, 1313 methods across classes
-  (798 in the main `downpour` class after v29.47), **0 duplicate method names**
+  (799 in the main `downpour` class after v29.48), **0 duplicate method names**
   (verify with the AST script below before and after any edit session — this
   has caught real bugs multiple times)
 - `gpu_detector_fix.py` shipped in v29.24 (was a dangling import in
@@ -31,8 +31,11 @@ authoritative history. This file is the current-state snapshot + what's left.
   firmware-posture units + main-wiring source checks); **297 tests as of
   v29.47** — added `tests/test_v2947_dns_misp_guard.py` (12: DNS-cache
   TOFU/alert/quiet cycle, MISP both response shapes + 403, job-guard live
-  install + terminate rails, wiring order).)
-- Full project: 65 Python files, 0 syntax errors
+  install + terminate rails, wiring order); **310 tests as of v29.48** —
+  added `tests/test_v2948_event_push.py` (13: XML parsing, alert mapping,
+  4625 burst threshold, 4104→Sigma push bridge, callback-exception
+  containment, live subscription coverage/idempotence, wiring).)
+- Full project: 66 Python files, 0 syntax errors
 - **v29.46 community detection layer** — `sigma_engine.py` (Sigma ingest,
   catalog 1e DONE), `yara_x_engine.py` (catalog 1a/P0 DONE, yara-x 1.20 in
   the venv + yara-python fallback), `stix_taxii_feed.py` (catalog 3a DONE,
@@ -43,6 +46,10 @@ authoritative history. This file is the current-state snapshot + what's left.
   (catalog 3b DONE, disabled by default), `child_process_guard.py`
   (catalog 4b DONE — pywin32 win32job; raw ctypes failed live), 2a lru_cache
   on the entropy hot path. Guard installs FIRST in the monitor start.
+- **v29.48** — `event_push_monitor.py` (catalog 1c event-log portion DONE):
+  EvtSubscribe push delivery replaces the 15 s poll for covered channels;
+  uncovered channels keep poll fallback; covered-channel bookmarks are
+  popped so no event alerts twice.
 - **`pefile` MUST be present in the venv** (requirements.txt lists it) — it
   went missing once and `test_notepad_analyzes_clean` fails on `is_pe=False`.
 - **Main-thread DB-freeze rule (v29.14)**: every `self.db.*` / `count_intel()`
