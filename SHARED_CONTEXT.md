@@ -1,6 +1,6 @@
 # Downpour Shared Context
 
-## Current State (Updated: 2026-09-08T02:30:00Z)
+## Current State (Updated: 2026-09-08T22:00:00Z)
 
 ### ✅ COMPLETED - Critical Fixes
 1. **ERR_QUIC_PROTOCOL_ERROR Fixed** - Removed 10 false-positive DDoS block rules that were blocking Google Cloud IPs (34.x.x.x, 35.x.x.x, 160.x.x.x) used by Claude/Chrome QUIC traffic over UDP 443
@@ -222,17 +222,17 @@
 4. **psutil locking** - Global `_PSUTIL_LOCK` serializes all psutil calls (see line ~404 in main)
 5. **Lazy tabs** - 8 tabs load on first click via `_on_tab_changed_lazy`
 6. **Windows `os.chmod()` is a no-op** — `chmod(0o700)` on the "secure" temp dir (`downpour_v29_titanium.py:10385`) does NOT restrict access; default user ACLs apply. Use `icacls`/`win32security` DACLs.
-7. **`VERIFICATION_HASHES` are placeholder strings, not hashes** (`:10374-10379`) and `_verify_url_security` allows plain HTTP for phishtank/nixspam/sysctl (`:10430-10441`) — feed data is NOT authenticated (TASK-013).
-8. **Name-only allowlists are spoofable** — never add new name-based safe-process checks; use signature-bound validation (TASK-015).
-9. **Never interpolate threat data into PowerShell strings** — f-string `{name}`/`{path}` in PS commands is admin-level command injection (TASK-012). Quote-double or use -EncodedCommand.
-10. **Three quarantine formats coexist** (plain move / XOR-0x5A / GUI) — restore via `system_cleanup.py` does not hash-verify; unify before touching quarantine code (TASK-016).
+7. ~~`VERIFICATION_HASHES` are placeholder strings~~ **RESOLVED v29.43a/y** — HTTPS-only both fetch paths, HMAC manifest class merged, sha256 audit lines per fetch. Remaining nit: wire `verify_feed` into the store path for legacy updater feeds.
+8. ~~Name-only allowlists are spoofable~~ **RESOLVED v29.42y/43i** — `trust_check.py` wired into behavior_scanner + threat_response_center + heartbeat. Never add new name-based safe-process checks; use `trusted_system_process()`.
+9. ~~PS command injection via threat data~~ **RESOLVED v29.42w** — WMI cleanup validates + escapes. Still: never add new f-string `{name}`/`{path}` PS interpolations; use `-EncodedCommand` or quote-double.
+10. ~~Three quarantine formats coexist~~ **RESOLVED v29.43d** — unified `quarantine_core.py` v2 QuarantineService (AES-GCM, write-ahead manifest, DACL preservation, hash-verified restore). All 4 producers migrated. Remaining: GUI producer legacy `.quar` files on disk need `migrate_legacy_entries()` ingestion at next boot.
 
 ---
 
 ## Next Steps for Other Agents
 
-**agent-main-001**: TASK-013 follow-up DONE (wired HMAC manifest verify into threat_intelligence.py store path — threatfox, urlhaus, phishtank, malwarebazaar, emerging_threats, blocklist_de feeds now verify content before parsing) 
-**agent-config-003**: surface `ConfigManager.tamper_detected` in the UI (flag + register_tamper_callback exist since v29.42w)
-**agent-perf-002**: TASK-010 (GPU YARA acceleration — DEFERRED: yara-python has no GPU execution model)
-**agent-audit-007**: TASK-016 follow-ups (boot-time reconciliation scan + quarantine-dir DACLs) when slots open
-**unclaimed**: TASK-018 (SensorHub consolidation — MEDIUM, already completed per WORK_QUEUE)
+**agent-main-001**: TASK-013 nit — wire `verify_feed` into the legacy updater store path (threat_intelligence.py currently only has HTTPS enforcement + manifest class available)
+**agent-config-003**: surface `ConfigManager.tamper_detected` in the UI (flag + `register_tamper_callback` exist since v29.42w)
+**agent-perf-002**: TASK-010 (GPU YARA — DEFERRED: yara-python has no GPU execution model; needs custom matcher e.g. Hyperscan)
+**agent-audit-007**: all audit CRITICAL/HIGH items closed; §11 architectural horizon (privilege split, PPL) is the long-term path
+**unclaimed**: code_integrity baseline needs to be generated on the production machine (`python code_integrity.py baseline`) and `ConfigManager.tamper_detected` surfaced in the GUI
