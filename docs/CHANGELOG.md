@@ -1,5 +1,14 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.43j - streaming legacy migration (memory-blowup fix in migration path)
+- `migrate_legacy_entries` now streams: legacy artifacts are decrypted
+  chunk-by-chunk into a tmp plaintext (hash verified against the sidecar),
+  then v2-encrypted via `_encrypt_stream_file` — constant memory
+  end-to-end. Fixes the same RAM-blowup class as v29.43e, plus a latent
+  TypeError in the legacy-AES key lookup (`_get_or_create_key(root)`).
+- `no_metadata` counter restored (dropped in the streaming rewrite).
+- 205/205 tests pass.
+
 ## v29.43i - sensor hub lifecycle fix + heartbeat liveness surfacing (TASK-018 completion)
 - **Found the missing hub start**: `start_sensor_hub()` was defined and
   imported but never called — the rewired orphan monitors consumed from a

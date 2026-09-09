@@ -746,6 +746,69 @@ def _legacy_decrypt(data: bytes, method: str, key: Optional[bytes]) -> bytes:
     raise QuarantineError(f'unknown legacy method: {method!r}')
 
 
+def _legacy_key_for(root: Path) -> Optional[bytes]:
+    """Read the legacy quarantine key at ``root/.quarantine_key`` (v1 layout).
+
+    The v2 `_get_or_create_key()` takes no directory argument (it uses the
+    module-level KEY_FILE), so migration needs this explicit-path variant.
+    """
+    kp = Path(root) / '.quarantine_key'
+    try:
+        if not kp.exists():
+            return None
+        blob = kp.read_bytes().strip()
+        if blob.startswith(b'DPAPI:'):
+            import win32crypt
+            return win32crypt.CryptUnprotectData(
+                base64.b64decode(blob[6:]), None, None, None, 0)[1]
+        if blob.startswith(b'RAW:'):
+            return base64.b64decode(blob[4:])
+    except Exception as exc:
+        _log.warning('quarantine_core: legacy key unreadable at %s: %s', kp, exc)
+    return None
+
+
+def _legacy_decrypt_stream(src: Path, method: str, key: Optional[bytes],
+                           dst: Path) -> str:
+    """Stream-decrypt a legacy artifact into dst (constant memory).
+
+    Returns the plaintext SHA-256. Raises on GCM auth failure (tamper) or
+    unknown method. dst is overwritten.
+    """
+    h = hashlib.sha256()
+    with open(src, 'rb') as fin, open(dst, 'wb') as fout:
+        if method == 'aes-gcm':
+            from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+            if key is None:
+                raise QuarantineError('legacy AES entry but no key available')
+            prefix = fin.read(8)
+            aes = AESGCM(key)
+            counter = 0
+            while True:
+                chunk = fin.read(65536 + 16)
+                if not chunk:
+                    break
+                plain = aes.decrypt(prefix + counter.to_bytes(4, 'big'),
+                                    chunk, None)
+                h.update(plain)
+                fout.write(plain)
+                counter += 1
+        elif method == 'xor-0x5a':
+            for chunk in iter(lambda: fin.read(65536), b''):
+                dec = bytes(b ^ 0x5A for b in chunk)
+                h.update(dec)
+                fout.write(dec)
+        elif method == 'raw':
+            for chunk in iter(lambda: fin.read(65536), b''):
+                h.update(chunk)
+                fout.write(chunk)
+        else:
+            raise QuarantineError(f'unknown legacy method: {method!r}')
+        fout.flush()
+        os.fsync(fout.fileno())
+    return h.hexdigest()
+
+
 def migrate_legacy_entries(roots: Optional[List[Path]] = None) -> Dict[str, int]:
     """One-time ingest of pre-v2 quarantine artifacts into the v2 service.
 
@@ -804,39 +867,41 @@ def migrate_legacy_entries(roots: Optional[List[Path]] = None) -> Dict[str, int]
                         meta = None
 
                 try:
-                    if meta and meta.get('method') in ('aes-gcm', 'xor-0x5a'):
-                        method = meta['method']
-                        if method == 'aes-gcm':
-                            if legacy_key is None:
-                                legacy_key = _get_or_create_key(root)
-                            key = legacy_key
-                        else:
-                            key = None
-                        content = _legacy_decrypt(f.read_bytes(), method, key)
+                    method = 'raw'
+                    key: Optional[bytes] = None
+                    orig = ''
+                    expected = ''
+                    if meta:
+                        if 'method' in meta:
+                            method = meta['method']
+                        elif 'xor_key' in meta:
+                            method = 'xor-0x5a'
                         orig = meta.get('original_path') or ''
                         expected = (meta.get('sha256')
                                     or meta.get('hash_sha256') or '').lower()
-                        if expected and hashlib.sha256(
-                                content).hexdigest().lower() != expected:
-                            raise QuarantineError('legacy content hash mismatch')
-                    elif meta and meta.get('hash_sha256'):
-                        content = f.read_bytes()  # unknown method — raw read
-                        orig = meta.get('original_path') or ''
-                        expected = meta['hash_sha256'].lower()
-                        if hashlib.sha256(content).hexdigest().lower() != expected:
-                            raise QuarantineError('raw content hash mismatch')
+                        if method == 'aes-gcm' and legacy_key is None:
+                            legacy_key = _legacy_key_for(root)
+                            if legacy_key is None:
+                                raise QuarantineError(
+                                    'legacy AES entry but key unavailable')
                     else:
-                        # plain move (.locked / GUI .quar) — no metadata
-                        content = f.read_bytes()
-                        orig = ''
-                        expected = ''
                         stats['no_metadata'] += 1
 
-                    if not orig:
-                        orig = str(f)  # unknown source — keep in place
+                    # v29.43f: stream legacy -> tmp plaintext (constant
+                    # memory — the old path read whole artifacts into RAM
+                    # and re-encrypted them as a second full copy)
+                    tmp_plain = search_dir / (name + '.migrating')
+                    got_hash = _legacy_decrypt_stream(
+                        f, method, key if method == 'aes-gcm' else None,
+                        tmp_plain)
+                    if expected and got_hash != expected:
+                        _qc_unlink(tmp_plain)
+                        raise QuarantineError(
+                            f'legacy content hash mismatch '
+                            f'({expected[:12]}… != {got_hash[:12]}…)')
 
                     # register as a v2 entry with the ORIGINAL path preserved
-                    sha256 = hashlib.sha256(content).hexdigest()
+                    sha256 = got_hash
                     base_name = Path(orig).name or name
                     q_path = LOCKED_DIR / (base_name + '.'
                                            + sha256[:8] + '.quarantined')
@@ -850,7 +915,7 @@ def migrate_legacy_entries(roots: Optional[List[Path]] = None) -> Dict[str, int]
                         original_path=str(Path(orig).resolve()),
                         quarantine_path=str(q_path),
                         file_hash=sha256,
-                        file_size=len(content),
+                        file_size=os.path.getsize(str(tmp_plain)),
                         threat_type='legacy-migrated',
                         threat_name=(meta.get('threat_name') if meta else None)
                         or Path(orig).name,
@@ -861,9 +926,9 @@ def migrate_legacy_entries(roots: Optional[List[Path]] = None) -> Dict[str, int]
                     with service._lock:
                         entry.id = _save_entry(entry)
                     service._write_manifest(entry)
-                    ciphertext = _encrypt(content)
-                    with open(q_path, 'wb') as fh:
-                        fh.write(ciphertext)
+                    # re-encrypt the tmp plaintext into the v2 store (streamed)
+                    _encrypt_stream_file(tmp_plain, q_path)
+                    _qc_unlink(tmp_plain)
                     with service._lock:
                         service._entries[entry.id] = entry
                     owned.add(str(q_path))
@@ -876,6 +941,7 @@ def migrate_legacy_entries(roots: Optional[List[Path]] = None) -> Dict[str, int]
                     _log.info('quarantine_core: migrated legacy entry %s (-> %s)',
                               name, entry.id)
                 except Exception as exc:
+                    _qc_unlink(search_dir / (name + '.migrating'))
                     stats['failed'] += 1
                     _log.warning('quarantine_core: legacy migration failed '
                                  'for %s: %s', name, exc)

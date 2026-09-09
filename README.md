@@ -190,6 +190,8 @@ Detects: **Mimikatz, CobaltStrike, Metasploit, Empire, PoshC2, AsyncRAT, NjRAT, 
 
 See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for full details.
 
+**v29.43j**: Legacy migration streams — constant memory end-to-end (fixes the RAM-blowup class in `migrate_legacy_entries` + a latent TypeError in the AES key lookup). 205/205 tests.
+
 **v29.43i**: Sensor hub lifecycle fix + heartbeat liveness surfacing (TASK-018 completion) — `start_sensor_hub()` was defined and imported but NEVER CALLED by the app (the rewired orphan monitors consumed from a hub that never ran); now started in `_manual_start_monitoring`. The [ALIVE] heartbeat includes `sensors_alive=N` and logs stalled sensors via error_logger. 3 new source-structure tests — 205/205 pass.
 
 **v29.43h**: Boot-time self-checks wired into `_auto_start` (code-integrity verify with TOFU baseline + legacy quarantine migration/reconciliation — audit §8.4/§9 wiring complete) and a **sensor liveness registry** in `sensor_hub.py` (`mark_alive`/`liveness_report` — stalled sensors surfaced instead of silently dead; audit §8.5). Personal-path scrub finished (`docs/SMART_REPAIR_GUIDE.md`). 3 new tests — 202/202 pass.

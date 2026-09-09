@@ -2,6 +2,22 @@
 
 ## Branch: main
 
+## Session 2026-09-08 — v29.43j: streaming legacy migration (memory-blowup fix in migration path)
+- 🐞 **Same memory-blowup class as v29.43e, in the migration path**:
+  `migrate_legacy_entries` read whole legacy artifacts into RAM
+  (`f.read_bytes()`) and re-encrypted them as a second full copy — plus a
+  latent TypeError (`_get_or_create_key(root)` — the v2 signature takes no
+  args) in the AES branch that would have crashed any legacy AES migration.
+- ✅ Rewrote the migration to stream: `_legacy_decrypt_stream(src, method,
+  key, dst)` decrypts chunk-by-chunk into a tmp plaintext (hash on the
+  fly), then `_encrypt_stream_file(tmp, q_path)` v2-encrypts it — constant
+  memory end-to-end. Hash verified against the sidecar before registration.
+- ✅ Fixed the latent AES-branch key bug with `_legacy_key_for(root)` (reads
+  the v1 `.quarantine_key` explicitly — DPAPI/RAW).
+- ✅ Restored the `no_metadata` counter dropped in the streaming rewrite.
+- ✅ Verification: py_compile OK; **205/205 tests pass** (all legacy/XOR/
+  plain-migration cases green through the streaming path).
+
 ## Session 2026-09-08 — v29.43i: sensor hub lifecycle + liveness surfacing (TASK-018 completion)
 - 🐞 **Found the missing hub start**: `start_sensor_hub()` was defined and
   imported but NEVER CALLED — the "rewired" orphan monitors
