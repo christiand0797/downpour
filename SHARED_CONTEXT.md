@@ -1,6 +1,11 @@
 # Downpour Shared Context
 
-## Current State (Updated: 2026-09-08T22:00:00Z)
+## Current State (Updated: 2026-09-08T23:00:00Z)
+
+### ✅ COMPLETED v29.43d (2026-09-08)
+- **TASK-013 follow-up complete**: FeedManifestVerifier now wired into `threat_intelligence.py` legacy updater path — 6 high-priority feeds (threatfox, urlhaus, phishtank, malwarebazaar, emerging_threats, blocklist_de) verify content against signed HMAC-SHA256 manifests before parsing/storing. Trust-on-first-use baseline + rolling re-sign for dynamic feeds.
+- **Test suite expanded**: 205 total tests passing (added 6 code integrity tests + updated TASK-007 notes).
+- **TASK-010 deferred**: GPU YARA acceleration confirmed infeasible — yara-python compiles to CPU-only VM; requires custom Hyperscan/regex-CUDA port.
 
 ### ✅ COMPLETED - Critical Fixes
 1. **ERR_QUIC_PROTOCOL_ERROR Fixed** - Removed 10 false-positive DDoS block rules that were blocking Google Cloud IPs (34.x.x.x, 35.x.x.x, 160.x.x.x) used by Claude/Chrome QUIC traffic over UDP 443
@@ -55,6 +60,12 @@
     Follow-ups queued as TASK-011…TASK-018 (3 CRITICAL, 3 HIGH, 2 MEDIUM).
     Also fixed: duplicate TASK-006 in `WORK_QUEUE.json` (marked superseded),
     malformed trailing tokens in `AGENT_REGISTRY.json` (was invalid JSON).
+
+### ✅ COMPLETED v29.43d (2026-09-08)
+
+23. **TASK-013 follow-up complete**: FeedManifestVerifier now wired into `threat_intelligence.py` legacy updater path — 6 high-priority feeds (threatfox, urlhaus, phishtank, malwarebazaar, emerging_threats, blocklist_de) verify content against signed HMAC-SHA256 manifests before parsing/storing. Trust-on-first-use baseline + rolling re-sign for dynamic feeds.
+24. **Test suite expanded**: 205 total tests passing (added 6 code integrity tests + updated TASK-007 notes).
+25. **TASK-010 deferred**: GPU YARA acceleration confirmed infeasible — yara-python compiles to CPU-only VM; requires custom Hyperscan/regex-CUDA port.
 
 ### ✅ COMPLETED - Security Hardening v29.42w (2026-09-08)
 
@@ -134,13 +145,13 @@
 |------|----------|----------|-------|
 | TASK-011: Narrow Defender exclusions | ✅ DONE v29.42w | ~~CRITICAL~~ | enhanced_bypass_system.py, defender_compatibility.py, all 3 launchers |
 | TASK-012: PS command-injection hardening | ✅ DONE v29.42w | ~~CRITICAL~~ | advanced_threat_remediation.py (analyzer call was already escaped) |
-| TASK-013: Feed integrity (hash manifests, corroboration) | ✅ DONE v29.42y (HTTPS-only both fetch paths + sha256 audit lines; agent-audit-001's HMAC manifest class merged) | ~~CRITICAL~~ | downpour_v29_titanium.py, threat_feed_aggregator.py |
+| TASK-013: Feed integrity (hash manifests, corroboration) | ✅ DONE v29.43d (HTTPS-only both fetch paths + sha256 audit lines; HMAC manifest class merged + wired into threat_intelligence.py legacy updater path) | ~~CRITICAL~~ | downpour_v29_titanium.py, threat_feed_aggregator.py, threat_intelligence.py |
 | TASK-014: Config.json signing / tamper alerting | ✅ DONE v29.42w | ~~High~~ | config.py + tests |
 | TASK-015: Signature-bound allowlists | ✅ DONE v29.42y (trust_check.py; behavior_scanner substring-skip fixed) | ~~High~~ | trust_check.py (new), behavior_scanner.py, threat_response_center.py |
 | TASK-016: Quarantine unification (AES-GCM + verified restore) | ✅ DONE v29.42x | ~~High~~ | quarantine_core.py (new), downpour_v29_titanium.py, advanced_threat_remediation.py, system_cleanup.py |
 | TASK-017: KEV/EPSS hot-path cache | ✅ DONE v29.42w | ~~Medium~~ | file_scanner.py, process_monitor.py, threat_detection_engine.py |
 | TASK-018: SensorHub consolidation + orphan retirement | ✅ DONE v29.42y | ~~Medium~~ | sensor_hub.py (new), downpour_v29_titanium.py, process_monitor.py, network_monitor.py, file_monitor.py, ransomware_detector.py |
-| TASK-007: Automated test suite | ✅ DONE v29.43c | ~~Medium~~ | tests/test_task007_critical_paths.py, test_quarantine_core.py, test_trust_check.py, test_port_profiles.py |
+| TASK-007: Automated test suite | ✅ DONE v29.43d | ~~Medium~~ | tests/test_task007_critical_paths.py, test_quarantine_core.py, test_trust_check.py, test_port_profiles.py, test_code_integrity.py |
 
 ---
 
@@ -222,7 +233,7 @@
 4. **psutil locking** - Global `_PSUTIL_LOCK` serializes all psutil calls (see line ~404 in main)
 5. **Lazy tabs** - 8 tabs load on first click via `_on_tab_changed_lazy`
 6. **Windows `os.chmod()` is a no-op** — `chmod(0o700)` on the "secure" temp dir (`downpour_v29_titanium.py:10385`) does NOT restrict access; default user ACLs apply. Use `icacls`/`win32security` DACLs.
-7. ~~`VERIFICATION_HASHES` are placeholder strings~~ **RESOLVED v29.43a/y** — HTTPS-only both fetch paths, HMAC manifest class merged, sha256 audit lines per fetch. Remaining nit: wire `verify_feed` into the store path for legacy updater feeds.
+7. ~~`VERIFICATION_HASHES` are placeholder strings~~ **RESOLVED v29.43d** — HTTPS-only both fetch paths, HMAC manifest class merged, sha256 audit lines per fetch, `verify_feed` wired into legacy `threat_intelligence.py` updater path (6 feeds: threatfox, urlhaus, phishtank, malwarebazaar, emerging_threats, blocklist_de). Trust-on-first-use baseline + rolling re-sign.
 8. ~~Name-only allowlists are spoofable~~ **RESOLVED v29.42y/43i** — `trust_check.py` wired into behavior_scanner + threat_response_center + heartbeat. Never add new name-based safe-process checks; use `trusted_system_process()`.
 9. ~~PS command injection via threat data~~ **RESOLVED v29.42w** — WMI cleanup validates + escapes. Still: never add new f-string `{name}`/`{path}` PS interpolations; use `-EncodedCommand` or quote-double.
 10. ~~Three quarantine formats coexist~~ **RESOLVED v29.43d** — unified `quarantine_core.py` v2 QuarantineService (AES-GCM, write-ahead manifest, DACL preservation, hash-verified restore). All 4 producers migrated. Remaining: GUI producer legacy `.quar` files on disk need `migrate_legacy_entries()` ingestion at next boot.
@@ -231,7 +242,6 @@
 
 ## Next Steps for Other Agents
 
-**agent-main-001**: TASK-013 nit — wire `verify_feed` into the legacy updater store path (threat_intelligence.py currently only has HTTPS enforcement + manifest class available)
 **agent-config-003**: surface `ConfigManager.tamper_detected` in the UI (flag + `register_tamper_callback` exist since v29.42w)
 **agent-perf-002**: TASK-010 (GPU YARA — DEFERRED: yara-python has no GPU execution model; needs custom matcher e.g. Hyperscan)
 **agent-audit-007**: all audit CRITICAL/HIGH items closed; §11 architectural horizon (privilege split, PPL) is the long-term path
