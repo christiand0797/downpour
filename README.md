@@ -190,6 +190,8 @@ Detects: **Mimikatz, CobaltStrike, Metasploit, Empire, PoshC2, AsyncRAT, NjRAT, 
 
 See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for full details.
 
+**v29.44**: Created `docs/IMPROVEMENT_CATALOG.md` — 21 actionable improvements from external security tooling research (YARA-X Rust rewrite, Aho-Corasick IOC matching, ETW kernel telemetry, process mitigation policies, EMBER ML static analysis, Hyperscan, Sigma rules, STIX/TAXII, AMSI, LOLBins), organized by impact/effort with priority matrix and quick wins. 205/205 tests.
+
 **v29.43j**: Legacy migration streams — constant memory end-to-end (fixes the RAM-blowup class in `migrate_legacy_entries` + a latent TypeError in the AES key lookup). 205/205 tests.
 
 **v29.43i**: Sensor hub lifecycle fix + heartbeat liveness surfacing (TASK-018 completion) — `start_sensor_hub()` was defined and imported but NEVER CALLED by the app (the rewired orphan monitors consumed from a hub that never ran); now started in `_manual_start_monitoring`. The [ALIVE] heartbeat includes `sensors_alive=N` and logs stalled sensors via error_logger. 3 new source-structure tests — 205/205 pass.
