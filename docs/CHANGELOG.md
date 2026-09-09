@@ -1,5 +1,17 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.43h - boot self-checks + sensor liveness + personal-path scrub
+- **Boot-time self-checks** in `_auto_start` (daemon, 30s stagger):
+  `code_integrity.verify_baseline` (TOFU baseline on first run; modified /
+  missing / tamper loudly logged) + `migrate_legacy_entries` +
+  `reconcile_quarantine` — audit §8.4/§9 wiring complete.
+- **Sensor liveness registry** in `sensor_hub.py`: `mark_alive(name)` /
+  `liveness_report(stale_after)` — stalled sensors are surfaced instead of
+  silently dead (audit §8.5). Hub marks itself every tick. 3 new tests.
+- **Personal-path scrub**: `docs/SMART_REPAIR_GUIDE.md` + worklog/TODO
+  placeholder fixes — no local-username paths remain in the tracked tree.
+- 202/202 tests pass.
+
 ## v29.43g - cross-agent bug fixes (manifest init crash + migration over-scan)
 - Fixed `FeedManifestVerifier` first-run crash: manifest dir is now created
   before the key write (the concurrent agent's wiring into

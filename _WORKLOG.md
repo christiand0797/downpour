@@ -2,6 +2,27 @@
 
 ## Branch: main
 
+## Session 2026-09-08 — v29.43h: boot self-checks wiring + sensor liveness + personal-path scrub
+- ✅ **Boot-time self-checks wired into `_auto_start`** (audit §8.4/§9 — the
+  last unwired piece): a daemon thread 30s after launch runs (a)
+  `code_integrity.verify_baseline` — TOFU baseline on first run, loud
+  error-logger alerts on modified/missing code files or baseline tamper
+  (the app dir is Defender-excluded, so this is the only code-replacement
+  detection); (b) `migrate_legacy_entries` + `reconcile_quarantine` —
+  pre-v2 quarantine artifacts ingested and orphaned entries reconciled at
+  boot instead of waiting for a manual system_cleanup run. Non-blocking,
+  never raises into the GUI.
+- ✅ **Sensor liveness registry** (audit §8.5): `sensor_hub.mark_alive(name)`
+  + `liveness_report(stale_after)` — the hub marks itself every tick; any
+  loop can register. Stalled sensors are detectable instead of silently
+  dead. 3 new tests.
+- ✅ **Personal-path scrub completed**: `docs/SMART_REPAIR_GUIDE.md` (the
+  last tracked file with a `C:\Users\<user>` path, JSON-escaped form) and
+  `_WORKLOG.md`/`docs/TODO.md` scrubbed in v29.43d-g. GitHub tree now has
+  zero local-username path exposure in the current tree.
+- ✅ Verification: py_compile OK; **202/202 tests pass** (3 new liveness
+  cases).
+
 ## Session 2026-09-08 — v29.43g: cross-agent bug fixes (manifest init crash + migration over-scan)
 - 🐞 **Fixed FeedManifestVerifier first-run crash** (found via the concurrent
   agent's wiring of it into `threat_intelligence.py`): `__init__` called

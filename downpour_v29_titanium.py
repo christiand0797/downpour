@@ -37828,6 +37828,55 @@ Verification Status:
         except Exception as e:
             error_logger.log('AutoStart', 'Failed to schedule _intel_auto_loop', e)
 
+        # v29.43f (audit §8.4/§9): boot-time self-checks in a daemon thread —
+        # (a) code integrity: verify the signed manifest; on first run a
+        #     baseline is created (trust-on-first-use), afterwards any
+        #     modified/missing code file or baseline tamper is logged loudly
+        #     (the app dir is Defender-excluded, so this is the only
+        #     code-replacement detection);
+        # (b) legacy quarantine migration + reconciliation: ingests pre-v2
+        #     quarantine artifacts and reconciles orphaned entries at boot
+        #     instead of waiting for a manual system_cleanup run.
+        # Non-blocking (daemon, 30s stagger), never raises into the GUI.
+        try:
+            def _boot_self_checks():
+                app_dir: str = os.path.dirname(os.path.abspath(__file__))
+                try:
+                    from code_integrity import verify_baseline, save_baseline
+                    rep: Any = verify_baseline(app_dir)
+                    if rep.get('no_baseline'):
+                        save_baseline(app_dir)
+                        logger.info('CodeIntegrity: baseline created '
+                                    '(trust-on-first-use)')
+                    elif rep.get('baseline_tampered'):
+                        error_logger.log('CodeIntegrity',
+                                         'BASELINE TAMPERED — code may have '
+                                         'been replaced', None)
+                    elif rep.get('modified') or rep.get('missing'):
+                        error_logger.log('CodeIntegrity',
+                                         f"modified={len(rep['modified'])} "
+                                         f"missing={len(rep['missing'])}",
+                                         None)
+                    else:
+                        logger.info('CodeIntegrity: baseline OK (%d files)',
+                                    rep['file_count'])
+                except Exception as e:
+                    error_logger.log('CodeIntegrity', 'check failed', e)
+                try:
+                    from quarantine_core import (migrate_legacy_entries,
+                                                 reconcile_quarantine)
+                    mig: Any = migrate_legacy_entries()
+                    rec: Any = reconcile_quarantine()
+                    logger.info('QuarantineBoot: migrated=%s reconciled=%s',
+                                mig.get('migrated', 0), rec)
+                except Exception as e:
+                    error_logger.log('QuarantineBoot', 'failed', e)
+            self.after(30_000, lambda: threading.Thread(
+                target=_boot_self_checks, daemon=True,
+                name='BootSelfChecks').start())
+        except Exception as e:
+            error_logger.log('AutoStart', 'Failed to schedule boot self-checks', e)
+
         # FIX-v29.40: the "_force_perf_received" safety timer used to be defined
         # inside _build_performance_tab but never scheduled (comment said it was
         # "moved to _auto_start" — it wasn't). If psutil/exports are slow or a

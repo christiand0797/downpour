@@ -129,6 +129,27 @@ class SensorHub:
             'consumer_errors': 0,
         }
 
+        # Sensor liveness registry (v29.43f, audit §8.5): any loop can call
+        # mark_alive(name); liveness_report() returns age-since-last-mark so
+        # the heartbeat can surface stalled sensors instead of silent death.
+        self._liveness: Dict[str, float] = {}
+
+    def mark_alive(self, name: str) -> None:
+        """Record a liveness heartbeat for a sensor/loop (thread-safe)."""
+        with self._lock:
+            self._liveness[name] = time.time()
+
+    def liveness_report(self, stale_after: float = 180.0) -> Dict[str, Dict[str, Any]]:
+        """Age-since-last-mark per sensor, flagged stale past `stale_after`."""
+        now = time.time()
+        with self._lock:
+            return {
+                name: {'age_seconds': round(now - ts, 1),
+                       'stale': (now - ts) > stale_after}
+                for name, ts in sorted(self._liveness.items())
+            }
+
+
     def start(self):
         """Start the sensor hub."""
         if self._running:
@@ -173,6 +194,7 @@ class SensorHub:
 
     def _loop(self):
         """Main loop - produce snapshots and fan out."""
+        self.mark_alive('sensor_hub')
         while self._running:
             start = time.time()
             try:
@@ -182,6 +204,7 @@ class SensorHub:
                 
                 self._tick += 1
                 self.stats['snapshots_produced'] += 1
+                self.mark_alive('sensor_hub')
                 
             except Exception as e:
                 _log.error(f"SensorHub snapshot error: {e}")

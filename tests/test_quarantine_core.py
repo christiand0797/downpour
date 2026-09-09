@@ -216,5 +216,48 @@ def test_stream_format_tamper_refused(qservice, tmp_path, monkeypatch):
     assert not src.exists(), "tampered content must NOT be restored"
 
 
+# ---------------------------------------------------------------------------
+# Sensor liveness registry (v29.43f, audit §8.5)
+# ---------------------------------------------------------------------------
+
+def test_sensor_hub_liveness_roundtrip():
+    """mark_alive + liveness_report: fresh marks are not stale."""
+    from sensor_hub import SensorHub
+    hub = SensorHub()
+    hub.mark_alive('proc_loop')
+    hub.mark_alive('net_loop')
+    rep = hub.liveness_report(stale_after=180.0)
+    assert 'proc_loop' in rep and 'net_loop' in rep
+    assert rep['proc_loop']['stale'] is False
+    assert rep['proc_loop']['age_seconds'] < 5
+
+
+def test_sensor_hub_liveness_stale_detection():
+    """A sensor that stopped marking goes stale past the threshold."""
+    import time as _t
+    from sensor_hub import SensorHub
+    hub = SensorHub()
+    hub.mark_alive('dead_sensor')
+    # backdate the mark past the stale threshold
+    hub._liveness['dead_sensor'] -= 999
+    rep = hub.liveness_report(stale_after=180.0)
+    assert rep['dead_sensor']['stale'] is True
+
+
+def test_sensor_hub_marks_itself_alive():
+    """The hub's own loop marks 'sensor_hub' alive on start."""
+    import time
+    from sensor_hub import SensorHub
+    hub = SensorHub()
+    hub.start()
+    try:
+        deadline = time.time() + 10
+        while time.time() < deadline and 'sensor_hub' not in hub._liveness:
+            time.sleep(0.1)
+        assert 'sensor_hub' in hub._liveness
+    finally:
+        hub.stop()
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

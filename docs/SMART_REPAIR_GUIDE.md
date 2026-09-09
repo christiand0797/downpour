@@ -166,7 +166,7 @@
     "python_version": "3.15.0a6",
     "python_arch": "64-bit",
     "platform": "win32",
-    "current_dir": "C:\\Users\\purpl\\Desktop\\downpour_consolidated"
+    "current_dir": "C:\\Users\\<user>\\Desktop\\downpour_consolidated"
   },
   "issues_found": 4,
   "issues_fixed": 3,

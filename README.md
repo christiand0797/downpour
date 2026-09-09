@@ -190,6 +190,8 @@ Detects: **Mimikatz, CobaltStrike, Metasploit, Empire, PoshC2, AsyncRAT, NjRAT, 
 
 See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for full details.
 
+**v29.43h**: Boot-time self-checks wired into `_auto_start` (code-integrity verify with TOFU baseline + legacy quarantine migration/reconciliation — audit §8.4/§9 wiring complete) and a **sensor liveness registry** in `sensor_hub.py` (`mark_alive`/`liveness_report` — stalled sensors surfaced instead of silently dead; audit §8.5). Personal-path scrub finished (`docs/SMART_REPAIR_GUIDE.md`). 3 new tests — 202/202 pass.
+
 **v29.43a**: TASK-013 fully closed — the HMAC manifest verifier is wired into the feed store path (TOFU baseline + rolling re-sign for dynamic feeds + opt-in strict pinning + signature-tamper rejection). TASK-018 partial: `_dns_counts` memory-DoS cap. TASK-007 partial: 7 port-profile tests (found a duplicate 1433 definition in PORT_PROFILES). `trust_check.py` merged with the concurrent rewrite (public API restored, PSModulePath env fix, System32 prefix hole closed, mtime/size cache keys). 165/165 tests.
 
 **v29.43f**: New `code_integrity.py` — signed self-integrity manifest for Downpour's own code (audit §8.4: the Defender-excluded, user-writable app dir made code replacement undetectable). Every .py/.yar is hashed into an HMAC-signed manifest (DPAPI-protected key), verified by the health check (modified/missing/extra/baseline-tamper reported). `emergency_response.isolate_network` verification fixed — adapter status instead of a socket probe that reported false success. 8 new tests — 199/199 pass.
