@@ -2,6 +2,60 @@
 
 ## Branch: main
 
+## Session 2026-09-09 — v29.47: DNS-cache surveillance + MISP + Job Object guard + entropy cache
+
+**Sync:** HEAD was `d15de6d v29.46`, tree clean.
+
+**Catalog items executed: 5a (P1), 3b, 4b, 2a (partial).**
+
+**New modules:**
+1. `dns_cache_watch.py` (~290 lines, catalog **5a** P1) — polls the Windows
+   DNS resolver cache (`Get-DnsClientCache`, `ipconfig /displaydns`
+   fallback) and scores every cached domain with DGA heuristics (Shannon
+   entropy, digit ratio, hyphen count, length, risky-TLD, dictionary-word
+   discount) against a 55-suffix known-good allowlist. TOFU baseline
+   persists to `downpour_data/dns_baseline.json`; each suspicious domain
+   alerts exactly once. Wired as a 180s loop ([DNS-CACHE] alerts,
+   T1568/T1071.004). **Live on dev box: 1,989 cache rows parsed; benign
+   google.com → 0; DGA-like .tk → score 73 (MEDIUM).**
+2. `misp_feed.py` (~290 lines, catalog **3b**) — MISP REST client
+   (POST /attributes/restSearch, both `{"response": {"Attribute": []}}`
+   and `{"response": []}` shapes, 403 surfaced explicitly, timestamp
+   watermark → incremental syncs, `domain|ip` split, deleted-attr skip).
+   Config `downpour_data/misp_config.json` disabled by default (zero
+   network I/O until configured) — same conventions as stix_taxii_feed.
+   Wired as a one-shot at T+11s ([MISP]).
+3. `child_process_guard.py` (~170 lines, catalog **4b**) — Windows Job
+   Object containment for every child Downpour spawns: KILL_ON_JOB_CLOSE
+   (children die with the parent — fail-closed), breakaway refused,
+   `terminate_all_children()` panic switch for the Emergency path (never
+   callable from a Downpour thread — it would kill the tree). Wired FIRST
+   in `_manual_start_security_monitors` so all subsequent probes are
+   contained ([JOB-GUARD]).
+   🐞 **Live-debug lesson:** the first implementation used raw ctypes
+   `SetInformationJobObject` and failed with ERROR_BAD_LENGTH (24) — even
+   with a garbage handle (proving the call never validated the handle).
+   Rewrote on pywin32's `win32job` (core dep) — install/assign/limits all
+   verified live. Also confirmed the KILL_ON_CLOSE footgun empirically: a
+   probe that closed its own job handle killed itself (silently, buffered
+   output lost) — documented in the module docstring.
+
+**2a (partial):** `c2_beacon_detector.ShannonEntropyCalculator.calculate`
+now `functools.lru_cache(maxsize=8192)` — pure string→float, called per
+connection, domains repeat heavily. Plus hygiene: `process_mitigation.py`
+was importing `Optional` without it (string annotations hid the NameError).
+
+**Wiring:** guarded imports (DNS/MISP/GUARD `*_AVAILABLE`),
+`_dns_cache_alert_bridge`/`_dns_cache_loop`, `_misp_sync_oneshot` +
+`_misp_alert_bridge`, job-guard install block placed before the USB
+monitor start (order regression-tested).
+
+**Tests:** +12 (`tests/test_v2947_dns_misp_guard.py`: 6 DNS incl. TOFU →
+alert → quiet cycle, 6 MISP incl. both response shapes + 403, 5 guard incl.
+live install + PID membership + terminate-guard rails, 4 wiring incl.
+guard-before-probes ordering). **297/297 pass** (285 + 12). AST: 798
+methods, 0 duplicates.
+
 ## Session 2026-09-09 — v29.46: community detection layer (Sigma ingest + YARA-X + STIX/TAXII + firmware posture + FireHOL feeds)
 
 **Sync:** HEAD was `9186c08 v29.44d`, tree clean, origin synced.

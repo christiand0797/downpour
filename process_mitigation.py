@@ -29,7 +29,7 @@ import ctypes
 import logging
 import os
 from ctypes import wintypes
-from typing import Dict
+from typing import Any, Dict, Optional
 
 _log = logging.getLogger(__name__)
 

@@ -19,6 +19,12 @@ Downpour uses a modular architecture with over 40 supporting Python modules that
 | `behavioral_analyzer.py` | Base behavioral analytics functions (often superseded by ML variants). | *Legacy/Active* |
 | `sigma_engine.py` | Sigma rule ingestion (24 bundled rules + `sigma_rules/` YAML/JSON loader) matched against process cmdlines and PowerShell 4104 script blocks. | **Active** |
 | `yara_x_engine.py` | YARA-X (Rust) scan engine over `yara_rules/*.yar` with lenient compile + yara-python fallback. | **Active** |
+| `c2_beacon_detector.py` | Statistical C2 beacon detection (CV/jitter), DGA domain analysis, reverse shells. | **Active** |
+| `dns_cache_watch.py` | Resolver-cache surveillance: DGA scoring over every cached lookup, TOFU baseline. | **Active** |
+| `misp_feed.py` | MISP REST client (incremental attribute sync, disabled until configured). | **Active** |
+| `child_process_guard.py` | Windows Job Object containment: children die with parent, breakaway refused. | **Active** |
+| `firmware_posture.py` | BitLocker/Secure Boot/TPM/LSA-PPL/CredGuard/VBS-HVCI/SMBv1/patch posture checks. | **Active** |
+| `stix_taxii_feed.py` | TAXII 2.1 client + STIX 2.1 pattern extraction (disabled until configured). | **Active** |
 | `pe_analyzer.py` | Static PE analysis: sections, entropy, packer ID, import clustering, 0–100 risk score. | **Active** |
 | `persistence_watchers.py` | Registry Run/Winlogon baseline+diff, DLL-hijack shadows, new-driver/BYOVD monitor. | **Active** |
 | `event_log_monitor.py` | Windows Event Log watch: 7045/4698/4720/1102/104/4104/4625. | **Active** |

@@ -248,16 +248,16 @@ Downpour module it improves, and the expected benefit.
 | 1d | EMBER ML static analysis | High | Medium | **P1** |
 | 1b | Hyperscan regex engine | High | Medium | **P1** |
 | 4a | Process mitigation policies | High | Low | **P1** ✅ v29.44b (process_mitigation.py) |
-| 5a | DNS query monitoring | High | Medium | **P1** |
-| 2a | functools.lru_cache | Medium | Low | **P2** |
+| 5a | DNS query monitoring | High | Medium | **P1** ✅ v29.47 (dns_cache_watch.py) |
+| 2a | functools.lru_cache | Medium | Low | **P2** ✅ v29.47 (entropy hot path) |
 | 1e | Sigma rules | Medium | Medium | **P2** ✅ v29.46 (sigma_engine.py) |
 | 2c | RE2 (no ReDoS) | Medium | Low | **P2** |
 | 3a | STIX/TAXII | Medium | Medium | **P2** ✅ v29.46 (stix_taxii_feed.py) |
-| 4b | Job Objects | Medium | Low | **P2** |
-| 5c | LOLBins detection | Medium | Low | **P2** |
+| 4b | Job Objects | Medium | Low | **P2** ✅ v29.47 (child_process_guard.py) |
+| 5c | LOLBins detection | Medium | Low | **P2** ✅ v29.45 (lolbins_detector.py) |
 | 3c | Government feeds | Medium | Low | **P2** |
 | 5b | AMSI integration | High | High | **P3** |
-| 3b | MISP integration | Medium | Medium | **P3** |
+| 3b | MISP integration | Medium | Medium | **P3** ✅ v29.47 (misp_feed.py) |
 | 6a | structlog | Low | Low | **P3** |
 | 6b | pydantic | Low | Low | **P3** |
 | 6c | tenacity | Low | Low | **P3** |

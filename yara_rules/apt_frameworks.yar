@@ -69,7 +69,7 @@ rule APT_Persistence {
         $pers10 = "Tasks\\" nocase
     
     condition:
-        any of ($pers1, $pers2) and any of ($pers3, $pers4, $pers5) and filesize < 5MB
+        any of ($pers1, $pers2) and any of ($pers3, $pers4, $pers5, $pers6, $pers7, $pers8, $pers9, $pers10) and filesize < 5MB
 }
 
 rule APT_Defense_Evasion {

@@ -299,6 +299,33 @@ except ImportError:
     stix_taxii_feed: Any = None
     STIX_TAXII_AVAILABLE: Any = False
 
+# v29.47: DNS resolver-cache surveillance (catalog 5a) — DGA scoring over
+# every cached lookup, catches beacons whose query happened between polls.
+try:
+    import dns_cache_watch
+    DNS_CACHE_WATCH_AVAILABLE: Any = True
+except ImportError:
+    dns_cache_watch: Any = None
+    DNS_CACHE_WATCH_AVAILABLE: Any = False
+
+# v29.47: MISP feed client (catalog 3b) — inert until
+# downpour_data/misp_config.json is enabled (zero network I/O by default).
+try:
+    import misp_feed
+    MISP_FEED_AVAILABLE: Any = True
+except ImportError:
+    misp_feed: Any = None
+    MISP_FEED_AVAILABLE: Any = False
+
+# v29.47: Job Object child-process guard (catalog 4b) — children contained,
+# die with the parent, breakaway refused.
+try:
+    import child_process_guard
+    CHILD_PROCESS_GUARD_AVAILABLE: Any = True
+except ImportError:
+    child_process_guard: Any = None
+    CHILD_PROCESS_GUARD_AVAILABLE: Any = False
+
 is_trusted_system_process = trusted_system_process
 
 # Revolutionary enhancements imports
@@ -37754,6 +37781,71 @@ Verification Status:
                 _safe_log('StixTaxii', 'sync failed', _e)
         self._executor.submit(_work)
 
+    def _misp_alert_bridge(self, status_line: str, ok: bool):
+        """v29.47: surface a MISP sync result in the alert queue."""
+        try:
+            self._queue_alert(
+                '[MISP] {}'.format(str(status_line)[:180]),
+                Colors.GAUGE_TEAL if ok else Colors.GAUGE_YELLOW)
+        except Exception:
+            pass
+
+    def _misp_sync_oneshot(self):
+        """v29.47: one-shot MISP sync. Silent no-op while
+        downpour_data/misp_config.json stays disabled (zero network I/O)."""
+        def _work():
+            try:
+                if misp_feed is None:
+                    return
+                _res = misp_feed.sync_once()
+                if not _res.get('enabled'):
+                    logger.info('[MISP] sync skipped (config disabled)')
+                    return
+                _n = int(_res.get('count') or 0)
+                self._misp_alert_bridge(
+                    'sync: {} ({} indicators)'.format(
+                        _res.get('status'), _n),
+                    'ok' in str(_res.get('status', '')))
+            except Exception as _e:
+                _safe_log('MispFeed', 'sync failed', _e)
+        self._executor.submit(_work)
+
+    def _dns_cache_alert_bridge(self, alert):
+        """v29.47: bridge DNS-cache surveillance findings into the queue."""
+        try:
+            severity_color = {
+                'CRITICAL': Colors.GAUGE_RED,
+                'HIGH': Colors.GAUGE_ORANGE,
+                'MEDIUM': Colors.GAUGE_YELLOW,
+                'LOW': Colors.GAUGE_TEAL,
+            }.get(getattr(alert, 'severity', 'LOW'), Colors.GAUGE_TEAL)
+            self._queue_alert(
+                '[DNS-CACHE] {} ({}): {}'.format(
+                    getattr(alert, 'description', 'finding'),
+                    getattr(alert, 'technique', ''),
+                    (getattr(alert, 'detail', '') or '')[:160]),
+                severity_color)
+        except Exception:
+            pass
+
+    def _dns_cache_loop(self):
+        """v29.47: 180s cycle over the Windows resolver cache — scores
+        every cached domain with DGA heuristics (catalog 5a)."""
+        def _loop():
+            try:
+                while True:
+                    try:
+                        if dns_cache_watch is not None:
+                            for _a in dns_cache_watch.run_dns_cache_check():
+                                self._dns_cache_alert_bridge(_a)
+                    except Exception as _e:
+                        _safe_log('DnsCacheWatch', 'check error', _e)
+                    time.sleep(180)
+            except Exception as _e:
+                _safe_log('DnsCacheWatch', 'watch loop failed', _e)
+        threading.Thread(target=_loop, daemon=True,
+                         name='DnsCacheWatch').start()
+
     def _event_log_alert_bridge(self, alert):
         """v29.44b: bridge EventLogMonitor alerts into the app alert queue."""
         try:
@@ -37779,6 +37871,27 @@ Verification Status:
             return
         self._manual_engines_started.add('sec_monitors')
         self._queue_alert('[START] Starting security monitors...', Colors.GAUGE_TEAL)
+        # v29.47: Job Object guard FIRST — every probe spawned from here
+        # on is contained (dies with us, breakaway refused). Catalog 4b.
+        if CHILD_PROCESS_GUARD_AVAILABLE and not getattr(
+                self, '_job_guard_started', False):
+            self._job_guard_started = True
+
+            def _install_guard():
+                try:
+                    _st = child_process_guard.install_job_guard()
+                    if _st.get('installed'):
+                        logger.info('[JOB-GUARD] installed: %s', _st)
+                        self._queue_alert(
+                            '[JOB-GUARD] children contained '
+                            '(kill-on-close, breakaway blocked)',
+                            Colors.GAUGE_TEAL)
+                    else:
+                        logger.info('[JOB-GUARD] not installed: %s',
+                                    _st.get('reason'))
+                except Exception as _e:
+                    _safe_log('JobGuard', 'install failed', _e)
+            self._executor.submit(_install_guard)
         # FIX: _usb_monitor_loop blocks on PowerShell subprocess; must run in bg thread
         self._orig_after(1000, lambda: threading.Thread(
             target = self._usb_monitor_loop, daemon=True, name='UsbMonitor').start())
@@ -37842,6 +37955,18 @@ Verification Status:
                 self, '_stix_taxii_started', False):
             self._stix_taxii_started = True
             self._orig_after(9000, self._stix_taxii_oneshot)
+        # v29.47: MISP one-shot sync (silent no-op while
+        # downpour_data/misp_config.json stays disabled).
+        if MISP_FEED_AVAILABLE and not getattr(
+                self, '_misp_started', False):
+            self._misp_started = True
+            self._orig_after(11000, self._misp_sync_oneshot)
+        # v29.47: DNS resolver-cache surveillance — 180s DGA scoring loop
+        # over every cached lookup (catalog 5a).
+        if DNS_CACHE_WATCH_AVAILABLE and not getattr(
+                self, '_dns_cache_started', False):
+            self._dns_cache_started = True
+            self._orig_after(1500, self._dns_cache_loop)
         self._queue_alert('[OK] USB, Service, ARP, WMI, FIM + Extended Threat monitors active', Colors.GAUGE_GREEN)
 
     def _manual_start_aegis(self):

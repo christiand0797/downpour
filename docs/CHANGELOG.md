@@ -1,5 +1,24 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.47 - DNS-cache surveillance + MISP + Job Object guard + entropy cache
+- NEW dns_cache_watch.py (catalog 5a): polls the Windows resolver cache
+  and scores every cached domain with DGA heuristics (entropy/digits/
+  length/risky-TLD/dictionary discount) against a known-good suffix
+  allowlist. TOFU baseline; each suspicious domain alerts exactly once.
+  180s loop, [DNS-CACHE] alerts (T1568/T1071.004). Live-verified: 1,989
+  cache rows; DGA-like .tk scored 73/MEDIUM; benign domains silent.
+- NEW misp_feed.py (catalog 3b): MISP REST client — attributes/restSearch
+  with both response shapes, 403 surfaced, timestamp watermark for
+  incremental syncs, domain|ip split. Disabled by default ([MISP]).
+- NEW child_process_guard.py (catalog 4b): Windows Job Object containment
+  — KILL_ON_JOB_CLOSE (children die with Downpour), breakaway refused,
+  terminate_all_children() panic switch. Built on pywin32 win32job after
+  raw-ctypes structs failed live (ERROR_BAD_LENGTH). Installs FIRST in the
+  security-monitor start ([JOB-GUARD]).
+- 2a: lru_cache on ShannonEntropyCalculator.calculate (hot path, pure);
+  process_mitigation.py missing-Optional hygiene fix.
+- Tests: +12 — **297/297 pass**; AST: 798 methods, 0 duplicates.
+
 ## v29.46 - community detection layer (Sigma ingest + YARA-X + STIX/TAXII + firmware posture + FireHOL feeds)
 - NEW sigma_engine.py (catalog 1e): Sigma rule ingestion — 24-rule curated
   starter pack + drop-in `sigma_rules/` loader (full-Sigma JSON + stdlib

@@ -78,7 +78,7 @@ rule Botnet_C2_Communication
         $ip_pattern = /\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/
         
     condition:
-        ($c2_1 or $c2_2 or $c2_3 or $c2_4) and filesize < 1MB
+        ($c2_1 or $c2_2 or $c2_3 or $c2_4 or $c2_5 or $c2_6 or $ip_pattern) and filesize < 1MB
 }
 
 rule AndroidBotnet_Indicators

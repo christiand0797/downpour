@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import time
 import math
+import functools
 import threading
 import logging
 import statistics
@@ -183,6 +184,7 @@ class ShannonEntropyCalculator:
     """Shannon entropy calculator for DGA detection."""
     
     @staticmethod
+    @functools.lru_cache(maxsize=8192)
     def calculate(domain: str) -> float:
         """Calculate Shannon entropy of domain string (excluding TLD)."""
         if not domain:

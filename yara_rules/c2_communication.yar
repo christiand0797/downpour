@@ -33,7 +33,7 @@ rule C2_IP_Indicators
         mitre_attack = "T1071"
     
     strings:
-        $ip_pattern = /\b(?<!\.)(?<!\d)(?:[01]?\d\d?|2[0-4]\d|25[0-5])\.(?:[01]?\d\d?|2[0-4]\d|25[0-5])\.(?:[01]?\d\d?|2[0-4]\d|25[0-5])\.(?:[01]?\d\d?|2[0-4]\d|25[0-5])(?!\d)/
+        $ip_pattern = /\b(?:[01]?\d\d?|2[0-4]\d|25[0-5])\.(?:[01]?\d\d?|2[0-4]\d|25[0-5])\.(?:[01]?\d\d?|2[0-4]\d|25[0-5])\.(?:[01]?\d\d?|2[0-4]\d|25[0-5])\b/
         $port1 = ":443" 
         $port2 = ":8080"
         $port3 = ":1337"
@@ -68,7 +68,7 @@ rule C2_Protocol_Patterns
         $sleep = "sleep(" nocase
         $ping = "ping" nocase
         
-        $base64 = /[A-Za-z0-9+/]{50,}={0,2}/  
+        $base64 = /[A-Za-z0-9\+\/]{50,}={0,2}/  
     
     condition:
         any of them and filesize < 1MB
