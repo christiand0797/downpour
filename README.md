@@ -190,6 +190,8 @@ Detects: **Mimikatz, CobaltStrike, Metasploit, Empire, PoshC2, AsyncRAT, NjRAT, 
 
 See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for full details.
 
+**v29.44c**: PE static analysis (`pe_analyzer.py` — section entropy, RWX, packer ID for 16 families, suspicious import clustering, overlay detection, 0–100 risk score) + Windows Event Log monitor (`event_log_monitor.py` — 7045 service installs, 4698 task creation, 4720 accounts, 1102/104 log-clear tamper alerts, hostile 4104 PowerShell blocks, 4625 brute-force bursts; closes audit blind spots #2/#3 via OS events). Wired into the security-monitors engine with severity-colored alerting. 15 new tests — 236/236 pass.
+
 **v29.44**: Created `docs/IMPROVEMENT_CATALOG.md` — 21 actionable improvements from external security tooling research (YARA-X Rust rewrite, Aho-Corasick IOC matching, ETW kernel telemetry, process mitigation policies, EMBER ML static analysis, Hyperscan, Sigma rules, STIX/TAXII, AMSI, LOLBins), organized by impact/effort with priority matrix and quick wins. 205/205 tests.
 
 **v29.43j**: Legacy migration streams — constant memory end-to-end (fixes the RAM-blowup class in `migrate_legacy_entries` + a latent TypeError in the AES key lookup). 205/205 tests.

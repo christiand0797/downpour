@@ -255,6 +255,17 @@ except ImportError:
     def start_sensor_hub(): return None
     def stop_sensor_hub(): pass
 
+# v29.44b: Windows Event Log monitor (persistence/tamper events: 7045
+# service install, 4698 task create, 4720 account create, 1102/104 log
+# clear, suspicious 4104 script blocks, 4625 brute-force bursts).
+try:
+    from event_log_monitor import EventLogMonitor, get_event_log_monitor
+    EVENT_LOG_MONITOR_AVAILABLE: Any = True
+except ImportError:
+    EVENT_LOG_MONITOR_AVAILABLE: Any = False
+    EventLogMonitor: Any = None
+    def get_event_log_monitor(callback=None): return None
+
 is_trusted_system_process = trusted_system_process
 
 # Revolutionary enhancements imports
@@ -37533,6 +37544,24 @@ Verification Status:
         self._orig_after(6000, self._ctrl_loop)
         self._queue_alert('[OK] Process, Network, Hardware monitors active', Colors.GAUGE_GREEN)
 
+    def _event_log_alert_bridge(self, alert):
+        """v29.44b: bridge EventLogMonitor alerts into the app alert queue."""
+        try:
+            severity_color = {
+                'CRITICAL': Colors.GAUGE_RED,
+                'HIGH': Colors.GAUGE_ORANGE,
+                'MEDIUM': Colors.GAUGE_YELLOW,
+                'LOW': Colors.GAUGE_TEAL,
+            }.get(getattr(alert, 'severity', 'LOW'), Colors.GAUGE_TEAL)
+            self._queue_alert(
+                '[WIN-EVT] {} ({}): {}'.format(
+                    getattr(alert, 'description', 'event'),
+                    getattr(alert, 'technique', ''),
+                    (getattr(alert, 'detail', '') or '')[:160]),
+                severity_color)
+        except Exception:
+            pass
+
     def _manual_start_security_monitors(self):
         """User-triggered: start USB, service, ARP, WMI, FIM monitors."""
         if 'sec_monitors' in self._manual_engines_started:
@@ -37555,6 +37584,21 @@ Verification Status:
         if not getattr(self, '_ext_threat_started', False):
             self._ext_threat_started = True
             self._start_extended_threat_monitor()
+        # v29.44b: Windows Event Log monitor — OS-level persistence and
+        # tamper events (service install, task create, account create,
+        # log clear = tamper, suspicious PowerShell blocks, brute force).
+        if not getattr(self, '_evt_log_monitor_started', False):
+            self._evt_log_monitor_started = True
+            try:
+                if EVENT_LOG_MONITOR_AVAILABLE:
+                    _mon = get_event_log_monitor(
+                        callback=self._event_log_alert_bridge)
+                    _mon.start(interval=15.0)
+                    self._queue_alert(
+                        '[OK] Windows Event Log monitor active (7045/4698/1102)',
+                        Colors.GAUGE_GREEN)
+            except Exception as _e:
+                _safe_log('SecMonitors', 'event log monitor start failed', _e)
         # v29.43: one-shot IoT device check for known-vulnerable Realtek/
         # Mirai-target devices on the LAN (was also never called).
         if not getattr(self, '_iot_startup_check_done', False):

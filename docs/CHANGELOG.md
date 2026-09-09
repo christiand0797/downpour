@@ -1,5 +1,11 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.44c - PE static analysis + Windows Event Log monitor
+- NEW pe_analyzer.py: static PE analysis (pefile) — section entropy, RWX detection, packer identification (UPX/Themida/VMProtect/MPRESS + 12 more), suspicious import clustering (injection/keylogging/anti-analysis/ransomware-crypto), overlay detection, aggregate 0-100 risk score
+- NEW event_log_monitor.py: Windows Event Log watcher — 7045 service install, 4698/4699 task create/delete, 4720 account create, 4732 privileged-group add, 1102/104 log clear (CRITICAL tamper), hostile-content 4104 PowerShell blocks, 4625 brute-force bursts; per-log bookmarks, 15s poll
+- Wired event monitor into `_manual_start_security_monitors` with severity-colored alert bridge (fixed a silent-failure color-attr bug caught by tests)
+- 15 new tests (PE analysis incl. live notepad.exe baseline, event monitor with faked win32evtlog, wiring assertions) — 236/236 pass
+
 ## v29.45 - next-gen detection modules (IOC scanner + LOLBins + DGA)
 - NEW ioc_scanner.py: Aho-Corasick multi-pattern IOC scanner (O(haystack) regardless of pattern count)
 - NEW lolbins_detector.py: LOLBins detection with parent-child correlation and MITRE ATT&CK mapping

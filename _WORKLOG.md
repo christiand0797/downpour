@@ -2,6 +2,44 @@
 
 ## Branch: main
 
+## Session 2026-09-08 — v29.44c: PE static analysis + Windows Event Log monitor (improvement catalog execution)
+
+**Sync:** HEAD was `f69e555 v29.45` (concurrent agent shipped `c2_beacon_detector`,
+`process_injection_detector`, `entropy_ransomware_detector` — closing the audit's
+beaconing + process-hollowing blind spots). Verified `pefile` + `win32evtlog`
+importable, then built the two biggest remaining catalog items.
+
+**pe_analyzer.py (new)** — static PE analysis engine (catalog §1d, EMBER-lite):
+- Section analysis: entropy (64 KB sample), RWX detection, entry-point-in-last-section
+- Packer identification via section names (UPX/Themida/VMProtect/MPRESS/ASPack/FSG/Enigma + 10 more)
+- Suspicious import clustering: process_injection (>=2 APIs -> +30), keylogging,
+  anti-analysis, ransomware crypto (>=3 -> +25), evasion clusters
+- Overlay/appendix detection; aggregate risk score 0-100 with human-readable factors
+- Verified against live `notepad.exe` (clean score <30)
+
+**event_log_monitor.py (new)** — closes audit blind spots #2 (task creation)
+and #3 (service creation) via OS event source instead of polling:
+- Watched: 7045 service install (T1543.003), 4698/4699 task create/delete
+  (T1053.005), 4720 account create, 4732 privileged-group add, **1102/104 log
+  clear = CRITICAL TAMPER**, 4104 PowerShell blocks (filtered to hostile
+  content), 4625 brute-force bursts (>=10 in 5 min window)
+- Per-log record bookmarks (no re-alerting), 15 s poll, singleton accessor
+- Wired into `_manual_start_security_monitors` with `_event_log_alert_bridge`
+  -> severity-colored alert queue (CRITICAL->GAUGE_RED)
+
+**Bugs caught by tests during this session:**
+1. My fake `win32evtlog` lacked the `EVENTLOG_*` flag constants -> AttributeError
+   swallowed by the per-log handler (0 alerts). Fixed the fixture (`_FakeEvt`).
+2. My bridge used nonexistent `Colors.ALERT_RED`/`ALERT_ORANGE` — the broad
+   except would have silently swallowed every event alert (the exact
+   "silent monitoring death" class from audit §8). Fixed to `GAUGE_*` +
+   added a source-structure regression test asserting `Colors.ALERT_*` never
+   appears in the main file.
+
+**Tests:** +15 (`tests/test_pe_and_events.py`: 6 PE, 7 event monitor,
+2 wiring) — **236/236 pass**. Both modules degrade gracefully when
+`pefile`/`win32evtlog` are absent (guard flags).
+
 ## Session 2026-09-08 — v29.45: next-gen detection modules (IOC scanner + LOLBins + DGA)
 - NEW ioc_scanner.py: Aho-Corasick multi-pattern IOC scanner - matches ALL patterns in O(haystack_length) regardless of pattern count. Replaces sequential re.search() loops. pyahocorasick (C) or pure-Python fallback.
 - NEW lolbins_detector.py: LOLBins detection - mshta/regsvr32/certutil/bitsadmin/wmic/rundll32/msbuild/powershell with parent-child correlation, severity escalation, MITRE ATT&CK mapping.
