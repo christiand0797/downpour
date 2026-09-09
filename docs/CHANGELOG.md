@@ -1,5 +1,12 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.45 - next-gen detection modules (IOC scanner + LOLBins + DGA)
+- NEW ioc_scanner.py: Aho-Corasick multi-pattern IOC scanner (O(haystack) regardless of pattern count)
+- NEW lolbins_detector.py: LOLBins detection with parent-child correlation and MITRE ATT&CK mapping
+- NEW dga_detector.py: DGA domain detection via entropy + character distribution analysis
+- 16 new tests. 221/221 tests pass.
+
+
 ## v29.44b - process mitigation policies (anti-tamper self-protection)
 - **New `process_mitigation.py`** (improvement catalog P0 #3): applies
   Windows Process Mitigation Policies via ctypes — blocks dynamic code

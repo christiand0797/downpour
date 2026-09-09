@@ -2,6 +2,13 @@
 
 ## Branch: main
 
+## Session 2026-09-08 — v29.45: next-gen detection modules (IOC scanner + LOLBins + DGA)
+- NEW ioc_scanner.py: Aho-Corasick multi-pattern IOC scanner - matches ALL patterns in O(haystack_length) regardless of pattern count. Replaces sequential re.search() loops. pyahocorasick (C) or pure-Python fallback.
+- NEW lolbins_detector.py: LOLBins detection - mshta/regsvr32/certutil/bitsadmin/wmic/rundll32/msbuild/powershell with parent-child correlation, severity escalation, MITRE ATT&CK mapping.
+- NEW dga_detector.py: DGA domain detection via Shannon entropy + consonant ratio + digit ratio + bigram frequency scoring.
+- 16 new tests (tests/test_detection_modules.py). 221/221 tests pass.
+
+
 ## Session 2026-09-08 — v29.44b: process mitigation policies (anti-tamper self-protection)
 - NEW process_mitigation.py (improvement catalog P0 #3): applies Windows Process Mitigation Policies via ctypes - ProcessDynamicCodePolicy (blocks shellcode injection), ProcessExtensionPointDisablePolicy (blocks AppInit_DLLs/Winlogon DLL injection), ProcessControlFlowGuardPolicy (enables CFG). Applied on import before monitoring threads start. get_mitigation_status() for health-check dashboards.
 - Fixed concurrent agent IndentationError in main:24996-25004 (status bar _sb_threats/_sb_tamper widgets).
