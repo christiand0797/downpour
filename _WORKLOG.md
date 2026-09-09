@@ -2,6 +2,80 @@
 
 ## Branch: main
 
+## Session 2026-09-09 — v29.46: community detection layer (Sigma ingest + YARA-X + STIX/TAXII + firmware posture + FireHOL feeds)
+
+**Sync:** HEAD was `9186c08 v29.44d`, tree clean, origin synced.
+
+**Research pass (fresh external scan of the security tooling landscape):**
+SigmaHQ (3000+ rules, DRL 1.1), FireHOL iplists aggregator, YARA-X 1.20 on
+PyPI (official Python bindings), STIX 2.1/TAXII 2.1 standard feeds, CIS/CISA
+hardening guidance. Maltrail trails dataset evaluated and **declined**
+(license bars redistribution in products — consistent with the repo's
+content-judgment calls). Catalog items executed: **1a (P0), 1e, 3a** — the
+last open P0 and two P2s.
+
+**New modules (all stdlib-only or optionally-guarded, never raise):**
+1. `sigma_engine.py` (~1,190 lines) — Sigma rule ingestion (catalog 1e).
+   24-rule curated starter pack (SigmaHQ-derived logic, standard Sigma
+   schema as JSON dicts) + drop-in `sigma_rules/` loader (.json full-Sigma +
+   stdlib YAML-subset parser for the common .yml layout). Modifiers:
+   contains/startswith/endswith/re/equality; conditions: and/or/not/parens/
+   `1 of sel*`/`all of sel*`/`N of them`. `match_process()` (Image,
+   CommandLine, ParentImage, User), `match_script_block()` (4104),
+   `scan_process_snapshot()` (psutil sweep for long-running threats).
+   ATT&CK tags parsed to the technique field.
+2. `yara_x_engine.py` (~210 lines) — catalog P0 **1a**: yara-x (Rust, SIMD +
+   Aho-Corasick) with transparent yara-python fallback. Per-file rulesets
+   avoid cross-file duplicate-rule collisions; lenient
+   `Compiler.ignore_invalid_rules(True)` path salvages rulesets that trip
+   yara-x's stricter unused-pattern/exotic-regex errors (14/14 rulesets now
+   compile; notepad.exe scans in ~6 ms). Normalized match dicts
+   {'rule','namespace','tags','meta'} either engine.
+3. `stix_taxii_feed.py` (~360 lines) — catalog **3a**: TAXII 2.1 client
+   (discovery → api-roots → collections → objects, limit + `next`-cursor
+   pagination, Basic/Bearer auth, verify_tls toggle, 30 s timeouts) +
+   STIX 2.1 pattern extraction (ipv4/ipv6, domain, url, file
+   SHA-256/SHA-1/MD5, windows-registry-key) into flat indicator records.
+   Config `downpour_data/stix_taxii_config.json` **disabled by default**
+   (zero network I/O until the user opts in); results cached to
+   `downpour_data/stix_indicators.json`.
+4. `firmware_posture.py` (~330 lines) — the boot/firmware trust chain no
+   module covered: BitLocker (Get-BitLockerVolume → manage-bde fallback),
+   Secure Boot (Confirm-SecureBootUEFI → registry fallback), TPM, LSA PPL
+   (RunAsPPL), Credential Guard (LsaCfgFlags), VBS/HVCI, SMBv1, wuauserv
+   patch health. Static state ⇒ one-shot scan (not a loop, no re-spam);
+   unknown/degraded states never fabricate alerts. **Live-verified on the
+   dev box**: RunAsPPL disabled = HIGH, CredGuard disabled = MEDIUM, no
+   TPM + HVCI off = LOW, SMBv1 off, patch service ok.
+
+**Wiring (main file, `_manual_start_security_monitors`):** guarded imports
+(SIGMA/YARA_X/FIRMWARE/STIX `*_AVAILABLE`), `[SIGMA]`/`[FIRMWARE]`/`[STIX]`
+alert bridges (gauge-color map, mirrors the PERSIST bridge), Sigma =
+one-shot 4104 script-block scan (win32evtlog EvtQuery reverse read, 500
+blocks cap) + 300 s process-cmdline sweep thread; firmware + STIX =
+executor one-shots at T+6 s / T+9 s.
+
+**Feeds:** +6 to the intel engine — firehol_level1/2/3, spamhaus_drop,
+bruteforceblocker, cinsarmy (.netset format parses cleanly through the
+existing comment-skip + CIDR base-IP split; level1 ≈ 2.5k
+certain-malicious IPs from DShield top-20 + Spamhaus DROP/EDROP + …).
+
+**Bug found via testing:** an editor mishap briefly removed the
+`def _event_log_alert_bridge(self, alert):` signature line, leaving its
+body dangling inside `_stix_taxii_oneshot` — caught immediately by
+py_compile + a dedicated regression test
+(`test_event_log_bridge_intact`).
+
+**Environment fix:** `pefile` was missing from the repo `.venv`
+(requirements listed it; `test_notepad_analyzes_clean` was failing on
+`is_pe=False`). Installed pefile 2024.8.26 — PE analyzer + test green.
+
+**Tests:** +35 (`tests/test_v2946_community_layer.py`: 10 sigma incl.
+YAML-subset parse + user-rule drop-in + no-FP checks, 4 yara-x, 5 stix/taxii
+incl. fake-session cursor pagination, 10 firmware with mocked PS/registry,
+6 wiring). **285/285 pass** (250 baseline + 35). AST check: 794 methods,
+0 duplicates.
+
 ## Session 2026-09-08 — v29.44d: persistence watchers (registry + DLL hijack + BYOVD) — final 3 audit blind spots closed
 
 **Sync:** tree clean at `ccc8858 v29.44c`, origin synced, no concurrent changes.

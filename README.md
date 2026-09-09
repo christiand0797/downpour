@@ -3,7 +3,7 @@
 > **Work in progress** — Personal antivirus, anti-malware, anti-RAT, and comprehensive Windows threat-defense platform built in Python with a full Tkinter GUI.
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v29.42%20Titanium-blue?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/version-v29.46%20Titanium-blue?style=for-the-badge" />
   <img src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078d7?style=for-the-badge&logo=windows" />
   <img src="https://img.shields.io/badge/python-3.12%20recommended-yellow?style=for-the-badge&logo=python" />
   <img src="https://img.shields.io/badge/status-active%20WIP-brightgreen?style=for-the-badge" />
@@ -56,6 +56,11 @@ LAUNCH_V29_TITANIUM.bat
 | 🛡️ **BYOVD Detection** | Catches EDR-killer drivers (RTCore64, dbutil_2_3, TrueSight, etc.) used by ransomware to blind AV/EDR before encrypting |
 | 📋 **Live CISA KEV Feed** | Dynamically updated actively-exploited-CVE catalog, rate-limit-safe NVD CVSS enrichment |
 | 📤 **Sigma Rule Export** | Any finding exports as a portable `.yml` rule for Splunk/Elastic/Sentinel |
+| 🧾 **Sigma Rule Ingest** | 24-rule curated starter pack + drop-in `sigma_rules/` loader (YAML/JSON) evaluated against live process cmdlines and PowerShell 4104 script blocks (v29.46) |
+| ⚡ **YARA-X Engine** | VirusTotal's Rust YARA rewrite (5–10× faster, SIMD+Aho-Corasick) compiles all 14 `yara_rules/*.yar` rulesets; transparent yara-python fallback (v29.46) |
+| 🏰 **Firmware Trust Posture** | One-shot BitLocker / Secure Boot / TPM / LSA-PPL / Credential Guard / VBS-HVCI / SMBv1 / patch-health checks with severity-rated findings (v29.46) |
+| 🧬 **STIX 2.1 / TAXII 2.1** | Vendor-neutral intel ingestion from CISA AIS, MISP, ISAC feeds — Basic/Bearer auth, cursor pagination, disabled by default until configured (v29.46) |
+| 🛰️ **FireHOL/Spamhaus/DShield feeds** | firehol_level1/2/3 aggregated blocklists, Spamhaus DROP, bruteforceblocker, CINS Army — 6 high-fidelity IP feeds added to the intel engine (v29.46) |
 | 🌐 **OSINT4ALL Indicator Stack** | One-click deep-links for any IP/hash/domain → VirusTotal, AbuseIPDB, Talos, GreyNoise, Shodan, Censys, OTX, Pulsedive, ONYPHE, urlscan.io + more |
 | 🔎 **Inline Reputation Lookups** | AbuseIPDB, Shodan, Pulsedive, ONYPHE, EmailRep, GreyNoise via free API keys (web-page fallback when keyless); Settings → OSINT API Keys |
 | 🗄️ **Evidence Preservation** | Wayback Machine availability check (no-key, flags no-history phishing pages) + urlscan.io one-click scan submit |

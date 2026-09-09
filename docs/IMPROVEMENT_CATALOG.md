@@ -9,8 +9,11 @@ Downpour module it improves, and the expected benefit.
 
 ## 1. HIGH IMPACT — Detection Engines
 
-### 1a. YARA-X: Google's Rust rewrite of YARA
-- **Package:** `yara-x-python` (pip)
+### 1a. YARA-X: Google's Rust rewrite of YARA  ✅ SHIPPED v29.46
+- **Status:** DONE — `yara_x_engine.py`; yara-x 1.20 in the venv, all 14
+  `yara_rules/*.yar` rulesets compile (lenient Compiler path), yara-python
+  fallback, ~6 ms per-file scans. See `_WORKLOG.md` v29.46.
+- **Package:** `yara-x` (pip)
 - **Speedup:** 5–10× over yara-python for large rule sets; better memory profile
 - **Improves:** `advanced_file_analyzer.py`, `file_scanner.py` — all 104 YARA rules
 - **Migration path:** yara-x is API-compatible with yara-python for most rules;
@@ -67,8 +70,13 @@ Downpour module it improves, and the expected benefit.
 - **Implementation:** Extract EMBER features in `advanced_file_analyzer.py`,
   score with a pre-trained LightGBM model, add the score to the risk pipeline.
 
-### 1e. Sigma Rules: Standardized Detection Format
-- **Package:** `pysigma` (pip)
+### 1e. Sigma Rules: Standardized Detection Format  ✅ SHIPPED v29.46
+- **Status:** DONE — `sigma_engine.py` (stdlib, no pysigma dependency):
+  24-rule curated starter pack + `sigma_rules/` drop-in loader (JSON +
+  YAML-subset), matched against live process cmdlines and PowerShell 4104
+  script blocks. See `_WORKLOG.md` v29.46.
+- **Package:** `pysigma` (pip) — NOT needed; stdlib implementation avoids
+  the extra dependency
 - **Improves:** Adds 3000+ community detection rules from the Sigma HQ
   repository (github.com/SigmaHQ/sigma) in a standard YAML format
 - **Why it matters:** Sigma is the "YARA for logs" — a community-driven
@@ -120,8 +128,15 @@ Downpour module it improves, and the expected benefit.
 
 ## 3. MEDIUM — Threat Intelligence
 
-### 3a. STIX/TAXII: Structured Threat Information eXchange
-- **Package:** `stix2`, `taxii2-client` (pip)
+### 3a. STIX/TAXII: Structured Threat Information eXchange  ✅ SHIPPED v29.46
+- **Status:** DONE — `stix_taxii_feed.py` (stdlib + requests, no
+  stix2/taxii2-client dependency): TAXII 2.1 discovery/collections/objects
+  with `next`-cursor pagination, Basic/Bearer auth, STIX 2.1 pattern
+  extraction (ip/domain/url/hashes/registry). Disabled by default until the
+  user configures `downpour_data/stix_taxii_config.json`. See `_WORKLOG.md`
+  v29.46.
+- **Package:** `stix2`, `taxii2-client` (pip) — NOT needed; stdlib
+  implementation avoids the extra dependencies
 - **Improves:** `threat_feed_aggregator.py`, `threat_intelligence.py`
 - **Why it matters:** STIX 2.1 is the OASIS standard for threat indicator
   exchange. TAXII 2.1 is the transport protocol. Major ISACs, government
@@ -227,17 +242,17 @@ Downpour module it improves, and the expected benefit.
 
 | # | Item | Impact | Effort | Priority |
 |---|------|--------|--------|----------|
-| 1a | YARA-X (Rust rewrite) | High | Low (swap import) | **P0** |
+| 1a | YARA-X (Rust rewrite) | High | Low (swap import) | **P0** ✅ v29.46 |
 | 1c | ETW kernel telemetry | High | Medium | **P0** |
-| 2b | Aho-Corasick IOC matching | High | Low | **P0** |
+| 2b | Aho-Corasick IOC matching | High | Low | **P0** ✅ v29.45 (ioc_scanner.py) |
 | 1d | EMBER ML static analysis | High | Medium | **P1** |
 | 1b | Hyperscan regex engine | High | Medium | **P1** |
-| 4a | Process mitigation policies | High | Low | **P1** |
+| 4a | Process mitigation policies | High | Low | **P1** ✅ v29.44b (process_mitigation.py) |
 | 5a | DNS query monitoring | High | Medium | **P1** |
 | 2a | functools.lru_cache | Medium | Low | **P2** |
-| 1e | Sigma rules | Medium | Medium | **P2** |
+| 1e | Sigma rules | Medium | Medium | **P2** ✅ v29.46 (sigma_engine.py) |
 | 2c | RE2 (no ReDoS) | Medium | Low | **P2** |
-| 3a | STIX/TAXII | Medium | Medium | **P2** |
+| 3a | STIX/TAXII | Medium | Medium | **P2** ✅ v29.46 (stix_taxii_feed.py) |
 | 4b | Job Objects | Medium | Low | **P2** |
 | 5c | LOLBins detection | Medium | Low | **P2** |
 | 3c | Government feeds | Medium | Low | **P2** |

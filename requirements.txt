@@ -24,6 +24,9 @@ watchdog>=3.0.0          # file integrity monitoring (FIM)
 numpy>=1.24.0            # ML / behavioral analysis backend
 
 # ── Optional (feature toggles, graceful fallback when missing) ──────────────
+# YARA-X: VirusTotal's Rust YARA rewrite — 5-10x faster scanning of the
+# yara_rules/ rulesets (falls back to yara-python when absent)
+yara-x>=1.20.0
 # System tray icon + restore window
 pystray>=0.19.0
 # Floating widgets, tray icon rendering, image analysis

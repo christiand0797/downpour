@@ -266,6 +266,39 @@ except ImportError:
     EventLogMonitor: Any = None
     def get_event_log_monitor(callback=None): return None
 
+# v29.46: Sigma rule engine (community detections — improvement catalog 1e)
+try:
+    import sigma_engine
+    SIGMA_ENGINE_AVAILABLE: Any = True
+except ImportError:
+    sigma_engine: Any = None
+    SIGMA_ENGINE_AVAILABLE: Any = False
+
+# v29.46: YARA-X scan engine (catalog 1a/P0) — yara-x with yara-python fallback
+try:
+    import yara_x_engine
+    YARA_X_ENGINE_AVAILABLE: Any = True
+except ImportError:
+    yara_x_engine: Any = None
+    YARA_X_ENGINE_AVAILABLE: Any = False
+
+# v29.46: Firmware & platform trust posture (BitLocker/SecureBoot/TPM/PPL)
+try:
+    import firmware_posture
+    FIRMWARE_POSTURE_AVAILABLE: Any = True
+except ImportError:
+    firmware_posture: Any = None
+    FIRMWARE_POSTURE_AVAILABLE: Any = False
+
+# v29.46: STIX 2.1 / TAXII 2.1 feed client (catalog 3a) — inert until the
+# user enables downpour_data/stix_taxii_config.json (zero network I/O).
+try:
+    import stix_taxii_feed
+    STIX_TAXII_AVAILABLE: Any = True
+except ImportError:
+    stix_taxii_feed: Any = None
+    STIX_TAXII_AVAILABLE: Any = False
+
 is_trusted_system_process = trusted_system_process
 
 # Revolutionary enhancements imports
@@ -12885,6 +12918,18 @@ class ThreatIntelEngine:
         'firebog_easypriv': ('https://v.firebog.net/hosts/Easyprivacy.txt', 'domain', 86400),
         'firebog_prig_ads': ('https://v.firebog.net/hosts/Prigent-Ads.txt', 'domain', 86400),
         'firebog_prig_mal': ('https://v.firebog.net/hosts/Prigent-Malware.txt', 'domain', 86400),
+
+        # -- FIREHOL / SPAMHAUS / BRUTEFORCE (v29.46: FireHOL iplists research)
+        # firehol_level1 aggregates DShield top-20, Spamhaus DROP/EDROP and
+        # other "bogons certain to be malicious" sources (~2.5k stable IPs);
+        # level2 = reuse-attacks, level3 = short-period abuse. .netset format
+        # (CIDR lines + '#' comments) parses cleanly via the base-IP split.
+        'firehol_l1_v':     ('https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset', 'ip', 86400),
+        'firehol_l2_v':     ('https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level2.netset', 'ip', 86400),
+        'firehol_l3_v':     ('https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level3.netset', 'ip', 86400),
+        'spamhaus_drop_v':  ('https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/spamhaus_drop.netset', 'ip', 43200),
+        'bruteforceblocker':('https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/bruteforceblocker.netset', 'ip', 43200),
+        'cinsarmy_v':       ('https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/cinsarmy.netset', 'ip', 43200),
 
         # -- DISCONNECT.ME -------------------------------------------------
         # DEDUP-v28p2: disconnect_trk_v (same URL as earlier entry)
@@ -37580,6 +37625,135 @@ Verification Status:
         threading.Thread(target=_loop, daemon=True,
                          name='PersistenceWatch').start()
 
+    def _sigma_alert_bridge(self, finding):
+        """v29.46: bridge Sigma-engine findings into the alert queue."""
+        try:
+            level_color = {
+                'CRITICAL': Colors.GAUGE_RED,
+                'HIGH': Colors.GAUGE_ORANGE,
+                'MEDIUM': Colors.GAUGE_YELLOW,
+                'LOW': Colors.GAUGE_TEAL,
+            }.get(getattr(finding, 'level', 'MEDIUM'), Colors.GAUGE_ORANGE)
+            self._queue_alert(
+                '[SIGMA] {} ({}): {}'.format(
+                    getattr(finding, 'title', 'sigma hit'),
+                    getattr(finding, 'technique', ''),
+                    (getattr(finding, 'detail', '') or '')[:160]),
+                level_color)
+        except Exception:
+            pass
+
+    def _sigma_process_loop(self):
+        """v29.46: 300s Sigma sweep over live process command lines —
+        catches long-running threats whose creation event predates us."""
+        def _loop():
+            try:
+                while True:
+                    try:
+                        if sigma_engine is not None:
+                            for _f in sigma_engine.scan_process_snapshot():
+                                self._sigma_alert_bridge(_f)
+                    except Exception as _e:
+                        _safe_log('SigmaEngine', 'process sweep error', _e)
+                    time.sleep(300)
+            except Exception as _e:
+                _safe_log('SigmaEngine', 'sigma loop failed', _e)
+        threading.Thread(target=_loop, daemon=True,
+                         name='SigmaProcess').start()
+
+    def _sigma_script_block_scan(self):
+        """v29.46: one-shot Sigma evaluation of recent PowerShell 4104
+        script blocks (operational log, reverse read, capped)."""
+        def _work():
+            try:
+                import win32evtlog
+                seen = 0
+                hand = win32evtlog.EvtQuery(
+                    'Microsoft-Windows-PowerShell/Operational',
+                    win32evtlog.EvtQueryReverseDirection)
+                while seen < 500:
+                    batch = win32evtlog.EvtNext(hand, 50)
+                    if not batch:
+                        break
+                    for evt in batch:
+                        try:
+                            xml = win32evtlog.EvtRender(
+                                evt, win32evtlog.EvtRenderEventXml)
+                            if 'ScriptBlockText' not in xml:
+                                continue
+                            seen += 1
+                            if sigma_engine is not None:
+                                for _f in sigma_engine.match_script_block(
+                                        xml):
+                                    self._sigma_alert_bridge(_f)
+                        except Exception:
+                            continue
+                if seen:
+                    logger.info('[SIGMA] script-block scan: %d blocks '
+                                'evaluated', seen)
+            except Exception as _e:
+                _safe_log('SigmaEngine', 'script-block scan skipped', _e)
+        self._executor.submit(_work)
+
+    def _firmware_alert_bridge(self, alert):
+        """v29.46: bridge firmware-posture findings into the alert queue."""
+        try:
+            severity_color = {
+                'CRITICAL': Colors.GAUGE_RED,
+                'HIGH': Colors.GAUGE_ORANGE,
+                'MEDIUM': Colors.GAUGE_YELLOW,
+                'LOW': Colors.GAUGE_TEAL,
+            }.get(getattr(alert, 'severity', 'LOW'), Colors.GAUGE_TEAL)
+            self._queue_alert(
+                '[FIRMWARE] {} ({}): {}'.format(
+                    getattr(alert, 'description', 'posture finding'),
+                    getattr(alert, 'technique', ''),
+                    (getattr(alert, 'detail', '') or '')[:160]),
+                severity_color)
+        except Exception:
+            pass
+
+    def _firmware_posture_oneshot(self):
+        """v29.46: one-shot firmware/platform trust posture scan."""
+        def _work():
+            try:
+                if firmware_posture is None:
+                    return
+                _alerts, _status = firmware_posture.collect_posture()
+                for _a in _alerts:
+                    self._firmware_alert_bridge(_a)
+                logger.info('Firmware posture: %s', _status)
+                self._queue_alert(
+                    '[FIRMWARE] posture: ' + ', '.join(
+                        f'{k}={v}' for k, v in sorted(_status.items())),
+                    Colors.GAUGE_TEAL)
+            except Exception as _e:
+                _safe_log('FirmwarePosture', 'posture scan failed', _e)
+        self._executor.submit(_work)
+
+    def _stix_taxii_oneshot(self):
+        """v29.46: one-shot STIX/TAXII sync. Silent no-op while the config
+        is disabled (zero network I/O until the user opts in)."""
+        def _work():
+            try:
+                if stix_taxii_feed is None:
+                    return
+                _res = stix_taxii_feed.sync_once()
+                if not _res.get('enabled'):
+                    logger.info('[STIX] sync skipped (config disabled)')
+                    return
+                _n = len(_res.get('indicators', []))
+                for _s in _res.get('servers', []):
+                    _st = str(_s.get('status', ''))
+                    _lvl = (Colors.GAUGE_TEAL if 'ok' in _st
+                            else Colors.GAUGE_YELLOW)
+                    self._queue_alert(
+                        '[STIX] {}: {} ({} indicators total)'.format(
+                            _s.get('name'), _st, _n), _lvl)
+            except Exception as _e:
+                _safe_log('StixTaxii', 'sync failed', _e)
+        self._executor.submit(_work)
+
     def _event_log_alert_bridge(self, alert):
         """v29.44b: bridge EventLogMonitor alerts into the app alert queue."""
         try:
@@ -37647,6 +37821,27 @@ Verification Status:
         if not getattr(self, '_iot_startup_check_done', False):
             self._iot_startup_check_done = True
             self._executor.submit(self._check_iot_devices_on_startup)
+        # v29.46: Sigma rule engine — one-shot PowerShell script-block scan
+        # + a 300s live-process cmdline sweep (community Sigma detections,
+        # improvement catalog 1e).
+        if SIGMA_ENGINE_AVAILABLE and not getattr(
+                self, '_sigma_engine_started', False):
+            self._sigma_engine_started = True
+            self._orig_after(1500, self._sigma_script_block_scan)
+            self._orig_after(2500, self._sigma_process_loop)
+        # v29.46: firmware/platform trust posture one-shot (BitLocker,
+        # Secure Boot, TPM, LSA PPL, Credential Guard, VBS/HVCI, SMBv1,
+        # patch health) — static state, so it runs once, not on a loop.
+        if FIRMWARE_POSTURE_AVAILABLE and not getattr(
+                self, '_firmware_posture_started', False):
+            self._firmware_posture_started = True
+            self._orig_after(6000, self._firmware_posture_oneshot)
+        # v29.46: STIX 2.1/TAXII 2.1 one-shot sync (silent no-op while
+        # downpour_data/stix_taxii_config.json stays disabled).
+        if STIX_TAXII_AVAILABLE and not getattr(
+                self, '_stix_taxii_started', False):
+            self._stix_taxii_started = True
+            self._orig_after(9000, self._stix_taxii_oneshot)
         self._queue_alert('[OK] USB, Service, ARP, WMI, FIM + Extended Threat monitors active', Colors.GAUGE_GREEN)
 
     def _manual_start_aegis(self):

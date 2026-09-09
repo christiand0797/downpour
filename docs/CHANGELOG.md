@@ -1,5 +1,33 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.46 - community detection layer (Sigma ingest + YARA-X + STIX/TAXII + firmware posture + FireHOL feeds)
+- NEW sigma_engine.py (catalog 1e): Sigma rule ingestion — 24-rule curated
+  starter pack + drop-in `sigma_rules/` loader (full-Sigma JSON + stdlib
+  YAML-subset parser). Modifiers: contains/startswith/endswith/re.
+  Conditions: and/or/not/parens/`1 of sel*`/`all of sel*`/`N of them`.
+  match_process() + match_script_block() (4104) + scan_process_snapshot()
+  (psutil sweep). ATT&CK tags → technique field. [SIGMA] alerts.
+- NEW yara_x_engine.py (catalog 1a/P0): VirusTotal's YARA-X (Rust) with
+  yara-python fallback. Per-file rulesets + lenient Compiler path → all 14
+  yara_rules/*.yar compile; ~6 ms notepad.exe scan; normalized match dicts.
+- NEW stix_taxii_feed.py (catalog 3a): TAXII 2.1 client (discovery →
+  collections → objects, `next`-cursor pagination, Basic/Bearer auth) +
+  STIX 2.1 pattern extraction (ip/ipv6/domain/url/SHA-256/SHA-1/MD5/
+  registry). Disabled by default — zero network I/O until
+  downpour_data/stix_taxii_config.json is configured.
+- NEW firmware_posture.py: BitLocker, Secure Boot, TPM, LSA PPL
+  (RunAsPPL), Credential Guard, VBS/HVCI, SMBv1, wuauserv patch health —
+  one-shot posture scan, unknown states never fabricate alerts. [FIRMWARE]
+- +6 feeds: firehol_level1/2/3, spamhaus_drop, bruteforceblocker,
+  cinsarmy (FireHOL iplists research; .netset parses through the existing
+  comment-skip + CIDR base-IP split).
+- Wired into `_manual_start_security_monitors` with guarded imports,
+  severity-colored bridges, one-shot 4104 script-block scan (500-block
+  cap) + 300s live-process Sigma sweep.
+- Environment: pefile restored to the venv (was missing → PE analyzer tests
+  red); yara-x 1.20 added (optional, requirements.txt).
+- Tests: +35 — **285/285 pass**; AST: 794 methods, 0 duplicates.
+
 ## v29.44d - persistence watchers (final 3 audit blind spots closed)
 - NEW persistence_watchers.py (stdlib-only):
   - RegistryPersistenceWatcher: Run/RunOnce (HKCU+HKLM) + Winlogon baseline+diff — T1060 new value / T1574.011 modification; baselines persist to downpour_data so offline writes are flagged at next start

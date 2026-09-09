@@ -17,6 +17,14 @@ Downpour uses a modular architecture with over 40 supporting Python modules that
 | `ml_optimization_engine.py` | Optimization for machine learning inference and training tasks. | **Active** |
 | `behavior_scanner.py` | Scans for known malicious behavior patterns and injects alerts. | **Active** |
 | `behavioral_analyzer.py` | Base behavioral analytics functions (often superseded by ML variants). | *Legacy/Active* |
+| `sigma_engine.py` | Sigma rule ingestion (24 bundled rules + `sigma_rules/` YAML/JSON loader) matched against process cmdlines and PowerShell 4104 script blocks. | **Active** |
+| `yara_x_engine.py` | YARA-X (Rust) scan engine over `yara_rules/*.yar` with lenient compile + yara-python fallback. | **Active** |
+| `pe_analyzer.py` | Static PE analysis: sections, entropy, packer ID, import clustering, 0–100 risk score. | **Active** |
+| `persistence_watchers.py` | Registry Run/Winlogon baseline+diff, DLL-hijack shadows, new-driver/BYOVD monitor. | **Active** |
+| `event_log_monitor.py` | Windows Event Log watch: 7045/4698/4720/1102/104/4104/4625. | **Active** |
+| `lolbins_detector.py` | LOLBins abuse with parent-child correlation and MITRE mapping. | **Active** |
+| `dga_detector.py` | DGA domain detection (entropy + n-gram scoring). | **Active** |
+| `ioc_scanner.py` | Aho-Corasick multi-pattern IOC matching. | **Active** |
 
 ## Threat Intelligence & Remediation
 
