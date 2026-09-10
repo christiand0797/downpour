@@ -256,7 +256,7 @@ Downpour module it improves, and the expected benefit.
 | 4b | Job Objects | Medium | Low | **P2** ✅ v29.47 (child_process_guard.py) |
 | 5c | LOLBins detection | Medium | Low | **P2** ✅ v29.45 (lolbins_detector.py) |
 | 3c | Government feeds | Medium | Low | **P2** |
-| 5b | AMSI integration | High | High | **P3** |
+| 5b | AMSI integration | High | High | **P3** ✅ v29.49 (event_push_monitor._amsi_evaluate — real AmsiScanString + pattern analyzer) |
 | 3b | MISP integration | Medium | Medium | **P3** ✅ v29.47 (misp_feed.py) |
 | 6a | structlog | Low | Low | **P3** |
 | 6b | pydantic | Low | Low | **P3** |

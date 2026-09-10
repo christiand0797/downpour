@@ -1,5 +1,20 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.49 - AMSI bridge (catalog 5b) + amsi_integration crash fixes
+- FIXED amsi_integration.py: two crash bugs that made the module dead
+  code from day one — `wintypes.HRESULT` replaced with `ctypes.HRESULT`
+  (3 occurrences), `math` import added for `_calculate_entropy`.
+- NEW: event_push_monitor._amsi_evaluate() — push-delivered 4104 script
+  blocks are evaluated through the real Windows AV engine (AmsiScanString
+  via ctypes) plus the pattern/obfuscation/entropy analyzer (22 patterns
+  → [AMSI-PS] alerts; result ≥ 32768 → CRITICAL [AMSI] verdict alert).
+- Uses the integration's AMSI context WITHOUT .start() (the wevtutil poll
+  loop in the original module is redundant with push delivery).
+- **Live-verified**: AmsiInitialize S_OK, AmsiScanString result=1 for
+  benign, result≥32768 for flagged, Invoke-Mimikatz → [AMSI-PS] CRITICAL.
+- yara_rules: concurrent-agent strict-compile fixes (5 files) verified.
+- Tests: +7 — **317/317 pass**; AST: 799 methods, 0 duplicates.
+
 ## v29.48 - push-based event delivery (EvtSubscribe — catalog 1c)
 - NEW event_push_monitor.py: EvtSubscribe makes Windows PUSH security
   events the instant they are written — zero polling latency for 7045/

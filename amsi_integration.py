@@ -8,6 +8,7 @@ fileless malware techniques.
 from __future__ import annotations
 import os
 import time
+import math
 import threading
 import logging
 import subprocess
@@ -161,7 +162,7 @@ class AMSIIntegration:
                 wintypes.LPCWSTR,
                 ctypes.POINTER(ctypes.c_void_p)
             ]
-            self.amsi_dll.AmsiInitialize.restype = wintypes.HRESULT
+            self.amsi_dll.AmsiInitialize.restype = ctypes.HRESULT
             
             self.amsi_dll.AmsiUninitialize.argtypes = [ctypes.c_void_p]
             self.amsi_dll.AmsiUninitialize.restype = None
@@ -174,7 +175,7 @@ class AMSIIntegration:
                 ctypes.c_void_p,
                 ctypes.POINTER(wintypes.ULONG)
             ]
-            self.amsi_dll.AmsiScanBuffer.restype = wintypes.HRESULT
+            self.amsi_dll.AmsiScanBuffer.restype = ctypes.HRESULT
             
             self.amsi_dll.AmsiScanString.argtypes = [
                 ctypes.c_void_p,
@@ -183,7 +184,7 @@ class AMSIIntegration:
                 ctypes.c_void_p,
                 ctypes.POINTER(wintypes.ULONG)
             ]
-            self.amsi_dll.AmsiScanString.restype = wintypes.HRESULT
+            self.amsi_dll.AmsiScanString.restype = ctypes.HRESULT
             
             # Initialize
             app_name = "DownpourSecurity"

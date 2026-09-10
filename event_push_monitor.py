@@ -51,6 +51,15 @@ except ImportError:
     sigma_engine = None
     _SIGMA_AVAILABLE = False
 
+try:
+    import amsi_integration
+    _AMSI_AVAILABLE = True
+except ImportError:
+    amsi_integration = None
+    _AMSI_AVAILABLE = False
+
+_AMSI_MALICIOUS_RESULT = 32768          # AMSI_RESULT_DETECTED (0x8000)
+
 # Event ID -> (mitre_technique, severity, description)
 # Mirrors event_log_monitor.EVENT_MAP — keep both in sync.
 EVENT_MAP: Dict[int, tuple] = {
@@ -192,6 +201,41 @@ class EventPushMonitor:
             except Exception:
                 _log.exception('event push callback failed')
 
+    def _amsi_evaluate(self, script: str, now: str) -> None:
+        """v29.49: run a pushed 4104 script block through the AMSI
+        integration (catalog 5b) — the real AV-engine verdict via
+        AmsiScanString plus the obfuscation/pattern analyzer. Note: we use
+        the integration's context WITHOUT .start() — its own wevtutil poll
+        loop is redundant with push delivery; we only want the AMSI scan
+        and the pattern engine. Never raises."""
+        try:
+            integration = amsi_integration.get_amsi_integration()
+            event = amsi_integration.PowerShellEvent(
+                timestamp=time.time(), event_id=4104, sequence_number=0,
+                script_block_text=script[:32000], script_block_id='')
+            integration._analyze_script(event)
+            if event.is_suspicious:
+                self._emit(EventPushAlert(
+                    event_id=4104, log_name='PowerShell',
+                    technique=','.join(event.mitre_techniques[:3])
+                    or 'T1059.001',
+                    severity=event.severity,
+                    description='[AMSI-PS] Suspicious PowerShell content',
+                    detail='; '.join(event.suspicious_patterns[:4])[:160],
+                    timestamp=now))
+            if integration.amsi_initialized:
+                scan = integration.scan_string(script[:32000],
+                                               'downpour-4104')
+                if scan is not None and scan.result >= _AMSI_MALICIOUS_RESULT:
+                    self._emit(EventPushAlert(
+                        event_id=4104, log_name='PowerShell',
+                        technique='T1059.001', severity='CRITICAL',
+                        description='[AMSI] AV engine flagged script content',
+                        detail=f'AMSI result {scan.result} '
+                               f'(name: {scan.content_name})', timestamp=now))
+        except Exception as exc:              # defensive — never raise
+            _log.debug('push amsi bridge: %s', exc)
+
     def _on_event(self, action, context, event_handle) -> None:
         """EvtSubscribe callback — runs on a native Windows thread."""
         try:
@@ -245,6 +289,8 @@ class EventPushMonitor:
                             detail=f.detail, timestamp=now))
                 except Exception as exc:  # defensive
                     _log.debug('push sigma bridge: %s', exc)
+            if _AMSI_AVAILABLE and script:
+                self._amsi_evaluate(script, now)
         self._emit(EventPushAlert(
             event_id=event_id,
             log_name='windows-event',
@@ -275,4 +321,5 @@ def get_push_monitor() -> Optional[EventPushMonitor]:
 __all__ = ['EventPushAlert', 'EventPushMonitor', 'start_push',
            'get_push_monitor', 'parse_event_id', 'extract_script_block',
            'EVENT_MAP', 'CHANNELS', 'BRUTE_FORCE_THRESHOLD',
-           'BRUTE_FORCE_WINDOW', '_EVT_AVAILABLE', '_SIGMA_AVAILABLE']
+           'BRUTE_FORCE_WINDOW', '_EVT_AVAILABLE', '_SIGMA_AVAILABLE',
+           '_AMSI_AVAILABLE', '_AMSI_MALICIOUS_RESULT']

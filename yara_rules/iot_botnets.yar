@@ -154,7 +154,7 @@ rule BrickerBot_Patterns {
     
     strings:
         $bricker1 = "brickerbot" nocase $bricker2 = "brick" nocase $bricker3 = "bot" nocase $flash = "flash_erase" nocase $flash2 = "flash_write" nocase $flash3 = "mtd_write" nocase $cnc = "cnc" nocase $port = ":23" nocase $destroy = "rm -rf /" nocase $destroy2 = "mkfs" nocase $destroy3 = "flash_eraseall" nocase condition:
-        any of ($bricker*) and any of ($flash*, $destroy*) and filesize < 5MB
+        any of ($bricker*) and any of ($flash*, $destroy*, $cnc, $port) and filesize < 5MB
 }
 
 rule Linux_Worm_Patterns {
@@ -166,7 +166,7 @@ rule Linux_Worm_Patterns {
     
     strings:
         $worm1 = "worm" nocase $worm2 = "spread" nocase $worm3 = "infect" nocase $scan = "scan" nocase $brute = "brute" nocase $telnet = "telnet" nocase $self_prop = "/bin/" nocase $self_prop2 = "/sbin/" nocase $self_prop3 = "/usr/bin/" nocase $cnc = "cnc" nocase $port = ":23" nocase $port2 = ":22" nocase condition:
-        any of ($worm*) and any of ($scan, $brute, $telnet) and filesize < 5MB
+        any of ($worm*) and any of ($scan, $brute, $telnet, $self_prop, $self_prop2, $self_prop3, $cnc, $port, $port2) and filesize < 5MB
 }
 
 rule Android_Botnet_Patterns {

@@ -2,6 +2,42 @@
 
 ## Branch: main
 
+## Session 2026-09-09 — v29.49: AMSI bridge (catalog 5b) + amsi_integration crash fixes
+
+**Sync:** HEAD was `925a8d1 v29.48`, tree clean. A concurrent agent
+continued the yara_rules strict-compile fixes (5 files) mid-session —
+verified against the YARA-X engine and included in this commit.
+
+**Catalog item executed: 5b (P3, AMSI integration).**
+
+**Fixes to `amsi_integration.py` (never-wired module, two crash bugs):**
+1. `wintypes.HRESULT` doesn't exist in Python 3.12's ctypes — replaced
+   with `ctypes.HRESULT` (3 occurrences in AmsiInitialize/ScanBuffer/
+   ScanString restype declarations). Without this fix AMSI initialization
+   failed → the entire module was dead code from day one.
+2. `math` was never imported — `_calculate_entropy` raised NameError on
+   the first call (needed for the base64-obfuscation scoring path).
+
+**New wiring in `event_push_monitor.py` (~35 lines):** `_amsi_evaluate()`
+method called from the 4104 handler alongside the Sigma bridge:
+- Builds a PowerShellEvent and calls `integration._analyze_script()` for
+  pattern/obfuscation/entropy scoring (22 patterns → [AMSI-PS] alert).
+- Calls `integration.scan_string()` (real `AmsiScanString` via ctypes) for
+  the live Windows AV-engine verdict — result ≥ 32768 (DETECTED/BLOCKED)
+  → CRITICAL [AMSI] alert.
+- Uses the integration's AMSI context WITHOUT `.start()` — the wevtutil
+  poll loop in the original module is redundant with push delivery.
+- All guarded: exceptions contained, AMSI unavailable → skipped silently.
+- **Live-verified:** `AmsiInitialize` returns S_OK (AV provider
+  registered); `AmsiScanString` returns result=1 (NOT_DETECTED) for
+  benign text and result≥32768 for flagged content; `Invoke-Mimikatz` →
+  `[AMSI-PS] CRITICAL` with `Mimikatz; Mimikatz/DCSync` patterns.
+
+**Tests:** +7 (`tests/test_v2949_amsi_bridge.py`: pattern alert emit, AV
+verdict alert, clean-script silence, exception containment, unavailable
+skip, below-threshold silence, live module-bug-fix regression). **317/317
+pass** (310+7). AST: 799 methods, 0 duplicates.
+
 ## Session 2026-09-09 — v29.48: push-based event delivery (EvtSubscribe — catalog 1c, last P0)
 
 **Sync:** HEAD was `5cf0f90 v29.47`, tree clean. A concurrent agent

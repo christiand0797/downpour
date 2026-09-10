@@ -34,7 +34,10 @@ authoritative history. This file is the current-state snapshot + what's left.
   install + terminate rails, wiring order); **310 tests as of v29.48** —
   added `tests/test_v2948_event_push.py` (13: XML parsing, alert mapping,
   4625 burst threshold, 4104→Sigma push bridge, callback-exception
-  containment, live subscription coverage/idempotence, wiring).)
+  containment, live subscription coverage/idempotence, wiring); **317
+  tests as of v29.49** — added `tests/test_v2949_amsi_bridge.py` (7:
+  pattern alert, AV verdict, clean silence, exception containment,
+  unavailable skip, below-threshold silence, live bug-fix regression).)
 - Full project: 66 Python files, 0 syntax errors
 - **v29.46 community detection layer** — `sigma_engine.py` (Sigma ingest,
   catalog 1e DONE), `yara_x_engine.py` (catalog 1a/P0 DONE, yara-x 1.20 in
@@ -50,6 +53,9 @@ authoritative history. This file is the current-state snapshot + what's left.
   EvtSubscribe push delivery replaces the 15 s poll for covered channels;
   uncovered channels keep poll fallback; covered-channel bookmarks are
   popped so no event alerts twice.
+- **v29.49** — AMSI bridge wired into `event_push_monitor._amsi_evaluate`:
+  push-delivered 4104 blocks scanned via real AmsiScanString (catalog 5b
+  DONE) + 22-pattern analyzer. Two crash bugs fixed in amsi_integration.py.
 - **`pefile` MUST be present in the venv** (requirements.txt lists it) — it
   went missing once and `test_notepad_analyzes_clean` fails on `is_pe=False`.
 - **Main-thread DB-freeze rule (v29.14)**: every `self.db.*` / `count_intel()`
