@@ -1,5 +1,18 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.51 - EMBER-style PE feature vector + transparent scoring (catalog 1d)
+- NEW in pe_analyzer.py: `ember_features()` + `ember_score()` — the
+  full EMBER feature family (PE headers, section stats, import stats,
+  256-bin byte histogram, exports/TLS/debug) computed per file without
+  requiring a 6 MB+ LightGBM model download.
+- Transparent hand-tuned classifier (weights from the EMBER paper's
+  documented feature importances) scores 0-100; deterministic.
+- Integrated into `analyze_pe()`: every result carries `ember_vector`
+  + `ember_score`; score ≥ 60 adds a risk_factor.
+- **Live-verified on notepad.exe**: 20 feature keys, ember_score=5
+  (correctly low for a clean system binary), byte_hist normalizes to 1.0.
+- Tests: +11 — **338/338 pass**; AST: 800 methods, 0 duplicates.
+
 ## v29.50 - port/firewall unblock (user-requested)
 - NEW port_firewall_unblock.py: detect + remove ALL Downpour firewall
   rules (22+ rule prefixes across DDoS shield / remote-access block /

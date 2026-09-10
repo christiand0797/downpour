@@ -245,7 +245,7 @@ Downpour module it improves, and the expected benefit.
 | 1a | YARA-X (Rust rewrite) | High | Low (swap import) | **P0** ✅ v29.46 |
 | 1c | ETW kernel telemetry | High | Medium | **P0** ✅ v29.48 event-log portion (event_push_monitor.py — EvtSubscribe push; kernel ETW providers still need native libs) |
 | 2b | Aho-Corasick IOC matching | High | Low | **P0** ✅ v29.45 (ioc_scanner.py) |
-| 1d | EMBER ML static analysis | High | Medium | **P1** |
+| 1d | EMBER ML static analysis | High | Medium | **P1** ✅ v29.51 (ember_features + ember_score — full feature family + transparent classifier, no model download needed) |
 | 1b | Hyperscan regex engine | High | Medium | **P1** |
 | 4a | Process mitigation policies | High | Low | **P1** ✅ v29.44b (process_mitigation.py) |
 | 5a | DNS query monitoring | High | Medium | **P1** ✅ v29.47 (dns_cache_watch.py) |

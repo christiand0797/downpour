@@ -2,6 +2,46 @@
 
 ## Branch: main
 
+## Session 2026-09-10 — v29.51: EMBER-style PE feature vector + transparent scoring (catalog 1d)
+
+**Catalog item executed: 1d (P1, EMBER ML static analysis).**
+
+**Approach:** the EMBER paper's LightGBM model requires a 6 MB+ model
+weight download — instead, this session implements the full EMBER feature
+family with a transparent hand-tuned classifier. The feature vector is
+stored per-file so it can be correlated across scans and fed into a real
+model later without re-collecting data.
+
+**New in `pe_analyzer.py`:**
+- `ember_features(file_path, pe=None)` — computes the EMBER feature
+  family: PE header fields (machine/characteristics/subsystem/
+  dll_characteristics/entry_point/image_base), section stats
+  (entropy/raw/virtual sizes + exec/write flags per section), import
+  stats (num_imports, num_dlls, per-technique counts from
+  SUSPICIOUS_IMPORTS), 256-bin normalized byte histogram (first 256 KB),
+  export count, TLS callback count, debug directory size.
+- `ember_score(features)` — transparent 0-100 heuristic from the vector
+  (hand-tuned weights from the EMBER paper's documented feature
+  importances: section entropy 25 pts max, process_injection cluster
+  20, keylogging/anti-analysis 10 each, crypto_ransomware 15, TLS
+  callbacks 10, RWX 15, no-imports 10, >10-sections 5, zero-debug
+  on-large-file 5). Deterministic; capped at 100.
+- Integrated into `analyze_pe()`: every result now carries
+  `ember_vector` (dict) + `ember_score` (int); score ≥ 60 adds
+  'EMBER heuristics: N/100' to `risk_factors`.
+- `PEAnalysisResult.ember_vector: Optional[Dict]` +
+  `ember_score: int` fields added.
+
+**Live-verified on notepad.exe:** 20 feature keys, 256-bin histogram
+normalizing to 1.0, num_imports=315, num_dlls=50, max_section_entropy
+6.968, tls_callbacks=0, debug_size=112, ember_score=5 (correctly LOW for
+a clean system binary).
+
+**Tests:** +11 (`tests/test_v2951_ember.py`: feature-vector keys, byte
+histogram normalization, score range, clean-binary low score, per-
+heuristic boosts (entropy/injection/TLS/RWX/no-imports), 100-cap).
+**338/338 pass** (327 + 11). AST: 800 methods, 0 duplicates.
+
 ## Session 2026-09-10 — v29.50: port/firewall unblock (user-requested)
 
 **User request:** "add a way to unblock ports that have been blocked by
