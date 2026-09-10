@@ -56,6 +56,9 @@ authoritative history. This file is the current-state snapshot + what's left.
 - **v29.49** — AMSI bridge wired into `event_push_monitor._amsi_evaluate`:
   push-delivered 4104 blocks scanned via real AmsiScanString (catalog 5b
   DONE) + 22-pattern analyzer. Two crash bugs fixed in amsi_integration.py.
+- **v29.50** — `port_firewall_unblock.py`: one-click removal of ALL
+  Downpour firewall rules (22+ prefixes, dry-run default, audited);
+  🔓 Unblock ALL button on the Threats tab.
 - **`pefile` MUST be present in the venv** (requirements.txt lists it) — it
   went missing once and `test_notepad_analyzes_clean` fails on `is_pe=False`.
 - **Main-thread DB-freeze rule (v29.14)**: every `self.db.*` / `count_intel()`

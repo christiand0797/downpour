@@ -3,7 +3,7 @@
 > **Work in progress** — Personal antivirus, anti-malware, anti-RAT, and comprehensive Windows threat-defense platform built in Python with a full Tkinter GUI.
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v29.49%20Titanium-blue?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/version-v29.50%20Titanium-blue?style=for-the-badge" />
   <img src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078d7?style=for-the-badge&logo=windows" />
   <img src="https://img.shields.io/badge/python-3.12%20recommended-yellow?style=for-the-badge&logo=python" />
   <img src="https://img.shields.io/badge/status-active%20WIP-brightgreen?style=for-the-badge" />
@@ -65,6 +65,7 @@ LAUNCH_V29_TITANIUM.bat
 | 🔒 **Job Object Child Guard** | Every spawned probe is kernel-contained: dies with Downpour, breakaway refused, one-call tree-kill panic switch (v29.47) |
 | ⚡ **Push Event Telemetry** | EvtSubscribe push delivery — service installs, task creation, log-clearing, brute-force bursts and PowerShell script blocks arrive the instant they're written (was 15 s poll); 4104 blocks get real-time Sigma evaluation (v29.48) |
 | 🔬 **Real-time AMSI Scan** | Push-delivered 4104 script blocks scanned through the actual Windows AV engine (AmsiScanString) + 22-pattern obfuscation/entropy analyzer → [AMSI-PS] / [AMSI] alerts (v29.49) |
+| 🔓 **One-Click Unblock ALL** | Remove EVERY Downpour firewall rule (DDoS shield / C2 / emergency / kill-switch / hunt / lock-down / … 22+ prefixes) — dry-run preview, audited, non-Downpour rules never touched (v29.50) |
 | 🛰️ **FireHOL/Spamhaus/DShield feeds** | firehol_level1/2/3 aggregated blocklists, Spamhaus DROP, bruteforceblocker, CINS Army — 6 high-fidelity IP feeds added to the intel engine (v29.46) |
 | 🌐 **OSINT4ALL Indicator Stack** | One-click deep-links for any IP/hash/domain → VirusTotal, AbuseIPDB, Talos, GreyNoise, Shodan, Censys, OTX, Pulsedive, ONYPHE, urlscan.io + more |
 | 🔎 **Inline Reputation Lookups** | AbuseIPDB, Shodan, Pulsedive, ONYPHE, EmailRep, GreyNoise via free API keys (web-page fallback when keyless); Settings → OSINT API Keys |

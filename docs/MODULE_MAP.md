@@ -28,6 +28,7 @@ Downpour uses a modular architecture with over 40 supporting Python modules that
 | `pe_analyzer.py` | Static PE analysis: sections, entropy, packer ID, import clustering, 0–100 risk score. | **Active** |
 | `persistence_watchers.py` | Registry Run/Winlogon baseline+diff, DLL-hijack shadows, new-driver/BYOVD monitor. | **Active** |
 | `event_log_monitor.py` | Windows Event Log watch: 7045/4698/4720/1102/104/4104/4625. | **Active** |
+| `port_firewall_unblock.py` | Detect + remove ALL Downpour firewall rules (22+ prefixes, dry-run default, audited). | **Active** |
 | `amsi_integration.py` | AMSI integration: AmsiScanString via ctypes + 22-pattern script-block analyzer. | **Active** |
 | `event_push_monitor.py` | EvtSubscribe push delivery of the same hostile-event set (zero poll latency) + 4104→Sigma + 4104→AMSI bridge. | **Active** |
 | `lolbins_detector.py` | LOLBins abuse with parent-child correlation and MITRE mapping. | **Active** |

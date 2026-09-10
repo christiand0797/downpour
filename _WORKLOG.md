@@ -2,6 +2,50 @@
 
 ## Branch: main
 
+## Session 2026-09-10 — v29.50: port/firewall unblock (user-requested)
+
+**User request:** "add a way to unblock ports that have been blocked by
+downpour etc"
+
+**Research (all Downpour firewall rule shapes across 8 source files):**
+22+ distinct rule prefixes in 3 case variants —
+- `Downpour_DDoS_Block_{ip}`(+`_out`) — DDoS shield auto-block
+- `Downpour_Block_{ip}` — remote-access block (dir=in only!)
+- `Downpour_Alert_Block_{ip}` / `Downpour_C2_Block_{ip}` — threat alerts
+- `DOWNPOUR_ISOLATE_{proc}_{pid}` — per-process network isolation
+- `DOWNPOUR_BLOCK_{ip}` — per-process firewall-block action
+- `Downpour_VPN_KillSwitch_BlockAll/Allow_*` — VPN kill-switch
+- `Downpour_KS_Allow_DNS/HTTP/HTTPS/QUIC/LAN` — older kill-switch
+- `DOWNPOUR_EMERGENCY_BLOCK/_IN/ALLOW_*` — emergency isolate
+- `DOWNPOUR_LOCKDOWN_*` / `DOWNPOUR_SANDBOX_*` / `DOWNPOUR_WORM_ISOLATION`
+- `DOWNPOUR_HUNT_BLOCK_*` / `Downpour_MISP_*`
+The existing `system_cleanup._remove_downpour_firewall_rules()` had 3
+bugs (dir=out only, 2-prefix match, unwired) — superseded by this module.
+
+**New module: `port_firewall_unblock.py` (~210 lines, stdlib-only):**
+- `list_downpour_rules()` — netsh advfirewall enumerate in+out, parse
+  Rule Name/Direction/Action/RemoteIP/LocalPort/Program, filter to
+  case-insensitive `downpour` prefix (never touches non-Downpour rules)
+- `categorize(rule)` — friendly category per rule (DDoS shield /
+  VPN kill-switch / Emergency isolate / C2 block / Lock-down / …)
+- `unblock(rules=None, dry_run=True, audit=True)` — delete ALL matched
+  rules via netsh; **dry-run by default**; every run audited to
+  `downpour_data/port_unblock_audit.json` (last 50 kept)
+- `status()` — one-shot for GUI/health: total/blocking/categories
+- CLI: `python port_firewall_unblock.py [--apply]`
+
+**UI wiring:** 🔓 "Unblock ALL" button on the Threats tab action bar
+(next to 🧹 Purge DDoS Blocks). Flow: background detect → alert with
+rule names → risk-confirmed dialog (dry-run preview = Yes / delete = No)
+→ executor delete → `[UNBLOCK]` alerts. **Live-verified on the dev
+machine: found and reported 1 real stale C2-block rule.**
+
+**Tests:** +10 (`tests/test_v2950_port_unblock.py`: netsh parse+filter,
+netsh-failure tolerance, category mapping, dry-run no-mutation,
+real-run delete, error containment, audit trail write + 50-cap,
+non-Downpour rules never touched, status shape). **327/327 pass**
+(317+10). AST: 800 methods, 0 duplicates.
+
 ## Session 2026-09-09 — v29.49: AMSI bridge (catalog 5b) + amsi_integration crash fixes
 
 **Sync:** HEAD was `925a8d1 v29.48`, tree clean. A concurrent agent

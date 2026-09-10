@@ -1,5 +1,18 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.50 - port/firewall unblock (user-requested)
+- NEW port_firewall_unblock.py: detect + remove ALL Downpour firewall
+  rules (22+ rule prefixes across DDoS shield / remote-access block /
+  emergency isolate / VPN kill-switch / C2-block / hunt-block / MISP-block
+  / lock-down / sandbox / worm-isolation).
+- **Dry-run by default**: every mutation audited to
+  downpour_data/port_unblock_audit.json (last 50 kept).
+- Non-Downpour firewall rules are NEVER touched (prefix-filtered).
+- UI: 🔓 "Unblock ALL" button on the Threats tab — dry-run preview first,
+  risk-confirmed delete. **Live-verified: found 1 real stale C2-block.**
+- CLI: `python port_firewall_unblock.py [--apply]`.
+- Tests: +10 — **327/327 pass**; AST: 800 methods, 0 duplicates.
+
 ## v29.49 - AMSI bridge (catalog 5b) + amsi_integration crash fixes
 - FIXED amsi_integration.py: two crash bugs that made the module dead
   code from day one — `wintypes.HRESULT` replaced with `ctypes.HRESULT`

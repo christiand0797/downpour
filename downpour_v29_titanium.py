@@ -26391,6 +26391,11 @@ class downpour(tk.Tk):
              Colors.GAUGE_PURPLE,  "v30: export blocklist + rate tracker to CSV"),
             ("🧹 Purge DDoS Blocks", self._ddos_purge_blocklist,
              Colors.GAUGE_RED,     "v30: unblock + forget all persisted DDoS blocks"),
+            ("🔓 Unblock ALL",      self._port_unblock_all,
+             Colors.GAUGE_TEAL,    "v29.50: remove ALL Downpour firewall rules "
+                                   "(DDoS/C2/emergency/kill-switch/hunt/etc) — "
+                                   "dry-run preview first, audited to "
+                                   "downpour_data/port_unblock_audit.json"),
             ("🍯 Start HoneyPot",    self._honeypot_start,
              Colors.GAUGE_TEAL,    "Listen decoy services on 7 common attack ports "
                                    "(SSH/Telnet/HTTP/HTTPS/RDP/VNC/Redis, loopback-only) — "
@@ -40582,6 +40587,72 @@ Verification Status:
         self._ddos_blocklist_meta.clear()
         self._ddos_save_blocklist()
         self._queue_alert(f'[DDOS] Purged {n} DDoS block(s).', Colors.GAUGE_TEAL)
+
+    # ------------------------------------------------------------------
+    #  PORT FIREWALL UNBLOCK (v29.50)
+    #  One-click removal of ALL Downpour firewall rules. Covers every
+    #  blocking feature (DDoS shield, remote-access block, emergency
+    #  isolate, VPN kill-switch, C2-block, hunt-block, MISP-block,
+    #  lock-down, sandbox-block, worm-isolation) — 22+ rule prefixes,
+    #  case-insensitive. Dry-run preview → risk-confirmed delete.
+    # ------------------------------------------------------------------
+
+    def _port_unblock_all(self):
+        """v29.50: detect and offer to remove ALL Downpour firewall rules."""
+        import tkinter.messagebox as mb
+
+        def _work():
+            try:
+                from port_firewall_unblock import list_downpour_rules
+                rules = list_downpour_rules()
+                if not rules:
+                    self._queue_alert(
+                        '[UNBLOCK] No Downpour firewall rules found — '
+                        'nothing to unblock.', Colors.GAUGE_TEAL)
+                    return
+                names = [str(r.get('name', '')) for r in rules]
+                self._queue_alert(
+                    f'[UNBLOCK] Found {len(rules)} Downpour rule(s): '
+                    + ', '.join(names[:5]) +
+                    ('...' if len(names) > 5 else ''),
+                    Colors.GAUGE_YELLOW)
+            except Exception as _e:
+                _safe_log('PortUnblock', 'detect failed', _e)
+        self._executor.submit(_work)
+        # Risk-confirmed delete on the main thread (house convention)
+        try:
+            import port_firewall_unblock
+            count = len(port_firewall_unblock.list_downpour_rules())
+            if count == 0:
+                return
+            if not mb.askyesno(
+                    'Unblock ALL',
+                    f'Remove ALL {count} Downpour firewall rule(s)?\n\n'
+                    'This covers DDoS shield blocks, C2 blocks, emergency '
+                    'isolates, VPN kill-switch rules, hunt/MISP/lock-down '
+                    'blocks, and more.\n\nRun dry-run preview first?\n'
+                    '(Yes = preview only, No = delete all rules)',
+                    icon='warning'):
+                # user chose "No" = actually delete (risk-confirmed)
+                def _delete():
+                    try:
+                        result = port_firewall_unblock.unblock(
+                            dry_run=False)
+                        n = len(result.get('removed', []))
+                        errs = result.get('errors', [])
+                        self._queue_alert(
+                            f'[UNBLOCK] Removed {n} rule(s)'
+                            + (f' ({len(errs)} errors)' if errs else '')
+                            + '.', Colors.GAUGE_TEAL)
+                    except Exception as _e:
+                        _safe_log('PortUnblock', 'unblock failed', _e)
+                self._executor.submit(_delete)
+            else:
+                self._queue_alert(
+                    '[UNBLOCK] Dry-run: see the console / audit trail.',
+                    Colors.GAUGE_YELLOW)
+        except Exception as _e:
+            _safe_log('PortUnblock', 'dialog failed', _e)
 
     # --------------------------------------------------------------------------
     #  HONEYPOT / DECEPTION ENGINE  (tab 27 — "HoneyPot")
