@@ -24986,6 +24986,7 @@ class downpour(tk.Tk):
             ('_tab_vpn',        '\U0001f510 VPN',         self._build_vpn_tab),          # VPN/Privacy
             ('_tab_emergency',  '\U0001f6a8 Emergency',   self._build_emergency_tab),    # Emergency response
             ('_tab_settings',   '\u2699 Settings',        self._build_settings_tab),     # Settings
+            ('_tab_forensic',   '\U0001f50e Forensics',  self._build_forensic_tab),    # v29.59 Forensic investigation
         ]
         # Maps self._tab_xxx (inner) -> outer frame added to notebook; used by _select_tab()
         self._nb_outer: dict = {}
@@ -34310,8 +34311,121 @@ Verification Status:
         self._executor.submit(_do)
 
     # ==========================================================================
-    #  [SEARCH] THREAT HUNT TAB   -  search files + processes by threat name / IOC
+    #  [SEARCH] FORENSIC INVESTIGATION TAB (v29.59)
     # ==========================================================================
+
+    def _build_forensic_tab(self):
+        p: Any = self._tab_forensic
+        p.grid_rowconfigure(1, weight=1)
+        p.grid_columnconfigure(0, weight=1)
+        hdr: Any = tk.Frame(p, bg=Colors.GLASS_CARD, pady=6)
+        hdr.grid(row=0, column=0, sticky='ew', padx=8, pady=(8, 0))
+        tk.Label(hdr, text='🔎 FORENSIC INVESTIGATION',
+                 font=('Consolas', 12, 'bold'),
+                 fg=Colors.GAUGE_RED,
+                 bg=Colors.GLASS_CARD).pack(pady=4)
+        tk.Label(hdr,
+                 text='Collect evidence of a security compromise for law '
+                      'enforcement (police report, FBI IC3, CERT).',
+                 font=('Consolas', 8), fg=Colors.TEXT_DIM,
+                 bg=Colors.GLASS_CARD).pack(padx=10, pady=(0, 6))
+        btn_f: Any = tk.Frame(p, bg=Colors.GLASS_PANEL, pady=8)
+        btn_f.grid(row=0, column=1, sticky='ew', padx=8, pady=4)
+        tk.Button(btn_f, text='📋 COLLECT EVIDENCE',
+                  font=('Consolas', 10, 'bold'),
+                  bg=Colors.GAUGE_RED, fg='white',
+                  relief='flat', padx=14, pady=6,
+                  command=self._forensic_collect).pack(side='left',
+                                                       padx=6, pady=6)
+        tk.Button(btn_f, text='📄 GENERATE REPORT',
+                  font=('Consolas', 10, 'bold'),
+                  bg=Colors.GAUGE_TEAL, fg='white',
+                  relief='flat', padx=14, pady=6,
+                  command=self._forensic_report).pack(side='left',
+                                                      padx=6, pady=6)
+        tk.Button(btn_f, text='🌐 OPEN FBI IC3',
+                  font=('Consolas', 9),
+                  bg=Colors.CHROME_MID, fg=Colors.TEXT_LIGHT,
+                  relief='flat', padx=10, pady=4,
+                  command=lambda: __import__(
+                      'webbrowser').open('https://www.ic3.gov')
+                  ).pack(side='left', padx=6)
+        self._forensic_txt: Any = tk.Text(
+            p, font=('Consolas', 9), bg=Colors.GLASS_DARK,
+            fg=Colors.GAUGE_TEAL, insertbackground=Colors.GAUGE_TEAL,
+            relief='flat', bd=4, wrap='word', state='disabled')
+        self._forensic_txt.grid(row=1, column=0, sticky='nsew',
+                                padx=8, pady=8)
+
+    def _forensic_collect(self):
+        """Collect all forensic evidence and display in the text panel."""
+        self._forensic_txt.configure(state='normal')
+        self._forensic_txt.delete('1.0', 'end')
+        self._forensic_txt.insert('end', '[*] Collecting evidence...\n')
+        self._forensic_txt.configure(state='disabled')
+
+        def _work():
+            try:
+                from forensic_report import collect_all_evidence
+                evidence = collect_all_evidence()
+                self._forensic_evidence = evidence
+
+                def _update():
+                    self._forensic_txt.configure(state='normal')
+                    self._forensic_txt.delete('1.0', 'end')
+                    coc = evidence.get('chain_of_custody', {})
+                    self._forensic_txt.insert(
+                        'end', f'=== CHAIN OF CUSTODY ===\n'
+                        f'Hostname: {coc.get("hostname", "")}\n'
+                        f'OS: {coc.get("os", "")}\n'
+                        f'Local IP: {coc.get("local_ip", "")}\n'
+                        f'Collected: {coc.get("collected_at", "")}\n\n')
+                    for key in ('attacker_ips', 'rdp_sessions',
+                                'account_events', 'defender_tamper',
+                                'firewall_events', 'suspicious_tasks'):
+                        items = evidence.get(key, [])
+                        if items:
+                            self._forensic_txt.insert(
+                                'end', f'\n=== {key.upper()} '
+                                f'({len(items)} items) ===\n')
+                            for item in items[:10]:
+                                self._forensic_txt.insert(
+                                    'end', f'  {str(item)[:150]}\n')
+                            if len(items) > 10:
+                                self._forensic_txt.insert(
+                                    'end',
+                                    f'  ... {len(items)-10} more\n')
+                    self._forensic_txt.insert(
+                        'end', f'\n[OK] Total evidence: '
+                        f'{evidence.get("total_evidence", 0)} items\n'
+                        f'[NEXT] Click "GENERATE REPORT" to save.\n')
+                    self._forensic_txt.configure(state='disabled')
+                self.after(0, _update)
+            except Exception as _e:
+                _safe_log('Forensic', 'collect failed', _e)
+        self._executor.submit(_work)
+
+    def _forensic_report(self):
+        """Generate and save the forensic report (HTML + JSON)."""
+        try:
+            from forensic_report import save_report, collect_all_evidence
+            evidence = getattr(self, '_forensic_evidence', None)
+            if not evidence:
+                evidence = collect_all_evidence()
+            html_path, json_path = save_report(evidence)
+            self._queue_alert(
+                f'[FORENSIC] Report saved: {html_path}', Colors.GAUGE_TEAL)
+            self._forensic_txt.configure(state='normal')
+            self._forensic_txt.insert(
+                'end', f'\n[OK] HTML report: {html_path}\n'
+                f'[OK] JSON evidence: {json_path}\n'
+                f'[ACTION] Submit to law enforcement:\n'
+                f'  FBI IC3: https://www.ic3.gov (attach HTML)\n'
+                f'  Local police: print + bring USB\n'
+                f'  CERT: email with attachment\n')
+            self._forensic_txt.configure(state='disabled')
+        except Exception as _e:
+            _safe_log('Forensic', 'report generation failed', _e)
 
     def _build_hunt_tab(self):
         p: Any = self._tab_hunt
