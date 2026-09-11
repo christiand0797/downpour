@@ -1,5 +1,14 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.56 - process_mitigation + usb_protection wiring (last 2 orphaned security modules)
+- WIRED process_mitigation.py into `_init_state` (boot-time): applies
+  Windows Process Mitigation Policies (dynamic code prohibition,
+  extension point disable, CFG) — best-effort, never blocks GUI.
+- WIRED usb_protection.py into security monitors: `check_usb_kev()` for
+  USB threat scanning (auto-scan, autorun blocking, device whitelisting).
+- All 8 previously-orphaned security modules now wired.
+- Tests: +7 — **362/362 pass**; AST: 802 methods, 0 duplicates.
+
 ## v29.55 - Sysmon monitor wiring + orphaned method audit
 - WIRED sysmon_monitor.py into `_manual_start_security_monitors` —
   rich kernel telemetry (process create T1, network connect T3, file

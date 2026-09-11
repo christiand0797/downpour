@@ -24454,6 +24454,20 @@ class downpour(tk.Tk):
     def _init_state(self) -> None:
         """Initialize application state and UI."""
         try:
+            # -- Anti-tamper self-protection (v29.44b, wired v29.56) ------
+            # Apply Windows Process Mitigation Policies at startup:
+            # dynamic code prohibition, extension point disable, CFG.
+            # Best-effort: each policy applied independently, failures
+            # logged but never block the GUI from loading.
+            try:
+                from process_mitigation import apply_process_mitigations
+                _mit = apply_process_mitigations()
+                _enabled = sum(1 for v in _mit.values() if v)
+                _log.info('process_mitigation: %d/%d policies enabled',
+                          _enabled, len(_mit))
+            except Exception as _me:
+                _log.debug('process_mitigation failed: %s', _me)
+
             # -- State ----------------------------------------------------
             self._processes: List[ProcessInfo] = []
             self._connections: List[dict] = []
@@ -38064,6 +38078,23 @@ Verification Status:
                 except Exception as _e:
                     _safe_log('SysmonMonitor', 'start failed', _e)
             self._executor.submit(_start_sysmon)
+        # v29.56: USB threat scan — auto-scan, autorun blocking, device
+        # whitelisting via usb_protection.py (complements the existing
+        # _usb_monitor_loop which only alerts on new devices).
+        if not getattr(self, '_usb_threat_scan_started', False):
+            self._usb_threat_scan_started = True
+
+            def _start_usb_threat():
+                try:
+                    from usb_protection import check_usb_kev
+                    result = check_usb_kev()
+                    if result and not result.get('error'):
+                        self._queue_alert(
+                            '[USB-SCAN] Threat scan complete: '
+                            f'{result}', Colors.GAUGE_TEAL)
+                except Exception as _e:
+                    _safe_log('USBThreat', 'scan failed', _e)
+            self._executor.submit(_start_usb_threat)
         self._queue_alert('[OK] USB, Service, ARP, WMI, FIM + Extended Threat monitors active', Colors.GAUGE_GREEN)
 
     def _manual_start_aegis(self):
