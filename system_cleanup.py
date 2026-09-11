@@ -342,40 +342,59 @@ def purge_false_positive_db_entries(db: sqlite3.Connection) -> dict:
 # ---------------------------------------------------------------------------
 
 def _remove_downpour_firewall_rules():
-    """Remove firewall rules created by Downpour (DOWNPOUR_ISOLATE_*, DOWNPOUR_BLOCK_*)."""
+    """Remove ALL Downpour firewall rules via port_firewall_unblock.
+
+    v29.50: delegates to port_firewall_unblock.unblock() which covers
+    22+ rule prefixes in both dir=in and dir=out (the old implementation
+    only checked dir=out and 2 prefixes). Audited.
+    """
     try:
-        # List all firewall rules with DOWNPOUR prefix
-        r = subprocess.run(
-            ['netsh', 'advfirewall', 'firewall', 'show', 'rule',
-             'name=all', 'dir=out'],
-            capture_output=True, text=True, timeout=15,
-            creationflags=0x08000000)
-
-        rules_to_remove = []
-        for line in r.stdout.splitlines():
-            line = line.strip()
-            if line.startswith('Rule Name:'):
-                name = line.split(':', 1)[1].strip()
-                if name.startswith(('DOWNPOUR_ISOLATE_', 'DOWNPOUR_BLOCK_')):
-                    rules_to_remove.append(name)
-
-        removed = 0
-        for rule in rules_to_remove:
-            try:
-                subprocess.run(
-                    ['netsh', 'advfirewall', 'firewall', 'delete', 'rule',
-                     f'name={rule}'],
-                    capture_output=True, timeout=10,
-                    creationflags=0x08000000)
-                removed += 1
-                print(f"    Removed firewall rule: {rule}")
-            except Exception:
-                pass
-
+        from port_firewall_unblock import unblock
+        result = unblock(dry_run=False)
+        removed = result.get('removed', [])
+        errors = result.get('errors', [])
         if removed:
-            print(f"  [OK] Removed {removed} Downpour firewall rules")
+            for name in removed:
+                print(f"    Removed firewall rule: {name}")
+            print(f"  [OK] Removed {len(removed)} Downpour firewall rules")
         else:
             print(f"  [OK] No Downpour firewall rules found")
+        if errors:
+            for err in errors:
+                print(f"    [WARN] {err}")
+    except ImportError:
+        # fallback for pre-v29.50 trees
+        try:
+            r = subprocess.run(
+                ['netsh', 'advfirewall', 'firewall', 'show', 'rule',
+                 'name=all', 'dir=out'],
+                capture_output=True, text=True, timeout=15,
+                creationflags=0x08000000)
+            rules_to_remove = []
+            for line in r.stdout.splitlines():
+                line = line.strip()
+                if line.startswith('Rule Name:'):
+                    name = line.split(':', 1)[1].strip()
+                    if name.lower().startswith('downpour'):
+                        rules_to_remove.append(name)
+            removed = 0
+            for rule in rules_to_remove:
+                try:
+                    subprocess.run(
+                        ['netsh', 'advfirewall', 'firewall', 'delete',
+                         'rule', f'name={rule}'],
+                        capture_output=True, timeout=10,
+                        creationflags=0x08000000)
+                    removed += 1
+                    print(f"    Removed firewall rule: {rule}")
+                except Exception:
+                    pass
+            if removed:
+                print(f"  [OK] Removed {removed} Downpour firewall rules")
+            else:
+                print(f"  [OK] No Downpour firewall rules found")
+        except Exception as e:
+            print(f"  [ERR] Firewall cleanup failed: {e}")
     except Exception as e:
         print(f"  [ERR] Firewall cleanup failed: {e}")
 

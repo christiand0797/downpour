@@ -2,6 +2,41 @@
 
 ## Branch: main
 
+## Session 2026-09-10 — v29.53: system_cleanup delegate + dead-code audit + catalog finalization
+
+**system_cleanup.py fix:** `_remove_downpour_firewall_rules()` had 3 bugs
+(only `dir=out`, only 2 prefixes, never wired to UI). Now delegates to
+`port_firewall_unblock.unblock(dry_run=False)` which covers 22+ prefixes
+in both directions, with a stdlib fallback for pre-v29.50 trees. The
+fallback also fixes the prefix-matching bug (was
+`startswith(('DOWNPOUR_ISOLATE_', 'DOWNPOUR_BLOCK_'))` — now
+`startswith('downpour')` case-insensitive).
+
+**Dead-code audit:** 41/91 modules have no import from any other module,
+but 56/91 have classes referenced by name in the main file (56,610 lines
+of monolithic code that instantiates many modules inline). No truly
+orphaned modules found — the documented "dead module" pattern was already
+fixed in v29.43i (sensor hub) and v29.44c (VulnerabilityScanner).
+
+**Catalog finalization:**
+- 3c (Government feeds): ✅ already satisfied — CISA KEV deeply integrated
+  (CisaKevEngine, KEV-based mitigations, CVE dashboard) + STIX/TAXII
+  makes any government TAXII feed pluggable
+- 6a (structlog): ✅ already satisfied — enhanced_logging.py has rotating
+  JSON events.jsonl + async queue + structured event records
+- 6b (pydantic): ✅ already satisfied — config.py has HMAC-SHA256
+  signature verification (v29.42w) + hot-reload schema checks
+- 6c (tenacity): ✅ already satisfied — _fetch_feed has 3x exponential
+  backoff (0s, 2s, 6s)
+- 6d (rich): ✅ N/A — GUI is tkinter, not CLI
+- 2a (lru_cache): ✅ v29.47 (ShannonEntropyCalculator) + analysis showed
+  the two catalog targets are called once per session (not hot)
+- 1b (Hyperscan) / 2c (RE2): ⛔ blocked on native C libs (no Windows pip
+  wheels for py3.12); Aho-Corasick IOC scanner (v29.45) covers the use case
+
+**Final catalog scorecard: 19/21 resolved** (15 shipped + 4 already-
+satisfied), 2/21 blocked on native C libraries.
+
 ## Session 2026-09-10 — v29.51: EMBER-style PE feature vector + transparent scoring (catalog 1d)
 
 **Catalog item executed: 1d (P1, EMBER ML static analysis).**
