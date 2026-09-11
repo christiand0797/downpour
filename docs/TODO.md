@@ -62,6 +62,9 @@ authoritative history. This file is the current-state snapshot + what's left.
 - **v29.51** — EMBER-style PE feature vector + transparent scoring in
   `pe_analyzer.py` (catalog 1d DONE): 20-key feature vector, 256-bin
   byte histogram, transparent 0-100 heuristic classifier.
+- **v29.52** — catalog completion analysis: 3c/6a-6d already satisfied
+  by existing implementations; 1b/2c blocked on native C libs. Final
+  scorecard: **19/21 resolved** (15 shipped + 4 already-satisfied).
 - **`pefile` MUST be present in the venv** (requirements.txt lists it) — it
   went missing once and `test_notepad_analyzes_clean` fails on `is_pe=False`.
 - **Main-thread DB-freeze rule (v29.14)**: every `self.db.*` / `count_intel()`

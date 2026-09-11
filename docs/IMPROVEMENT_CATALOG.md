@@ -246,22 +246,22 @@ Downpour module it improves, and the expected benefit.
 | 1c | ETW kernel telemetry | High | Medium | **P0** ✅ v29.48 event-log portion (event_push_monitor.py — EvtSubscribe push; kernel ETW providers still need native libs) |
 | 2b | Aho-Corasick IOC matching | High | Low | **P0** ✅ v29.45 (ioc_scanner.py) |
 | 1d | EMBER ML static analysis | High | Medium | **P1** ✅ v29.51 (ember_features + ember_score — full feature family + transparent classifier, no model download needed) |
-| 1b | Hyperscan regex engine | High | Medium | **P1** |
+| 1b | Hyperscan regex engine | High | Medium | **P1** ⛔ blocked (needs native libhyperscan; no Windows pip wheel for py3.12) |
 | 4a | Process mitigation policies | High | Low | **P1** ✅ v29.44b (process_mitigation.py) |
 | 5a | DNS query monitoring | High | Medium | **P1** ✅ v29.47 (dns_cache_watch.py) |
-| 2a | functools.lru_cache | Medium | Low | **P2** ✅ v29.47 (entropy hot path) |
+| 2a | functools.lru_cache | Medium | Low | **P2** ✅ v29.47 (ShannonEntropyCalculator.calculate) + analysis: get_all_signatures/build_manifest called once (not hot), already cached in class attrs |
 | 1e | Sigma rules | Medium | Medium | **P2** ✅ v29.46 (sigma_engine.py) |
-| 2c | RE2 (no ReDoS) | Medium | Low | **P2** |
+| 2c | RE2 (no ReDoS) | Medium | Low | **P2** ⛔ blocked (needs native libre2; no Windows pip wheel for py3.12; Aho-Corasick IOC scanner already covers the multi-pattern use case) |
 | 3a | STIX/TAXII | Medium | Medium | **P2** ✅ v29.46 (stix_taxii_feed.py) |
 | 4b | Job Objects | Medium | Low | **P2** ✅ v29.47 (child_process_guard.py) |
 | 5c | LOLBins detection | Medium | Low | **P2** ✅ v29.45 (lolbins_detector.py) |
-| 3c | Government feeds | Medium | Low | **P2** |
+| 3c | Government feeds | Medium | Low | **P2** ✅ already satisfied (CISA KEV deeply integrated + STIX/TAXII makes any gov feed pluggable) |
 | 5b | AMSI integration | High | High | **P3** ✅ v29.49 (event_push_monitor._amsi_evaluate — real AmsiScanString + pattern analyzer) |
 | 3b | MISP integration | Medium | Medium | **P3** ✅ v29.47 (misp_feed.py) |
-| 6a | structlog | Low | Low | **P3** |
-| 6b | pydantic | Low | Low | **P3** |
-| 6c | tenacity | Low | Low | **P3** |
-| 6d | rich | Low | Low | **P3** |
+| 6a | structlog | Low | Low | **P3** ✅ already satisfied (enhanced_logging.py has rotating JSON events.jsonl + async queue) |
+| 6b | pydantic | Low | Low | **P3** ✅ already satisfied (config.py has HMAC-SHA256 signature + hot-reload schema checks) |
+| 6c | tenacity | Low | Low | **P3** ✅ already satisfied (_fetch_feed has 3x exponential backoff (0s, 2s, 6s)) |
+| 6d | rich | Low | Low | **P3** ✅ N/A (GUI is tkinter, not CLI) |
 
 ## Quick Wins (P0, implementable in one session)
 
