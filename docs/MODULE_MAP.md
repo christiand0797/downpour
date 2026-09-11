@@ -31,6 +31,7 @@ Downpour uses a modular architecture with over 40 supporting Python modules that
 | `port_firewall_unblock.py` | Detect + remove ALL Downpour firewall rules (22+ prefixes, dry-run default, audited). | **Active** |
 | `amsi_integration.py` | AMSI integration: AmsiScanString via ctypes + 22-pattern script-block analyzer. | **Active** |
 | `event_push_monitor.py` | EvtSubscribe push delivery of the same hostile-event set (zero poll latency) + 4104→Sigma + 4104→AMSI bridge. | **Active** |
+| `sysmon_monitor.py` | Sysmon event log monitor (process/network/file/DNS/registry) via wevtutil. | **Active** (wired via security monitors v29.55) |
 | `lolbins_detector.py` | LOLBins abuse with parent-child correlation and MITRE mapping. | **Active** (wired via detection engine v29.54) |
 | `dga_detector.py` | DGA domain detection (entropy + n-gram scoring). | **Active** (wired via detection engine v29.54) |
 | `ioc_scanner.py` | Aho-Corasick multi-pattern IOC matching. | **Active** (available for scan paths) |

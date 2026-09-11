@@ -1,5 +1,18 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.55 - Sysmon monitor wiring + orphaned method audit
+- WIRED sysmon_monitor.py into `_manual_start_security_monitors` —
+  rich kernel telemetry (process create T1, network connect T3, file
+  create T11, DNS query T22, registry change T12/13) from the Sysmon
+  event log via wevtutil.
+- Gracefully degrades when Sysmon isn't installed (checks `sc query
+  Sysmon` + event log existence; [SYSMON] alert reports the status).
+- Orphaned method audit: 48 monitor/loop methods defined, 44 wired,
+  4 orphaned (documented: `_performance_monitor_loop` UI-only,
+  `_start_service_monitor` duplicate of `_svc_monitor_loop`,
+  `_stop_service_monitor` + `_initialize_registry_monitor` UI-only).
+- Tests: +7 — **355/355 pass**; AST: 802 methods, 0 duplicates.
+
 ## v29.54 - detection engine wiring (closes the v29.45 dead-module gap)
 - FIXED: v29.45 next-gen detection modules (lolbins_detector,
   dga_detector, ioc_scanner) were shipped as files but never wired into

@@ -3,7 +3,7 @@
 > **Work in progress** — Personal antivirus, anti-malware, anti-RAT, and comprehensive Windows threat-defense platform built in Python with a full Tkinter GUI.
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v29.54%20Titanium-blue?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/version-v29.55%20Titanium-blue?style=for-the-badge" />
   <img src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078d7?style=for-the-badge&logo=windows" />
   <img src="https://img.shields.io/badge/python-3.12%20recommended-yellow?style=for-the-badge&logo=python" />
   <img src="https://img.shields.io/badge/status-active%20WIP-brightgreen?style=for-the-badge" />
@@ -68,6 +68,7 @@ LAUNCH_V29_TITANIUM.bat
 | 🔓 **One-Click Unblock ALL** | Remove EVERY Downpour firewall rule (DDoS shield / C2 / emergency / kill-switch / hunt / lock-down / … 22+ prefixes) — dry-run preview, audited, non-Downpour rules never touched (v29.50) |
 | 🧬 **EMBER PE Scoring** | EMBER-style static feature vector (PE headers, section stats, imports, 256-bin byte histogram, TLS callbacks, debug) + transparent 0-100 heuristic score — no model download needed (v29.51) |
 | 🕵️ **Detection Engine** | 120s live cycle wiring LOLBins abuse detection + DGA domain analysis into the alert pipeline — closes the v29.45 dead-module gap (v29.54) |
+| 📡 **Sysmon Kernel Telemetry** | Sysmon event log monitor (process/network/file/DNS/registry) with graceful degradation when Sysmon isn't installed — [SYSMON] alerts (v29.55) |
 | 🛰️ **FireHOL/Spamhaus/DShield feeds** | firehol_level1/2/3 aggregated blocklists, Spamhaus DROP, bruteforceblocker, CINS Army — 6 high-fidelity IP feeds added to the intel engine (v29.46) |
 | 🌐 **OSINT4ALL Indicator Stack** | One-click deep-links for any IP/hash/domain → VirusTotal, AbuseIPDB, Talos, GreyNoise, Shodan, Censys, OTX, Pulsedive, ONYPHE, urlscan.io + more |
 | 🔎 **Inline Reputation Lookups** | AbuseIPDB, Shodan, Pulsedive, ONYPHE, EmailRep, GreyNoise via free API keys (web-page fallback when keyless); Settings → OSINT API Keys |

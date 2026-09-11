@@ -68,6 +68,8 @@ authoritative history. This file is the current-state snapshot + what's left.
 - **v29.54** — detection engine wiring: lolbins_detector + dga_detector
   wired into a 120s live monitoring cycle (closes the v29.45 dead-module
   gap — modules were shipped but never connected to the alert pipeline).
+- **v29.55** — sysmon_monitor wired into security monitors: rich kernel
+  telemetry (process/network/file/DNS/registry) with graceful degradation.
 - **`pefile` MUST be present in the venv** (requirements.txt lists it) — it
   went missing once and `test_notepad_analyzes_clean` fails on `is_pe=False`.
 - **Main-thread DB-freeze rule (v29.14)**: every `self.db.*` / `count_intel()`

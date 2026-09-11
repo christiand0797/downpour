@@ -38036,6 +38036,34 @@ Verification Status:
         if not getattr(self, '_detection_engine_started', False):
             self._detection_engine_started = True
             self._orig_after(3500, self._detection_engine_loop)
+        # v29.55: Sysmon monitor — rich kernel telemetry (process create,
+        # network connect, file create, DNS query, registry change) from
+        # the Sysmon event log. Gracefully degrades if Sysmon isn't
+        # installed (checks `sc query Sysmon` + event log existence).
+        if not getattr(self, '_sysmon_started', False):
+            self._sysmon_started = True
+
+            def _start_sysmon():
+                try:
+                    from sysmon_monitor import get_sysmon_monitor
+                    _sm = get_sysmon_monitor()
+                    _sm.register_alert_callback(
+                        lambda alert: self._queue_alert(
+                            f'[SYSMON] {getattr(alert, "description", str(alert))[:160]}',
+                            Colors.GAUGE_ORANGE))
+                    _sm.start()
+                    if _sm.sysmon_available:
+                        self._queue_alert(
+                            '[SYSMON] Rich kernel telemetry active '
+                            '(process/network/file/DNS/registry)',
+                            Colors.GAUGE_TEAL)
+                    else:
+                        self._queue_alert(
+                            '[SYSMON] Sysmon not installed — install for '
+                            'rich kernel telemetry', Colors.GAUGE_YELLOW)
+                except Exception as _e:
+                    _safe_log('SysmonMonitor', 'start failed', _e)
+            self._executor.submit(_start_sysmon)
         self._queue_alert('[OK] USB, Service, ARP, WMI, FIM + Extended Threat monitors active', Colors.GAUGE_GREEN)
 
     def _manual_start_aegis(self):
