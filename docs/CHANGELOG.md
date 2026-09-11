@@ -1,5 +1,30 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.58 - expanded event push coverage (7 channels, 35 event IDs)
+- EXPANDED event_push_monitor.py from 3 channels / 9 event IDs to
+  7 channels / 35 event IDs — covering 5 new MITRE technique families:
+  * T1562.001 (Impair Defenses): Defender real-time protection disable
+    (5001 = CRITICAL TAMPER), config change (5007), service not running
+    (5010), engine update failed (5012), scan stopped (5004),
+    enable/disable toggle (5003), malware detected (1116), remediation
+    (1117)
+  * T1021.001 (RDP lateral movement): session logon (21), shell start
+    (22), disconnect (24), reconnection (25), RDP auth (1149)
+  * T1071 (C2 Application Layer): firewall permitted (5156), BLOCKED
+    (5157), packet dropped (5152)
+  * T1136 (Account manipulation): user deleted (4726), account changed
+    (4738), account locked (4740), privileged group add (4728), NTLM
+    credential validation (4776), object access (4663), special
+    privileges (4672/4673), service installed via kernel (4697)
+- 4 new event log channels watched (graceful degradation when absent):
+  * Microsoft-Windows-Windows Defender/Operational
+  * Microsoft-Windows-TerminalServices-LocalSessionManager/Operational
+  * Microsoft-Windows-TerminalServices-RemoteConnectionManager/Operational
+  * Microsoft-Windows-Windows Firewall With Advanced Security/Firewall
+- 4 tolerated channels (subscribe failures expected on some systems,
+  never alert as errors)
+- Tests: +11 — **382/382 pass**.
+
 ## v29.57 - PowerShell absolute path (security hardening)
 - FIXED 63 bare `'powershell'` subprocess call sites across 3 files →
   absolute path via `_PWSH` constant (`%SystemRoot%\System32\

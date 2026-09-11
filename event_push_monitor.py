@@ -60,28 +60,96 @@ except ImportError:
 
 _AMSI_MALICIOUS_RESULT = 32768          # AMSI_RESULT_DETECTED (0x8000)
 
-# Event ID -> (mitre_technique, severity, description)
+# Downpour v29.58: extend event coverage to 6 channels + 30 event IDs
+# covering Defender tampering (T1562), RDP lateral movement (T1021),
+# firewall/C2 (T1071/T1090), and account/recovery attacks (T1136/T1490).
 # Mirrors event_log_monitor.EVENT_MAP — keep both in sync.
 EVENT_MAP: Dict[int, tuple] = {
+    # -- Security log (T1543/T1053/T1136/T1070/T1110/T1078) ---------------
     7045: ('T1543.003', 'HIGH', 'Service installed'),
     4698: ('T1053.005', 'HIGH', 'Scheduled task created'),
     4699: ('T1053.005', 'LOW', 'Scheduled task deleted'),
     4720: ('T1136.001', 'MEDIUM', 'User account created'),
+    4726: ('T1531', 'MEDIUM', 'User account deleted'),
     4732: ('T1078', 'MEDIUM', 'Member added to security-enabled local group'),
+    4728: ('T1078', 'MEDIUM', 'Member added to security-enabled global group'),
+    4740: ('T1078.001', 'MEDIUM', 'User account locked out'),
+    4776: ('T1110.003', 'LOW', 'NTLM credential validation'),
     1102: ('T1070.001', 'CRITICAL', 'Security audit log cleared (TAMPER)'),
-    104: ('T1070.001', 'CRITICAL', 'System log cleared (TAMPER)'),
-    4104: ('T1059.001', 'LOW', 'PowerShell script block executed'),
     4625: ('T1110', 'LOW', 'Logon failure'),
+    4672: ('T1134', 'LOW', 'Special privileges assigned to new logon'),
+    4673: ('T1134', 'LOW', 'Sensitive privilege use'),
+    4688: ('T1059', 'LOW', 'New process created'),
+    4663: ('T1078', 'LOW', 'Object access attempted'),
+    4697: ('T1543.003', 'HIGH', 'Service installed (kernel)'),
+    4738: ('T1136', 'LOW', 'User account changed'),
+
+    # -- System log (T1070/T1490) ----------------------------------------
+    104: ('T1070.001', 'CRITICAL', 'System log cleared (TAMPER)'),
+
+    # -- PowerShell/Operational (T1059.001) -------------------------------
+    4104: ('T1059.001', 'LOW', 'PowerShell script block executed'),
+
+    # -- Windows Defender/Operational (T1562 Impair Defenses) -------------
+    5001: ('T1562.001', 'CRITICAL',
+           'Real-time protection disabled (DEFENDER TAMPER)'),
+    5007: ('T1562.001', 'HIGH',
+           'Windows Defender configuration changed (CHECK EXCLUSIONS)'),
+    5010: ('T1562.001', 'HIGH',
+           'Windows Defender service not running'),
+    5012: ('T1562.001', 'HIGH',
+           'Windows Defender antivirus engine update failed'),
+    1116: ('T1204', 'HIGH', 'Malware detected by Defender'),
+    1117: ('T1204', 'HIGH',
+           'Malware remediation action taken by Defender'),
+    5004: ('T1562.001', 'MEDIUM',
+           'Windows Defender scan stopped (TAMPER)'),
+    5003: ('T1562.001', 'MEDIUM',
+           'Real-time protection or scan enabled/disabled'),
+
+    # -- TerminalServices-LocalSessionManager (T1021 RDP) -----------------
+    21: ('T1021.001', 'MEDIUM',
+         'RDP session logon (lateral movement indicator)'),
+    22: ('T1021.001', 'LOW',
+         'RDP shell start notification'),
+    24: ('T1021.001', 'LOW', 'RDP session disconnected'),
+    25: ('T1021.001', 'LOW', 'RDP session reconnection'),
+
+    # -- TerminalServices-RemoteConnectionManager (T1021 RDP) -------------
+    1149: ('T1021.001', 'HIGH',
+           'Remote Desktop Services connection authenticated'),
+
+    # -- Windows Firewall (T1071 C2 / T1090 Proxy) -------------------------
+    5156: ('T1071', 'LOW', 'Firewall: permitted connection'),
+    5157: ('T1071', 'MEDIUM',
+           'Firewall: BLOCKED connection (possible C2 denied)'),
+    5152: ('T1071', 'MEDIUM',
+           'Firewall: packet dropped (port blocked)'),
 }
+
 BRUTE_FORCE_THRESHOLD = 10          # 4625 events within window
 BRUTE_FORCE_WINDOW = 300.0          # seconds
 
-# Channels watched, in coverage priority order
+# Channels watched, in coverage priority order.
+# Security/System/PowerShell are always available.
+# Defender/Firewall/TerminalServices require those features to be active.
 CHANNELS = (
     'Security',
     'System',
     'Microsoft-Windows-PowerShell/Operational',
+    'Microsoft-Windows-Windows Defender/Operational',
+    'Microsoft-Windows-TerminalServices-LocalSessionManager/Operational',
+    'Microsoft-Windows-TerminalServices-RemoteConnectionManager/Operational',
+    'Microsoft-Windows-Windows Firewall With Advanced Security/Firewall',
 )
+
+# Channels that are EXPECTED to fail on some systems (tolerated failures)
+_TOLERATED_CHANNELS = {
+    'Microsoft-Windows-Windows Defender/Operational',
+    'Microsoft-Windows-TerminalServices-LocalSessionManager/Operational',
+    'Microsoft-Windows-TerminalServices-RemoteConnectionManager/Operational',
+    'Microsoft-Windows-Windows Firewall With Advanced Security/Firewall',
+}
 
 _EVTID_RE = re.compile(r'<EventID[^>]*>(\d+)</EventID>')
 _SBT_RE = re.compile(r"<Data Name='ScriptBlockText'>(.*?)</Data>",
