@@ -1,5 +1,21 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.54 - detection engine wiring (closes the v29.45 dead-module gap)
+- FIXED: v29.45 next-gen detection modules (lolbins_detector,
+  dga_detector, ioc_scanner) were shipped as files but never wired into
+  the live monitoring path — the repo's most-documented bug pattern.
+- NEW: `_detection_engine_loop()` — 120s daemon cycle that:
+  1. Scans all live processes for LOLBins abuse via
+     `detect_lolbins_batch()` (parent-child correlation, MITRE mapping)
+  2. Analyzes DNS cache domains via `DGADetector.analyze_batch()`
+     (entropy + n-gram scoring, confidence ≥ 0.7 → HIGH)
+  3. Deduplicates findings (each unique technique+cmdline alerts once)
+- Cross-feature: reuses `dns_cache_watch.collect_dns_cache()` for the
+  DGA analysis (bridges the DNS surveillance domain into DGA detection)
+- Wired into `_manual_start_security_monitors` at T+3500 ms with
+  `[DETECT]` alert bridge.
+- Tests: +10 — **348/348 pass**; AST: 801 methods, 0 duplicates.
+
 ## v29.52 - catalog completion (3c/6a-6d analysis + EMBER feature test fix)
 - ANALYZED all remaining catalog items:
   - 3c (Government feeds): already satisfied — CISA KEV deeply integrated

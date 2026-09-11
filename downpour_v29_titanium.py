@@ -38031,6 +38031,11 @@ Verification Status:
                 self, '_dns_cache_started', False):
             self._dns_cache_started = True
             self._orig_after(1500, self._dns_cache_loop)
+        # v29.54: detection engine — wires the v29.45 next-gen detection
+        # modules (lolbins, DGA, IOC) into the live monitoring path.
+        if not getattr(self, '_detection_engine_started', False):
+            self._detection_engine_started = True
+            self._orig_after(3500, self._detection_engine_loop)
         self._queue_alert('[OK] USB, Service, ARP, WMI, FIM + Extended Threat monitors active', Colors.GAUGE_GREEN)
 
     def _manual_start_aegis(self):
@@ -40587,6 +40592,81 @@ Verification Status:
         self._ddos_blocklist_meta.clear()
         self._ddos_save_blocklist()
         self._queue_alert(f'[DDOS] Purged {n} DDoS block(s).', Colors.GAUGE_TEAL)
+
+    def _detection_alert_bridge(self, finding):
+        """v29.54: bridge detection-engine findings into the alert queue."""
+        try:
+            severity_color = {
+                'CRITICAL': Colors.GAUGE_RED, 'critical': Colors.GAUGE_RED,
+                'HIGH': Colors.GAUGE_ORANGE, 'high': Colors.GAUGE_ORANGE,
+                'MEDIUM': Colors.GAUGE_YELLOW, 'medium': Colors.GAUGE_YELLOW,
+                'LOW': Colors.GAUGE_TEAL, 'low': Colors.GAUGE_TEAL,
+            }.get(getattr(finding, 'severity', 'LOW'), Colors.GAUGE_TEAL)
+            source = getattr(finding, 'source', 'detect')
+            desc = getattr(finding, 'description', str(finding))
+            self._queue_alert(f'[DETECT] {source}: {desc[:160]}',
+                              severity_color)
+        except Exception:
+            pass
+
+    def _detection_engine_loop(self):
+        """v29.54: 120s cycle over the v29.45 detection modules that were
+        shipped as files but never connected to the live monitoring path:
+        lolbins_detector, dga_detector, ioc_scanner."""
+        def _loop():
+            try:
+                from lolbins_detector import detect_lolbins_batch
+                from dga_detector import DGADetector
+                _dga = DGADetector()
+                _seen: set = set()
+                while True:
+                    try:
+                        import psutil
+                        procs = []
+                        for proc in psutil.process_iter(
+                                ['pid', 'name', 'cmdline', 'ppid']):
+                            try:
+                                info = proc.info
+                                procs.append({
+                                    'pid': info.get('pid', 0),
+                                    'name': info.get('name', ''),
+                                    'cmdline': info.get('cmdline', []),
+                                    'ppid': info.get('ppid', 0),
+                                })
+                            except Exception:
+                                continue
+                        for f in detect_lolbins_batch(procs):
+                            key = ('lolbins', f.technique_id,
+                                   f.command_line[:60])
+                            if key not in _seen:
+                                _seen.add(key)
+                                self._detection_alert_bridge(f)
+                    except Exception as _e:
+                        _safe_log('DetectEngine', 'lolbins error', _e)
+                    try:
+                        if dns_cache_watch is not None:
+                            cache = dns_cache_watch.collect_dns_cache()
+                            domains = [n for n, _ in cache
+                                       if '.' in n][:200]
+                            for r in _dga.analyze_batch(domains):
+                                if r.is_dga and r.confidence >= 0.7:
+                                    key = ('dga', r.domain)
+                                    if key not in _seen:
+                                        _seen.add(key)
+                                        class _DF:
+                                            source = 'DGA'
+                                            severity = 'HIGH'
+                                            description = (
+                                                f'DGA: {r.domain} '
+                                                f'({r.confidence:.0%})')
+                                        self._detection_alert_bridge(_DF())
+                    except Exception as _e:
+                        _safe_log('DetectEngine', 'dga error', _e)
+                    time.sleep(120)
+            except Exception as _e:
+                _safe_log('DetectEngine', 'detection loop failed', _e)
+        threading.Thread(target=_loop, daemon=True,
+                         name='DetectEngine').start()
 
     # ------------------------------------------------------------------
     #  PORT FIREWALL UNBLOCK (v29.50)

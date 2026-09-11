@@ -65,6 +65,9 @@ authoritative history. This file is the current-state snapshot + what's left.
 - **v29.52** — catalog completion analysis: 3c/6a-6d already satisfied
   by existing implementations; 1b/2c blocked on native C libs. Final
   scorecard: **19/21 resolved** (15 shipped + 4 already-satisfied).
+- **v29.54** — detection engine wiring: lolbins_detector + dga_detector
+  wired into a 120s live monitoring cycle (closes the v29.45 dead-module
+  gap — modules were shipped but never connected to the alert pipeline).
 - **`pefile` MUST be present in the venv** (requirements.txt lists it) — it
   went missing once and `test_notepad_analyzes_clean` fails on `is_pe=False`.
 - **Main-thread DB-freeze rule (v29.14)**: every `self.db.*` / `count_intel()`

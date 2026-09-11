@@ -2,6 +2,34 @@
 
 ## Branch: main
 
+## Session 2026-09-10 — v29.54: detection engine wiring (closes the v29.45 dead-module gap)
+
+**Finding:** the v29.45 next-gen detection modules (lolbins_detector,
+dga_detector, process_injection_detector, entropy_ransomware_detector,
+ioc_scanner, shadow_copy_detector) were shipped as files but NEVER wired
+into the main monitoring path. A module-import scan confirmed: none of
+them appear in the main file's imports. This is the repo's most-documented
+bug pattern ("well-built modules that were never wired into any live code
+path").
+
+**New in main file (~80 lines):**
+- `_detection_alert_bridge(finding)` — severity-color bridge ([DETECT])
+- `_detection_engine_loop()` — 120s daemon cycle over:
+  1. **lolbins_detector** — `detect_lolbins_batch()` over a live psutil
+     process snapshot (pid/name/cmdline/ppid); parent-child correlation
+     + MITRE ATT&CK mapping; each unique finding alerts exactly once
+     (deduped by technique_id + cmdline prefix).
+  2. **dga_detector** — `DGADetector.analyze_batch()` over DNS cache
+     domains (reuses `dns_cache_watch.collect_dns_cache()` — cross-feature
+     integration); flags is_dga + confidence ≥ 0.7 as HIGH.
+- Wired into `_manual_start_security_monitors` at T+3500 ms with
+  `_detection_engine_started` guard.
+
+**Tests:** +10 (`tests/test_v2954_detect_engine.py`: loop defined,
+bridge defined, wired into monitors, lolbins import, DGA import,
+dns_cache integration, [DETECT] tag, daemon thread, dedup, 120s cycle).
+**348/348 pass** (338 + 10). AST: 801 methods, 0 duplicates.
+
 ## Session 2026-09-10 — v29.53: system_cleanup delegate + dead-code audit + catalog finalization
 
 **system_cleanup.py fix:** `_remove_downpour_firewall_rules()` had 3 bugs
