@@ -1,5 +1,16 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.57 - PowerShell absolute path (security hardening)
+- FIXED 63 bare `'powershell'` subprocess call sites across 3 files →
+  absolute path via `_PWSH` constant (`%SystemRoot%\System32\
+  WindowsPowerShell\v1.0\powershell.exe`).
+- Prevents PATH hijacking where a malicious `powershell.exe` could
+  shadow the real one via a modified PATH.
+- Detection signatures (9 occurrences in pattern sets) NOT touched.
+- **Live-verified**: `_PWSH` resolves to
+  `C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe`.
+- Tests: +7 — **362/362 pass**; AST: 802 methods, 0 duplicates.
+
 ## v29.56 - process_mitigation + usb_protection wiring (last 2 orphaned security modules)
 - WIRED process_mitigation.py into `_init_state` (boot-time): applies
   Windows Process Mitigation Policies (dynamic code prohibition,

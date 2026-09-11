@@ -2,6 +2,43 @@
 
 ## Branch: main
 
+## Session 2026-09-10 — v29.57: PowerShell absolute path (security hardening)
+
+**User request:** provided the canonical PowerShell location
+(`%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe`) to
+eliminate the PATH-hijacking risk from 63 bare `'powershell'` subprocess
+call sites across 3 files.
+
+**The security issue:** every PowerShell invocation used `'powershell'`
+as the command name, relying on PATH resolution. A malicious binary
+named `powershell.exe` placed in a directory earlier in PATH would be
+executed instead of the real PowerShell — same-user privilege escalation.
+
+**The fix:**
+1. `downpour_v29_titanium.py` (61 subprocess calls): added `_PWSH`
+   constant (resolves via `%SystemRoot%` dynamically) + replaced all
+   61 `['powershell',` → `[_PWSH,`. Detection signatures (9 occurrences
+   of 'powershell' in pattern sets) intentionally NOT touched.
+2. `firmware_posture.py` (1 site): added `_PWSH` constant + fixed the
+   `_ps()` function's subprocess call.
+3. `dns_cache_watch.py` (1 site): added `_PWSH` constant + fixed the
+   `_ps()` function's subprocess call. Fixed import order (`os` was
+   missing).
+
+**Live-verified:** `_PWSH` resolves to
+`C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe`, file
+exists, test invocation returns RC 0.
+
+**Import-order fixes (found by test suite):**
+- `firmware_posture.py`: the audit script inserted `_PWSH` inside a
+  try block (after 'import winreg') causing SyntaxError; manually moved
+  to module level.
+- `dns_cache_watch.py`: `_PWSH` was inserted before `import os` causing
+  NameError; restructured to standard import order.
+
+**Tests:** +7 (`tests/test_v2957_pwsh_path.py`). **362/362 pass**.
+AST: 802 methods, 0 duplicates.
+
 ## Session 2026-09-10 — v29.54: detection engine wiring (closes the v29.45 dead-module gap)
 
 **Finding:** the v29.45 next-gen detection modules (lolbins_detector,

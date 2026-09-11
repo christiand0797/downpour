@@ -470,6 +470,13 @@ import json
 import logging
 import math
 import os
+# v29.56: absolute PowerShell path - prevents PATH hijacking where a
+# malicious binary named powershell.exe could shadow the real one via
+# a modified PATH.
+_PWSH: str = os.path.join(
+    os.environ.get('SystemRoot', r'C:\Windows'),
+    'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+
 import pathlib
 import platform
 import random
@@ -3863,7 +3870,7 @@ class RootkitDetector:
         import subprocess, os, json
         findings: Any = []
         r: Any = subprocess.run(
-            ['powershell','-NoProfile','-NonInteractive','-Command',
+            [_PWSH,'-NoProfile','-NonInteractive','-Command',
              'Get-WmiObject Win32_SystemDriver | Select-Object Name,PathName,State | ConvertTo-Json -Depth 2'],
             capture_output = True, text=True, timeout=20, creationflags=0x08000000)
         if r.returncode != 0 or not r.stdout.strip():
@@ -3983,7 +3990,7 @@ class RootkitDetector:
                     '__FilterToConsumerBinding']:
             try:
                 r: Any = subprocess.run(
-                    ['powershell', '-NoProfile', '-NonInteractive', '-Command',
+                    [_PWSH, '-NoProfile', '-NonInteractive', '-Command',
                      f'Get-WmiObject -Namespace root\\subscription -Class {cls} '
                      f'| Select-Object -Property * | ConvertTo-Json -Depth 3'],
                     capture_output = True, text=True, timeout=20,
@@ -4001,7 +4008,7 @@ class RootkitDetector:
                     cmd_l: Any = cmd.lower()
                     # Flag anything that runs powershell, cmd, scripts from
                     # temp/appdata, or uses encoded commands
-                    sus_markers: Any = ['powershell', 'cmd.exe', '\\temp\\',
+                    sus_markers: Any = [_PWSH, 'cmd.exe', '\\temp\\',
                                    '\\appdata\\', '-enc ', '-e ', 'base64',
                                    'iex(', 'invoke-expression',
                                    'downloadstring', 'downloadfile',
@@ -4017,7 +4024,7 @@ class RootkitDetector:
                         graph_cb(f'WMI:{cls}', 'Rootkit-WMI', name)
                         # Remove
                         subprocess.run(
-                            ['powershell', '-NoProfile', '-NonInteractive',
+                            [_PWSH, '-NoProfile', '-NonInteractive',
                              '-Command',
                              f'Get-WmiObject -Namespace root\\subscription '
                              f'-Class {cls} -Filter "Name=\'{name}\'" '
@@ -4150,7 +4157,7 @@ class RootkitDetector:
         findings: Any = []
         try:
             r: Any = subprocess.run(
-                ['powershell', '-NoProfile', '-NonInteractive', '-Command',
+                [_PWSH, '-NoProfile', '-NonInteractive', '-Command',
                  'Get-WmiObject Win32_Service | Where-Object {'
                  '$_.PathName -and $_.Started -eq $true -and '
                  '$_.PathName -notlike "*system32*" -and '
@@ -4211,7 +4218,7 @@ class RootkitDetector:
                 continue
             try:
                 r: Any = subprocess.run(
-                    ['powershell', '-NoProfile', '-NonInteractive',
+                    [_PWSH, '-NoProfile', '-NonInteractive',
                      '-Command',
                      f'Get-ChildItem -Path "{d}" -Recurse -ErrorAction '
                      f'SilentlyContinue | ForEach-Object {{ '
@@ -4386,7 +4393,7 @@ class BootkitDetector:
         try:
             import subprocess
             r: Any = subprocess.run(
-                ['powershell', '-Command',
+                [_PWSH, '-Command',
                  'Get-WmiObject Win32_SystemDriver | Where-Object {$_.Started -eq $true} | Select-Object Name,PathName,State | ConvertTo-Json'],
                 capture_output = True, text=True, timeout=30,
                 creationflags = 0x08000000)
@@ -4419,7 +4426,7 @@ class BootkitDetector:
         import subprocess
         findings: Any = []
         r: Any = subprocess.run(
-            ['powershell','-NoProfile','-NonInteractive','-Command',
+            [_PWSH,'-NoProfile','-NonInteractive','-Command',
              'Confirm-SecureBootUEFI 2>&1'],
             capture_output = True, text=True, timeout=10, creationflags=0x08000000)
         out: Any = r.stdout.strip().lower()
@@ -4482,7 +4489,7 @@ class BootkitDetector:
         import subprocess, hashlib, os, base64
         findings: Any = []
         r: Any = subprocess.run(
-            ['powershell','-NoProfile','-NonInteractive','-Command',
+            [_PWSH,'-NoProfile','-NonInteractive','-Command',
              r'try{$d=[System.IO.File]::OpenRead("\\.\PhysicalDrive0");'
              r'$b=New-Object byte[] 512;$d.Read($b,0,512)|Out-Null;$d.Close();'
              r'[Convert]::ToBase64String($b)}catch{"ERROR"}'],
@@ -4811,7 +4818,7 @@ class EnhancedCveHardeningFramework:
                 if 'AttackSurfaceReductionRules' in mitigation['ps']:
                     # Verify ASR rules are enabled
                     result: Any = subprocess.run(
-                        ['powershell', '-NoProfile', '-Command',
+                        [_PWSH, '-NoProfile', '-Command',
                          'Get-MpPreference | Select-Object AttackSurfaceReductionRules_Ids'],
                         capture_output = True, text=True, timeout=10, creationflags=_NO_WIN)
                     if result.returncode == 0 and mitigation['ps'].split('Ids ')[1].split(' ')[0] in result.stdout:
@@ -4979,7 +4986,7 @@ class EnhancedCveHardeningFramework:
                 if mits['ps']:
                     try:
                         r: Any = subprocess.run(
-                            ['powershell','-NoProfile','-NonInteractive','-Command', mits['ps']],
+                            [_PWSH,'-NoProfile','-NonInteractive','-Command', mits['ps']],
                             capture_output = True, text=True, timeout=15, creationflags=0x08000000)
                         status: Any = 'OK' if r.returncode == 0 else 'FAIL'
                         applied.append(f"PS:{mits['desc'][:45]}:{status}")
@@ -10046,7 +10053,7 @@ class AdvancedProcessScanner:
                         f"$fs.Close() }}"
                     )
                     _: Any = subprocess.run(
-                        ['powershell', '-NoProfile', '-NonInteractive', '-Command', ps],
+                        [_PWSH, '-NoProfile', '-NonInteractive', '-Command', ps],
                         capture_output = True, timeout=60,
                         creationflags = subprocess.CREATE_NO_WINDOW
                     )
@@ -16245,7 +16252,7 @@ class SystemHardeningEngine:
     def _run_ps(self, cmd: str) -> str:
         try:
             r: Any = subprocess.run(
-                ['powershell', '-NonInteractive', '-Command', cmd],
+                [_PWSH, '-NonInteractive', '-Command', cmd],
                 capture_output = True, text=True, timeout=15,
                 creationflags = subprocess.CREATE_NO_WINDOW)
             return r.stdout.strip()
@@ -17597,7 +17604,7 @@ def _write_hosts_file_elevated(new_content: str, hosts_path: str = r'C:\Windows\
             with os.fdopen(tmp_fd, 'w', encoding='utf-8', newline='\n') as _tf:
                 _tf.write(new_content)
             ps: Any = f"Copy-Item -LiteralPath '{tmp_path}' -Destination '{hosts_path}' -Force"
-            r: Any = subprocess.run(['powershell', '-NoProfile', '-NonInteractive',
+            r: Any = subprocess.run([_PWSH, '-NoProfile', '-NonInteractive',
                                 '-ExecutionPolicy', 'Bypass', '-Command', ps],
                                capture_output = True, text=True, timeout=15,
                                creationflags = _NO_WIN)
@@ -17819,7 +17826,7 @@ class HardwareProfiler:
         try:
             import subprocess as _sp
             r: Any = _sp.run(
-                ['powershell','-NoProfile','-Command',
+                [_PWSH,'-NoProfile','-Command',
                  'Get-PhysicalDisk|Select-Object MediaType|ConvertTo-Json'],
                 capture_output = True, text=True, timeout=5,
                 creationflags = 0x08000000)
@@ -22166,7 +22173,7 @@ class AegisNLPPhishingEngine:
         if text is None:
             try:
                 result: Any = subprocess.run(
-                    ['powershell', '-NoProfile', '-Command',
+                    [_PWSH, '-NoProfile', '-Command',
                      'Get-Clipboard'],
                     capture_output = True, text=True, timeout=5,
                     creationflags = subprocess.CREATE_NO_WINDOW)
@@ -29184,7 +29191,7 @@ class downpour(tk.Tk):
             # Get-DnsClientCache queries the same underlying DNS Client service cache
             # but returns structured objects instantly (~50 ms typical).
             r: Any = subprocess.run(
-                ['powershell', '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command',
+                [_PWSH, '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command',
                  'Get-DnsClientCache | Select-Object -ExpandProperty Name'],
                 capture_output = True, text=True, timeout=25,
                 creationflags = 0x08000000)
@@ -29242,7 +29249,7 @@ class downpour(tk.Tk):
                   '-MaxEvents 50 -ErrorAction SilentlyContinue | '
                   'Select-Object -ExpandProperty Message | '
                   'Select-String "Network Information" -Context 0,3')
-            r: Any = subprocess.run(['powershell','-NoProfile','-NonInteractive','-Command', ps],
+            r: Any = subprocess.run([_PWSH,'-NoProfile','-NonInteractive','-Command', ps],
                                capture_output = True, text=True, timeout=15, creationflags=0x08000000)
             if r.stdout:
                 # Count unique source IPs
@@ -29517,7 +29524,7 @@ class downpour(tk.Tk):
         try:
             import subprocess, math
             r: Any = subprocess.run(
-                ['powershell', '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command',
+                [_PWSH, '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command',
                  'Get-DnsClientCache | Select-Object -ExpandProperty Name'],
                 capture_output = True, text=True, timeout=25, creationflags=0x08000000)
             if r.returncode != 0:
@@ -29664,7 +29671,7 @@ class downpour(tk.Tk):
 
         def ps(cmd, desc):
             r: Any = subprocess.run(
-                ['powershell','-NoProfile','-NonInteractive','-Command', cmd],
+                [_PWSH,'-NoProfile','-NonInteractive','-Command', cmd],
                 capture_output = True, text=True, timeout=15, creationflags=0x08000000)
             ok: Any = r.returncode == 0
             results.append((ok, desc))
@@ -32232,7 +32239,7 @@ Verification Status:
                     # Revert Windows Defender exclusions
                     try:
                         cmd: Any = 'Remove-MpPreference -ControlledFolderAccessDisabled -Force'
-                        subprocess.run(['powershell', '-Command', cmd], capture_output=True, check=False, creationflags=_NO_WIN)
+                        subprocess.run([_PWSH, '-Command', cmd], capture_output=True, check=False, creationflags=_NO_WIN)
                         reverted_items.append('- Windows Defender exclusions removed')
                     except Exception as e:
                         reverted_items.append(f'- Windows Defender: {str(e)}')
@@ -33491,12 +33498,12 @@ Verification Status:
                     conn_name: Any = f'DownpourVPN_{host}'
                     # Remove old connection with same name (ignore errors)
                     subprocess.run(
-                        ['powershell', '-NoProfile', '-Command',
+                        [_PWSH, '-NoProfile', '-Command',
                          f'Remove-VpnConnection -Name "{conn_name}" -Force -ErrorAction SilentlyContinue'],
                         capture_output = True, timeout=10, creationflags=0x08000000)
                     # Add new L2TP connection
                     _: Any = subprocess.run(
-                        ['powershell', '-NoProfile', '-Command',
+                        [_PWSH, '-NoProfile', '-Command',
                          f'Add-VpnConnection -Name "{conn_name}" '
                          f'-ServerAddress "{host}" '
                          f'-TunnelType L2tp '
@@ -33537,11 +33544,11 @@ Verification Status:
                 try:
                     conn_name: Any = f'DownpourVPN_SSTP_{host}'
                     subprocess.run(
-                        ['powershell', '-NoProfile', '-Command',
+                        [_PWSH, '-NoProfile', '-Command',
                          f'Remove-VpnConnection -Name "{conn_name}" -Force -ErrorAction SilentlyContinue'],
                         capture_output = True, timeout=10, creationflags=0x08000000)
                     subprocess.run(
-                        ['powershell', '-NoProfile', '-Command',
+                        [_PWSH, '-NoProfile', '-Command',
                          f'Add-VpnConnection -Name "{conn_name}" '
                          f'-ServerAddress "{host}" '
                          f'-TunnelType Sstp -Force -AllUserConnection'],
@@ -33587,7 +33594,7 @@ Verification Status:
                                    capture_output = True, timeout=10,
                                    creationflags = 0x08000000)
                     subprocess.run(
-                        ['powershell', '-NoProfile', '-Command',
+                        [_PWSH, '-NoProfile', '-Command',
                          f'Remove-VpnConnection -Name "{self._vpn_current_name}" '
                          f'-Force -ErrorAction SilentlyContinue'],
                         capture_output = True, timeout=10, creationflags=0x08000000)
@@ -33643,7 +33650,7 @@ Verification Status:
         drives: Any = set()
         try:
             r: Any = subprocess.run(
-                ['powershell','-Command',
+                [_PWSH,'-Command',
                  'Get-PSDrive -PSProvider FileSystem | Select-Object Name,'
                  '@{N="Type";E={(Get-WmiObject Win32_LogicalDisk -Filter "DeviceID=\'$($_.Name):\'").DriveType}}'
                  ' | ConvertTo-Csv -NoTypeInformation'],
@@ -33678,7 +33685,7 @@ Verification Status:
     def _get_usb_device_id(self, drive_letter: str) -> str:
         try:
             r: Any = subprocess.run(
-                ['powershell','-Command',
+                [_PWSH,'-Command',
                  f"(Get-WmiObject Win32_LogicalDisk -Filter \"DeviceID='{drive_letter}:'\").PNPDeviceID"],
                 capture_output = True, text=True, timeout=8,
                 creationflags = subprocess.CREATE_NO_WINDOW)
@@ -33833,7 +33840,7 @@ Verification Status:
         if getattr(self, '_bypass_tpm_bitlocker', False):
             return True   # user-bypassed
         try:
-            r: Any = subprocess.run(['powershell','-Command','Confirm-SecureBootUEFI'],
+            r: Any = subprocess.run([_PWSH,'-Command','Confirm-SecureBootUEFI'],
                                capture_output = True, text=True, timeout=8,
                                creationflags = subprocess.CREATE_NO_WINDOW)
             return 'True' in r.stdout
@@ -33861,7 +33868,7 @@ Verification Status:
 
     def _check_smb1_disabled(self) -> bool:
         try:
-            r: Any = subprocess.run(['powershell','-Command',
+            r: Any = subprocess.run([_PWSH,'-Command',
                                 'Get-SmbServerConfiguration | Select EnableSMB1Protocol'],
                                capture_output = True, text=True, timeout=12,
                                creationflags = subprocess.CREATE_NO_WINDOW)
@@ -33871,7 +33878,7 @@ Verification Status:
 
     def _check_asr_active(self) -> bool:
         try:
-            r: Any = subprocess.run(['powershell','-Command',
+            r: Any = subprocess.run([_PWSH,'-Command',
                                 'Get-MpPreference | Select AttackSurfaceReductionRules_Ids'],
                                capture_output = True, text=True, timeout=12,
                                creationflags = subprocess.CREATE_NO_WINDOW)
@@ -33915,7 +33922,7 @@ Verification Status:
 
     def _check_ps_restricted(self) -> bool:
         try:
-            r: Any = subprocess.run(['powershell','-Command','Get-ExecutionPolicy'],
+            r: Any = subprocess.run([_PWSH,'-Command','Get-ExecutionPolicy'],
                                capture_output = True, text=True, timeout=8,
                                creationflags = subprocess.CREATE_NO_WINDOW)
             return r.stdout.strip() in ('AllSigned', 'RemoteSigned', 'Restricted')
@@ -33946,7 +33953,7 @@ Verification Status:
 
     def _check_driver_sig_enforcement(self) -> bool:
         try:
-            r: Any = subprocess.run(['powershell','-Command',
+            r: Any = subprocess.run([_PWSH,'-Command',
                                 'bcdedit /enum | Select-String "nointegritychecks"'],
                                capture_output = True, text=True, timeout=8,
                                creationflags = subprocess.CREATE_NO_WINDOW)
@@ -34010,7 +34017,7 @@ Verification Status:
                     f"ipconfig /flushdns | Out-Null"
                 )
                 result: Any = subprocess.run(
-                    ['powershell', '-NoProfile', '-NonInteractive',
+                    [_PWSH, '-NoProfile', '-NonInteractive',
                      '-ExecutionPolicy', 'Bypass', '-Command', ps_cmd],
                     capture_output = True, text=True, timeout=15,
                     creationflags = _NO_WIN
@@ -34076,7 +34083,7 @@ Verification Status:
             return
         try:
             r: Any = subprocess.run(
-                ['powershell','-Command','Get-DnsClientCache | ConvertTo-Csv -NoTypeInformation'],
+                [_PWSH,'-Command','Get-DnsClientCache | ConvertTo-Csv -NoTypeInformation'],
                 capture_output = True, text=True, timeout=10,
                 creationflags = subprocess.CREATE_NO_WINDOW)
             for canary in self._canary_hosts:
@@ -34224,7 +34231,7 @@ Verification Status:
         # DNS cache
         try:
             r: Any = subprocess.run(
-                ['powershell','-Command','Get-DnsClientCache | ConvertTo-Csv -NoTypeInformation'],
+                [_PWSH,'-Command','Get-DnsClientCache | ConvertTo-Csv -NoTypeInformation'],
                 capture_output = True, text=True, timeout=10,
                 creationflags = subprocess.CREATE_NO_WINDOW)
             report['sections']['dns_cache'] = r.stdout[:30000]
@@ -35275,7 +35282,7 @@ Verification Status:
 
             # -- 4. SMBv1 disabled -----------------------------------------
             try:
-                r: Any = subprocess.run(['powershell','-Command','Get-SmbServerConfiguration | Select EnableSMB1Protocol'],
+                r: Any = subprocess.run([_PWSH,'-Command','Get-SmbServerConfiguration | Select EnableSMB1Protocol'],
                                    capture_output = True, text=True, creationflags=subprocess.CREATE_NO_WINDOW, timeout=15)
                 smb1_off: Any = 'False' in r.stdout
                 _add('SMBv1 Disabled (EternalBlue)', smb1_off, 'CRITICAL',
@@ -35301,7 +35308,7 @@ Verification Status:
 
             # -- 6. Secure Boot --------------------------------------------
             try:
-                r: Any = subprocess.run(['powershell','-Command','Confirm-SecureBootUEFI'],
+                r: Any = subprocess.run([_PWSH,'-Command','Confirm-SecureBootUEFI'],
                                    capture_output = True, text=True, creationflags=subprocess.CREATE_NO_WINDOW, timeout=10)
                 sb_on: Any = 'True' in r.stdout
                 if getattr(self,'_bypass_tpm_bitlocker',False):
@@ -35350,7 +35357,7 @@ Verification Status:
 
             # -- 9. Windows Update / Patches -------------------------------
             try:
-                r: Any = subprocess.run(['powershell','-Command',
+                r: Any = subprocess.run([_PWSH,'-Command',
                                     '(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0 and Type=\'Software\'").Updates.Count'],
                                    capture_output = True, text=True, creationflags=subprocess.CREATE_NO_WINDOW, timeout=20)
                 pending: Any = r.stdout.strip()
@@ -35392,7 +35399,7 @@ Verification Status:
 
             # -- 12. PowerShell execution policy ---------------------------
             try:
-                r: Any = subprocess.run(['powershell','-Command','Get-ExecutionPolicy'],
+                r: Any = subprocess.run([_PWSH,'-Command','Get-ExecutionPolicy'],
                                    capture_output = True, text=True, creationflags=subprocess.CREATE_NO_WINDOW, timeout=10)
                 policy: Any = r.stdout.strip()
                 safe: Any = policy in ('AllSigned', 'RemoteSigned', 'Restricted')
@@ -35519,7 +35526,7 @@ Verification Status:
             # -- 27. Exploit Protection (WDEG) ----------------------------
             try:
                 r: Any = subprocess.run(
-                    ['powershell','-Command',
+                    [_PWSH,'-Command',
                      '(Get-ProcessMitigation -System).DEP.Enable'],
                     capture_output = True, text=True, timeout=10,
                     creationflags = subprocess.CREATE_NO_WINDOW)
@@ -35533,7 +35540,7 @@ Verification Status:
             # -- 28. Attack Surface Reduction (ASR) Rules ------------------
             try:
                 r: Any = subprocess.run(
-                    ['powershell','-Command',
+                    [_PWSH,'-Command',
                      'Get-MpPreference | Select-Object -ExpandProperty AttackSurfaceReductionRules_Ids'],
                     capture_output = True, text=True, timeout=15,
                     creationflags = subprocess.CREATE_NO_WINDOW)
@@ -35548,7 +35555,7 @@ Verification Status:
             # -- 29. Controlled Folder Access -----------------------------
             try:
                 r: Any = subprocess.run(
-                    ['powershell','-Command',
+                    [_PWSH,'-Command',
                      'Get-MpPreference | Select-Object -ExpandProperty EnableControlledFolderAccess'],
                     capture_output = True, text=True, timeout=10,
                     creationflags = subprocess.CREATE_NO_WINDOW)
@@ -35581,7 +35588,7 @@ Verification Status:
             # -- 31. Signed driver enforcement (WHQL) ---------------------
             try:
                 r: Any = subprocess.run(
-                    ['powershell','-Command',
+                    [_PWSH,'-Command',
                      'bcdedit /enum | Select-String "nointegritychecks"'],
                     capture_output = True, text=True, timeout=10,
                     creationflags = subprocess.CREATE_NO_WINDOW)
@@ -36139,7 +36146,7 @@ Verification Status:
         try:
             # Use simpler signtool approach via powershell
             r: Any = subprocess.run(
-                ['powershell','-Command',
+                [_PWSH,'-Command',
                  f"(Get-AuthenticodeSignature '{path}').Status"],
                 capture_output = True, text=True, timeout=10,
                 creationflags = subprocess.CREATE_NO_WINDOW)
@@ -36178,7 +36185,7 @@ Verification Status:
         found: Any = []
         try:
             r: Any = subprocess.run(
-                ['powershell','-Command',
+                [_PWSH,'-Command',
                  'Get-WMIObject -Namespace root\\subscription -Class __FilterToConsumerBinding | '
                  'Select-Object -ExpandProperty Filter | ForEach-Object {$_.Name}'],
                 capture_output = True, text=True, timeout=15,
@@ -36255,7 +36262,7 @@ Verification Status:
         """Query installed antivirus via WMI SecurityCenter2."""
         try:
             r: Any = subprocess.run(
-                ['powershell','-Command',
+                [_PWSH,'-Command',
                  "Get-WmiObject -Namespace root\\SecurityCenter2 -Class AntiVirusProduct | "
                  "Select-Object -ExpandProperty displayName"],
                 capture_output = True, text=True, timeout=10,
@@ -36850,7 +36857,7 @@ Verification Status:
         result: Any = {'kva_shadow': False, 'ibrs': False, 'ssbd': False, 'detail': ''}
         try:
             r: Any = subprocess.run(
-                ['powershell','-Command',
+                [_PWSH,'-Command',
                  'Get-SpeculationControlSettings | Select-Object -Property *'],
                 capture_output = True, text=True, timeout=15,
                 creationflags = subprocess.CREATE_NO_WINDOW)
@@ -36924,7 +36931,7 @@ Verification Status:
         # Method 1: Check Security event log for EID 1102 / 104
         try:
             r: Any = subprocess.run(
-                ['powershell','-Command',
+                [_PWSH,'-Command',
                  'Get-WinEvent -FilterHashtable @{LogName="Security";Id=1102} -MaxEvents 5 -ErrorAction SilentlyContinue | '
                  'Select-Object TimeCreated,Message | ConvertTo-Json -Depth 1'],
                 capture_output = True, text=True, timeout=15,
@@ -36936,7 +36943,7 @@ Verification Status:
             pass
         try:
             r: Any = subprocess.run(
-                ['powershell','-Command',
+                [_PWSH,'-Command',
                  'Get-WinEvent -FilterHashtable @{LogName="System";Id=104} -MaxEvents 5 -ErrorAction SilentlyContinue | '
                  'Select-Object TimeCreated,Message | ConvertTo-Json -Depth 1'],
                 capture_output = True, text=True, timeout=15,
@@ -37045,7 +37052,7 @@ Verification Status:
         for eid, key, label in event_checks:
             try:
                 r: Any = subprocess.run(
-                    ['powershell','-Command',
+                    [_PWSH,'-Command',
                      f'(Get-WinEvent -FilterHashtable @{{LogName="Security";Id={eid}}} '
                      f'-MaxEvents 100 -ErrorAction SilentlyContinue).Count'],
                     capture_output = True, text=True, timeout=15,
@@ -37183,7 +37190,7 @@ Verification Status:
         hits: Any = []
         try:
             r: Any = subprocess.run(
-                ['powershell','-Command',
+                [_PWSH,'-Command',
                  'Get-WmiObject Win32_SystemDriver | '
                  'Select-Object Name,PathName,State,StartMode | '
                  'ConvertTo-Json -Depth 1'],
@@ -37209,7 +37216,7 @@ Verification Status:
         # Also check for unsigned drivers via sigcheck (if available) or signtool
         try:
             r: Any = subprocess.run(
-                ['powershell','-Command',
+                [_PWSH,'-Command',
                  'Get-WindowsDriver -Online | Where-Object {$_.Driver -notlike "*Microsoft*"} | '
                  'Select-Object Driver,OriginalFileName,BootCritical | '
                  'ConvertTo-Json -Depth 1 -ErrorAction SilentlyContinue'],
@@ -37277,7 +37284,7 @@ Verification Status:
         result: Any = {'rc4_tgs_count': 0, 'details': []}
         try:
             r: Any = subprocess.run(
-                ['powershell','-Command',
+                [_PWSH,'-Command',
                  'Get-WinEvent -FilterHashtable @{LogName="Security";Id=4769} -MaxEvents 50 '
                  '-ErrorAction SilentlyContinue | '
                  'Where-Object {$_.Message -match "0x17"} | '
@@ -37306,7 +37313,7 @@ Verification Status:
         hits: Any = []
         try:
             r: Any = subprocess.run(
-                ['powershell','-Command',
+                [_PWSH,'-Command',
                  'Get-WinEvent -FilterHashtable @{LogName="Security";Id=4624} -MaxEvents 20 '
                  '-ErrorAction SilentlyContinue | '
                  'Where-Object {$_.Message -match "LogonType.*9|Impersonation"} | '
@@ -42180,7 +42187,7 @@ Verification Status:
         # 3. Services referencing the file
         try:
             svc_list: Any = _sp.run(
-                ['powershell', '-NoProfile', '-Command',
+                [_PWSH, '-NoProfile', '-Command',
                  f"Get-WmiObject win32_service | Where-Object {{ $_.PathName -like '*{fname}*' }} | Select-Object Name,PathName | ConvertTo-Json"],
                 capture_output = True, text=True, timeout=15, creationflags=0x08000000)
             if svc_list.stdout.strip():
@@ -42209,7 +42216,7 @@ Verification Status:
                         try:
                             # Read .lnk target via PowerShell
                             r: Any = _sp.run(
-                                ['powershell', '-NoProfile', '-Command',
+                                [_PWSH, '-NoProfile', '-Command',
                                  f"(New-Object -COM WScript.Shell).CreateShortcut('{item_path}').TargetPath"],
                                 capture_output = True, text=True, timeout=5, creationflags=0x08000000)
                             target: Any = r.stdout.strip()
@@ -49286,7 +49293,7 @@ Verification Status:
                     # Revert Windows Defender exclusions
                     try:
                         cmd: Any = 'Remove-MpPreference -ControlledFolderAccessDisabled -Force'
-                        subprocess.run(['powershell', '-Command', cmd], capture_output=True, check=False, creationflags=_NO_WIN)
+                        subprocess.run([_PWSH, '-Command', cmd], capture_output=True, check=False, creationflags=_NO_WIN)
                         reverted_items.append('- Windows Defender exclusions removed')
                     except Exception as e:
                         reverted_items.append(f'- Windows Defender: {str(e)}')
@@ -53367,7 +53374,7 @@ Verification Status:
         )
         try:
             r: Any = subprocess.run(
-                ['powershell', '-NoProfile', '-Command', ps_cmd],
+                [_PWSH, '-NoProfile', '-Command', ps_cmd],
                 capture_output = True, text=True, timeout=60, encoding='utf-8', errors='replace',
                 creationflags = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000))
             raw: Any = r.stdout
@@ -53633,7 +53640,7 @@ Verification Status:
         import subprocess
         try:
             r: Any = subprocess.run(
-                ['powershell', '-NoProfile', '-Command', cmd],
+                [_PWSH, '-NoProfile', '-Command', cmd],
                 capture_output = True, text=True, timeout=timeout, encoding='utf-8', errors='replace',
                 creationflags = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000))
             return r.stdout
@@ -54449,7 +54456,7 @@ Verification Status:
                     'ForEach-Object { $_.TimeCreated.ToString("yyyy-MM-dd HH:mm:ss") + " ID:" + '
                     '$_.Id + " " + ($_.Message -replace "\\n"," ").Substring(0,[Math]::Min(120,($_.Message).Length)) }'
                 )
-                r: Any = subprocess.run(['powershell', '-NoProfile', '-Command', ps_cmd],
+                r: Any = subprocess.run([_PWSH, '-NoProfile', '-Command', ps_cmd],
                                    capture_output = True, text=True, timeout=30,
                                    creationflags = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000))
                 lines += r.stdout.splitlines()[:60]

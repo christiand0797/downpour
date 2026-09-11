@@ -34,6 +34,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 _log = logging.getLogger(__name__)
 
+_PWSH = os.path.join(
+    os.environ.get('SystemRoot', r'C:\Windows'),
+    'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+
 _PS_TIMEOUT = 20
 
 
@@ -55,7 +59,7 @@ def _ps(command: str) -> Optional[str]:
         if hasattr(subprocess, 'CREATE_NO_WINDOW'):
             flags = subprocess.CREATE_NO_WINDOW
         proc = subprocess.run(
-            ['powershell', '-NoProfile', '-NonInteractive',
+            [_PWSH, '-NoProfile', '-NonInteractive',
              '-ExecutionPolicy', 'Bypass', '-Command', command],
             capture_output=True, text=True, timeout=_PS_TIMEOUT,
             creationflags=flags)
