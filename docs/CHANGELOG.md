@@ -1,5 +1,35 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.69 — Advanced Defense Suite: +3 capabilities (27 total)
+- **25. WMI Subscription Watcher (T1546.003)** — baseline+diff over
+  `root\subscription` (__EventFilter / CommandLineEventConsumer /
+  ActiveScriptEventConsumer / __FilterToConsumerBinding) via the
+  MTA-safe WMI COM helper. New consumer with a command/script =
+  CRITICAL (admin-level execution on trigger, reboot-persistent,
+  invisible in autoruns); new bindings HIGH; removals MEDIUM
+  (remediation vs cover-tracks). Live: the legit Windows `SCM Event
+  Log Filter` + its binding baselined; second run 0.
+- **26. Defender Exclusion Watcher (T1562.001)** — baseline+diff over
+  MSFT_MpPreference via `root\Microsoft\Windows\Defender` WMI —
+  verified readable NON-elevated (the registry `Exclusions` keys are
+  ACL-denied there, so WMI is the only viable native path). New
+  ExclusionPath/Process/Extension/Ip = HIGH (implant becomes invisible
+  to Defender); DisableRealtimeMonitoring/behavior/IPS flip =
+  CRITICAL/HIGH. Downpour's own data-dir exclusions TOFU-baselined.
+- **27. Startup Folder Watcher (T1547.001)** — baseline+diff (name +
+  size + mtime) over user and all-users Startup folders — complements
+  persistence_watchers' registry Run-key watch with the .lnk/.exe drop
+  vector. New exe/script/lnk HIGH, other files MEDIUM (desktop.ini /
+  thumbs.db noise exempted), replaced files HIGH, removals MEDIUM.
+  Live: user's real `packetstream.lnk` caught on first sight.
+- All three wired into `_init_defense_suite`: baselines at startup,
+  diffs in the 30s loop (`[WMI-SUB/]`, `[DEFENDER-EXCL/]`,
+  `[STARTUP/]` alerts).
+- Suite: 27 capabilities, ~2,850 lines. Full suite **389 passed,
+  1 skipped**. (During development the suite file briefly had a broken
+  f-string from a timed-out partial edit — caught immediately by
+  py_compile and fixed via marker-based surgery.)
+
 ## v29.63 — Advanced Defense Suite: +4 capabilities (22 total)
 - **19. Hosts File Integrity Watcher (T1565.001)** — TOFU baseline over
   the hosts mapping set; NEW mappings HIGH, changed HIGH, removals

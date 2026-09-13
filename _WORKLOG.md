@@ -1,5 +1,36 @@
 # Downpour v29 Titanium — Enhancement Worklog
 
+## Session 2026-09-12 — v29.69: Defense Suite +3 (27 total)
+
+**User directive:** "continue" / "push all changes to the github repo".
+
+### New capabilities (all native, no PowerShell, never raise)
+25. **WmiSubscriptionWatcher** — T1546.003. root\subscription entities;
+    live result: pre-existing `SCM Event Log Filter` + binding baselined
+    (MEDIUM/HIGH), second run 0. Fills the gap between the on-demand
+    remediation (`_clean_wmi_persistence`) and continuous watch.
+26. **DefenderExclusionWatcher** — T1562.001. Probed first: registry
+    Exclusions keys are ACL-denied non-elevated; MSFT_MpPreference via
+    WMI root\Microsoft\Windows\Defender works → that's the primary
+    path. Note observed on this machine: DisableRealtimeMonitoring
+    already True (standing posture issue — CIS reports it every start;
+    the watcher alerts on future FLIPS).
+27. **StartupFolderWatcher** — T1547.001. User + all-users Startup;
+    size+mtime signature; desktop.ini/thumbs.db exempted (live FP
+    found and fixed during testing); real `packetstream.lnk` caught.
+
+### Dev incident
+- A 30s editor timeout left a partially-applied block in
+  advanced_defense_suite.py (broken f-string at WmiSubscriptionWatcher
+  + missing '# 26' header). Caught instantly by py_compile; repaired
+  with marker-based surgery and renumbered 25=WMI / 26=Defender /
+  27=Startup to match file order.
+
+### Verification
+- 3/3 live-run correct, TOFU stable on second pass.
+- Full suite: **389 passed, 1 skipped** (121s).
+- Wired into `_init_defense_suite` (startup + 30s loop).
+
 ## Session 2026-09-12 — v29.63: Defense Suite +4 (22 total)
 
 **User directive:** "continue" (standing: maximize capabilities, always

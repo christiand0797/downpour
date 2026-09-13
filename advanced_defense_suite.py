@@ -36,6 +36,9 @@ Capabilities that fill genuine gaps vs commercial EDR/HIDS products
   22. UAC BYPASS IOC WATCHER  — Auto-elevate hijack slots (T1548.002)
   23. FIREWALL RULE WATCHER   — New/changed inbound allows, OFF profiles
   24. SERVICE BINARY WATCHER  — New/repointed service ImagePaths (T1543.003)
+  25. WMI SUBSCRIPTION WATCH  — Permanent event consumers/bindings (T1546.003)
+  26. DEFENDER EXCLUSION WAT  — Foreign exclusions, RTP flip (T1562.001)
+  27. STARTUP FOLDER WATCHER  — New .lnk/.exe drops in Startup (T1547.001)
 
 Every function is best-effort and never raises. All native APIs —
 no PowerShell anywhere.
@@ -2477,6 +2480,317 @@ class ServiceBinaryWatcher:
                                  'severity': 'MEDIUM',
                                  'detail': f'Service disappeared: '
                                            f'{name}'})
+        if cur != self._baseline:
+            self._baseline = cur
+            self._save()
+        return findings
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 26. WMI SUBSCRIPTION WATCHER (T1546.003)
+# ══════════════════════════════════════════════════════════════════════════
+
+class WmiSubscriptionWatcher:
+    """Baseline + diff over WMI permanent subscriptions (T1546.003).
+
+    CommandLineEventConsumer / ActiveScriptEventConsumer + a
+    __FilterToConsumerBinding = admin-level code execution on the
+    triggering event, survives reboots, invisible in autoruns. New
+    consumers with a command/script = CRITICAL, new bindings HIGH.
+    """
+
+    _NS = r'root\subscription'
+
+    def __init__(self, data_dir: str = 'downpour_data'):
+        self._baseline_file = (Path(data_dir) / 'wmi_sub_baseline.json')
+        self._baseline: Dict[str, str] = self._load()
+
+    def _load(self) -> Dict[str, str]:
+        try:
+            if self._baseline_file.is_file():
+                return json.loads(self._baseline_file.read_text(
+                    encoding='utf-8')).get('items', {})
+        except Exception as exc:
+            _log.debug('wmi-sub baseline load: %s', exc)
+        return {}
+
+    def _save(self) -> None:
+        try:
+            self._baseline_file.parent.mkdir(parents=True, exist_ok=True)
+            self._baseline_file.write_text(json.dumps(
+                {'items': self._baseline}, indent=2), encoding='utf-8')
+        except Exception as exc:
+            _log.debug('wmi-sub baseline save: %s', exc)
+
+    @staticmethod
+    def _read() -> Dict[str, str]:
+        try:
+            import native_probes
+        except Exception as exc:
+            _log.debug('native_probes: %s', exc)
+            return {}
+        out: Dict[str, str] = {}
+        for cls, fields in (
+                ('__EventFilter', ('Name', 'Query')),
+                ('CommandLineEventConsumer', ('Name',
+                                              'CommandLineTemplate')),
+                ('ActiveScriptEventConsumer', ('Name', 'ScriptText')),
+                ('__FilterToConsumerBinding', ('Filter', 'Consumer'))):
+            try:
+                rows = native_probes.wmi_wql_dicts(
+                    WmiSubscriptionWatcher._NS,
+                    f'SELECT {", ".join(fields)} FROM {cls}',
+                    list(fields))
+            except Exception:
+                rows = []
+            for row in rows:
+                nm = row.get('Name') or row.get('Filter') or '?'
+                key = f'{cls}:{nm}'
+                parts = []
+                for f in fields:
+                    v = row.get(f)
+                    if v is not None:
+                        parts.append(f + '=' + str(v))
+                out[key] = ' | '.join(parts)
+        return out
+
+    def audit(self) -> List[Dict]:
+        findings: List[Dict] = []
+        cur = self._read()
+        for key, sig in cur.items():
+            old = self._baseline.get(key)
+            if old is None:
+                is_consumer = 'EventConsumer:' in key
+                hostile = (is_consumer and
+                           ('CommandLine=' in sig or 'ScriptText=' in sig))
+                if hostile:
+                    sev = 'CRITICAL'
+                elif is_consumer or key.startswith(
+                        '__FilterToConsumerBinding'):
+                    sev = 'HIGH'
+                else:
+                    sev = 'MEDIUM'
+                findings.append({
+                    'type': 'new_subscription_item', 'item': key,
+                    'mitre': 'T1546.003', 'severity': sev,
+                    'detail': f'New WMI permanent subscription '
+                              f'component: {key} ({sig[:120]})'})
+            elif old != sig:
+                findings.append({
+                    'type': 'subscription_modified', 'item': key,
+                    'mitre': 'T1546.003', 'severity': 'HIGH',
+                    'detail': f'WMI subscription component modified: '
+                              f'{key}: {old[:80]} -> {sig[:80]}'})
+        for key in list(self._baseline):
+            if key not in cur:
+                findings.append({
+                    'type': 'subscription_removed', 'item': key,
+                    'mitre': 'T1546.003', 'severity': 'MEDIUM',
+                    'detail': f'WMI subscription component removed: '
+                              f'{key}'})
+        if cur != self._baseline:
+            self._baseline = cur
+            self._save()
+        return findings
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 26. DEFENDER EXCLUSION WATCHER (T1562.001)
+# ══════════════════════════════════════════════════════════════════════════
+
+class DefenderExclusionWatcher:
+    """Baseline + diff over Windows Defender exclusions (T1562.001).
+
+    A foreign ExclusionProcess/Path is one of the loudest single
+    signals in EDR work: it makes the implant invisible to Defender.
+    Uses WMI MSFT_MpPreference (root\\Microsoft\\Windows\\Defender) —
+    the registry Exclusions keys are ACL-protected non-elevated, the
+    WMI namespace is readable. Downpour's own data-dir exclusions are
+    TOFU-baselined; anything NEW is HIGH, and a
+    DisableRealtimeMonitoring flip is CRITICAL.
+    """
+
+    _NAMESPACE = r'root\Microsoft\Windows\Defender'
+    _FIELDS = ('ExclusionPath', 'ExclusionProcess', 'ExclusionExtension',
+               'ExclusionIpAddress', 'DisableRealtimeMonitoring',
+               'DisableBehaviorMonitoring',
+               'DisableIntrusionPreventionSystem')
+
+    def __init__(self, data_dir: str = 'downpour_data'):
+        self._baseline_file = (Path(data_dir) /
+                               'defender_excl_baseline.json')
+        self._baseline: Dict[str, List[str]] = self._load()
+
+    def _load(self) -> Dict[str, List[str]]:
+        try:
+            if self._baseline_file.is_file():
+                return json.loads(self._baseline_file.read_text(
+                    encoding='utf-8')).get('prefs', {})
+        except Exception as exc:
+            _log.debug('defender-excl baseline load: %s', exc)
+        return {}
+
+    def _save(self) -> None:
+        try:
+            self._baseline_file.parent.mkdir(parents=True, exist_ok=True)
+            self._baseline_file.write_text(json.dumps(
+                {'prefs': self._baseline}, indent=2), encoding='utf-8')
+        except Exception as exc:
+            _log.debug('defender-excl baseline save: %s', exc)
+
+    @staticmethod
+    def _as_list(v) -> List[str]:
+        if v is None:
+            return []
+        if isinstance(v, (list, tuple)):
+            return [str(x).strip() for x in v if str(x).strip()]
+        s = str(v).strip()
+        return [s] if s else []
+
+    def _read(self) -> Dict[str, List[str]]:
+        try:
+            import native_probes
+            rows = native_probes.wmi_wql_dicts(
+                self._NAMESPACE,
+                'SELECT ' + ', '.join(self._FIELDS) +
+                ' FROM MSFT_MpPreference', list(self._FIELDS))
+        except Exception as exc:
+            _log.debug('MSFT_MpPreference: %s', exc)
+            return {}
+        if not rows:
+            return {}
+        row = rows[0]
+        out: Dict[str, List[str]] = {}
+        for f in self._FIELDS:
+            vals = self._as_list(row.get(f))
+            if f.startswith('Disable'):
+                out[f] = ['1'] if vals and vals[0].lower() in (
+                    '1', 'true') else []
+            else:
+                out[f] = sorted(vals)
+        return out
+
+    def audit(self) -> List[Dict]:
+        findings: List[Dict] = []
+        cur = self._read()
+        if not cur:
+            return findings
+        for f, vals in cur.items():
+            old = self._baseline.get(f, [])
+            if f.startswith('Disable'):
+                if vals and not old:
+                    sev = ('CRITICAL' if f == 'DisableRealtimeMonitoring'
+                           else 'HIGH')
+                    findings.append({
+                        'type': 'defense_disabled', 'pref': f,
+                        'mitre': 'T1562.001', 'severity': sev,
+                        'detail': f'Defender setting flipped to '
+                                  f'disabled: {f}'})
+                continue
+            for v in vals:
+                if v not in old:
+                    findings.append({
+                        'type': 'new_exclusion', 'pref': f, 'value': v,
+                        'mitre': 'T1562.001', 'severity': 'HIGH',
+                        'detail': f'New Defender exclusion '
+                                  f'({f}): {v}'})
+        if cur != self._baseline:
+            self._baseline = cur
+            self._save()
+        return findings
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 27. STARTUP FOLDER WATCHER (T1547.001)
+# ══════════════════════════════════════════════════════════════════════════
+
+class StartupFolderWatcher:
+    """Baseline + diff over user/all-users Startup folders (T1547.001).
+
+    Registry Run keys are watched by persistence_watchers; the Startup
+    FOLDERS (.lnk/.exe drops) were only hunted on demand until now.
+    New executable/script/link files = HIGH, other files MEDIUM.
+    """
+
+    _EXE_EXTS = ('.exe', '.lnk', '.bat', '.cmd', '.vbs', '.js', '.wsf',
+                 '.ps1', '.scr', '.pif', '.com')
+    # Windows view-metadata files — normal in any folder, never autoruns
+    _NOISE_FILES = ('desktop.ini', 'thumbs.db')
+
+    def __init__(self, data_dir: str = 'downpour_data'):
+        self._baseline_file = (Path(data_dir) /
+                               'startup_folder_baseline.json')
+        appdata = os.environ.get('APPDATA', '')
+        progdata = os.environ.get('ProgramData', '')
+        self._folders = [
+            os.path.join(appdata,
+                         r'Microsoft\Windows\Start Menu'
+                         r'\Programs\Startup'),
+            os.path.join(progdata,
+                         r'Microsoft\Windows\Start Menu'
+                         r'\Programs\StartUp'),
+        ]
+        self._baseline: Dict[str, str] = self._load()
+
+    def _load(self) -> Dict[str, str]:
+        try:
+            if self._baseline_file.is_file():
+                return json.loads(self._baseline_file.read_text(
+                    encoding='utf-8')).get('files', {})
+        except Exception as exc:
+            _log.debug('startup-folder baseline load: %s', exc)
+        return {}
+
+    def _save(self) -> None:
+        try:
+            self._baseline_file.parent.mkdir(parents=True, exist_ok=True)
+            self._baseline_file.write_text(json.dumps(
+                {'files': self._baseline}, indent=2), encoding='utf-8')
+        except Exception as exc:
+            _log.debug('startup-folder baseline save: %s', exc)
+
+    def _read(self) -> Dict[str, str]:
+        cur: Dict[str, str] = {}
+        for folder in self._folders:
+            try:
+                for name in os.listdir(folder):
+                    p = os.path.join(folder, name)
+                    if os.path.isfile(p):
+                        st = os.stat(p)
+                        cur[p] = f'{st.st_size}:{int(st.st_mtime)}'
+            except OSError as exc:
+                _log.debug('startup folder %s: %s', folder, exc)
+        return cur
+
+    def audit(self) -> List[Dict]:
+        findings: List[Dict] = []
+        cur = self._read()
+        for path, sig in cur.items():
+            name = path.rsplit('\\', 1)[-1].lower()
+            if name in self._NOISE_FILES:
+                continue
+            if path not in self._baseline:
+                sev = ('HIGH' if name.endswith(self._EXE_EXTS)
+                       else 'MEDIUM')
+                findings.append({
+                    'type': 'new_startup_file', 'path': path,
+                    'mitre': 'T1547.001', 'severity': sev,
+                    'detail': f'New Startup-folder file: {name} '
+                              f'({sig.split(":")[0]} bytes)'})
+            elif self._baseline.get(path) != sig:
+                findings.append({
+                    'type': 'startup_file_changed', 'path': path,
+                    'mitre': 'T1547.001', 'severity': 'HIGH',
+                    'detail': f'Startup file replaced: {name} '
+                              f'({self._baseline.get(path)} -> '
+                              f'{sig})'})
+        for path in list(self._baseline):
+            if path not in cur:
+                name = path.rsplit('\\', 1)[-1]
+                findings.append({
+                    'type': 'startup_file_removed', 'path': path,
+                    'mitre': 'T1547.001', 'severity': 'MEDIUM',
+                    'detail': f'Startup file removed: {name}'})
         if cur != self._baseline:
             self._baseline = cur
             self._save()

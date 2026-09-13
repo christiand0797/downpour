@@ -39108,7 +39108,8 @@ Verification Status:
                 BrowserExtensionAuditor, HostsFileWatcher,
                 BitsTransferMonitor, ComHijackWatcher,
                 UacBypassIocWatcher, FirewallRuleWatcher,
-                ServiceBinaryWatcher)
+                ServiceBinaryWatcher, WmiSubscriptionWatcher,
+                DefenderExclusionWatcher, StartupFolderWatcher)
         except ImportError:
             return  # module unavailable — skip silently
 
@@ -39129,8 +39130,11 @@ Verification Status:
             self._uac_watcher = UacBypassIocWatcher()
             self._fw_watcher = FirewallRuleWatcher()
             self._svc_watcher = ServiceBinaryWatcher()
+            self._wmi_watcher = WmiSubscriptionWatcher()
+            self._defexcl_watcher = DefenderExclusionWatcher()
+            self._startup_watcher = StartupFolderWatcher()
         except Exception as e:
-            error_logger.log('DefenseSuite', 'v29.62/63/64 watchers init', e)
+            error_logger.log('DefenseSuite', 'watchers init', e)
             self._ifeo_watcher = None
             self._honey_persist = None
             self._driver_auditor = None
@@ -39141,6 +39145,9 @@ Verification Status:
             self._uac_watcher = None
             self._fw_watcher = None
             self._svc_watcher = None
+            self._wmi_watcher = None
+            self._defexcl_watcher = None
+            self._startup_watcher = None
 
         def _run_defense_suite():
             # Deploy honeytokens (5 canary files + 1 DNS canary)
@@ -39280,6 +39287,20 @@ Verification Status:
                 except Exception as e:
                     error_logger.log('DefenseSuite', 'svc audit', e)
 
+            # v29.69: WMI-sub / Defender-excl / startup-folder baselines
+            for label, watcher in (
+                    ('wmi-subscription', self._wmi_watcher),
+                    ('defender-exclusion', self._defexcl_watcher),
+                    ('startup-folder', self._startup_watcher)):
+                if watcher:
+                    try:
+                        fx = watcher.audit()
+                        logger.info('DefenseSuite: %s baseline built '
+                                    '(findings=%d)', label, len(fx))
+                    except Exception as e:
+                        error_logger.log('DefenseSuite', f'{label} audit',
+                                         e)
+
             # Monitoring loop: check canaries every 30s
             while True:
                 time.sleep(30)
@@ -39363,6 +39384,35 @@ Verification Status:
                                 f'{ss["detail"]}', sev))
                 except Exception as e:
                     error_logger.log('DefenseSuite', 'v29.64 loop', e)
+
+                # v29.69: WMI-sub / Defender-excl / startup diff each tick
+                try:
+                    if self._wmi_watcher:
+                        for wf in self._wmi_watcher.audit():
+                            sev = (Colors.GAUGE_RED
+                                   if wf['severity'] == 'CRITICAL'
+                                   else Colors.GAUGE_YELLOW)
+                            self.after(0, lambda ww=wf: self._queue_alert(
+                                f'[WMI-SUB/{ww["severity"]}] '
+                                f'{ww["detail"]}', sev))
+                    if self._defexcl_watcher:
+                        for df in self._defexcl_watcher.audit():
+                            sev = (Colors.GAUGE_RED
+                                   if df['severity'] == 'CRITICAL'
+                                   else Colors.GAUGE_YELLOW)
+                            self.after(0, lambda dd=df: self._queue_alert(
+                                f'[DEFENDER-EXCL/{dd["severity"]}] '
+                                f'{dd["detail"]}', sev))
+                    if self._startup_watcher:
+                        for xf in self._startup_watcher.audit():
+                            sev = (Colors.GAUGE_RED
+                                   if xf['severity'] == 'CRITICAL'
+                                   else Colors.GAUGE_YELLOW)
+                            self.after(0, lambda xx=xf: self._queue_alert(
+                                f'[STARTUP/{xx["severity"]}] '
+                                f'{xx["detail"]}', sev))
+                except Exception as e:
+                    error_logger.log('DefenseSuite', 'v29.69 loop', e)
 
         threading.Thread(target=_run_defense_suite, daemon=True,
                          name='DefenseSuite').start()
