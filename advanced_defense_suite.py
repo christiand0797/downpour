@@ -891,3 +891,300 @@ class NetworkBaseline:
     @property
     def baseline_size(self) -> int:
         return len(self._baseline)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 11. SCHEDULED TASK REAL-TIME MONITOR (MITRE T1053)
+# ══════════════════════════════════════════════════════════════════════════
+
+class ScheduledTaskMonitor:
+    """Monitor scheduled tasks for new/modified entries."""
+
+    SUSPICIOUS_PATHS = ['\\temp\\', '\\appdata\\local\\temp\\',
+                        '\\downloads\\', '\\users\\public\\',
+                        '\\programdata\\']
+    SUSPICIOUS_BINS = ['powershell', 'cmd ', 'wscript', 'cscript',
+                       'mshta', 'certutil', 'bitsadmin', 'rundll32',
+                       'regsvr32', 'msbuild', 'installutil']
+
+    def __init__(self):
+        self._baseline: Dict[str, Dict] = {}
+        self._baselined = False
+
+    def _scan(self) -> Dict[str, Dict]:
+        import subprocess as _sp
+        import csv as _csv
+        import io as _io
+        try:
+            r = _sp.run(['schtasks', '/query', '/fo', 'CSV', '/v'],
+                        capture_output=True, text=True, timeout=30,
+                        creationflags=0x08000000)
+        except Exception:
+            return {}
+        tasks = {}
+        try:
+            for row in _csv.DictReader(_io.StringIO(r.stdout)):
+                name = row.get('TaskName', '')
+                if name:
+                    tasks[name] = {
+                        'name': name, 'status': row.get('Status', ''),
+                        'author': row.get('Author', ''),
+                        'action': row.get('Task To Run', ''),
+                    }
+        except Exception:
+            pass
+        return tasks
+
+    def check(self) -> List[Dict]:
+        current = self._scan()
+        alerts = []
+        if not self._baselined:
+            self._baseline = current
+            self._baselined = True
+            return alerts
+        for name, info in current.items():
+            if name not in self._baseline:
+                action = info.get('action', '').lower()
+                suspicious = (any(sp in action for sp in
+                                  self.SUSPICIOUS_PATHS) or
+                              any(sb in action for sb in
+                                  self.SUSPICIOUS_BINS))
+                alerts.append({
+                    'type': 'new_task', 'name': name,
+                    'action': info.get('action', '')[:200],
+                    'suspicious': suspicious,
+                    'severity': 'HIGH' if suspicious else 'INFO',
+                    'mitre': 'T1053.005' if suspicious else '',
+                })
+        for name, info in current.items():
+            old = self._baseline.get(name)
+            if old and old.get('action') != info.get('action'):
+                alerts.append({
+                    'type': 'modified_task', 'name': name,
+                    'severity': 'HIGH', 'mitre': 'T1053.005'})
+        self._baseline = current
+        return alerts
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 12. THREAT ACTOR ATTRIBUTION
+# ══════════════════════════════════════════════════════════════════════════
+
+class ThreatActorProfiler:
+    """Attribute detections to known threat actor groups based on
+    observed MITRE technique combinations and target sectors."""
+
+    ACTORS = {
+        'Lazarus Group': {
+            'techniques': ['T1566.001', 'T1059.001', 'T1055', 'T1486'],
+            'targets': ['cryptocurrency', 'defense', 'entertainment'],
+            'description': 'DPRK-nexus, financial motivation'},
+        'APT28 (Fancy Bear)': {
+            'techniques': ['T1566.001', 'T1078', 'T1071.001',
+                           'T1003.001'],
+            'targets': ['government', 'military', 'elections'],
+            'description': 'GRU-linked espionage'},
+        'APT29 (Cozy Bear)': {
+            'techniques': ['T1190', 'T1078', 'T1562.001', 'T1053.005'],
+            'targets': ['government', 'think-tank'],
+            'description': 'SVR-linked sophisticated espionage'},
+        'APT41 (Double Dragon)': {
+            'techniques': ['T1190', 'T1505.003', 'T1059.001'],
+            'targets': ['healthcare', 'telecom', 'gaming'],
+            'description': 'Chinese state + criminal duality'},
+        'FIN7': {
+            'techniques': ['T1566.001', 'T1053.005', 'T1021.002'],
+            'targets': ['retail', 'hospitality', 'financial'],
+            'description': 'Financial crime, POS fraud'},
+        'Ryuk/Conti': {
+            'techniques': ['T1486', 'T1490', 'T1053.005'],
+            'targets': ['healthcare', 'municipal'],
+            'description': 'Big-game ransomware'},
+        'LockBit': {
+            'techniques': ['T1486', 'T1490', 'T1021.001'],
+            'targets': ['all sectors'],
+            'description': 'RaaS, highest volume'},
+    }
+
+    def attribute(self, detected_techniques: List[str],
+                  targets: List[str] = None) -> List[Dict]:
+        """Given detected MITRE techniques, rank likely threat actors."""
+        detected = set(detected_techniques)
+        candidates = []
+        for actor, profile in self.ACTORS.items():
+            overlap = detected & set(profile['techniques'])
+            if not overlap:
+                continue
+            confidence = len(overlap) / len(profile['techniques'])
+            if targets and set(t.lower() for t in targets) & \
+                    set(profile['targets']):
+                confidence = min(1.0, confidence + 0.2)
+            candidates.append({
+                'actor': actor,
+                'confidence': round(confidence, 2),
+                'matched': sorted(overlap),
+                'description': profile['description'],
+            })
+        candidates.sort(key=lambda c: c['confidence'], reverse=True)
+        return candidates[:5]
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 13. AUTOMATED FORENSIC SNAPSHOT
+# ══════════════════════════════════════════════════════════════════════════
+
+class ForensicSnapshot:
+    """One-click collection of volatile data for incident response."""
+
+    def collect(self, output_dir: str = '') -> Dict[str, Any]:
+        import json as _j
+        import socket
+        from datetime import datetime, timezone
+        out_dir = Path(output_dir or Path(__file__).resolve().parent /
+                       'downpour_data' / 'snapshots')
+        out_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
+        report: Dict[str, Any] = {
+            'collected_at': datetime.now(timezone.utc).isoformat(),
+            'hostname': socket.gethostname(), 'sections': {}}
+        try:
+            import psutil
+            report['sections']['processes'] = [
+                {'pid': p.pid, 'name': p.info.get('name', ''),
+                 'cmdline': ' '.join(
+                     p.info.get('cmdline') or [])[:200]}
+                for p in psutil.process_iter(
+                    ['pid', 'name', 'cmdline'])]
+            report['sections']['connections'] = [
+                {'local': f'{c.laddr.ip}:{c.laddr.port}',
+                 'remote': f'{c.raddr.ip}:{c.raddr.port}'
+                 if c.raddr else '', 'status': c.status, 'pid': c.pid}
+                for c in psutil.net_connections(kind='inet')
+                if c.status == 'ESTABLISHED']
+        except Exception:
+            pass
+        try:
+            import winreg
+            autoruns = []
+            for hive, path in [
+                (winreg.HKEY_LOCAL_MACHINE,
+                 r'SOFTWARE\Microsoft\Windows\CurrentVersion\Run'),
+                (winreg.HKEY_CURRENT_USER,
+                 r'SOFTWARE\Microsoft\Windows\CurrentVersion\Run')]:
+                try:
+                    k = winreg.OpenKey(hive, path)
+                    i = 0
+                    while True:
+                        try:
+                            name, val, _ = winreg.EnumValue(k, i)
+                            autoruns.append({'name': name, 'value': val})
+                            i += 1
+                        except OSError:
+                            break
+                    winreg.CloseKey(k)
+                except Exception:
+                    pass
+            report['sections']['autoruns'] = autoruns
+        except Exception:
+            pass
+        try:
+            import psutil
+            report['sections']['services'] = [
+                {'name': s.info.get('name', ''),
+                 'status': s.info.get('status', '')}
+                for s in psutil.win_service_iter()
+                if s.info.get('status') == 'running']
+        except Exception:
+            pass
+        fpath = out_dir / f'forensic_snapshot_{ts}.json'
+        try:
+            fpath.write_text(_j.dumps(report, indent=2, default=str),
+                             encoding='utf-8')
+            report['saved_to'] = str(fpath)
+        except Exception:
+            pass
+        return report
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 14. ATTACK SURFACE CALCULATOR
+# ══════════════════════════════════════════════════════════════════════════
+
+class AttackSurfaceCalculator:
+    """Calculate a real-time attack surface score (0-100, lower=better)
+    combining: listening ports, firewall state, Defender, UAC, SMBv1."""
+
+    def calculate(self) -> Dict[str, Any]:
+        score = 0
+        factors = []
+        try:
+            import psutil
+            for c in psutil.net_connections(kind='inet'):
+                if c.status == 'LISTEN' and c.laddr:
+                    port = c.laddr.port
+                    if port in (21, 23, 135, 139, 445, 3389, 5985):
+                        score += 15
+                        factors.append(f'High-risk port {port} listening')
+                    elif port in (80, 443, 8080):
+                        score += 5
+                        factors.append(f'Web port {port} open')
+                    else:
+                        score += 2
+        except Exception:
+            pass
+        try:
+            import subprocess as _sp
+            r = _sp.run(['netsh', 'advfirewall', 'show', 'allprofiles',
+                         'state'], capture_output=True, text=True,
+                        timeout=10, creationflags=0x08000000)
+            off_count = (r.stdout or '').lower().count('off')
+            if off_count:
+                score += off_count * 10
+                factors.append(f'{off_count} firewall profile(s) OFF')
+        except Exception:
+            pass
+        try:
+            import winreg
+            k = winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r'SOFTWARE\Microsoft\Windows Defender\Real-Time Protection',
+                0, winreg.KEY_READ)
+            v, _ = winreg.QueryValueEx(k, 'DisableRealtimeMonitoring')
+            winreg.CloseKey(k)
+            if v == 1:
+                score += 20
+                factors.append('Defender RTP disabled')
+        except Exception:
+            pass
+        try:
+            import winreg
+            k = winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r'SOFTWARE\Microsoft\Windows\CurrentVersion\Policies'
+                r'\System', 0, winreg.KEY_READ)
+            lua, _ = winreg.QueryValueEx(k, 'EnableLUA')
+            winreg.CloseKey(k)
+            if lua != 1:
+                score += 15
+                factors.append('UAC disabled')
+        except Exception:
+            pass
+        try:
+            import winreg
+            k = winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r'SYSTEM\CurrentControlSet\Services\LanmanServer'
+                r'\Parameters', 0, winreg.KEY_READ)
+            smb1, _ = winreg.QueryValueEx(k, 'SMB1')
+            winreg.CloseKey(k)
+            if smb1 != 0:
+                score += 15
+                factors.append('SMBv1 enabled')
+        except Exception:
+            pass
+        score = min(100, score)
+        return {'score': score,
+                'risk_level': ('CRITICAL' if score >= 60 else
+                               'HIGH' if score >= 40 else
+                               'MEDIUM' if score >= 20 else 'LOW'),
+                'factors': factors}
