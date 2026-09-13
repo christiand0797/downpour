@@ -39103,7 +39103,9 @@ Verification Status:
             from advanced_defense_suite import (
                 HoneytokenSuite, CISBenchmark, NtdllIntegrityChecker,
                 SOARPlaybooks, CertificateStoreMonitor,
-                ProcessTreeAnalyzer)
+                ProcessTreeAnalyzer, IFEOWatcher,
+                RegistryHoneyPersistence, KernelDriverAuditor,
+                BrowserExtensionAuditor)
         except ImportError:
             return  # module unavailable — skip silently
 
@@ -39113,6 +39115,17 @@ Verification Status:
         self._ntdll_checker = NtdllIntegrityChecker()
         self._cert_monitor = CertificateStoreMonitor()
         self._pt_analyzer = ProcessTreeAnalyzer()
+        try:
+            self._ifeo_watcher = IFEOWatcher()
+            self._honey_persist = RegistryHoneyPersistence()
+            self._driver_auditor = KernelDriverAuditor()
+            self._ext_auditor = BrowserExtensionAuditor()
+        except Exception as e:
+            error_logger.log('DefenseSuite', 'v29.62 watchers init', e)
+            self._ifeo_watcher = None
+            self._honey_persist = None
+            self._driver_auditor = None
+            self._ext_auditor = None
 
         def _run_defense_suite():
             # Deploy honeytokens (5 canary files + 1 DNS canary)
@@ -39159,6 +39172,61 @@ Verification Status:
             except Exception as e:
                 error_logger.log('DefenseSuite', 'cert scan', e)
 
+            # v29.62: honey persistence tripwires (deploy, idempotent)
+            if self._honey_persist:
+                try:
+                    hn = self._honey_persist.deploy()
+                    if hn:
+                        logger.info('DefenseSuite: %d registry honey '
+                                    'persistence tripwires', hn)
+                except Exception as e:
+                    error_logger.log('DefenseSuite', 'honey persist deploy',
+                                     e)
+
+            # v29.62: kernel driver audit (once at startup)
+            if self._driver_auditor:
+                try:
+                    dr = self._driver_auditor.audit()
+                    logger.info('DefenseSuite: %d kernel drivers loaded '
+                                '(findings=%d, unauditable=%d)',
+                                dr['total_loaded'], len(dr['findings']),
+                                dr['unauditable'])
+                    for df in dr['findings'][:12]:
+                        sev = (Colors.GAUGE_RED
+                               if df['severity'] == 'CRITICAL'
+                               else Colors.GAUGE_YELLOW)
+                        self.after(0, lambda dd=df: self._queue_alert(
+                            f'[DRIVER/{dd["severity"]}] {dd["detail"]}',
+                            sev))
+                except Exception as e:
+                    error_logger.log('DefenseSuite', 'driver audit', e)
+
+            # v29.62: browser extension audit (once at startup)
+            if self._ext_auditor:
+                try:
+                    ex = self._ext_auditor.audit()
+                    logger.info('DefenseSuite: %d browser extensions '
+                                'audited (findings=%d)',
+                                ex['scanned'], len(ex['findings']))
+                    for ef in ex['findings'][:12]:
+                        sev = (Colors.GAUGE_RED
+                               if ef['severity'] == 'CRITICAL'
+                               else Colors.GAUGE_YELLOW)
+                        self.after(0, lambda ee=ef: self._queue_alert(
+                            f'[EXT/{ee["severity"]}] {ee["detail"]}',
+                            sev))
+                except Exception as e:
+                    error_logger.log('DefenseSuite', 'extension audit', e)
+
+            # v29.62: IFEO initial audit (TOFU baseline on first run)
+            if self._ifeo_watcher:
+                try:
+                    ife = self._ifeo_watcher.audit()
+                    logger.info('DefenseSuite: IFEO baseline built '
+                                '(findings=%d)', len(ife))
+                except Exception as e:
+                    error_logger.log('DefenseSuite', 'ifeo audit', e)
+
             # Monitoring loop: check canaries every 30s
             while True:
                 time.sleep(30)
@@ -39172,6 +39240,24 @@ Verification Status:
                             Colors.GAUGE_RED))
                 except Exception as e:
                     error_logger.log('DefenseSuite', 'canary check', e)
+
+                # v29.62: registry honey persistence + IFEO diff each tick
+                try:
+                    if self._honey_persist:
+                        for hf in self._honey_persist.check():
+                            sev = (Colors.GAUGE_RED
+                                   if hf['severity'] == 'CRITICAL'
+                                   else Colors.GAUGE_YELLOW)
+                            self.after(0, lambda hh=hf: self._queue_alert(
+                                f'[HONEY-PERSIST/{hh["severity"]}] '
+                                f'{hh["detail"]}', sev))
+                    if self._ifeo_watcher:
+                        for iff in self._ifeo_watcher.audit():
+                            self.after(0, lambda ii=iff: self._queue_alert(
+                                f'[IFEO/{ii["severity"]}] {ii["detail"]}',
+                                Colors.GAUGE_RED))
+                except Exception as e:
+                    error_logger.log('DefenseSuite', 'v29.62 loop', e)
 
         threading.Thread(target=_run_defense_suite, daemon=True,
                          name='DefenseSuite').start()

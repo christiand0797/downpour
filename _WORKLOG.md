@@ -1,5 +1,59 @@
 # Downpour v29 Titanium — Enhancement Worklog
 
+## Session 2026-09-12 — v29.62: Defense Suite +4 (18 total) + zombie-jam forensics
+
+**User directive:** "continue" (standing: make Downpour the most feature-
+packed security suite possible; always push; never run/kill Downpour GUI).
+
+### New capabilities (all native, no PowerShell, never raise)
+15. **IFEOWatcher** — T1546.012 baseline+diff (Debugger/GlobalFlag/
+    SilentProcessExit), TOFU baseline in downpour_data/ifeo_baseline.json.
+    Live: found pre-existing mpcmdrun.exe Debugger entry; baselined;
+    second run 0 findings.
+16. **RegistryHoneyPersistence** — T1060 Run-key canaries. Live: tamper →
+    CRITICAL detected; restore → clean. HKLM canary deploys when elevated.
+17. **KernelDriverAuditor** — T1014/T1068. Deep-dive debugging saga:
+    - GetModuleFileNameExW does NOT work for driver bases (user-module
+      API) → silent zero results / returns python.exe fallback.
+    - EnumDeviceDrivers/K32EnumDeviceDrivers on this Win11 insider build
+      (10.0.27975) returns TRUE + count 240 but an ALL-NULL buffer when
+      non-elevated (silent OS gate; verified across 5 ctypes passing
+      variants). NtQuerySystemInformation(11) also gated (permanent
+      0xC0000004 even with a 93 KB buffer).
+    - Final design: K32 primary (works elevated) with all-null detection
+      → WMI Win32_SystemDriver State='Running' fallback via
+      native_probes.get_system_drivers() (MTA-safe COM), PathName
+      normalization for \SystemRoot\, \??\ and RELATIVE paths.
+    - Live: 190 running drivers, all paths resolved, BYOVD hit:
+      **msio64.sys (MSI Afterburner) CRITICAL on this machine**;
+      signature statuses all 'Unknown' non-elevated (honest tri-state —
+      elevated app resolves real verdicts).
+18. **BrowserExtensionAuditor** — T1176. Chrome/Edge/Brave + Firefox.
+    Subsumption-dedup for permission combos. Live: 5 scanned; Claude
+    extension flagged (debugger + nativeMessaging) — genuine permission
+    advisory, kept.
+
+### Zombie-jam forensics (test suite hang at test #160)
+- Suite hung 10+ min at TestDarkTitlebar (test #160); collect-only also
+  hung → systemic, not code.
+- Root cause: ~12 ORPHANED multiprocessing spawn workers (parents dead,
+  incl. several from the old stray Python315 interpreter era) + a hung
+  pytest holding file locks; one spawn child stuck on a dead pipe kept
+  the pytest waiting forever.
+- Surgical cleanup script: listed python PIDs w/ ParentProcessId +
+  CommandLine; killed ONLY cmdlines containing 'pytest' + spawn children
+  with provably-dead parents; printed every KEEP/KILL. 13 killed, all
+  strays gone, nothing else touched. PID 13052 (stuck pytest in kernel
+  wait) self-resolved once children died.
+- Re-run on clean table: **389 passed, 1 skipped, 103.79s** — DarkTitlebar
+  passes normally; hang fully explained by the jam.
+
+### Files
+- advanced_defense_suite.py: +4 classes (now 18, ~1,666 lines)
+- downpour_v29_titanium.py: _init_defense_suite wiring (startup audits +
+  30s loop IFEO/honey checks)
+- docs/CHANGELOG.md: v29.62 entry
+
 ## OPERATIONAL RULE (user directive, 2026-09-12)
 
 **Downpour must ALWAYS run with its GUI. Never launch, test, or restart

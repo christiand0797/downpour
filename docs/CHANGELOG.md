@@ -1,5 +1,46 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.62 — Advanced Defense Suite: +4 capabilities (18 total)
+- **15. IFEO Hijack Watcher (T1546.012)** — baseline+diff over HKLM
+  `Image File Execution Options` Debugger/GlobalFlag values incl.
+  SilentProcessExit-style planting; TOFU baseline persists under
+  `downpour_data` so a hijack planted while Downpour is OFF is flagged at
+  next start. Live: surfaced the pre-existing `mpcmdrun.exe` Debugger
+  entry and baselined it; second run clean (0 FP).
+- **16. Registry Honey Persistence (T1060 tripwires)** — plausible-but-dead
+  Run-key canaries (HKCU×2 + HKLM×1 when elevated); any modification,
+  deletion, or rewrite = HIGH/CRITICAL alert. Live-tested: deploy 2
+  (HKLM skipped in non-admin test shell), tamper → CRITICAL detected,
+  restore → clean.
+- **17. Kernel Driver Auditor (T1014/T1068)** — live audit of loaded
+  kernel drivers. Primary: `K32EnumDeviceDrivers` +
+  `GetDeviceDriverBaseNameW`. On Win11 insider builds these APIs are
+  gated non-elevated (return TRUE + count but an all-NULL buffer) —
+  detected and treated as a fallback signal → WMI `Win32_SystemDriver`
+  (State='Running') via the MTA-safe COM helper, with `\SystemRoot\`,
+  `\??\`, and relative-path normalization. Checks: user-writable load
+  paths, BYOVD blocklist (reuses persistence_watchers), per-driver
+  Authenticode via native WinVerifyTrust (tri-state honest: 'Unknown'
+  counted, never a false positive). **Live: flagged `msio64.sys`
+  (MSI Afterburner BYOVD) as CRITICAL on this machine.**
+- **18. Browser Extension Auditor (T1176)** — Chrome/Edge/Brave
+  manifest walk (newest version per extension) + Firefox
+  `extensions.json`; flags sideloaded extensions (non-official
+  update_url), dangerous permission combos with subsumption dedup
+  (debugger rights; nativeMessaging+downloads), and all-sites +
+  clipboardRead exfil capability. Live: 5 extensions scanned, 2 true
+  advisory findings on the user's own Claude extension (debugger +
+  nativeMessaging rights — real permission-based risk, kept as HIGH).
+- **Wired into `_init_defense_suite`**: honey persistence deploy +
+  driver audit + extension audit + IFEO baseline at startup; the 30s
+  monitoring loop now also diffs IFEO and honey-persistence canaries.
+- Suite header updated: 18 capabilities. All native APIs — zero
+  PowerShell. Full suite: **389 passed, 1 skipped** (on a clean process
+  table; an earlier run hang was traced to ~12 orphaned multiprocessing
+  spawn zombies from dead parents + file locks, not to code changes —
+  cleaned surgically via per-PID command-line verification, GUI session
+  protected per the GUI-always rule).
+
 ## v29.61 - Advanced Defense Suite (6 new EDR/HIDS capabilities)
 - NEW `advanced_defense_suite.py` — 6 capabilities that fill genuine gaps
   vs commercial EDR/HIDS products (CrowdStrike, SentinelOne, Velociraptor):

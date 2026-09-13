@@ -1,24 +1,38 @@
 """
-ADVANCED DEFENSE SUITE — v29.61
+ADVANCED DEFENSE SUITE — v29.62
 ================================================================================
-Six capabilities that fill genuine gaps vs commercial EDR/HIDS products
+Capabilities that fill genuine gaps vs commercial EDR/HIDS products
 (CrowdStrike, SentinelOne, Velociraptor, Wazuh, Sysinternals):
 
-  1. HONEYTOKEN SUITE       — Canary files/DNS/shares; instant CRITICAL
-                              alert on any touch (Think Canary principle)
-  2. CIS BENCHMARK SCORING  — 30+ automated checks scoring the system
-                              against CIS Windows 10/11 Level 1/2
-  3. NTDLL INTEGRITY CHECK  — Compare in-memory .text vs on-disk ntdll.dll;
-                              detect inline API hooks / rootkit patches
-  4. SOAR RESPONSE PLAYBOOKS — Configurable if/then automated response
-                               chains triggered by MITRE technique/severity
-  5. CERT STORE MONITOR     — Detect rogue root CAs added to the trusted
-                              store (MITM tools: Burp, mitmproxy, malware)
-  6. PROCESS TREE RULES     — MITRE-mapped parent→child anomaly engine
-                              (office→cmd, browser→powershell, svchost
-                              spoofing, credential-dumping chains)
+   1. HONEYTOKEN SUITE        — Canary files/DNS/shares; instant CRITICAL
+                                alert on any touch (Think Canary principle)
+   2. CIS BENCHMARK SCORING   — 30+ automated checks scoring the system
+                                against CIS Windows 10/11 Level 1/2
+   3. NTDLL INTEGRITY CHECK   — Compare in-memory .text vs on-disk ntdll.dll;
+                                detect inline API hooks / rootkit patches
+   4. SOAR RESPONSE PLAYBOOKS — Configurable if/then automated response
+                                chains triggered by MITRE technique/severity
+   5. CERT STORE MONITOR      — Detect rogue root CAs added to the trusted
+                                store (MITM tools: Burp, mitmproxy, malware)
+   6. PROCESS TREE RULES      — MITRE-mapped parent→child anomaly engine
+                                (office→cmd, browser→powershell, svchost
+                                spoofing, credential-dumping chains)
+   7. CLIPBOARD HIJACK        — Crypto wallet address swap detection (T1115)
+   8. BROWSER CRED MONITOR    — Non-browser opening credential DBs (T1555.003)
+   9. MITRE COVERAGE MATRIX   — Tactic-level coverage / gap reporting
+  10. NETWORK BASELINE        — Learn normal conns, alert on new ones
+  11. SCHEDULED TASK MONITOR  — Baseline + diff over task XML (T1053.005)
+  12. THREAT ACTOR PROFILER   — Attribute findings to known APT groups
+  13. FORENSIC SNAPSHOT       — One-click volatile data collection
+  14. ATTACK SURFACE CALC     — Real-time 0-100 exposure score
+  15. IFEO HIJACK WATCHER     — Debugger/GlobalFlag/SilentProcessExit
+                                baseline+diff (T1546.012)
+  16. REGISTRY HONEY PERSIST  — Canary Run-key tripwires (T1060 tamper)
+  17. KERNEL DRIVER AUDITOR   — Live driver signature audit (T1014/T1068)
+  18. BROWSER EXTENSION AUDIT — Rogue/malicious extension detection (T1176)
 
-Every function is best-effort and never raises.
+Every function is best-effort and never raises. All native APIs —
+no PowerShell anywhere.
 """
 
 from __future__ import annotations
@@ -1188,3 +1202,539 @@ class AttackSurfaceCalculator:
                                'HIGH' if score >= 40 else
                                'MEDIUM' if score >= 20 else 'LOW'),
                 'factors': factors}
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 15. IFEO HIJACK WATCHER (T1546.012)
+# ══════════════════════════════════════════════════════════════════════════
+
+_IFEO_KEY = (r'SOFTWARE\Microsoft\Windows NT\CurrentVersion'
+             r'\Image File Execution Options')
+_IFEO_HOSTILE_VALUES = {'Debugger', 'GlobalFlag', 'SiDisableDebugger'}
+
+
+class IFEOWatcher:
+    """Baseline + diff over Image File Execution Options (T1546.012).
+
+    An attacker with HKLM write access can set Debugger=malware.exe under
+    IFEO\\target.exe so every launch of the target silently executes the
+    implant. Also tracks SilentProcessExit-style GlobalFlag planting.
+    TOFU baseline persisted under downpour_data so a hijack planted while
+    Downpour is OFF is flagged at next start.
+    """
+
+    def __init__(self, data_dir: str = 'downpour_data'):
+        self._baseline_file = (Path(data_dir) / 'ifeo_baseline.json')
+        self._baseline: Dict[str, Dict] = self._load()
+
+    def _load(self) -> Dict[str, Dict]:
+        try:
+            if self._baseline_file.is_file():
+                return json.loads(self._baseline_file.read_text(
+                    encoding='utf-8')).get('entries', {})
+        except Exception as exc:
+            _log.debug('ifeo baseline load: %s', exc)
+        return {}
+
+    def _save(self) -> None:
+        try:
+            self._baseline_file.parent.mkdir(parents=True, exist_ok=True)
+            self._baseline_file.write_text(json.dumps(
+                {'entries': self._baseline}, indent=2), encoding='utf-8')
+        except Exception as exc:
+            _log.debug('ifeo baseline save: %s', exc)
+
+    @staticmethod
+    def _read_subkeys() -> Dict[str, Dict[str, str]]:
+        """Snapshot of IFEO subkeys that carry hijack-relevant values."""
+        import winreg
+        snap: Dict[str, Dict[str, str]] = {}
+        try:
+            k = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, _IFEO_KEY, 0,
+                               winreg.KEY_READ)
+        except OSError:
+            return snap
+        try:
+            i = 0
+            while True:
+                try:
+                    sub = winreg.EnumKey(k, i)
+                    i += 1
+                except OSError:
+                    break
+                try:
+                    sk = winreg.OpenKey(k, sub)
+                except OSError:
+                    continue
+                try:
+                    j = 0
+                    vals: Dict[str, str] = {}
+                    while True:
+                        try:
+                            name, val, _t = winreg.EnumValue(sk, j)
+                            j += 1
+                        except OSError:
+                            break
+                        if name in _IFEO_HOSTILE_VALUES:
+                            vals[name] = str(val)
+                    if vals:
+                        snap[sub.lower()] = vals
+                finally:
+                    try:
+                        winreg.CloseKey(sk)
+                    except Exception:
+                        pass
+        finally:
+            try:
+                winreg.CloseKey(k)
+            except Exception:
+                pass
+        return snap
+
+    def audit(self) -> List[Dict]:
+        """Diff current IFEO state vs baseline; return findings; TOFU-update."""
+        findings: List[Dict] = []
+        snap = self._read_subkeys()
+        for sub, vals in snap.items():
+            old = self._baseline.get(sub)
+            if old is None:
+                findings.append({'type': 'new', 'subkey': sub,
+                                 'values': vals, 'mitre': 'T1546.012',
+                                 'severity': 'HIGH',
+                                 'detail': f'IFEO hijack values appeared: '
+                                           f'{vals}'})
+            elif old != vals:
+                findings.append({'type': 'changed', 'subkey': sub,
+                                 'values': vals, 'old': old,
+                                 'mitre': 'T1546.012', 'severity': 'HIGH',
+                                 'detail': f'IFEO values changed: '
+                                           f'{old} -> {vals}'})
+        for sub in list(self._baseline):
+            if sub not in snap:
+                findings.append({'type': 'vanished', 'subkey': sub,
+                                 'mitre': 'T1546.012', 'severity': 'MEDIUM',
+                                 'detail': 'IFEO baseline entry disappeared'})
+                del self._baseline[sub]
+        if snap != self._baseline:
+            self._baseline = snap
+            self._save()
+        return findings
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 16. REGISTRY HONEY PERSISTENCE (T1060 tripwires)
+# ══════════════════════════════════════════════════════════════════════════
+
+class RegistryHoneyPersistence:
+    """Canary entries inside the Run keys (T1060 tamper tripwires).
+
+    Deploys plausible-but-dead autostart values pointing at a
+    non-existent canary path. Any modification, deletion, or type change
+    of these values means an actor enumerated / rewrote the persistence
+    key — near-zero-FP because legitimate software never touches foreign
+    Run entries.
+    """
+
+    _CANARIES_HKCU = [
+        ('IntelGfxTrayHelper',
+         r'C:\Program Files\Intel\GfxTray\gfx_helper_tray.exe /quiet'),
+        ('OneDriveSyncTelemetry',
+         r'C:\Program Files\Microsoft OneDrive\TelemetrySync'
+         r'\odsync_tel.exe -b'),
+    ]
+    _CANARIES_HKLM = [
+        ('RealtekAudioGuard',
+         r'C:\Program Files\Realtek\Audio\HDA\rtk_guard_svc.exe -s'),
+    ]
+    _RUN_HKCU = r'Software\Microsoft\Windows\CurrentVersion\Run'
+    _RUN_HKLM = r'SOFTWARE\Microsoft\Windows\CurrentVersion\Run'
+
+    def __init__(self, data_dir: str = 'downpour_data'):
+        self._state_file = (Path(data_dir) / 'honey_persist_state.json')
+        self._state: Dict[str, Dict] = self._load()
+
+    def _load(self) -> Dict[str, Dict]:
+        try:
+            if self._state_file.is_file():
+                return json.loads(self._state_file.read_text(
+                    encoding='utf-8')).get('canaries', {})
+        except Exception as exc:
+            _log.debug('honey persist state load: %s', exc)
+        return {}
+
+    def _save(self) -> None:
+        try:
+            self._state_file.parent.mkdir(parents=True, exist_ok=True)
+            self._state_file.write_text(json.dumps(
+                {'canaries': self._state}, indent=2), encoding='utf-8')
+        except Exception as exc:
+            _log.debug('honey persist state save: %s', exc)
+
+    def deploy(self) -> int:
+        """Plant canary Run values (idempotent). Returns count deployed."""
+        import winreg
+        deployed = 0
+        plans = [(winreg.HKEY_CURRENT_USER, self._RUN_HKCU,
+                  self._CANARIES_HKCU, 'HKCU'),
+                 (winreg.HKEY_LOCAL_MACHINE, self._RUN_HKLM,
+                  self._CANARIES_HKLM, 'HKLM')]
+        for hive, path, canaries, hname in plans:
+            try:
+                k = winreg.OpenKey(hive, path, 0, winreg.KEY_SET_VALUE)
+            except OSError as exc:
+                _log.debug('honey persist open(%s): %s', hname, exc)
+                continue
+            try:
+                for name, cmd in canaries:
+                    try:
+                        winreg.SetValueEx(k, name, 0, winreg.REG_SZ, cmd)
+                        self._state[f'{hname}:{name}'] = {
+                            'value': cmd, 'type': 'REG_SZ',
+                            'deployed': time.time()}
+                        deployed += 1
+                    except OSError as exc:
+                        _log.debug('honey persist set(%s:%s): %s',
+                                   hname, name, exc)
+            finally:
+                try:
+                    winreg.CloseKey(k)
+                except Exception:
+                    pass
+        self._save()
+        return deployed
+
+    def check(self) -> List[Dict]:
+        """Verify every canary still has its exact original value."""
+        import winreg
+        findings: List[Dict] = []
+        for key_id, rec in list(self._state.items()):
+            hname, name = key_id.split(':', 1)
+            hive = (winreg.HKEY_CURRENT_USER if hname == 'HKCU'
+                    else winreg.HKEY_LOCAL_MACHINE)
+            path = (self._RUN_HKCU if hname == 'HKCU' else self._RUN_HKLM)
+            try:
+                k = winreg.OpenKey(hive, path, 0, winreg.KEY_READ)
+            except OSError:
+                findings.append({'type': 'key_gone', 'where': key_id,
+                                 'mitre': 'T1060', 'severity': 'HIGH',
+                                 'detail': f'Honey persistence key missing: '
+                                           f'{key_id}'})
+                continue
+            try:
+                try:
+                    val, _t = winreg.QueryValueEx(k, name)
+                except OSError:
+                    findings.append({'type': 'value_deleted', 'where': key_id,
+                                     'mitre': 'T1060', 'severity': 'HIGH',
+                                     'detail': f'Honey persistence value '
+                                               f'deleted: {key_id}'})
+                    continue
+                if str(val) != rec.get('value'):
+                    findings.append({'type': 'value_modified',
+                                     'where': key_id, 'mitre': 'T1060',
+                                     'severity': 'CRITICAL',
+                                     'detail': f'Honey persistence value '
+                                               f'rewritten: {key_id}: '
+                                               f'{rec.get("value")!r} -> '
+                                               f'{val!r}'})
+            finally:
+                try:
+                    winreg.CloseKey(k)
+                except Exception:
+                    pass
+        return findings
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 17. KERNEL DRIVER AUDITOR (T1014 / T1068)
+# ══════════════════════════════════════════════════════════════════════════
+
+class KernelDriverAuditor:
+    """Live audit of loaded kernel drivers (T1014 rootkit / T1068 BYOVD).
+
+    Enumerates loaded kernel modules via PSAPI EnumDeviceDrivers, then for
+    each driver:
+      * flags drivers loaded from user-writable paths (Temp/AppData/
+        ProgramData/Downloads) — legitimate drivers live in System32\\drivers
+      * flags notorious BYOVD names (reuses persistence_watchers blocklist)
+      * verifies the Authenticode verdict via native WinVerifyTrust — a
+        definitive NotSigned/HashMismatch on a non-Microsoft path is a HIGH
+        finding; 'Unknown' (provider gated) is only counted, never a
+        false positive.
+    """
+
+    _USER_WRITABLE = ('\\appdata\\', '\\temp\\', '\\tmp\\',
+                      '\\programdata\\', '\\downloads\\', '\\desktop\\',
+                      '\\users\\public\\')
+
+    def audit(self) -> Dict[str, Any]:
+        pairs = self._enumerate()
+        findings: List[Dict] = []
+        unauditable = 0
+        byovd = self._byovd_names()
+        for name, path in pairs:
+            low = name.lower()
+            if low in byovd:
+                findings.append({'type': 'byovd', 'name': name,
+                                 'mitre': 'T1068', 'severity': 'CRITICAL',
+                                 'detail': f'Known vulnerable driver '
+                                           f'loaded: {name}'})
+            if not path:
+                # Loaded in kernel but image not under standard system
+                # dirs — unusual in itself, but not conclusive.
+                unauditable += 1
+                continue
+            if any(m in path.lower() for m in self._USER_WRITABLE):
+                findings.append({'type': 'user_writable_path', 'path': path,
+                                 'mitre': 'T1014', 'severity': 'HIGH',
+                                 'detail': f'Kernel driver loaded from a '
+                                           f'user-writable location: '
+                                           f'{path}'})
+            try:
+                import native_probes
+                status = native_probes.authenticode_status(path)
+            except Exception:
+                status = 'Error'
+            if status in ('Unknown', 'Error'):
+                unauditable += 1
+            elif status in ('NotSigned', 'HashMismatch', 'BadSignature'):
+                findings.append({'type': 'unsigned_driver', 'path': path,
+                                 'mitre': 'T1014', 'severity': 'HIGH',
+                                 'detail': f'Kernel driver failed signature '
+                                           f'verification ({status}): '
+                                           f'{path}'})
+        return {'total_loaded': len(pairs), 'findings': findings,
+                'unauditable': unauditable}
+
+    @staticmethod
+    def _byovd_names() -> set:
+        try:
+            from persistence_watchers import BYOVD_BLOCKLIST
+            return {n.lower() for n in BYOVD_BLOCKLIST}
+        except Exception:
+            return set()
+
+    @staticmethod
+    def _enumerate() -> List[tuple]:
+        """Loaded kernel drivers as [(basename, full_path_or_empty), ...].
+
+        Source 1 (primary, works elevated): K32EnumDeviceDrivers +
+        GetDeviceDriverBaseNameW. On Win11 insider builds this API is
+        gated for non-elevated callers — it returns TRUE with the count
+        but the buffer arrives all-NULL, which is detected and treated
+        as a fallback signal.
+        Source 2 (fallback, works non-elevated): WMI Win32_SystemDriver
+        rows with State='Running' via the MTA-safe COM SWbemLocator
+        helper — PathName gives the full image path directly.
+        """
+        import ctypes
+        from ctypes import wintypes
+        pairs: List[tuple] = []
+        try:
+            kernel32 = ctypes.WinDLL('kernel32.dll', use_last_error=True)
+            psapi = ctypes.WinDLL('Psapi.dll', use_last_error=True)
+            psapi.GetDeviceDriverBaseNameW.argtypes = [
+                ctypes.c_uint64, wintypes.LPWSTR, wintypes.DWORD]
+            psapi.GetDeviceDriverBaseNameW.restype = wintypes.DWORD
+            need = wintypes.DWORD(0)
+            if kernel32.K32EnumDeviceDrivers(None, 0, ctypes.byref(need)):
+                count = need.value // ctypes.sizeof(ctypes.c_uint64)
+                if count > 0:
+                    arr = (ctypes.c_uint64 * count)()
+                    got = wintypes.DWORD(0)
+                    if kernel32.K32EnumDeviceDrivers(
+                            arr, ctypes.sizeof(arr), ctypes.byref(got)):
+                        n = got.value // ctypes.sizeof(ctypes.c_uint64)
+                        buf = ctypes.create_unicode_buffer(512)
+                        seen = set()
+                        filled = 0
+                        for i in range(n):
+                            base = arr[i]
+                            if not base:
+                                continue
+                            filled += 1
+                            if not psapi.GetDeviceDriverBaseNameW(
+                                    base, buf, 512):
+                                continue
+                            nm = buf.value
+                            if not nm:
+                                continue
+                            lnm = nm.lower()
+                            if lnm in seen:
+                                continue
+                            seen.add(lnm)
+                            pairs.append((nm, KernelDriverAuditor.
+                                          _resolve_image(lnm)))
+                        if filled:
+                            return pairs
+                        # ok=1 but zero-filled buffer = API gated
+                        # (non-elevated insider builds) → fall through
+        except Exception as exc:
+            _log.debug('K32EnumDeviceDrivers: %s', exc)
+        # ── Fallback: WMI Win32_SystemDriver (State='Running') ──
+        try:
+            import native_probes
+            rows = native_probes.get_system_drivers()
+            sysroot = os.environ.get('SystemRoot', r'C:\Windows')
+            seen = set()
+            for row in rows:
+                if (row.get('State') or '').lower() != 'running':
+                    continue
+                pname = row.get('PathName') or ''
+                if not pname:
+                    continue
+                p = pname.strip()
+                pl = p.lower()
+                if pl.startswith('\\systemroot\\'):
+                    p = os.path.join(sysroot, p[12:])
+                elif pl.startswith('\\??\\'):
+                    p = p[4:]
+                if not os.path.isfile(p) and not os.path.isabs(p):
+                    # WMI often returns kernel driver paths RELATIVE to
+                    # the Windows dir: 'System32\drivers\x.sys'
+                    cand = os.path.join(sysroot, p)
+                    if os.path.isfile(cand):
+                        p = cand
+                base = p.rsplit('\\', 1)[-1].lower()
+                if not base or base in seen:
+                    continue
+                seen.add(base)
+                pairs.append((base, p if os.path.isfile(p) else ''))
+        except Exception as exc:
+            _log.debug('WMI driver fallback: %s', exc)
+        return pairs
+
+    @staticmethod
+    def _resolve_image(driver_name: str) -> str:
+        """Resolve a driver base name to its on-disk image path."""
+        sysroot = os.environ.get('SystemRoot', r'C:\Windows')
+        for rel in (r'system32\drivers', 'system32',
+                    r'syswow64\drivers', 'syswow64'):
+            cand = os.path.join(sysroot, rel, driver_name)
+            if os.path.isfile(cand):
+                return cand
+        return ''
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 18. BROWSER EXTENSION AUDITOR (T1176)
+# ══════════════════════════════════════════════════════════════════════════
+
+class BrowserExtensionAuditor:
+    """Detect rogue / over-privileged browser extensions (T1176).
+
+    Chromium family (Chrome/Edge/Brave): walks <User Data>\\<Profile>\\
+    Extensions\\<id>\\<version>\\manifest.json.
+    Firefox: parses extensions.json inside each profile.
+    Flags: sideloaded (update_url not an official store), dangerous
+    permission combos (debugger / nativeMessaging+downloads), and
+    all-sites-read + clipboard exfil capability.
+    """
+
+    _CHROMIUM = [
+        ('Chrome', r'Google\Chrome\User Data'),
+        ('Edge', r'Microsoft\Edge\User Data'),
+        ('Brave', r'BraveSoftware\Brave-Browser\User Data'),
+    ]
+    _OFFICIAL_UPDATE_HOSTS = ('.google.com/', 'edge.microsoft.com',
+                              'brave.com')
+    _DANGEROUS_COMBO = [
+        ({'nativeMessaging', 'debugger'}, 'debugger + nativeMessaging'),
+        ({'nativeMessaging', 'downloads'}, 'downloads + nativeMessaging'),
+        ({'debugger'}, 'chrome debugger API rights'),
+    ]
+
+    def audit(self) -> Dict[str, Any]:
+        findings: List[Dict] = []
+        scanned = 0
+        la = os.environ.get('LOCALAPPDATA', '')
+        for browser, rel in self._CHROMIUM:
+            base = os.path.join(la, rel)
+            if not os.path.isdir(base):
+                continue
+            for entry in sorted(os.listdir(base)):
+                prof = os.path.join(base, entry)
+                ext_dir = os.path.join(prof, 'Extensions')
+                if not (os.path.isdir(prof) and os.path.isdir(ext_dir)):
+                    continue
+                for ext_id in os.listdir(ext_dir):
+                    ext_path = os.path.join(ext_dir, ext_id)
+                    if not os.path.isdir(ext_path):
+                        continue
+                    for ver in os.listdir(ext_path):
+                        mf = os.path.join(ext_path, ver, 'manifest.json')
+                        if os.path.isfile(mf):
+                            scanned += 1
+                            findings.extend(self._audit_manifest(
+                                browser, ext_id, mf))
+                        break  # newest version dir only
+        ff = self._audit_firefox()
+        scanned += ff['scanned']
+        findings.extend(ff['findings'])
+        return {'scanned': scanned, 'findings': findings}
+
+    def _audit_manifest(self, browser: str, ext_id: str, manifest_path: str
+                        ) -> List[Dict]:
+        findings: List[Dict] = []
+        try:
+            data = json.loads(Path(manifest_path).read_text(
+                encoding='utf-8', errors='replace'))
+        except Exception:
+            return findings
+        name = data.get('name', ext_id)
+        perms = set(data.get('permissions') or [])
+        hosts = set(data.get('host_permissions') or [])
+        update_url = data.get('update_url', '')
+
+        if update_url and not any(h in update_url for h in
+                                  self._OFFICIAL_UPDATE_HOSTS):
+            findings.append({'type': 'sideloaded', 'browser': browser,
+                             'id': ext_id, 'name': name, 'mitre': 'T1176',
+                             'severity': 'MEDIUM',
+                             'detail': f'{browser} extension installed '
+                                       f'outside official store: {name} '
+                                       f'({ext_id})'})
+        for combo, why in self._DANGEROUS_COMBO:
+            if combo <= perms and not any(c < combo for c, _ in
+                                          self._DANGEROUS_COMBO
+                                          if c <= perms):
+                findings.append({'type': 'dangerous_permissions',
+                                 'browser': browser, 'id': ext_id,
+                                 'name': name, 'mitre': 'T1176',
+                                 'severity': 'HIGH',
+                                 'detail': f'{browser} extension with {why}: '
+                                           f'{name} ({ext_id})'})
+        if '<all_urls>' in hosts and 'clipboardRead' in perms:
+            findings.append({'type': 'exfil_capability', 'browser': browser,
+                             'id': ext_id, 'name': name, 'mitre': 'T1176',
+                             'severity': 'MEDIUM',
+                             'detail': f'{browser} extension can read all '
+                                       f'sites + clipboard: {name}'})
+        return findings
+
+    @staticmethod
+    def _audit_firefox() -> Dict[str, Any]:
+        import glob
+        findings: List[Dict] = []
+        scanned = 0
+        ro = os.environ.get('APPDATA', '')
+        for prof in glob.glob(os.path.join(
+                ro, 'Mozilla', 'Firefox', 'Profiles', '*', 'extensions.json')):
+            try:
+                data = json.loads(Path(prof).read_text(
+                    encoding='utf-8', errors='replace'))
+            except Exception:
+                continue
+            for addon in data.get('addons', []):
+                scanned += 1
+                if addon.get('location') in ('app-profile',
+                                             'app-system-user'):
+                    findings.append({
+                        'type': 'sideloaded', 'browser': 'Firefox',
+                        'id': addon.get('id', ''),
+                        'name': addon.get('defaultLocale', {}).get(
+                            'name', addon.get('id', '')),
+                        'mitre': 'T1176', 'severity': 'MEDIUM',
+                        'detail': f'Firefox sideloaded add-on: '
+                                  f'{addon.get("id", "")}'})
+        return {'scanned': scanned, 'findings': findings}
