@@ -1,5 +1,16 @@
 # Downpour v29 Titanium — Enhancement Worklog
 
+## OPERATIONAL RULE (user directive, 2026-09-12)
+
+**Downpour must ALWAYS run with its GUI. Never launch, test, or restart
+Downpour headless / windowless / hidden. Never `taskkill` live
+python.exe/Downpour processes to "clean up" between commands — the user
+may have a live GUI session. Verified 2026-09-12: the codebase has no
+headless path (main() always creates + shows the Tk window; the only
+`withdraw()` sites are user-initiated tray actions; `--no-window` appears
+solely as a hijack-detection signature; CREATE_NO_WINDOW only wraps child
+helper exes like bcdedit/netstat).**
+
 ## Branch: main
 
 ## Session 2026-09-12 — v29.60b: manual code review fixes
