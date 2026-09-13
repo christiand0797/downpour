@@ -1,5 +1,31 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.70 — Advanced Defense Suite: +3 capabilities (30 total)
+- **28. Network Config Integrity Watcher (T1557)** — baseline+diff over
+  the silent MITM prerequisites: user proxy (ProxyEnable/ProxyServer/
+  AutoConfigURL via HKCU Internet Settings), machine proxy (netsh
+  winhttp), per-adapter DNS resolvers (WMI
+  Win32_NetworkAdapterConfiguration, IPEnabled only). New/changed = 
+  HIGH; a non-empty AutoConfigURL at first baseline surfaces once.
+- **29. Windows Update Origin Watcher (T1197)** — baseline+diff over
+  the WSUS policy keys (WUServer/WUStatusServer/UseWUServer under
+  HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate). A NEW
+  update-origin policy appearing after baseline = CRITICAL (updates
+  install from a foreign host as SYSTEM); policy removal MEDIUM
+  (hardening vs cover-tracks). Legit corporate WSUS baselined at
+  first start.
+- **30. Elevation Prerequisite Checker (T1548/T1078)** — state checks,
+  no baseline by design: AlwaysInstallElevated=1 (machine and/or user
+  hive → user-level MSI runs as SYSTEM when both set) and
+  AutoAdminLogon=1 with DefaultPassword in the registry (plaintext
+  credential exposure).
+- Wired into `_init_defense_suite`: netcfg + WU-origin baselines and
+  elevation prereqs at startup; all three in the 30s loop
+  (`[NETCFG/]`, `[WU-ORIGIN/]`, `[ELEVATION/]` alerts).
+- Suite: 30 capabilities, ~3,130 lines. Full suite **389 passed,
+  1 skipped** (91.6s). All three live-run clean on this machine
+  (no proxy/PAC/WSUS hijacks, no elevation prereqs).
+
 ## v29.69 — Advanced Defense Suite: +3 capabilities (27 total)
 - **25. WMI Subscription Watcher (T1546.003)** — baseline+diff over
   `root\subscription` (__EventFilter / CommandLineEventConsumer /

@@ -1,5 +1,34 @@
 # Downpour v29 Titanium — Enhancement Worklog
 
+## Session 2026-09-12 — v29.70: Defense Suite +3 (30 total)
+
+**User directive:** "continue" (standing: maximize capabilities, always
+push, GUI-always).
+
+### New capabilities (all native, no PowerShell, never raise)
+28. **NetworkConfigIntegrityWatcher** — T1557. Proxy/PAC/DNS-resolver
+    baseline+diff (HKCU Internet Settings + netsh winhttp + WMI
+    Win32_NetworkAdapterConfiguration). Live: clean, TOFU stable.
+29. **WindowsUpdateOriginWatcher** — T1197. WSUS policy hijack watch;
+    new origin = CRITICAL (SYSTEM-level fake-update install path).
+    Live: clean (no WSUS policy on this machine).
+30. **ElevationPrereqChecker** — T1548/T1078. AlwaysInstallElevated
+    (both hives) + AutoAdminLogon plaintext DefaultPassword. No
+    baseline by design. Live: 0 findings.
+
+### Session recovery note (before this batch)
+- The mass-delete walk deleted 1,989 files from .venv (exclude list
+  had 'venv' but not '.venv') and one tracked __init__.py.
+- Tracked files restored via `git restore .`; .venv rebuilt from
+  scratch via requirements.txt; 2 impossible pins fixed
+  (yara-x>=1.23.0 → >=1.0.0, GPUtil>=1.4.1 → >=1.4.0) — commit
+  5dec553. Full suite verified 389 passed / 1 skipped post-rebuild.
+
+### Verification
+- 3/3 live-run clean, TOFU stable.
+- Full suite: **389 passed, 1 skipped** (91.6s).
+- Wired into `_init_defense_suite` (startup + 30s loop).
+
 ## Session 2026-09-12 — v29.69: Defense Suite +3 (27 total)
 
 **User directive:** "continue" / "push all changes to the github repo".

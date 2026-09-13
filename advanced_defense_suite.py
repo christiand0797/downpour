@@ -39,6 +39,9 @@ Capabilities that fill genuine gaps vs commercial EDR/HIDS products
   25. WMI SUBSCRIPTION WATCH  — Permanent event consumers/bindings (T1546.003)
   26. DEFENDER EXCLUSION WAT  — Foreign exclusions, RTP flip (T1562.001)
   27. STARTUP FOLDER WATCHER  — New .lnk/.exe drops in Startup (T1547.001)
+  28. NETWORK CONFIG WATCHER  — Proxy/PAC/DNS-resolver changes (T1557)
+  29. WU ORIGIN WATCHER       — WSUS/update-source hijack (T1197)
+  30. ELEVATION PREREQ CHECK  — AlwaysInstallElevated, AutoLogon creds
 
 Every function is best-effort and never raises. All native APIs —
 no PowerShell anywhere.
@@ -2795,3 +2798,338 @@ class StartupFolderWatcher:
             self._baseline = cur
             self._save()
         return findings
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 28. NETWORK CONFIG INTEGRITY WATCHER (T1557 — MITM prerequisites)
+# ══════════════════════════════════════════════════════════════════════════
+
+class NetworkConfigIntegrityWatcher:
+    """Baseline + diff over traffic-redirection configuration (T1557).
+
+    Silent MITM prerequisites that generate no events on their own:
+      * user proxy: ProxyEnable / ProxyServer / AutoConfigURL
+        (HKCU Internet Settings)
+      * machine proxy: netsh winhttp show proxy
+      * per-adapter DNS resolvers: WMI Win32_NetworkAdapterConfiguration
+    A planted proxy or a foreign resolver routes every HTTPS session
+    through an attacker listener. Baseline + diff; a non-empty
+    AutoConfigURL at FIRST baseline is surfaced once (unusual by
+    itself), afterwards only CHANGES alert.
+    """
+
+    _INET_KEY = (r'Software\Microsoft\Windows\CurrentVersion'
+                 r'\Internet Settings')
+
+    def __init__(self, data_dir: str = 'downpour_data'):
+        self._baseline_file = (Path(data_dir) / 'netcfg_baseline.json')
+        self._baseline: Dict[str, str] = self._load()
+
+    def _load(self) -> Dict[str, str]:
+        try:
+            if self._baseline_file.is_file():
+                return json.loads(self._baseline_file.read_text(
+                    encoding='utf-8')).get('entries', {})
+        except Exception as exc:
+            _log.debug('netcfg baseline load: %s', exc)
+        return {}
+
+    def _save(self) -> None:
+        try:
+            self._baseline_file.parent.mkdir(parents=True, exist_ok=True)
+            self._baseline_file.write_text(json.dumps(
+                {'entries': self._baseline}, indent=2), encoding='utf-8')
+        except Exception as exc:
+            _log.debug('netcfg baseline save: %s', exc)
+
+    @staticmethod
+    def _read() -> Dict[str, str]:
+        import winreg
+        cur: Dict[str, str] = {}
+        try:
+            k = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                NetworkConfigIntegrityWatcher._INET_KEY, 0,
+                winreg.KEY_READ)
+        except OSError:
+            k = None
+        if k is not None:
+            try:
+                for name in ('ProxyEnable', 'ProxyServer',
+                             'AutoConfigURL'):
+                    try:
+                        v, _t = winreg.QueryValueEx(k, name)
+                        cur[f'user.{name}'] = str(v)
+                    except OSError:
+                        cur[f'user.{name}'] = ''
+            finally:
+                try:
+                    winreg.CloseKey(k)
+                except Exception:
+                    pass
+        try:
+            import subprocess as _sp
+            r = _sp.run(['netsh', 'winhttp', 'show', 'proxy'],
+                        capture_output=True, text=True, timeout=15,
+                        creationflags=0x08000000)
+            proxy = ''
+            for l in (r.stdout or '').splitlines():
+                if 'proxy server' in l.lower() and ':' in l:
+                    proxy = l.split(':', 1)[1].strip()
+            cur['machine.winhttp'] = proxy
+        except Exception as exc:
+            _log.debug('winhttp: %s', exc)
+        try:
+            import native_probes
+            rows = native_probes.wmi_wql_dicts(
+                r'root\cimv2',
+                'SELECT DNSServerSearchOrder '
+                'FROM Win32_NetworkAdapterConfiguration '
+                'WHERE IPEnabled=True',
+                ['DNSServerSearchOrder'])
+            dns = []
+            for row in rows:
+                o = row.get('DNSServerSearchOrder')
+                if not o:
+                    continue
+                if isinstance(o, (list, tuple)):
+                    dns.extend(str(x) for x in o)
+                else:
+                    dns.append(str(o))
+            cur['adapters.dns'] = ','.join(sorted(set(dns)))
+        except Exception as exc:
+            _log.debug('dns adapters: %s', exc)
+        return cur
+
+    def audit(self) -> List[Dict]:
+        findings: List[Dict] = []
+        cur = self._read()
+        for key, val in cur.items():
+            old = self._baseline.get(key)
+            if old is None:
+                if key == 'user.AutoConfigURL' and val:
+                    findings.append({
+                        'type': 'pac_url_set', 'key': key,
+                        'mitre': 'T1557', 'severity': 'HIGH',
+                        'detail': f'Proxy auto-config URL set: {val}'})
+            elif old != val:
+                findings.append({
+                    'type': 'config_changed', 'key': key,
+                    'mitre': 'T1557', 'severity': 'HIGH',
+                    'detail': f'Network redirection config changed: '
+                              f'{key}: {old!r} -> {val!r}'})
+        for key in list(self._baseline):
+            if key not in cur:
+                findings.append({
+                    'type': 'config_key_missing', 'key': key,
+                    'mitre': 'T1557', 'severity': 'MEDIUM',
+                    'detail': f'Network config entry disappeared: '
+                              f'{key}'})
+        if cur != self._baseline:
+            self._baseline = cur
+            self._save()
+        return findings
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 29. WINDOWS UPDATE ORIGIN WATCHER (T1197)
+# ══════════════════════════════════════════════════════════════════════════
+
+class WindowsUpdateOriginWatcher:
+    """Baseline + diff over the WSUS/update-origin policy (T1197).
+
+    Repointing WUServer at a foreign host makes Windows accept
+    'updates' from attacker infrastructure (SYSTEM-level install
+    path). Legit corporate WSUS is baselined at first start; a NEW
+    WUServer/UseWUServer=1 appearing later is CRITICAL.
+    """
+
+    _KEYS = (
+        (r'SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate',
+         ('WUServer', 'WUStatusServer')),
+        (r'SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU',
+         ('UseWUServer',)),
+    )
+
+    def __init__(self, data_dir: str = 'downpour_data'):
+        self._baseline_file = (Path(data_dir) / 'wu_origin_baseline.json')
+        self._baseline: Dict[str, str] = self._load()
+
+    def _load(self) -> Dict[str, str]:
+        try:
+            if self._baseline_file.is_file():
+                return json.loads(self._baseline_file.read_text(
+                    encoding='utf-8')).get('entries', {})
+        except Exception as exc:
+            _log.debug('wu-origin baseline load: %s', exc)
+        return {}
+
+    def _save(self) -> None:
+        try:
+            self._baseline_file.parent.mkdir(parents=True, exist_ok=True)
+            self._baseline_file.write_text(json.dumps(
+                {'entries': self._baseline}, indent=2), encoding='utf-8')
+        except Exception as exc:
+            _log.debug('wu-origin baseline save: %s', exc)
+
+    @staticmethod
+    def _read() -> Dict[str, str]:
+        import winreg
+        cur: Dict[str, str] = {}
+        for sub, names in WindowsUpdateOriginWatcher._KEYS:
+            try:
+                k = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, sub, 0,
+                                   winreg.KEY_READ)
+            except OSError:
+                continue
+            try:
+                for name in names:
+                    try:
+                        v, _t = winreg.QueryValueEx(k, name)
+                        cur[f'{sub}\\{name}'.lower()] = str(v)
+                    except OSError:
+                        pass
+            finally:
+                try:
+                    winreg.CloseKey(k)
+                except Exception:
+                    pass
+        return cur
+
+    def audit(self) -> List[Dict]:
+        findings: List[Dict] = []
+        cur = self._read()
+        for key, val in cur.items():
+            old = self._baseline.get(key)
+            if old is None:
+                kl = key.lower()
+                if (kl.endswith('wuserver') or
+                        kl.endswith('wustatusserver') or
+                        kl.endswith('usewuserver')):
+                    findings.append({
+                        'type': 'update_origin_set', 'key': key,
+                        'mitre': 'T1197', 'severity': 'CRITICAL',
+                        'detail': f'Windows Update origin policy '
+                                  f'appears: {key} = {val} '
+                                  f'(updates install from this host '
+                                  f'as SYSTEM)'})
+            elif old != val:
+                findings.append({
+                    'type': 'update_origin_changed', 'key': key,
+                    'mitre': 'T1197', 'severity': 'CRITICAL',
+                    'detail': f'Windows Update origin changed: '
+                              f'{key}: {old!r} -> {val!r}'})
+        for key in list(self._baseline):
+            if key not in cur:
+                findings.append({
+                    'type': 'update_policy_removed', 'key': key,
+                    'mitre': 'T1197', 'severity': 'MEDIUM',
+                    'detail': f'Update-origin policy removed: {key}'})
+        if cur != self._baseline:
+            self._baseline = cur
+            self._save()
+        return findings
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 30. ELEVATION PREREQUISITE CHECKER (T1548 / T1078 exposure)
+# ══════════════════════════════════════════════════════════════════════════
+
+class ElevationPrereqChecker:
+    """State checks for standing elevation/credential exposures.
+
+    No baseline by design — these states are never legitimately set:
+      * AlwaysInstallElevated=1 in both hives → any user-level MSI
+        installs as SYSTEM (CIS L1 privesc check)
+      * AutoAdminLogon=1 with DefaultPassword present → plaintext
+        credential in the registry
+    """
+
+    _MSI_KEYS = (r'SOFTWARE\Policies\Microsoft\Windows\Installer',
+                 r'SOFTWARE\Microsoft\Windows\CurrentVersion'
+                 r'\Policies\Installer')
+
+    def check(self) -> List[Dict]:
+        import winreg
+        findings: List[Dict] = []
+        hklm = (self._get_dword(winreg.HKEY_LOCAL_MACHINE,
+                                self._MSI_KEYS[0],
+                                'AlwaysInstallElevated') or
+                self._get_dword(winreg.HKEY_LOCAL_MACHINE,
+                                self._MSI_KEYS[1],
+                                'AlwaysInstallElevated'))
+        hkcu = self._get_dword(winreg.HKEY_CURRENT_USER,
+                               self._MSI_KEYS[0],
+                               'AlwaysInstallElevated')
+        if hklm == 1:
+            findings.append({
+                'type': 'always_install_elevated_hklm',
+                'mitre': 'T1548', 'severity': 'HIGH',
+                'detail': 'Machine policy AlwaysInstallElevated=1 '
+                          '(MSI installs run elevated)'})
+        if hkcu == 1:
+            findings.append({
+                'type': 'always_install_elevated_hkcu',
+                'mitre': 'T1548', 'severity': 'HIGH',
+                'detail': 'User policy AlwaysInstallElevated=1 — '
+                          'combined with the machine policy, ANY '
+                          'user-level MSI runs as SYSTEM'})
+        auto, pwd = self._winlogon_creds()
+        if auto == '1' and pwd == 'set':
+            findings.append({
+                'type': 'autologon_plaintext_password',
+                'mitre': 'T1078', 'severity': 'HIGH',
+                'detail': 'AutoAdminLogon=1 with DefaultPassword '
+                          'stored in the registry (plaintext '
+                          'credential exposure)'})
+        return findings
+
+    @staticmethod
+    def _get_dword(hive, subkey, name) -> int:
+        import winreg
+        try:
+            k = winreg.OpenKey(hive, subkey, 0, winreg.KEY_READ)
+        except OSError:
+            return 0
+        try:
+            v, _t = winreg.QueryValueEx(k, name)
+            try:
+                return int(v)
+            except (TypeError, ValueError):
+                return 0
+        except OSError:
+            return 0
+        finally:
+            try:
+                winreg.CloseKey(k)
+            except Exception:
+                pass
+
+    @staticmethod
+    def _winlogon_creds() -> tuple:
+        import winreg
+        try:
+            k = winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r'SOFTWARE\Microsoft\Windows NT\CurrentVersion'
+                r'\Winlogon', 0, winreg.KEY_READ)
+        except OSError:
+            return '', ''
+        try:
+            auto = pwd = ''
+            for name, tgt in (('AutoAdminLogon', 'auto'),
+                              ('DefaultPassword', 'pwd')):
+                try:
+                    v, _t = winreg.QueryValueEx(k, name)
+                    if tgt == 'auto':
+                        auto = str(v).strip()
+                    else:
+                        pwd = str(v)
+                except OSError:
+                    pass
+            return auto, ('set' if pwd else '')
+        finally:
+            try:
+                winreg.CloseKey(k)
+            except Exception:
+                pass

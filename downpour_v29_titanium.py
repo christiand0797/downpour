@@ -39109,7 +39109,9 @@ Verification Status:
                 BitsTransferMonitor, ComHijackWatcher,
                 UacBypassIocWatcher, FirewallRuleWatcher,
                 ServiceBinaryWatcher, WmiSubscriptionWatcher,
-                DefenderExclusionWatcher, StartupFolderWatcher)
+                DefenderExclusionWatcher, StartupFolderWatcher,
+                NetworkConfigIntegrityWatcher, WindowsUpdateOriginWatcher,
+                ElevationPrereqChecker)
         except ImportError:
             return  # module unavailable — skip silently
 
@@ -39133,6 +39135,9 @@ Verification Status:
             self._wmi_watcher = WmiSubscriptionWatcher()
             self._defexcl_watcher = DefenderExclusionWatcher()
             self._startup_watcher = StartupFolderWatcher()
+            self._netcfg_watcher = NetworkConfigIntegrityWatcher()
+            self._wu_origin_watcher = WindowsUpdateOriginWatcher()
+            self._elev_checker = ElevationPrereqChecker()
         except Exception as e:
             error_logger.log('DefenseSuite', 'watchers init', e)
             self._ifeo_watcher = None
@@ -39148,6 +39153,9 @@ Verification Status:
             self._wmi_watcher = None
             self._defexcl_watcher = None
             self._startup_watcher = None
+            self._netcfg_watcher = None
+            self._wu_origin_watcher = None
+            self._elev_checker = None
 
         def _run_defense_suite():
             # Deploy honeytokens (5 canary files + 1 DNS canary)
@@ -39301,6 +39309,31 @@ Verification Status:
                         error_logger.log('DefenseSuite', f'{label} audit',
                                          e)
 
+            # v29.70: netcfg + WU-origin baselines, elevation prereqs
+            if self._netcfg_watcher:
+                try:
+                    nf = self._netcfg_watcher.audit()
+                    logger.info('DefenseSuite: network-config baseline '
+                                'built (findings=%d)', len(nf))
+                except Exception as e:
+                    error_logger.log('DefenseSuite', 'netcfg audit', e)
+            if self._wu_origin_watcher:
+                try:
+                    wf = self._wu_origin_watcher.audit()
+                    logger.info('DefenseSuite: WU-origin baseline built '
+                                '(findings=%d)', len(wf))
+                except Exception as e:
+                    error_logger.log('DefenseSuite', 'wu-origin audit', e)
+            if self._elev_checker:
+                try:
+                    ef = self._elev_checker.check()
+                    for ef_ in ef:
+                        self.after(0, lambda ee=ef_: self._queue_alert(
+                            f'[ELEVATION/{ee_["severity"]}] '
+                            f'{ee_["detail"]}', Colors.GAUGE_YELLOW))
+                except Exception as e:
+                    error_logger.log('DefenseSuite', 'elevation audit', e)
+
             # Monitoring loop: check canaries every 30s
             while True:
                 time.sleep(30)
@@ -39413,6 +39446,29 @@ Verification Status:
                                 f'{xx["detail"]}', sev))
                 except Exception as e:
                     error_logger.log('DefenseSuite', 'v29.69 loop', e)
+
+                # v29.70: netcfg / WU-origin / elevation each tick
+                try:
+                    if self._netcfg_watcher:
+                        for nf2 in self._netcfg_watcher.audit():
+                            self.after(0, lambda nn=nf2: self._queue_alert(
+                                f'[NETCFG/{nn["severity"]}] '
+                                f'{nn["detail"]}', Colors.GAUGE_RED))
+                    if self._wu_origin_watcher:
+                        for wf2 in self._wu_origin_watcher.audit():
+                            sev = (Colors.GAUGE_RED
+                                   if wf2['severity'] == 'CRITICAL'
+                                   else Colors.GAUGE_YELLOW)
+                            self.after(0, lambda ww=wf2: self._queue_alert(
+                                f'[WU-ORIGIN/{ww["severity"]}] '
+                                f'{ww["detail"]}', sev))
+                    if self._elev_checker:
+                        for ef2 in self._elev_checker.check():
+                            self.after(0, lambda ee=ef2: self._queue_alert(
+                                f'[ELEVATION/{ee["severity"]}] '
+                                f'{ee["detail"]}', Colors.GAUGE_YELLOW))
+                except Exception as e:
+                    error_logger.log('DefenseSuite', 'v29.70 loop', e)
 
         threading.Thread(target=_run_defense_suite, daemon=True,
                          name='DefenseSuite').start()
