@@ -28,7 +28,7 @@ numpy>=2.0.0             # ML / behavioral analysis backend
 # ── Optional (feature toggles, graceful fallback when missing) ──────────────
 # YARA-X: VirusTotal's Rust YARA rewrite — 5-10x faster scanning of the
 # yara_rules/ rulesets (falls back to yara-python when absent)
-yara-x>=1.23.0
+yara-x>=1.0.0
 # System tray icon + restore window
 pystray>=0.19.5
 # Floating widgets, tray icon rendering, image analysis
@@ -43,7 +43,7 @@ scikit-learn>=1.5.0
 # Pattern matching signatures (fallback: regex engine)
 yara-python>=4.5.0
 # GPU fallback path when nvidia-ml-py is unavailable
-GPUtil>=1.4.1
+GPUtil>=1.4.0
 # Misc helpers used by cleanup / clipboard / progress paths
 joblib>=1.4.0
 tqdm>=4.66.0
