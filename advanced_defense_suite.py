@@ -30,6 +30,10 @@ Capabilities that fill genuine gaps vs commercial EDR/HIDS products
   16. REGISTRY HONEY PERSIST  — Canary Run-key tripwires (T1060 tamper)
   17. KERNEL DRIVER AUDITOR   — Live driver signature audit (T1014/T1068)
   18. BROWSER EXTENSION AUDIT — Rogue/malicious extension detection (T1176)
+  19. HOSTS FILE WATCHER      — Hosts tampering / sinkhole+redirect (T1565.001)
+  20. BITS TRANSFER MONITOR   — Stealth BITS download channel (T1197)
+  21. COM HIJACK WATCHER      — HKCU CLSID override + HKLM writable (T1546.015)
+  22. UAC BYPASS IOC WATCHER  — Auto-elevate hijack slots (T1548.002)
 
 Every function is best-effort and never raises. All native APIs —
 no PowerShell anywhere.
@@ -1738,3 +1742,502 @@ class BrowserExtensionAuditor:
                         'detail': f'Firefox sideloaded add-on: '
                                   f'{addon.get("id", "")}'})
         return {'scanned': scanned, 'findings': findings}
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 19. HOSTS FILE INTEGRITY WATCHER (T1565.001)
+# ══════════════════════════════════════════════════════════════════════════
+
+class HostsFileWatcher:
+    """Detect hostile tampering with the hosts file (T1565.001).
+
+    Classic abuse: mapping security-update / AV / banking domains to
+    0.0.0.0 (blocking) or to attacker IPs (redirection). Downpour's own
+    remediation ALSO adds 0.0.0.0 sinkholes, so TOFU baselining is the
+    detection model: baseline the current mapping set; alert on NEW
+    mappings or changed targets, with extra severity for blocked
+    security-critical domains.
+    """
+
+    _SECURITY_CRITICAL = (
+        'microsoft.com', 'windowsupdate.com', 'virustotal.com',
+        'defender', 'msftconnecttest.com', 'office.com', 'azure.com',
+        'kaspersky', 'avast', 'avg.com', 'bitdefender', 'norton',
+        'mcafee', 'malwarebytes', 'eset', 'sophos')
+    _BENIGN_LOOPBACK = ('localhost',)
+
+    def __init__(self, data_dir: str = 'downpour_data'):
+        self._baseline_file = (Path(data_dir) / 'hosts_baseline.json')
+        self._hosts_path = os.path.join(
+            os.environ.get('SystemRoot', r'C:\Windows'),
+            r'System32\drivers\etc\hosts')
+        self._baseline: Dict[str, str] = self._load()
+
+    def _load(self) -> Dict[str, str]:
+        try:
+            if self._baseline_file.is_file():
+                return json.loads(self._baseline_file.read_text(
+                    encoding='utf-8')).get('entries', {})
+        except Exception as exc:
+            _log.debug('hosts baseline load: %s', exc)
+        return {}
+
+    def _save(self) -> None:
+        try:
+            self._baseline_file.parent.mkdir(parents=True, exist_ok=True)
+            self._baseline_file.write_text(json.dumps(
+                {'entries': self._baseline}, indent=2), encoding='utf-8')
+        except Exception as exc:
+            _log.debug('hosts baseline save: %s', exc)
+
+    def _read_entries(self) -> Dict[str, str]:
+        """Current hosts file as {domain_lower: ip} (last mapping wins)."""
+        entries: Dict[str, str] = {}
+        try:
+            for raw in Path(self._hosts_path).read_text(
+                    encoding='utf-8', errors='replace').splitlines():
+                line = raw.split('#', 1)[0].strip()
+                if not line:
+                    continue
+                parts = line.split()
+                if len(parts) < 2:
+                    continue
+                ip, domains = parts[0], parts[1:]
+                for d in domains:
+                    dl = d.lower()
+                    if dl in self._BENIGN_LOOPBACK:
+                        continue
+                    entries[dl] = ip
+        except OSError as exc:
+            _log.debug('hosts read: %s', exc)
+        return entries
+
+    def audit(self) -> List[Dict]:
+        """Diff current hosts mapping vs baseline; TOFU-update."""
+        findings: List[Dict] = []
+        cur = self._read_entries()
+        for domain, ip in cur.items():
+            old = self._baseline.get(domain)
+            if old is None:
+                sev = 'HIGH'
+                detail = f'New hosts mapping: {domain} -> {ip}'
+                if ip in ('0.0.0.0', '::') and any(
+                        s in domain for s in self._SECURITY_CRITICAL):
+                    sev = 'CRITICAL'
+                    detail = (f'Security domain BLOCKED via hosts: '
+                              f'{domain} -> {ip}')
+                elif ip not in ('0.0.0.0', '::', '127.0.0.1', '::1'):
+                    detail = (f'New hosts REDIRECTION: {domain} -> {ip}')
+                findings.append({'type': 'new_mapping', 'domain': domain,
+                                 'ip': ip, 'mitre': 'T1565.001',
+                                 'severity': sev, 'detail': detail})
+            elif old != ip:
+                findings.append({'type': 'changed_mapping',
+                                 'domain': domain, 'mitre': 'T1565.001',
+                                 'severity': 'HIGH',
+                                 'detail': f'Hosts mapping changed: '
+                                           f'{domain}: {old} -> {ip}'})
+        for domain in list(self._baseline):
+            if domain not in cur:
+                findings.append({'type': 'removed_mapping',
+                                 'domain': domain, 'mitre': 'T1565.001',
+                                 'severity': 'MEDIUM',
+                                 'detail': f'Hosts mapping disappeared: '
+                                           f'{domain} '
+                                           f'(cleanup or cover-tracks)'})
+        if cur != self._baseline:
+            self._baseline = cur
+            self._save()
+        return findings
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 20. BITS TRANSFER MONITOR (T1197)
+# ══════════════════════════════════════════════════════════════════════════
+
+class BitsTransferMonitor:
+    """Watch BITS job creation events (T1197).
+
+    BITS is a favorite stealth download/persistence channel because
+    transfers look like Windows Update traffic and survive reboots via
+    queued jobs. Reads Microsoft-Windows-Bits-Client/Operational
+    natively (EvtQuery) and flags jobs pulling from non-Microsoft hosts.
+    """
+
+    _CHANNEL = r'Microsoft-Windows-Bits-Client/Operational'
+    _XPATH = '*[System[(EventID=3)]]'  # 3 = A BITS job has been created
+    _MSFT_HOSTS = ('microsoft.com', 'windowsupdate.com', 'azureedge.net',
+                   'msedge.net', 'bing.com', 'office.com', 'live.com',
+                   'msn.com', 'windows.net')
+
+    def check(self, since_hours: float = 2.0,
+              max_events: int = 200) -> List[Dict]:
+        """Recent BITS job-creation events pulling from unusual hosts."""
+        import re as _re
+        import time as _time
+        from datetime import datetime, timedelta, timezone
+        findings: List[Dict] = []
+        try:
+            events = self._query(max_events)
+        except Exception as exc:
+            _log.debug('bits query: %s', exc)
+            return findings
+        cutoff = (datetime.now(timezone.utc) -
+                  timedelta(hours=since_hours)).timestamp()
+        for ev in events:
+            try:
+                tm = ev.get('time') or ''
+                ts = datetime.strptime(tm[:19],
+                                       '%Y-%m-%d %H:%M:%S').replace(
+                    tzinfo=timezone.utc).timestamp()
+            except Exception:
+                ts = None
+            if ts is not None and ts < cutoff:
+                continue
+            xml = ev.get('xml') or ''
+            urls = _re.findall(
+                r'<Data Name="[^"]*(?:url|Url|URL|remoteName)[^"]*">'
+                r'([^<]+)</Data>', xml)
+            if not urls:
+                m = _re.search(r'(https?://[^\s<"\']+)', xml)
+                urls = [m.group(1)] if m else []
+            for u in urls:
+                host = _re.sub(r'^[a-z]+://', '', u.lower()).split('/')[0]
+                host = host.split(':')[0].split('@')[-1]
+                if not host or any(host == h or host.endswith('.' + h)
+                                   for h in self._MSFT_HOSTS):
+                    continue
+                findings.append({
+                    'type': 'bits_non_msft_transfer', 'url': u[:200],
+                    'host': host, 'when': tm, 'mitre': 'T1197',
+                    'severity': 'MEDIUM',
+                    'detail': f'BITS transfer from non-Microsoft host: '
+                              f'{host} at {tm}'})
+        return findings
+
+    @staticmethod
+    def _query(max_events: int) -> List[Dict]:
+        try:
+            import native_probes
+            return native_probes.evt_query_events(
+                BitsTransferMonitor._CHANNEL, BitsTransferMonitor._XPATH,
+                max_events)
+        except Exception as exc:
+            _log.debug('bits evt_query: %s', exc)
+            return []
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 21. COM OBJECT HIJACK WATCHER (T1546.015)
+# ══════════════════════════════════════════════════════════════════════════
+
+class ComHijackWatcher:
+    """Detect COM object hijacking (T1546.015).
+
+    Two vectors, both monitored:
+      1. HKCU\\Software\\Classes\\CLSID\\<clsid>\\InprocServer32 — a
+         per-user override shadows the HKLM registration for the whole
+         session. Any NEW entry here is suspect (legit per-user COM
+         registrations exist, hence baseline+diff, not blanket alerts).
+      2. HKLM CLSID InprocServer32 values pointing at user-writable
+         paths (Temp/AppData/Downloads/ProgramData) — rare and a
+         STRONG signal regardless of baseline.
+    Also flags InprocServer32 targets that do not exist on disk (stale
+    or deliberately dangling -> loader fallback abuse).
+    """
+
+    _HKCU_CLSID = r'Software\Classes\CLSID'
+    _HKLM_CLSID = r'SOFTWARE\Classes\CLSID'
+    # CRITICAL-tier writable dirs (world/User-writable, no legit COM there)
+    _STRONG_WRITABLE = ('\\appdata\\', '\\temp\\', '\\tmp\\',
+                        '\\downloads\\', '\\desktop\\', '\\users\\public\\')
+    # ProgramData: vendor per-machine COM registrations are COMMON there
+    # (and ProgramData ACLs restrict overwrite of foreign files), so it
+    # is MEDIUM and baseline-tracked rather than a repeat-CRITICAL.
+    _SOFT_WRITABLE = ('\\programdata\\',)
+
+    def __init__(self, data_dir: str = 'downpour_data'):
+        self._baseline_file = (Path(data_dir) / 'comhijack_baseline.json')
+        self._baseline: Dict[str, str] = self._load()
+
+    def _load(self) -> Dict[str, str]:
+        try:
+            if self._baseline_file.is_file():
+                return json.loads(self._baseline_file.read_text(
+                    encoding='utf-8')).get('entries', {})
+        except Exception as exc:
+            _log.debug('comhijack baseline load: %s', exc)
+        return {}
+
+    def _save(self) -> None:
+        try:
+            self._baseline_file.parent.mkdir(parents=True, exist_ok=True)
+            self._baseline_file.write_text(json.dumps(
+                {'entries': self._baseline}, indent=2), encoding='utf-8')
+        except Exception as exc:
+            _log.debug('comhijack baseline save: %s', exc)
+
+    @staticmethod
+    def _scan_hkcu() -> Dict[str, str]:
+        """{clsid: dll_path} for every HKCU per-user CLSID override."""
+        import winreg
+        out: Dict[str, str] = {}
+        try:
+            root = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                                  ComHijackWatcher._HKCU_CLSID, 0,
+                                  winreg.KEY_READ)
+        except OSError:
+            return out
+        try:
+            i = 0
+            while True:
+                try:
+                    clsid = winreg.EnumKey(root, i)
+                    i += 1
+                except OSError:
+                    break
+                try:
+                    k = winreg.OpenKey(
+                        root, clsid + r'\InprocServer32', 0,
+                        winreg.KEY_READ)
+                except OSError:
+                    continue
+                try:
+                    try:
+                        val, _t = winreg.QueryValueEx(k, '')
+                        if isinstance(val, str) and val:
+                            out[clsid.upper()] = val.strip()
+                    except OSError:
+                        pass
+                finally:
+                    try:
+                        winreg.CloseKey(k)
+                    except Exception:
+                        pass
+        finally:
+            try:
+                winreg.CloseKey(root)
+            except Exception:
+                pass
+        return out
+
+    @staticmethod
+    def _scan_hklm_userwritable() -> List[tuple]:
+        """[(clsid, path)] for HKLM CLSID targets in writable dirs."""
+        import winreg
+        out: List[tuple] = []
+        try:
+            root = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                                  ComHijackWatcher._HKLM_CLSID, 0,
+                                  winreg.KEY_READ)
+        except OSError:
+            return out
+        try:
+            i = 0
+            while True:
+                try:
+                    clsid = winreg.EnumKey(root, i)
+                    i += 1
+                except OSError:
+                    break
+                try:
+                    k = winreg.OpenKey(
+                        root, clsid + r'\InprocServer32', 0,
+                        winreg.KEY_READ)
+                except OSError:
+                    continue
+                try:
+                    try:
+                        val, _t = winreg.QueryValueEx(k, '')
+                        if (isinstance(val, str) and val and
+                                '%' not in val):
+                            lv = val.strip().lower()
+                            if any(m in lv for m in
+                                   (ComHijackWatcher._STRONG_WRITABLE +
+                                    ComHijackWatcher._SOFT_WRITABLE)):
+                                out.append((clsid, val.strip()))
+                    except OSError:
+                        pass
+                finally:
+                    try:
+                        winreg.CloseKey(k)
+                    except Exception:
+                        pass
+        finally:
+            try:
+                winreg.CloseKey(root)
+            except Exception:
+                pass
+        return out
+
+    def audit(self, update_baseline: bool = True) -> List[Dict]:
+        """Diff HKCU overrides vs baseline + scan HKLM writable targets."""
+        findings: List[Dict] = []
+        cur = self._scan_hkcu()
+        for clsid, dll in cur.items():
+            low = dll.lower()
+            if clsid not in self._baseline:
+                sev = 'HIGH'
+                detail = (f'New HKCU COM hijack slot {clsid} -> {dll}')
+                if any(m in low for m in self._STRONG_WRITABLE):
+                    sev = 'CRITICAL'
+                    detail = (f'HKCU COM override to user-writable '
+                              f'path: {clsid} -> {dll}')
+                findings.append({'type': 'new_hkcu_override',
+                                 'clsid': clsid, 'target': dll,
+                                 'mitre': 'T1546.015', 'severity': sev,
+                                 'detail': detail})
+            elif self._baseline.get(clsid) != dll:
+                findings.append({'type': 'changed_override',
+                                 'clsid': clsid, 'mitre': 'T1546.015',
+                                 'severity': 'HIGH',
+                                 'detail': f'HKCU COM override changed: '
+                                           f'{clsid}: '
+                                           f'{self._baseline.get(clsid)} '
+                                           f'-> {dll}'})
+            elif not os.path.isfile(dll) and '%' not in dll:
+                findings.append({'type': 'dangling_override',
+                                 'clsid': clsid, 'mitre': 'T1546.015',
+                                 'severity': 'MEDIUM',
+                                 'detail': f'HKCU COM override target '
+                                           f'missing on disk: {dll}'})
+        # HKLM writable targets: TOFU-baselined under 'HKLM:{clsid}' keys
+        # so a vendor's legit ProgramData COM registration alerts once,
+        # and any CHANGE to its target re-alerts.
+        hklm_cur: Dict[str, str] = {}
+        for clsid, dll in self._scan_hklm_userwritable():
+            low = dll.lower()
+            key = f'HKLM:{clsid.upper()}'
+            hklm_cur[key] = dll
+            if key not in self._baseline:
+                sev = ('CRITICAL' if any(m in low for m in
+                                         self._STRONG_WRITABLE)
+                       else 'MEDIUM')
+                findings.append({'type': 'hklm_user_writable',
+                                 'clsid': clsid, 'mitre': 'T1546.015',
+                                 'severity': sev,
+                                 'detail': f'HKLM COM object loads from '
+                                           f'writable path: {clsid} -> '
+                                           f'{dll}'})
+            elif self._baseline.get(key) != dll:
+                findings.append({'type': 'hklm_target_changed',
+                                 'clsid': clsid, 'mitre': 'T1546.015',
+                                 'severity': 'HIGH',
+                                 'detail': f'HKLM COM target changed: '
+                                           f'{clsid}: '
+                                           f'{self._baseline.get(key)} -> '
+                                           f'{dll}'})
+        if update_baseline:
+            merged = dict(cur)
+            merged.update(hklm_cur)
+            if merged != self._baseline:
+                self._baseline = merged
+                self._save()
+        return findings
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 22. UAC BYPASS IOC WATCHER (T1548.002)
+# ══════════════════════════════════════════════════════════════════════════
+
+class UacBypassIocWatcher:
+    """Detect registry slots used by known UAC-bypass techniques
+    (T1548.002): HKCU\\Software\\Classes hijacks for auto-elevating
+    binaries.
+
+    fodhelper.exe, computerdefaults.exe, slui.exe, wsreset.exe,
+    sdclt.exe, eventvwr.exe (mscfile), and silentcleanup etc. all
+    auto-elevate WITHOUT a UAC prompt and then consult
+    HKCU\\Software\\Classes\\...\\shell\\open\\command — planting a
+    command there executes it as ADMIN. Legitimate software almost
+    never writes these exact keys, so ANY new one is a HIGH finding
+    (no baseline needed; a malicious 'allow' list isn't worth the FP
+    risk).
+    """
+
+    # HKCU\Software\Classes\<slot>\shell\open\command hijack slots
+    _AUTOELEVATE_SLOTS = (
+        'fodhelper.exe', 'computerdefaults.exe', 'slui.exe',
+        'wsreset.exe', 'sdclt.exe', 'systempropertiesadvanced.exe',
+        'systempropertiesprotection.exe', 'systempropertiesdata.exe',
+        'dccw.exe', 'cttune.exe', 'msconfig.exe',
+        # directory-based slots
+        'mscfile', 'exefile', 'Folder',
+    )
+    _CLASSES_ROOT = r'Software\Classes'
+
+    def __init__(self, data_dir: str = 'downpour_data'):
+        self._data_dir = data_dir
+
+    @staticmethod
+    def _read_command(slot: str) -> tuple:
+        """(command, delegate_present) for the slot's open command."""
+        import winreg
+        for sub in (r'\shell\open\command', r'\shell\runas\command'):
+            try:
+                k = winreg.OpenKey(
+                    winreg.HKEY_CURRENT_USER,
+                    UacBypassIocWatcher._CLASSES_ROOT + '\\' + slot + sub,
+                    0, winreg.KEY_READ)
+            except OSError:
+                continue
+            try:
+                cmd = ''
+                try:
+                    val, _t = winreg.QueryValueEx(k, '')
+                    if isinstance(val, str):
+                        cmd = val.strip()
+                except OSError:
+                    pass
+                delegate = False
+                try:
+                    dv, _t = winreg.QueryValueEx(k, 'DelegateExecute')
+                    delegate = bool(dv)
+                except OSError:
+                    pass
+                if cmd or delegate:
+                    return cmd, delegate
+            finally:
+                try:
+                    winreg.CloseKey(k)
+                except Exception:
+                    pass
+        return '', False
+
+    def check(self) -> List[Dict]:
+        """Flag planted open-commands under auto-elevate slots."""
+        import winreg
+        findings: List[Dict] = []
+        try:
+            root = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER, self._CLASSES_ROOT, 0,
+                winreg.KEY_READ)
+        except OSError:
+            return findings
+        try:
+            i = 0
+            while True:
+                try:
+                    name = winreg.EnumKey(root, i)
+                    i += 1
+                except OSError:
+                    break
+                nl = name.lower()
+                if nl not in self._AUTOELEVATE_SLOTS:
+                    continue
+                cmd, delegate = self._read_command(name)
+                if not cmd and not delegate:
+                    continue
+                findings.append({
+                    'type': 'uac_bypass_slot', 'slot': name,
+                    'command': cmd[:200], 'delegate': delegate,
+                    'mitre': 'T1548.002', 'severity': 'HIGH',
+                    'detail': f'UAC-bypass hijack slot planted: '
+                              f'HKCU\\...\\{name}\\shell\\open\\command '
+                              f'-> {cmd or "(DelegateExecute)"}'})
+        finally:
+            try:
+                winreg.CloseKey(root)
+            except Exception:
+                pass
+        return findings

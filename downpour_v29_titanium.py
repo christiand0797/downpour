@@ -39105,7 +39105,9 @@ Verification Status:
                 SOARPlaybooks, CertificateStoreMonitor,
                 ProcessTreeAnalyzer, IFEOWatcher,
                 RegistryHoneyPersistence, KernelDriverAuditor,
-                BrowserExtensionAuditor)
+                BrowserExtensionAuditor, HostsFileWatcher,
+                BitsTransferMonitor, ComHijackWatcher,
+                UacBypassIocWatcher)
         except ImportError:
             return  # module unavailable — skip silently
 
@@ -39120,12 +39122,20 @@ Verification Status:
             self._honey_persist = RegistryHoneyPersistence()
             self._driver_auditor = KernelDriverAuditor()
             self._ext_auditor = BrowserExtensionAuditor()
+            self._hosts_watcher = HostsFileWatcher()
+            self._bits_monitor = BitsTransferMonitor()
+            self._com_watcher = ComHijackWatcher()
+            self._uac_watcher = UacBypassIocWatcher()
         except Exception as e:
-            error_logger.log('DefenseSuite', 'v29.62 watchers init', e)
+            error_logger.log('DefenseSuite', 'v29.62/63 watchers init', e)
             self._ifeo_watcher = None
             self._honey_persist = None
             self._driver_auditor = None
             self._ext_auditor = None
+            self._hosts_watcher = None
+            self._bits_monitor = None
+            self._com_watcher = None
+            self._uac_watcher = None
 
         def _run_defense_suite():
             # Deploy honeytokens (5 canary files + 1 DNS canary)
@@ -39227,6 +39237,28 @@ Verification Status:
                 except Exception as e:
                     error_logger.log('DefenseSuite', 'ifeo audit', e)
 
+            # v29.63: hosts / COM initial audits (TOFU baselines)
+            if self._hosts_watcher:
+                try:
+                    hf = self._hosts_watcher.audit()
+                    logger.info('DefenseSuite: hosts baseline built '
+                                '(findings=%d)', len(hf))
+                except Exception as e:
+                    error_logger.log('DefenseSuite', 'hosts audit', e)
+            if self._com_watcher:
+                try:
+                    cf = self._com_watcher.audit()
+                    logger.info('DefenseSuite: COM baseline built '
+                                '(findings=%d)', len(cf))
+                    for cf_ in cf[:12]:
+                        sev = (Colors.GAUGE_RED
+                               if cf_['severity'] == 'CRITICAL'
+                               else Colors.GAUGE_YELLOW)
+                        self.after(0, lambda cc=cf_: self._queue_alert(
+                            f'[COM/{cc["severity"]}] {cc["detail"]}', sev))
+                except Exception as e:
+                    error_logger.log('DefenseSuite', 'com audit', e)
+
             # Monitoring loop: check canaries every 30s
             while True:
                 time.sleep(30)
@@ -39244,11 +39276,11 @@ Verification Status:
                 # v29.62: registry honey persistence + IFEO diff each tick
                 try:
                     if self._honey_persist:
-                        for hf in self._honey_persist.check():
+                        for hf_ in self._honey_persist.check():
                             sev = (Colors.GAUGE_RED
-                                   if hf['severity'] == 'CRITICAL'
+                                   if hf_['severity'] == 'CRITICAL'
                                    else Colors.GAUGE_YELLOW)
-                            self.after(0, lambda hh=hf: self._queue_alert(
+                            self.after(0, lambda hh=hf_: self._queue_alert(
                                 f'[HONEY-PERSIST/{hh["severity"]}] '
                                 f'{hh["detail"]}', sev))
                     if self._ifeo_watcher:
@@ -39258,6 +39290,37 @@ Verification Status:
                                 Colors.GAUGE_RED))
                 except Exception as e:
                     error_logger.log('DefenseSuite', 'v29.62 loop', e)
+
+                # v29.63: hosts / COM / UAC / BITS each tick
+                try:
+                    if self._hosts_watcher:
+                        for hf2 in self._hosts_watcher.audit():
+                            sev = (Colors.GAUGE_RED
+                                   if hf2['severity'] == 'CRITICAL'
+                                   else Colors.GAUGE_YELLOW)
+                            self.after(0, lambda hh=hf2: self._queue_alert(
+                                f'[HOSTS/{hh["severity"]}] {hh["detail"]}',
+                                sev))
+                    if self._com_watcher:
+                        for cf2 in self._com_watcher.audit():
+                            sev = (Colors.GAUGE_RED
+                                   if cf2['severity'] == 'CRITICAL'
+                                   else Colors.GAUGE_YELLOW)
+                            self.after(0, lambda cc=cf2: self._queue_alert(
+                                f'[COM/{cc["severity"]}] {cc["detail"]}',
+                                sev))
+                    if self._uac_watcher:
+                        for uf in self._uac_watcher.check():
+                            self.after(0, lambda uu=uf: self._queue_alert(
+                                f'[UAC-BYPASS/{uu["severity"]}] '
+                                f'{uu["detail"]}', Colors.GAUGE_RED))
+                    if self._bits_monitor:
+                        for bf in self._bits_monitor.check():
+                            self.after(0, lambda bb=bf: self._queue_alert(
+                                f'[BITS/{bb["severity"]}] {bb["detail"]}',
+                                Colors.GAUGE_YELLOW))
+                except Exception as e:
+                    error_logger.log('DefenseSuite', 'v29.63 loop', e)
 
         threading.Thread(target=_run_defense_suite, daemon=True,
                          name='DefenseSuite').start()

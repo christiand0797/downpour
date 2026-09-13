@@ -1,5 +1,37 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.63 — Advanced Defense Suite: +4 capabilities (22 total)
+- **19. Hosts File Integrity Watcher (T1565.001)** — TOFU baseline over
+  the hosts mapping set; NEW mappings HIGH, changed HIGH, removals
+  MEDIUM (cleanup vs cover-tracks); mapping a security-critical domain
+  (Windows Update, AV vendors, VirusTotal…) to 0.0.0.0 = CRITICAL.
+  Live: safe positive control on a temp hosts copy —
+  `0.0.0.0 windowsupdate.com` → CRITICAL, `10.9.9.9 evildomain` → HIGH
+  REDIRECTION, restore → removals detected, real hosts verified
+  untouched (the real file is write-protected non-elevated, as expected).
+- **20. BITS Transfer Monitor (T1197)** — reads
+  `Microsoft-Windows-Bits-Client/Operational` natively (EvtQuery);
+  flags BITS jobs pulling from non-Microsoft hosts (stealth download /
+  persistence channel that masquerades as Update traffic). Live:
+  channel readable, 0 non-MSFT transfers in 24h (clean).
+- **21. COM Object Hijack Watcher (T1546.015)** — two vectors:
+  HKCU `Software\Classes\CLSID\*\InprocServer32` per-user overrides
+  (baseline+diff; new HIGH, new+writable-path CRITICAL, changed HIGH,
+  dangling MEDIUM) and HKLM InprocServer32 targets in user-writable
+  dirs (ProgramData-tier MEDIUM + TOFU-baselined so vendor registrations
+  alert once — 5 legitimate ProgramData registrations found and
+  baselined on this machine; any change re-alerts HIGH).
+- **22. UAC Bypass IOC Watcher (T1548.002)** — flags planted
+  `shell\open\command` / `DelegateExecute` under
+  `HKCU\Software\Classes` slots of auto-elevating binaries
+  (fodhelper/computerdefaults/slui/wsreset/sdclt/mscfile/…): any hit
+  executes as admin WITHOUT a UAC prompt. No baseline by design —
+  these keys are never legitimately populated. Live: 0 planted (clean).
+- Wired into `_init_defense_suite`: hosts + COM baselines at startup,
+  all four in the 30s monitoring loop (`[HOSTS/]`, `[BITS/]`, `[COM/]`,
+  `[UAC-BYPASS/]` severity-colored alerts).
+- Suite header: 22 capabilities. Full suite: **389 passed, 1 skipped**.
+
 ## v29.62 — Advanced Defense Suite: +4 capabilities (18 total)
 - **15. IFEO Hijack Watcher (T1546.012)** — baseline+diff over HKLM
   `Image File Execution Options` Debugger/GlobalFlag values incl.
