@@ -628,4 +628,266 @@ class ProcessTreeAnalyzer:
         return triggered
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# 7. CLIPBOARD HIJACK DETECTOR (MITRE T1115)
+# ══════════════════════════════════════════════════════════════════════════
 
+class ClipboardHijackDetector:
+    """Detect clipboard hijacking: malware silently replaces a crypto
+    wallet address in the clipboard with an attacker's address."""
+
+    _WALLET_PATTERNS = [
+        (r'^bc1[a-z0-9]{25,62}$', 'Bitcoin (Bech32)'),
+        (r'^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$', 'Bitcoin (Legacy)'),
+        (r'^0x[a-fA-F0-9]{40}$', 'Ethereum'),
+        (r'^4[0-9AB][1-9A-HJ-NP-Za-km-z]{93}$', 'Monero'),
+        (r'^L[a-km-zA-HJ-NP-Z1-9]{26,33}$', 'Litecoin'),
+    ]
+
+    def __init__(self, poll_interval: float = 3.0):
+        self._interval = poll_interval
+        self._last_text = ''
+        self._running = False
+
+    def _get_clipboard(self) -> str:
+        try:
+            import ctypes
+            u32 = ctypes.windll.user32
+            u32.OpenClipboard.restype = ctypes.c_int
+            u32.OpenClipboard.argtypes = [ctypes.c_void_p]
+            if not u32.OpenClipboard(None):
+                return ''
+            try:
+                h = u32.GetClipboardData(13)  # CF_UNICODETEXT
+                if not h:
+                    return ''
+                k32 = ctypes.windll.kernel32
+                k32.GlobalLock.restype = ctypes.c_void_p
+                k32.GlobalLock.argtypes = [ctypes.c_void_p]
+                k32.GlobalUnlock.restype = ctypes.c_int
+                k32.GlobalUnlock.argtypes = [ctypes.c_void_p]
+                ptr = k32.GlobalLock(h)
+                if not ptr:
+                    return ''
+                try:
+                    sz = k32.GlobalSize(h) or 0
+                    return (ctypes.wstring_at(ptr, sz // 2)
+                            .split('\x00', 1)[0] if sz else '')
+                finally:
+                    k32.GlobalUnlock(h)
+            finally:
+                u32.CloseClipboard()
+        except Exception:
+            return ''
+
+    def _classify(self, text: str) -> Tuple[str, str]:
+        import re
+        text = text.strip()
+        for pattern, label in self._WALLET_PATTERNS:
+            if re.match(pattern, text):
+                return label, text
+        return '', ''
+
+    def check_once(self) -> Optional[Dict]:
+        text = self._get_clipboard()
+        if not text or len(text) < 10:
+            return None
+        prev_cls, prev_addr = self._classify(self._last_text)
+        curr_cls, curr_addr = self._classify(text)
+        self._last_text = text
+        if prev_cls and curr_cls and prev_cls == curr_cls and \
+                prev_addr != curr_addr:
+            return {'type': 'clipboard_hijack', 'chain': prev_cls,
+                    'old': prev_addr, 'new': curr_addr,
+                    'severity': 'CRITICAL', 'mitre': 'T1115'}
+        return None
+
+    def start_monitoring(self, alert_cb=None) -> None:
+        import threading
+        if self._running:
+            return
+        self._running = True
+
+        def _loop():
+            while self._running:
+                try:
+                    hit = self.check_once()
+                    if hit and alert_cb:
+                        alert_cb(
+                            f'[CLIPBOARD HIJACK] {hit.get("chain", "?")} '
+                            f'wallet replaced!\n'
+                            f'Old: ...{(hit.get("old", ""))[-12:]}\n'
+                            f'New: ...{(hit.get("new", ""))[-12:]}',
+                            'CRITICAL')
+                except Exception:
+                    pass
+                time.sleep(self._interval)
+
+        threading.Thread(target=_loop, daemon=True,
+                         name='ClipboardMonitor').start()
+
+    def stop(self) -> None:
+        self._running = False
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 8. BROWSER CREDENTIAL ACCESS MONITOR (MITRE T1555.003)
+# ══════════════════════════════════════════════════════════════════════════
+
+class BrowserCredentialMonitor:
+    """Watch for non-browser processes opening Chrome/Firefox/Edge
+    credential databases. Credential-dumping tools open these directly."""
+
+    CRED_DBS = [
+        (r'Google\\Chrome\\User Data\\Default\\Login Data', 'Chrome'),
+        (r'Google\\Chrome\\User Data\\Default\\Web Data',
+         'Chrome (autofill)'),
+        (r'Mozilla\\Firefox\\Profiles\\.*logins\.json', 'Firefox'),
+        (r'Microsoft\\Edge\\User Data\\Default\\Login Data', 'Edge'),
+        (r'BraveSoftware\\Brave-Browser\\User Data\\Default\\Login Data',
+         'Brave'),
+    ]
+
+    def scan(self) -> List[Dict]:
+        """Scan running processes for open handles to browser credential
+        databases. Returns suspicious access (non-browser process)."""
+        import psutil
+        import re as _re
+        findings = []
+        browser_names = frozenset([
+            'chrome.exe', 'msedge.exe', 'firefox.exe', 'brave.exe',
+            'opera.exe', 'vivaldi.exe',
+        ])
+        for proc in psutil.process_iter(['pid', 'name']):
+            try:
+                pname = (proc.info.get('name') or '').lower()
+                if pname in browser_names:
+                    continue
+                for f in proc.open_files():
+                    fpath = f.path.replace('/', '\\')
+                    for pattern, browser in self.CRED_DBS:
+                        if _re.search(pattern, fpath, _re.I):
+                            findings.append({
+                                'pid': proc.info['pid'],
+                                'process': pname,
+                                'browser': browser,
+                                'file': fpath,
+                                'severity': 'CRITICAL',
+                                'mitre': 'T1555.003',
+                            })
+            except (psutil.NoSuchProcess, psutil.AccessDenied,
+                    psutil.ZombieProcess):
+                continue
+        return findings
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 9. MITRE ATT&CK COVERAGE MATRIX
+# ══════════════════════════════════════════════════════════════════════════
+
+class MitreCoverageMatrix:
+    """Show which MITRE ATT&CK tactics are covered by existing detections."""
+
+    TACTICS = {
+        'TA0001': 'Initial Access', 'TA0002': 'Execution',
+        'TA0003': 'Persistence', 'TA0004': 'Privilege Escalation',
+        'TA0005': 'Defense Evasion', 'TA0006': 'Credential Access',
+        'TA0007': 'Discovery', 'TA0008': 'Lateral Movement',
+        'TA0009': 'Collection', 'TA0011': 'Command and Control',
+        'TA0010': 'Exfiltration', 'TA0040': 'Impact',
+    }
+
+    COVERAGE = {
+        'TA0001': ['usb_protection', 'browser_protection'],
+        'TA0002': ['threat_hunt_engine', 'behavior_scanner',
+                   'process_injection_detector', 'advanced_defense_suite'],
+        'TA0003': ['persistence_watchers', 'threat_hunt_engine'],
+        'TA0004': ['process_injection_detector', 'firmware_posture'],
+        'TA0005': ['amsi_integration', 'code_integrity',
+                   'native_probes', 'advanced_defense_suite'],
+        'TA0006': ['process_injection_detector', 'memory_forensics'],
+        'TA0007': ['network_monitor', 'iot_scanner'],
+        'TA0008': ['network_monitor', 'emergency_response'],
+        'TA0009': ['file_scanner', 'advanced_defense_suite'],
+        'TA0011': ['c2_beacon_detector', 'network_monitor',
+                   'kimwolf_botnet_detector'],
+        'TA0010': ['network_monitor', 'entropy_ransomware_detector'],
+        'TA0040': ['ransomware_detector', 'shadow_copy_detector'],
+    }
+
+    def get_coverage(self) -> List[Dict]:
+        result = []
+        for tid, name in self.TACTICS.items():
+            mods = self.COVERAGE.get(tid, [])
+            result.append({
+                'tactic_id': tid, 'name': name,
+                'module_count': len(mods),
+                'covered': len(mods) > 0,
+                'gap': len(mods) < 2,
+            })
+        return result
+
+    def get_gaps(self) -> List[Dict]:
+        return [c for c in self.get_coverage() if c['gap']]
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 10. NETWORK CONNECTION BASELINE
+# ══════════════════════════════════════════════════════════════════════════
+
+class NetworkBaseline:
+    """Learn normal network connections and alert on new suspicious ones."""
+
+    def __init__(self, learn_minutes: int = 10):
+        self._learn_minutes = learn_minutes
+        self._baseline: set = set()
+        self._learn_start: float = 0.0
+        self._learned = False
+
+    def _snapshot(self) -> set:
+        import psutil
+        conns = set()
+        for conn in psutil.net_connections(kind='inet'):
+            if conn.status != 'ESTABLISHED':
+                continue
+            raddr = getattr(conn.raddr, 'ip', '')
+            rport = getattr(conn.raddr, 'port', 0)
+            if not raddr or raddr in ('0.0.0.0', '::', '127.0.0.1'):
+                continue
+            try:
+                pname = (psutil.Process(conn.pid).name()
+                         if conn.pid else '')
+            except Exception:
+                pname = ''
+            conns.add((raddr, rport, pname))
+        return conns
+
+    def feed(self) -> List[Dict]:
+        """Feed one observation cycle. During learning, adds to baseline.
+        After learning, flags new connections not in baseline."""
+        import time
+        conns = self._snapshot()
+        if not self._learned:
+            if not self._learn_start:
+                self._learn_start = time.time()
+            self._baseline |= conns
+            if time.time() - self._learn_start > self._learn_minutes * 60:
+                self._learned = True
+            return []
+        alerts = []
+        for raddr, rport, pname in (conns - self._baseline):
+            alerts.append({
+                'type': 'new_connection', 'remote_ip': raddr,
+                'remote_port': rport, 'process': pname,
+                'severity': 'HIGH',
+                'detail': f'New connection: {pname} → {raddr}:{rport}',
+            })
+        return alerts
+
+    @property
+    def learned(self) -> bool:
+        return self._learned
+
+    @property
+    def baseline_size(self) -> int:
+        return len(self._baseline)
