@@ -2,6 +2,139 @@
 
 ## Branch: main
 
+## Session 2026-09-12 — v29.60b: manual code review fixes
+
+**User request:** "manually analyze code, stop relying on tests."
+
+Method: line-by-line read of every modified module, checking handle
+lifecycles, thread contexts, apartment modes, regex correctness, and
+data schema alignment — things the compile check and test suite
+structurally cannot verify.
+
+### Issues found and fixed (all verified by manual inspection + live test)
+1. Authenticode fallback returned false 'NotSigned' (was 'Unknown' now)
+   → svchost/csrss/lsass false positives in --no-admin sessions
+2. Authenticode *2 SHA256 catalog context leaked per call → both released
+3. COM refcount leak (per-request CoInitialize without CoUninitialize)
+   on 7 call sites → threading.local once-per-thread guard
+4. KEV matcher: product 'Core' matched '16-CORE Processor'; bare vendor
+   'AMD' matched any AMD KEV entry → product-substring + generic-word
+   denylist + bare-vendor guard
+5. USB history `USBSTOR` registry key leaked per _usb_load_history call
+6. Duplicate `is_system_image` definition (shadowed the first)
+7. `_check_spectre_meltdown`: duplicate `result['detail']` assignment
+8. `_check_rdp_brute`: unused `import subprocess`
+9. FW events / timeline parsers used PS formatted-message field names
+   ('Source Address:') instead of the EvtRender XML schema
+   ('<Data Name="SourceAddress">') → all fields would parse as empty
+
+### Live verification
+- ScreenConnect.exe → CVE-2026-84869 HIGH (real positive)
+- AMD Ryzen 9 7950X → False (no false positive)
+- TeamViewer → CVE-2024-4978 (real positive)
+- CVE-2020-1472 Zerologon → found
+- RTX 3050 → False (no false positive)
+- 389 passed, 1 skipped (full suite)
+
+## Session 2026-09-12 — v29.61: Advanced Defense Suite (wired into main app)
+
+**Implementation:** `advanced_defense_suite.py` (637 lines, 6 classes)
+
+### Wiring
+- `_auto_start()` calls `_init_defense_suite()` → deploys 5 honeytoken
+  files + 1 DNS canary in Documents, runs NTDLL integrity check (once),
+  runs CIS benchmark (once), scans cert store (once), starts a 30s
+  canary-monitoring loop on a daemon thread. All alerts queue into the
+  existing `_queue_alert` system with proper severity colors.
+- Module imports `advanced_defense_suite` lazily inside the method —
+  graceful degradation if the module is missing.
+
+### Live results on this system
+- 5 honeytokens deployed, correctly detect file access
+- CIS score 42.1% (8/19) — 11 real security gaps identified
+- NTDLL clean (no hooks on healthy system)
+- 23 root CAs enumerated
+- 2 process tree anomalies correctly detected on synthetic tree:
+  Office→cmd (T1566.001) + svchost→explorer (T1055)
+- SOAR playbook correctly resolved for T1003.001/CRITICAL
+
+### Final verification
+- 389 passed, 1 skipped, 0 failed (full suite, wired in)
+- `_PWSH` constant removed (dead code — zero PS spawn sites remain)
+
+
+## Session 2026-09-11/12 — v29.60: de-PowerShell (all features → native APIs) + full error-log remediation
+
+**User request:** "fix all issues, don't use PowerShell etc, fix NVIDIA
+error etc" — later clarified: convert PowerShell features to use something
+OTHER than PowerShell (do not remove features).
+
+### Bugs fixed from downpour_data/logs/errors_20260911.log (all verified live)
+1. **RainPhysics `NameError: name '_self' is not defined` ×6543**
+   (downpour_v29_titanium.py:19549, physics loop, every iteration) →
+   `_self._wind_gust_target` → `self._wind_gust_target`.
+2. **NVIDIA "Driver Not Loaded" gauges** — TWO root causes:
+   a) A stray `pynvml/` stub directory in the repo root (only
+      `__init__.pyi`, no `__init__.py`) SHADOWED the real package as a
+      namespace package → `NVML_AVAILABLE=False` at import, gauges dead.
+      RENAMED to `_stub_pynvml_DO_NOT_IMPORT/` + installed `nvidia-ml-py`
+      into the venv (was missing). Live-verified: RTX 3050, 49°C, fan 50%,
+      1822MHz, 37.4W — full NVML telemetry restored.
+   b) NVML handle staleness after driver reload / sleep-resume
+      (NVMLError_DriverNotLoaded poisoned the handle forever) → new
+      recovery in `_fetch_unsafe`: full shutdown→re-init→fresh handle
+      retry, 5-failure backoff (NVML off for 120s, auto re-probe),
+      throttled logging (first + every 30th), and an nvidia-smi CLI
+      fallback (60s TTL cache) so gauges stay alive while NVML is wedged.
+3. **HwMonitor `x_wmi_uninitialised_thread` ×109** (cpu_temp block):
+   `import pythoncom # ...; pythoncom.CoInitialize()` — the CoInitialize
+   was INSIDE THE COMMENT (never ran), and even with COM init the `wmi`
+   module's moniker path fails on MTA pool threads (wmi.py maps hresult
+   0x800401E4 → that error). Fix: proper CoInitialize + SWbemLocator
+   Dispatch (MTA-safe) with wmi-module fallback, silent when MSAcpi is
+   unsupported.
+4. **`psutil sensors_temperatures failed` AttributeError ×110** — gated
+   with hasattr (psutil has no sensors_temperatures on Windows).
+5. **`security block 2 failed` UnboundLocalError ×110** — `_app_nm`
+   referenced BEFORE its definition later in `_fetch_unsafe` → local
+   `getattr(self, '_app', None)`.
+6. **`memory_tracking failed` AttributeError ×110** — `mem.cached` does
+   not exist in psutil on Windows → getattr with total-available-used
+   fallback.
+7. **`open_files pid failed` NoSuchProcess ×10** — pid races now
+   silently skipped (NoSuchProcess/AccessDenied/ZombieProcess).
+8. **`_log` NameError (quarantine fallback, lines 270/273)** → `_logger`.
+9. **pystray tray icon THREAD CRASH "OSError: [WinError 0] The operation
+   completed successfully"** — CreateWindowEx returns NULL with
+   GetLastError()=0 race; patched pystray._util.win32._err to retry once.
+10. **Full test suite silently DIED at ~73%** — TestChildProcessGuard
+    assigned the PYTEST process to a KILL_ON_JOB_CLOSE job; GC of the
+    handle terminated the whole run. Test now strips the kill flag.
+11. **Broken spawn canaries** — both ProcessPoolExecutors now do a
+    one-time canary submit; if workers can't spawn ("DLL load failed
+    while importing _ctypes", seen in logs), the pool is disabled once
+    and callers fall back to threads instead of failing per-task.
+
+### de-PowerShell conversion (see docs/CHANGELOG.md v29.60 for the full list)
+- New shared module `native_probes.py`; every former PowerShell probe now
+  calls the underlying native API. 0 spawn sites remain; the 9 detection
+  signature sets that WATCH for malicious PowerShell are untouched.
+- Live-verified: DNS cache walk (4000 entries), EvtQuery (System/App/
+  Security channels), WMI drivers/services/PnP/logical disks, Defender
+  prefs (WMI + registry), ASR rules, Authenticode (embedded + catalog),
+  SpeculationControl, DEP, SecureBoot, ExecutionPolicy, clipboard, ADS,
+  .lnk targets.
+
+### Launcher
+- `LAUNCH_DOWNPOUR.bat` prefers `.venv\Scripts\python.exe` first (the
+  curated, fully-installed environment) before system Pythons.
+
+### Tests
+- Final: **388 passed, 2 skipped (elevation-gated live installs), 0
+  failed** — the suite now completes fully (the old 73% mid-run kill is
+  fixed).
+
+
 ## Session 2026-09-10 — v29.57: PowerShell absolute path (security hardening)
 
 **User request:** provided the canonical PowerShell location

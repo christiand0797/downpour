@@ -28,23 +28,16 @@ from __future__ import annotations
 import json
 import logging
 import math
-import os
-import subprocess
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-
-_PWSH = os.path.join(
-    os.environ.get('SystemRoot', r'C:\Windows'),
-    'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
 
 _log = logging.getLogger(__name__)
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 BASELINE_PATH = SCRIPT_DIR / 'downpour_data' / 'dns_baseline.json'
 
-_PS_TIMEOUT = 20
 _ALERT_THRESHOLD = 70          # >= this score → MEDIUM alert
 _HIGH_THRESHOLD = 85           # >= this score → HIGH alert
 _MAX_CACHE_ROWS = 4000         # cap on parsed cache rows per pass
@@ -154,73 +147,34 @@ def score_domain(domain: str) -> Dict[str, Any]:
             'factors': factors or ['benign characteristics']}
 
 
-def _ps(command: str) -> Optional[str]:
-    """Run a short PowerShell probe; None on any failure/timeout."""
-    try:
-        flags = 0
-        if hasattr(subprocess, 'CREATE_NO_WINDOW'):
-            flags = subprocess.CREATE_NO_WINDOW
-        proc = subprocess.run(
-            [_PWSH, '-NoProfile', '-NonInteractive',
-             '-ExecutionPolicy', 'Bypass', '-Command', command],
-            capture_output=True, text=True, timeout=_PS_TIMEOUT,
-            creationflags=flags)
-        if proc.returncode != 0:
-            return None
-        return (proc.stdout or '').strip() or None
-    except Exception as exc:                # defensive — never raise
-        _log.debug('dns_cache_watch _ps: %s', exc)
-        return None
-
-
 def collect_dns_cache() -> List[Tuple[str, str]]:
     """Snapshot the resolver cache as (name, record-data) pairs.
-    Deduped, lowercased, capped at _MAX_CACHE_ROWS."""
-    out = _ps('Get-DnsClientCache -ErrorAction SilentlyContinue | '
-              'Select-Object -First ' + str(_MAX_CACHE_ROWS) +
-              ' Entry,Data | ConvertTo-Json -Compress')
-    if out:
-        try:
-            data = json.loads(out)
-            rows = data if isinstance(data, list) else [data]
-        except Exception as exc:
-            _log.debug('dns cache parse: %s', exc)
-            rows = []
-        seen: set = set()
-        pairs: List[Tuple[str, str]] = []
-        for row in rows:
-            if not isinstance(row, dict):
-                continue
-            name = str(row.get('Entry') or '').strip().rstrip('.').lower()
+    Deduped, lowercased, capped at _MAX_CACHE_ROWS.
+
+    v29.60: fully native — DnsGetCacheDataTable via dnsapi.dll (the same
+    table Get-DnsClientCache reads). No PowerShell involved.
+    """
+    try:
+        import native_probes
+    except Exception as exc:                    # defensive — never raise
+        _log.debug('native_probes import: %s', exc)
+        return []
+    seen: set = set()
+    pairs: List[Tuple[str, str]] = []
+    try:
+        for name, data in native_probes.get_dns_cache_entries():
+            name = str(name or '').strip().rstrip('.').lower()
             if not name or name in seen or '.' not in name:
                 continue
+            if any(c in name for c in ('/', '\\', ':', '%', ' ')):
+                continue
             seen.add(name)
-            pairs.append((name, str(row.get('Data') or '')))
+            pairs.append((name, str(data or '')))
             if len(pairs) >= _MAX_CACHE_ROWS:
                 break
-        if pairs:
-            return pairs
-    # Fallback: ipconfig /displaydns — extract bare name lines only
-    out2 = _ps('ipconfig /displaydns')
-    if not out2:
-        return []
-    seen2: set = set()
-    pairs2: List[Tuple[str, str]] = []
-    for line in out2.splitlines():
-        line = line.strip()
-        if not line or ' ' in line or '.' not in line:
-            continue
-        if line.startswith('0.') or line.startswith('127.'):
-            continue
-        name = line.rstrip('.').lower()
-        if not name or name in seen2 or any(
-                c in name for c in ('/', '\\', ':', '%')):
-            continue
-        seen2.add(name)
-        pairs2.append((name, ''))
-        if len(pairs2) >= _MAX_CACHE_ROWS:
-            break
-    return pairs2
+    except Exception as exc:
+        _log.debug('dns cache walk: %s', exc)
+    return pairs
 
 
 # ══════════════════════════════════════════════════════════════════════════════

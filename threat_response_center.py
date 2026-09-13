@@ -902,12 +902,11 @@ Connections: {item[5]}
                 
     def _enable_defender(self):
         try:
-            subprocess.run(['powershell', '-Command', 
-                          'Set-MpPreference -DisableRealtimeMonitoring $false'],
-                          capture_output=True)
-            messagebox.showinfo("Success", "Windows Defender enabled")
+            # Use registry to enable Windows Defender real-time monitoring
+            subprocess.run(['reg', 'add', 'HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Real-Time Protection', '/v', 'DisableRealtimeMonitoring', '/t', 'REG_DWORD', '/d', '0', '/f'], capture_output=True)
+            messagebox.showinfo("Success", "Windows Defender enabled via registry")
         except Exception:
-            messagebox.showerror("Error", "Failed to enable Defender")
+            messagebox.showerror("Error", "Failed to enable Defender - try as Administrator")
             
     def _export_report(self):
         filename = filedialog.asksaveasfilename(

@@ -479,20 +479,18 @@ class ThreatRemediationEngine:
     def _scan_wmi_persistence(self, profile: ThreatProfile):
         """Detect WMI event subscriptions (a favorite of advanced malware)."""
         try:
-            # Check for WMI event consumers
+            # Check for WMI event consumers using wmic
             r = self._run_cmd([
-                'powershell', '-NoProfile', '-Command',
-                'Get-WMIObject -Namespace root\\subscription -Class __EventConsumer '
-                '| Select-Object Name,__CLASS | ConvertTo-Json -Depth 2'
+                'wmic', '/namespace:\\\\root\\subscription', 'path', '__EventConsumer',
+                'get', 'Name,__CLASS', '/format:csv'
             ], timeout=15)
             if r.returncode == 0 and r.stdout.strip():
-                consumers = json.loads(r.stdout)
-                if isinstance(consumers, dict):
-                    consumers = [consumers]
-                for c in consumers:
-                    name = c.get('Name', '')
-                    cls = c.get('__CLASS', '')
-                    # Most legitimate WMI consumers are from Microsoft
+                import csv
+                import io
+                reader = csv.DictReader(io.StringIO(r.stdout))
+                for row in reader:
+                    name = row.get('Name', '').strip()
+                    cls = row.get('__CLASS', '').strip()
                     if name and 'microsoft' not in name.lower():
                         profile.wmi_subscriptions.append(
                             f"{cls}: {name}")
@@ -503,17 +501,16 @@ class ThreatRemediationEngine:
         """Find suspicious Windows services."""
         try:
             r = self._run_cmd([
-                'powershell', '-NoProfile', '-Command',
-                'Get-WmiObject Win32_Service | Where-Object '
-                '{$_.StartMode -eq "Auto" -and $_.State -eq "Running"} | '
-                'Select-Object Name,PathName,Description | ConvertTo-Json -Depth 2'
+                'wmic', 'service', 'where', 'StartMode="Auto" and State="Running"',
+                'get', 'Name,PathName,Description', '/format:csv'
             ], timeout=20)
             if r.returncode != 0 or not r.stdout.strip():
                 return
 
-            services = json.loads(r.stdout)
-            if isinstance(services, dict):
-                services = [services]
+            import csv
+            import io
+            reader = csv.DictReader(io.StringIO(r.stdout))
+            services = list(reader)
 
             known_paths = {p.get('path', '').lower() for p in profile.processes if p.get('path')}
 
@@ -574,19 +571,23 @@ class ThreatRemediationEngine:
         # Method 1: Check for unexpected network adapters
         try:
             r = self._run_cmd([
-                'powershell', '-NoProfile', '-Command',
-                'Get-NetAdapter | Select-Object Name,InterfaceDescription,'
-                'MacAddress,Status,Virtual,MediaType | ConvertTo-Json -Depth 2'
+                'wmic', 'nic', 'get', 'Name,Description,MACAddress,NetConnectionStatus,PhysicalAdapter', '/format:csv'
             ], timeout=10)
             if r.returncode == 0 and r.stdout.strip():
-                adapters = json.loads(r.stdout)
-                if isinstance(adapters, dict):
-                    adapters = [adapters]
-                for adapter in adapters:
-                    is_virtual = adapter.get('Virtual', False)
-                    name = adapter.get('Name', '')
-                    desc = adapter.get('InterfaceDescription', '').lower()
-                    status = adapter.get('Status', '')
+                import csv
+                import io
+                reader = csv.DictReader(io.StringIO(r.stdout))
+                for row in reader:
+                    name = row.get('Name', '').strip()
+                    desc = row.get('Description', '').lower().strip()
+                    mac = row.get('MACAddress', '').strip()
+                    status_val = row.get('NetConnectionStatus', '').strip()
+                    physical = row.get('PhysicalAdapter', '').strip()
+                    
+                    is_virtual = (physical == 'FALSE')
+                    # Map NetConnectionStatus: 2=Connected, 7=Disconnected
+                    status_map = {'2': 'Up', '7': 'Down', '0': 'Disconnected'}
+                    status = status_map.get(status_val, 'Unknown')
 
                     # Flag virtual adapters that aren't known legitimate ones
                     legit_virtual = ['hyper-v', 'virtualbox', 'vmware', 'docker',
@@ -597,8 +598,8 @@ class ThreatRemediationEngine:
                         profile.phantom_devices.append({
                             'type': 'virtual_adapter',
                             'name': name,
-                            'description': adapter.get('InterfaceDescription', ''),
-                            'mac': adapter.get('MacAddress', ''),
+                            'description': row.get('Description', ''),
+                            'mac': mac,
                             'status': status,
                             'reason': 'Unknown virtual network adapter'
                         })
@@ -634,25 +635,22 @@ class ThreatRemediationEngine:
         # Method 3: Check for unexpected Bluetooth devices
         try:
             r = self._run_cmd([
-                'powershell', '-NoProfile', '-Command',
-                'Get-PnpDevice -Class Bluetooth | Where-Object '
-                '{$_.Status -eq "OK"} | Select-Object FriendlyName,'
-                'InstanceId,Status | ConvertTo-Json'
+                'wmic', 'path', 'Win32_PnPEntity', 'where', 'PNPClass="Bluetooth" and Status="OK"',
+                'get', 'Name,DeviceID,Status', '/format:csv'
             ], timeout=10)
             if r.returncode == 0 and r.stdout.strip():
-                bt_devices = json.loads(r.stdout)
-                if isinstance(bt_devices, dict):
-                    bt_devices = [bt_devices]
-                # Flag Bluetooth devices with suspicious names
+                import csv
+                import io
+                reader = csv.DictReader(io.StringIO(r.stdout))
                 sus_bt_names = ['loopback', 'service test', 'debug', 'proxy',
                                 'bridge', 'relay', 'tunnel']
-                for bt in bt_devices:
-                    name = (bt.get('FriendlyName') or '').lower()
+                for row in reader:
+                    name = (row.get('Name') or '').lower().strip()
                     if any(s in name for s in sus_bt_names):
                         profile.phantom_devices.append({
                             'type': 'suspicious_bluetooth',
-                            'name': bt.get('FriendlyName', ''),
-                            'instance_id': bt.get('InstanceId', ''),
+                            'name': row.get('Name', ''),
+                            'instance_id': row.get('DeviceID', ''),
                             'reason': 'Suspicious Bluetooth device name'
                         })
         except Exception:
@@ -661,18 +659,25 @@ class ThreatRemediationEngine:
     def _scan_dns_hijacking(self, profile: ThreatProfile):
         """Check for DNS hijacking — modified DNS settings, rogue DNS servers."""
         try:
-            # Check configured DNS servers
+            # Check configured DNS servers using netsh
             r = self._run_cmd([
-                'powershell', '-NoProfile', '-Command',
-                'Get-DnsClientServerAddress | Where-Object '
-                '{$_.AddressFamily -eq 2} | Select-Object InterfaceAlias,'
-                'ServerAddresses | ConvertTo-Json -Depth 3'
+                'netsh', 'interface', 'ip', 'show', 'dns'
             ], timeout=10)
             if r.returncode == 0 and r.stdout.strip():
-                dns_configs = json.loads(r.stdout)
-                if isinstance(dns_configs, dict):
-                    dns_configs = [dns_configs]
-
+                # Parse netsh output
+                import re
+                current_iface = None
+                servers = []
+                
+                for line in r.stdout.split('\n'):
+                    line = line.strip()
+                    if line.startswith('Configuration for interface'):
+                        current_iface = line.split('"')[1] if '"' in line else 'Unknown'
+                    elif 'DNS Server' in line and ':' in line:
+                        server = line.split(':', 1)[1].strip()
+                        if server:
+                            servers.append((current_iface, server))
+                
                 # Known safe DNS servers
                 safe_dns = {
                     '1.1.1.1', '1.0.0.1',           # Cloudflare
@@ -682,20 +687,17 @@ class ThreatRemediationEngine:
                     '76.76.2.0', '76.76.10.0',       # Control D
                 }
 
-                for cfg in dns_configs:
-                    servers = cfg.get('ServerAddresses', [])
-                    iface = cfg.get('InterfaceAlias', 'Unknown')
-                    for server in servers:
-                        if server and server not in safe_dns:
-                            # Check if it's a local gateway (common for router DNS)
-                            try:
-                                addr = ipaddress.ip_address(server)
-                                if addr.is_private:
-                                    continue  # Local router DNS is fine
-                            except ValueError:
-                                pass
-                            profile.dns_entries.append(
-                                f"Unusual DNS server on {iface}: {server}")
+                for iface, server in servers:
+                    if server and server not in safe_dns:
+                        # Check if it's a local gateway (common for router DNS)
+                        try:
+                            addr = ipaddress.ip_address(server)
+                            if addr.is_private:
+                                continue  # Local router DNS is fine
+                        except ValueError:
+                            pass
+                        profile.dns_entries.append(
+                            f"Unusual DNS server on {iface}: {server}")
         except Exception:
             pass
 
@@ -927,24 +929,17 @@ class ThreatRemediationEngine:
             cls = parts[0] if parts else ''
             name = parts[1] if len(parts) > 1 else wmi_name
 
-            # v29.42w (TASK-012): cls/name come from *detected threat data*
-            # and were interpolated straight into a PowerShell -Command
-            # string — a quote or $(...) in a name executed as admin.
-            # Validate the class name against the legal WMI identifier
-            # charset, and single-quote escape the consumer name (PS treats
-            # '...' as a literal string and '' as an escaped quote, so no
-            # subexpression can expand).
+            # Validate the class name against the legal WMI identifier charset
             if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', cls or ''):
                 return RemediationAction(
                     "wmi_clean", wmi_name[:100],
                     f"Skipped WMI cleanup — invalid class identifier: {cls!r}",
                     success=False, requires_admin=True)
-            safe_name = (name or '').replace("'", "''")
 
+            # Use wmic to delete the WMI subscription
             self._run_cmd([
-                'powershell', '-NoProfile', '-Command',
-                f'Get-WMIObject -Namespace root\\subscription -Class {cls} '
-                f"| Where-Object {{$_.Name -eq '{safe_name}'}} | Remove-WMIObject"
+                'wmic', '/namespace:\\\\root\\subscription', 'path', cls,
+                'where', f'Name="{name}"', 'delete'
             ], timeout=10)
             return RemediationAction(
                 "wmi_clean", wmi_name,
@@ -1054,14 +1049,15 @@ class ThreatRemediationEngine:
                 if conn.raddr and conn.raddr.ip in c2_ips:
                     issues.append(f"Active C2 connection: {conn.raddr.ip}:{conn.raddr.port}")
 
-        # Check DNS cache for C2 domains
+        # Check DNS cache for C2 domains using ipconfig
         try:
-            r = self._run_cmd([
-                'powershell', '-NoProfile', '-Command',
-                'Get-DnsClientCache | Select-Object -ExpandProperty Name'
-            ], timeout=8)
+            r = self._run_cmd(['ipconfig', '/displaydns'], timeout=8)
             if r.returncode == 0:
-                cached = {d.strip().lower() for d in r.stdout.splitlines()}
+                cached = set()
+                for line in r.stdout.splitlines():
+                    if 'Record Name' in line:
+                        domain = line.split(':', 1)[1].strip().lower()
+                        cached.add(domain)
                 for domain in profile.dns_entries:
                     if domain.lower() in cached:
                         issues.append(f"C2 domain still in DNS cache: {domain}")

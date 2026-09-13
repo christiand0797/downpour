@@ -1,5 +1,124 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.61 - Advanced Defense Suite (6 new EDR/HIDS capabilities)
+- NEW `advanced_defense_suite.py` — 6 capabilities that fill genuine gaps
+  vs commercial EDR/HIDS products (CrowdStrike, SentinelOne, Velociraptor):
+  1. **Honeytoken Suite** — Canary files/DNS names deployed in common
+     locations; any access triggers a near-zero-false-positive CRITICAL
+     alert (the Think Canary / OpenCanary principle). Live-tested: 5
+     canaries deployed, correctly detect file access.
+  2. **CIS Benchmark Scoring** — 19 automated checks against CIS
+     Windows 10/11 Level 1: UAC, Defender, network hardening (SMB
+     signing, LLMNR, NetBIOS), BitLocker, SecureBoot, screen lock,
+     guest account. Live-tested: scored 42.1% (8/19 passed), correctly
+     identifies 11 real security gaps on the test system.
+  3. **NTDLL Integrity Check** — Compare in-memory .text section vs
+     on-disk ntdll.dll; detects inline API hooks (rootkit patches,
+     EDR tampering, syscall interception). Live-tested: ntdll clean
+     on healthy system.
+  4. **SOAR Response Playbooks** — 5 configurable automated response
+     chains triggered by MITRE technique/severity. Actions: kill
+     process, block IP, isolate network, quarantine file, revert
+     Defender, snapshot forensics.
+  5. **Certificate Store Monitor** — Enumerate trusted root CA store;
+     detect rogue CAs added by MITM tools (Burp, mitmproxy) or
+     malware. Live-tested: 23 roots enumerated.
+  6. **Process Tree Anomaly Rules** — 9 MITRE-mapped parent→child
+     anomaly rules (Office→cmd T1566.001, browser→exec T1566.002,
+     svchost→explorer T1055, cmd→lsass T1003.001, WMI→shell T1047,
+     winlogon→shell T1543.003, csrss→process T1055, services→shell
+     T1569.002). Live-tested: correctly detects Office→cmd and
+     svchost→explorer PID spoofing.
+
+## v29.60b - manual code review fixes (compiled code, not tests)
+- **Authenticode catalog fallback returned false 'NotSigned'** — file-open
+  failure and hash-calc failure (both occur when the catalog API is denied
+  to non-elevated callers) reported as 'NotSigned' instead of 'Unknown'.
+  Every svchost/csrss/lsass would have been flagged as unsigned imposters
+  in a --no-admin session. Fixed: file-open / hash-calc failures →
+  'Unknown'; `trusted_system_process` accepts name + System32-path when
+  the verdict is genuinely unavailable (definitive verdicts still
+  enforced). AcquireContext denial also returns 'Unknown' not 'Error'.
+- **Authenticode context leak** — the *2 SHA256 catalog context
+  (`hcat_admin2`) was acquired but never released; the outer finally only
+  freed the legacy `hcat_admin`. One leaked kernel handle per call.
+  Fixed: both contexts released in the outer finally.
+- **COM refcount leak on long-lived threads** — `pythoncom.CoInitialize()`
+  called per-request inside `com_wmi_services()`, `count_pending_updates()`,
+  `lnk_target()`, the cpu_temp block, the usb-scan block, `_proc_loop`,
+  and `_fw_load_blocked_events`. Every successful CoInitialize (including
+  S_FALSE) requires a matching CoUninitialize — calls without it
+  accumulated COM refcounts without bound on long-lived threads. Fixed
+  with a `threading.local` once-per-thread guard
+  (`native_probes._com_ensure_initialized()`).
+- **KEV matcher false positives** — product 'Core' (WordPress Core /
+  Drupal Core) substring-matched '16-CORE Processor'; bare vendor tokens
+  ('AMD', 'Intel') matched any KEV entry from that vendor. Fixed: entry
+  product (>= 4 chars) must appear in the queried name; generic single
+  word products ('Core', 'Server', ...) never match; bare vendor-name
+  products (product == vendor, <= 6 chars) skipped.
+- **USB history registry key leak** — the outer `USBSTOR` key was
+  OpenKey'd but never CloseKey'd (every `_usb_load_history` call leaked
+  one HKEY). Fixed with try/finally.
+- **Duplicate `is_system_image`** — defined at both line 62 and line 158
+  of trust_check.py; the second shadowed the first for no benefit.
+  Removed.
+- **`_check_spectre_meltdown`** — duplicate `result['detail'] =` assignment
+  (second line silently overwrote the first).
+- **`_check_rdp_brute`** — unused `import subprocess` after the PS removal.
+- **FW events XML field names** — the native EvtQuery returns
+  `<Data Name="SourceAddress">` not the PS formatted-message `Source
+  Address:`; all parsers updated to the real XML schema.
+- **Timeline user extraction** — `<Data Name="TargetUserName">` from
+  event XML (the PS formatted-message regex wouldn't match native output).
+- Verified: 389 passed, 1 skipped; all modules compile; KEV matcher live
+  (ScreenConnect True, AMD Ryzen False, TeamViewer True, Zerologon True).
+
+## v29.60 - de-PowerShell: every PowerShell feature converted to native Windows APIs
+- **ZERO PowerShell subprocess spawns remain** (was 61 real spawn sites in
+  downpour_v29_titanium.py + 13 in system_hardening.py + 1 each in
+  dns_cache_watch.py / trust_check.py / kimwolf_botnet_detector.py /
+  forensic_report.py x4). Features preserved 1:1 — only the transport
+  changed. Detection signatures that watch for malicious PowerShell usage
+  are UNTOUCHED (still active).
+- NEW `native_probes.py` (~1300 lines, stdlib + pywin32 only):
+  * WMI via COM (WbemScripting.SWbemLocator) — MTA/STA safe (works on the
+    dp-cpu/dp-gpu/dp-io pool threads; the `wmi` module's GetObject-moniker
+    path fails there with x_wmi_uninitialised_thread, root cause of the
+    old `pythoncom.CoInitialize()` comment-swallowed bug)
+  * DnsGetCacheDataTable (dnsapi.dll) — Get-DnsClientCache equivalent
+  * EvtQuery/EvtNext/EvtRender (wevtapi.dll) — Get-WinEvent equivalent
+  * WinVerifyTrust (wintrust.dll) + CryptQueryObject (crypt32) embedded
+    check + CryptCATAdmin* (SHA256-aware *2 APIs + SHA1 legacy) catalog
+    membership — Get-AuthenticodeSignature equivalent (handles the Win11
+    24H2 non-elevated provider gate gracefully)
+  * NtQuerySystemInformation(201) — Get-SpeculationControlSettings
+  * GetSystemDEPPolicy — Get-ProcessMitigation -System
+  * OpenClipboard/GetClipboardData — Get-Clipboard
+  * FindFirstStreamW — Get-Item -Stream (NTFS ADS enumeration)
+  * MiniDumpWriteDump (dbghelp.dll) — Out-Minidump + Add-Type
+  * rasphone.pbk store writes + RasDeleteEntry/RasGetEntryPropertiesW —
+    Add-VpnConnection / Remove-VpnConnection
+  * MSFT_MpPreference WMI + Defender registry — Get/Set-MpPreference
+    (incl. ASR rules via the GPO ASR policy key)
+  * registry ShellIds — Get/Set-ExecutionPolicy
+  * Microsoft.Update.Session COM — Windows Update pending count
+  * WScript.Shell COM dispatched from Python — .lnk target resolution
+- NATIVE-EXE replacements where a fixed tool exists (still no PowerShell):
+  dism (/disable-feature, /get-drivers), manage-bde (-status, -on),
+  netsh, sc, bcdedit (direct, no Select-String pipe), schtasks, reg.
+- REMOVED helpers: `_run_ps`, `_usb_run_ps`, `_ps` (dns_cache_watch),
+  `_run_ps` (forensic_report); `_PWSH` spawn sites in the main file: 0.
+- Tests: updated for native design (DNS-cache stubs mock the native
+  walker; job-object install test skips on non-elevated CreateJobObject
+  ERROR_ACCESS_DENIED; WinVerifyTrust test skips under the Win11 24H2
+  non-elevated provider gate; mousewheel test tracks the Enter/Leave
+  bind_all scoping). **388 passed, 2 skipped, 0 failed.**
+- Launcher: prefers the curated `.venv\Scripts\python.exe` before system
+  Pythons (stray `pynvml\` stub dir in the repo root was RENAMED — it
+  shadowed the real package as a namespace package and left the app
+  without GPU telemetry).
+
 ## v29.58 - expanded event push coverage (7 channels, 35 event IDs)
 - EXPANDED event_push_monitor.py from 3 channels / 9 event IDs to
   7 channels / 35 event IDs — covering 5 new MITRE technique families:

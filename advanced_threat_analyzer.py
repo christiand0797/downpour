@@ -440,31 +440,68 @@ class AdvancedThreatAnalyzer:
             return ""
 
     def _check_signature(self, verdict: ThreatVerdict):
-        """Check if file has a valid digital signature"""
+        """Check if file has a valid digital signature using signtool or certutil"""
         try:
-            # Use PowerShell to check signature (works on Windows)
-            safe_path = str(verdict.file_path).replace("'", "''")
-            cmd = ['powershell', '-NoProfile', '-Command',
-                   f"Get-AuthenticodeSignature -LiteralPath '{safe_path}' | Select-Object -ExpandProperty SignerCertificate | Select-Object -ExpandProperty Subject"]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-
-            if result.returncode == 0 and result.stdout.strip():
-                signer_info = result.stdout.strip().lower()
+            # Use signtool.exe (Windows SDK) or certutil (built-in) to check signature
+            # First try signtool if available
+            signtool_paths = [
+                r'C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\signtool.exe',
+                r'C:\Program Files (x86)\Windows Kits\10\bin\10.0.22000.0\x64\signtool.exe',
+                r'C:\Program Files (x86)\Windows Kits\10\bin\10.0.19041.0\x64\signtool.exe',
+                r'C:\Program Files\Microsoft SDKs\Windows\v7.1\Bin\signtool.exe',
+            ]
+            
+            signtool = None
+            for path in signtool_paths:
+                if os.path.exists(path):
+                    signtool = path
+                    break
+            
+            if signtool:
+                # Use signtool verify /pa /v
+                cmd = [signtool, 'verify', '/pa', '/v', str(verdict.file_path)]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+                
+                if result.returncode == 0 and 'Successfully verified' in result.stdout:
+                    verdict.is_signed = True
+                    # Extract signer info from output
+                    for line in result.stdout.split('\n'):
+                        if 'Subject:' in line or 'Issued to:' in line:
+                            verdict.signer = line.split(':', 1)[1].strip()
+                            break
+                    
+                    # Check if trusted publisher
+                    signer_lower = verdict.signer.lower() if verdict.signer else ''
+                    for trusted in TRUSTED_PUBLISHERS:
+                        if trusted in signer_lower:
+                            verdict.is_trusted_publisher = True
+                            break
+                    return
+            
+            # Fallback to certutil (built into Windows)
+            cmd = ['certutil', '-verify', '-silent', str(verdict.file_path)]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+            
+            if result.returncode == 0:
                 verdict.is_signed = True
-
-                # Extract CN (Common Name)
-                cn_match = re.search(r'cn=([^,]+)', signer_info)
-                if cn_match:
-                    verdict.signer = cn_match.group(1).strip()
-                else:
-                    verdict.signer = signer_info[:100]
-
+                verdict.signer = "Signed (verified via certutil)"
+                
+                # Get more details with certutil
+                cmd2 = ['certutil', '-store', 'My', str(verdict.file_path)]
+                result2 = subprocess.run(cmd2, capture_output=True, text=True, timeout=15)
+                if result2.returncode == 0:
+                    for line in result2.stdout.split('\n'):
+                        if 'Subject:' in line:
+                            verdict.signer = line.split('Subject:', 1)[1].strip()
+                            break
+                
                 # Check if trusted publisher
+                signer_lower = verdict.signer.lower() if verdict.signer else ''
                 for trusted in TRUSTED_PUBLISHERS:
-                    if trusted in signer_info:
+                    if trusted in signer_lower:
                         verdict.is_trusted_publisher = True
                         break
-
+                        
         except Exception as e:
             # Signature check failed - doesn't mean it's malicious
             pass

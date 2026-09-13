@@ -102,7 +102,7 @@ import faulthandler as _fh
 try:
     _fh_file: Any = open(_os.path.join(_DOWNPOUR_DIR, 'crash_fault.log'), 'w')
     _fh.enable(file=_fh_file, all_threads=True)
-except Exception:
+except (FileNotFoundError, PermissionError, OSError):
     _fh.enable(all_threads=True)  # fallback to stderr
 # ---------------------------------------------------------------------------
 
@@ -131,6 +131,15 @@ def safe_ui(func):
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
+        except (MemoryError, RuntimeError) as e:
+            # Handle critical errors differently
+            _logger.critical(f"Critical error in {func.__name__}: {e}", exc_info=True)
+            # Attempt graceful recovery
+            try:
+                import gc
+                gc.collect()
+            except Exception:
+                pass
         except Exception as e:
             _log_exception(e, func.__name__)
     return wrapper
@@ -141,12 +150,32 @@ def _global_thread_excepthook(args):
         args.thread.name if args.thread else '?',
         args.exc_type.__name__, args.exc_value,
         ''.join(_tb_mod.format_exception(args.exc_type, args.exc_value, args.exc_traceback)))
+    
+    # v29.40: Attempt recovery for certain exception types
+    if args.exc_type in (MemoryError, RuntimeError):
+        try:
+            import gc
+            gc.collect()
+            _crash_lg.info("Garbage collection attempted after thread crash")
+        except Exception:
+            pass
+    
 _threading.excepthook = _global_thread_excepthook
 
 _orig_sys_excepthook: Any = _sys.excepthook
 def _global_sys_excepthook(et, ev, tb):
     _crash_lg.critical("MAIN CRASH: %s: %s\n%s", et.__name__, ev,
                         ''.join(_tb_mod.format_exception(et, ev, tb)))
+    
+    # v29.40: Attempt recovery for recoverable exceptions
+    if et in (MemoryError, ConnectionError, TimeoutError):
+        try:
+            import gc
+            gc.collect()
+            _crash_lg.info("Recovery attempt for recoverable exception")
+        except Exception:
+            pass
+    
     _orig_sys_excepthook(et, ev, tb)
 _sys.excepthook = _global_sys_excepthook
 # ----------------------------------------------------------------------------
@@ -238,10 +267,10 @@ except ImportError:
     QUARANTINE_CORE_AVAILABLE: Any = False
     QuarantineService: Any = None
     def quarantine_file(path, threat_type="MALWARE", threat_name="Unknown", severity="HIGH"):
-        _log.warning("quarantine_core not available - using legacy quarantine")
+        _logger.warning("quarantine_core not available - using legacy quarantine")
         return None
     def restore_file(entry_id: int) -> bool:
-        _log.warning("quarantine_core not available - cannot restore")
+        _logger.warning("quarantine_core not available - cannot restore")
         return False
 
 # Sensor Hub (TASK-018): Unified psutil snapshot + bounded queues
@@ -358,6 +387,8 @@ except ImportError:
             "Revolutionary enhancements not available — CPU fallback active, gpu_executor idle (50% cores reserved but no CUDA workloads)")
     except Exception:
         pass
+    except (ImportError, AttributeError, ModuleNotFoundError):
+        pass
     # Create dummy functions if revolutionary enhancements not available
     quantum_manager: Any = None
     neural_security: Any = None
@@ -470,12 +501,11 @@ import json
 import logging
 import math
 import os
-# v29.56: absolute PowerShell path - prevents PATH hijacking where a
-# malicious binary named powershell.exe could shadow the real one via
-# a modified PATH.
-_PWSH: str = os.path.join(
-    os.environ.get('SystemRoot', r'C:\Windows'),
-    'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+
+# v29.60: _PWSH (absolute PowerShell path) removed — zero PowerShell
+# spawn sites remain; every former PS call now uses a native API
+# (see native_probes.py). The constant was kept through v29.57-v29.59
+# for the 63+ call sites that have since been converted.
 
 import pathlib
 import platform
@@ -491,21 +521,38 @@ _NO_WIN: Any = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000)  # suppress c
 # Wrap any callable with this to guarantee COM init/uninit around it.
 def _com_wrap(fn: "Callable[..., Any]") -> "Any":
     """Run fn() with COM initialized. Returns fn's return value."""
+    com_initialized = False
     try:
         import pythoncom as _pc  # type: ignore[import-not-found]
-        _pc.CoInitializeEx(0)  # COINIT_MULTITHREADED
-        _needs_uninit: Any = True
-    except Exception:
-        _needs_uninit: Any = False
-    try:
-        return fn()
+        try:
+            _pc.CoInitializeEx(0)  # COINIT_MULTITHREADED
+            com_initialized = True
+        except Exception as com_error:
+            # COM might already be initialized on this thread
+            if not (hasattr(com_error, 'hresult') and com_error.hresult == -2147417850):  # RPC_E_CHANGED_MODE
+                _logger.warning(f"COM initialization failed: {com_error}")
+                com_initialized = False
+        
+        try:
+            return fn()
+        except Exception as fn_error:
+            _logger.error(f"COM-wrapped function failed: {fn_error}", exc_info=True)
+            raise
+    except (ImportError, AttributeError) as import_error:
+        _logger.warning(f"COM module not available: {import_error}")
+        # Try to run without COM if possible
+        try:
+            return fn()
+        except Exception as fallback_error:
+            _logger.error(f"Function requires COM but COM unavailable: {fallback_error}")
+            raise
     finally:
-        if _needs_uninit:
+        if com_initialized:
             try:
                 import pythoncom as _pc2  # type: ignore[import-not-found]
                 _pc2.CoUninitialize()
-            except Exception:
-                pass
+            except Exception as cleanup_error:
+                _logger.debug(f"COM cleanup failed (non-critical): {cleanup_error}")
 
 import sys
 # Force UTF-8 output so unicode characters don't crash on Windows cp1252 terminals
@@ -663,13 +710,9 @@ except ImportError:
 # (verified locally: only nvidia_ml_py-13.590.48.dist-info exists, and
 # `import pynvml` succeeds). Import pynvml directly.
 try:
-    import nvidia_ml_py as nvml  # type: ignore[import-not-found]
+    import pynvml as nvml  # type: ignore[import-not-found]
 except ImportError:
-    try:
-        import pynvml as nvml  # type: ignore[import-not-found]
-    except ImportError:
-        nvml: Any = None
-        pynvml: Any = None
+    nvml: Any = None
 
 # Security and networking imports
 try:
@@ -717,6 +760,30 @@ except ImportError:
 try:
     import pystray  # type: ignore[import-not-found]
     from pystray import Icon as TrayIcon, MenuItem as TrayMenuItem
+    # FIX-v29.60: pystray's _win32 backend raises "OSError: [WinError 0] The
+    # operation completed successfully." when CreateWindowEx returns NULL but
+    # GetLastError() is 0 (observed race on Win11 — THREAD CRASH in the tray
+    # thread, tray icon silently absent). Retry the failed call once before
+    # giving up; transients almost always succeed on the retry.
+    try:
+        from pystray._util import win32 as _ps_win32_util
+        _ps_err_orig: Any = _ps_win32_util._err
+        def _ps_err_retry(result, func, args):
+            try:
+                return _ps_err_orig(result, func, args)
+            except OSError as _we:
+                if getattr(_we, 'winerror', None) == 0:
+                    try:
+                        _retry: Any = func(*args)
+                        if _retry:
+                            return _retry
+                    except Exception:
+                        pass
+                    return result   # give up quietly — no thread crash
+                raise
+        _ps_win32_util._err = _ps_err_retry
+    except Exception:
+        pass  # pystray layout changed — degrade to stock behavior
 except ImportError:
     pystray: Any = None
     TrayIcon: Any = None
@@ -1391,6 +1458,19 @@ class PerformanceOptimizer:
             from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
             self._thread_pool = ThreadPoolExecutor(max_workers=self._parallel_workers)
             self._process_pool = ProcessPoolExecutor(max_workers=min(self._parallel_workers, 4))
+            # FIX-v29.60: one-time canary. Some environments fail EVERY
+            # spawned worker import ("DLL load failed while importing
+            # _ctypes") — detect that once here and drop to threads, instead
+            # of failing every submitted task with a 30s timeout each.
+            try:
+                _pcanary: Any = self._process_pool.submit(int, 1)
+                _pcanary.result(timeout=30)
+            except Exception:
+                try:
+                    self._process_pool.shutdown(wait=False)
+                except Exception:
+                    pass
+                self._process_pool = None   # execute_parallel() falls back
             atexit.register(self.shutdown_pools)
         except Exception:
             pass  # Graceful fallback
@@ -3359,35 +3439,26 @@ except ImportError:
     GPUTIL_AVAILABLE: Any = False
 
 try:
-    # Use nvidia-ml-py (maintained replacement for deprecated pynvml)
+    # Use pynvml (nvidia-ml-py 13.x installs itself as pynvml)
     import warnings as _w
     _w.filterwarnings('ignore', category=DeprecationWarning, module='pynvml')
     _w.filterwarnings('ignore', message='.*pynvml.*deprecated.*', category=FutureWarning)
-    try:
-        from nvidia_ml_py import (nvmlInit, nvmlDeviceGetHandleByIndex,
-                        nvmlDeviceGetUtilizationRates, nvmlDeviceGetTemperature,
-                        nvmlDeviceGetFanSpeed, nvmlShutdown, NVML_TEMPERATURE_GPU,
-                        nvmlDeviceGetName, nvmlDeviceGetMemoryInfo)
-    except ImportError:
-        # FIX-v29.42c: nvidia-ml-py 13.x provides the functions via `pynvml`
-        from pynvml import (nvmlInit, nvmlDeviceGetHandleByIndex,
-                        nvmlDeviceGetUtilizationRates, nvmlDeviceGetTemperature,
-                        nvmlDeviceGetFanSpeed, nvmlShutdown, NVML_TEMPERATURE_GPU,
-                        nvmlDeviceGetName, nvmlDeviceGetMemoryInfo)
+    import pynvml
+    nvmlInit = pynvml.nvmlInit
+    nvmlDeviceGetHandleByIndex = pynvml.nvmlDeviceGetHandleByIndex
+    nvmlDeviceGetUtilizationRates = pynvml.nvmlDeviceGetUtilizationRates
+    nvmlDeviceGetTemperature = pynvml.nvmlDeviceGetTemperature
+    nvmlDeviceGetFanSpeed = pynvml.nvmlDeviceGetFanSpeed
+    nvmlShutdown = pynvml.nvmlShutdown
+    NVML_TEMPERATURE_GPU = pynvml.NVML_TEMPERATURE_GPU
+    nvmlDeviceGetName = pynvml.nvmlDeviceGetName
+    nvmlDeviceGetMemoryInfo = pynvml.nvmlDeviceGetMemoryInfo
+    nvmlDeviceGetPowerUsage = pynvml.nvmlDeviceGetPowerUsage
+    nvmlDeviceGetClockInfo = pynvml.nvmlDeviceGetClockInfo
+    NVML_CLOCK_GRAPHICS = pynvml.NVML_CLOCK_GRAPHICS
     NVML_AVAILABLE: Any = True
-except ImportError:
-    # Fallback to pynvml if nvidia-ml-py not available
-    try:
-        import warnings as _w
-        _w.filterwarnings('ignore', category=DeprecationWarning, module='pynvml')
-        _w.filterwarnings('ignore', message='.*pynvml.*deprecated.*', category=FutureWarning)
-        from pynvml import (nvmlInit, nvmlDeviceGetHandleByIndex,
-                            nvmlDeviceGetUtilizationRates, nvmlDeviceGetTemperature,
-                            nvmlDeviceGetFanSpeed, nvmlShutdown, NVML_TEMPERATURE_GPU,
-                            nvmlDeviceGetName, nvmlDeviceGetMemoryInfo)
-        NVML_AVAILABLE: Any = True
-    except Exception:
-        NVML_AVAILABLE: Any = False
+except Exception:
+    NVML_AVAILABLE: Any = False
 
 try:
     import requests
@@ -3867,17 +3938,18 @@ class RootkitDetector:
         return findings
 
     def _check_drivers(self, alert_cb, graph_cb):
-        import subprocess, os, json
+        import os
         findings: Any = []
-        r: Any = subprocess.run(
-            [_PWSH,'-NoProfile','-NonInteractive','-Command',
-             'Get-WmiObject Win32_SystemDriver | Select-Object Name,PathName,State | ConvertTo-Json -Depth 2'],
-            capture_output = True, text=True, timeout=20, creationflags=0x08000000)
-        if r.returncode != 0 or not r.stdout.strip():
+        # v29.60: native WMI via COM — replaces the Get-WmiObject
+        # subprocess (same Win32_SystemDriver enumeration).
+        try:
+            import native_probes
+        except Exception:
+            return findings
+        drivers: Any = native_probes.get_system_drivers()
+        if not drivers:
             return findings
         try:
-            drivers: Any = json.loads(r.stdout)
-            if isinstance(drivers, dict): drivers = [drivers]
             for d in drivers:
                 path: Any = (d.get('PathName') or '').lower().replace('/', '\\')
                 state: Any = d.get('State', '')
@@ -3897,7 +3969,7 @@ class RootkitDetector:
                             Colors.GAUGE_ORANGE)
                         graph_cb(path, 'Rootkit-Driver', 'unusual path')
                         findings.append({'type': 'unusual_driver', 'path': path})
-        except (json.JSONDecodeError, TypeError):
+        except (TypeError, AttributeError):
             pass
         return findings
 
@@ -3983,23 +4055,25 @@ class RootkitDetector:
 
     # -- WMI event subscription persistence --
     def _clean_wmi_persistence(self, alert_cb, graph_cb):
-        import subprocess, json
         findings: Any = []
+        # v29.60: native WMI via COM (SWbemLocator) — replaces both the
+        # Get-WmiObject enumeration and the Remove-WmiObject deletion
+        # subprocesses.
+        try:
+            import native_probes
+        except Exception:
+            return findings
         for cls in ['__EventFilter', 'CommandLineEventConsumer',
                     'ActiveScriptEventConsumer',
                     '__FilterToConsumerBinding']:
             try:
-                r: Any = subprocess.run(
-                    [_PWSH, '-NoProfile', '-NonInteractive', '-Command',
-                     f'Get-WmiObject -Namespace root\\subscription -Class {cls} '
-                     f'| Select-Object -Property * | ConvertTo-Json -Depth 3'],
-                    capture_output = True, text=True, timeout=20,
-                    creationflags = 0x08000000)
-                if r.returncode != 0 or not r.stdout.strip():
+                items: Any = native_probes.wmi_wql_dicts(
+                    r'root\subscription',
+                    f'SELECT * FROM {cls}',
+                    ['Name', '__RELPATH', 'CommandLineTemplate',
+                     'ScriptText', 'Filter'])
+                if not items:
                     continue
-                items: Any = json.loads(r.stdout)
-                if isinstance(items, dict):
-                    items: Any = [items]
                 for item in items:
                     name: Any = item.get('Name', item.get('__RELPATH', 'unknown'))
                     cmd: Any = (item.get('CommandLineTemplate', '')
@@ -4008,7 +4082,7 @@ class RootkitDetector:
                     cmd_l: Any = cmd.lower()
                     # Flag anything that runs powershell, cmd, scripts from
                     # temp/appdata, or uses encoded commands
-                    sus_markers: Any = [_PWSH, 'cmd.exe', '\\temp\\',
+                    sus_markers: Any = ['powershell.exe', 'cmd.exe', '\\temp\\',
                                    '\\appdata\\', '-enc ', '-e ', 'base64',
                                    'iex(', 'invoke-expression',
                                    'downloadstring', 'downloadfile',
@@ -4022,19 +4096,14 @@ class RootkitDetector:
                             f'Removing...',
                             Colors.GAUGE_RED)
                         graph_cb(f'WMI:{cls}', 'Rootkit-WMI', name)
-                        # Remove
-                        subprocess.run(
-                            [_PWSH, '-NoProfile', '-NonInteractive',
-                             '-Command',
-                             f'Get-WmiObject -Namespace root\\subscription '
-                             f'-Class {cls} -Filter "Name=\'{name}\'" '
-                             f'| Remove-WmiObject -Confirm:$false'],
-                            capture_output = True, timeout=10,
-                            creationflags = 0x08000000)
+                        # Remove (native WMI delete)
+                        native_probes.wmi_delete_instances(
+                            r'root\subscription',
+                            f"SELECT * FROM {cls} WHERE Name='{name}'")
                         findings.append({'type': 'wmi_persistence',
                                          'class': cls, 'name': name,
                                          'action': 'removed'})
-            except (json.JSONDecodeError, TypeError, subprocess.TimeoutExpired):
+            except Exception:
                 pass
         return findings
 
@@ -4153,25 +4222,21 @@ class RootkitDetector:
 
     # -- Malicious services installed by rootkits --
     def _clean_malicious_services(self, alert_cb, graph_cb):
-        import subprocess, json
         findings: Any = []
+        # v29.60: native WMI via COM — replaces the Get-WmiObject
+        # subprocess (the Where-Object path filter moves to Python).
         try:
-            r: Any = subprocess.run(
-                [_PWSH, '-NoProfile', '-NonInteractive', '-Command',
-                 'Get-WmiObject Win32_Service | Where-Object {'
-                 '$_.PathName -and $_.Started -eq $true -and '
-                 '$_.PathName -notlike "*system32*" -and '
-                 '$_.PathName -notlike "*Program Files*" -and '
-                 '$_.PathName -notlike "*SysWOW64*"'
-                 '} | Select-Object Name,PathName,StartMode,Description '
-                 '| ConvertTo-Json -Depth 2'],
-                capture_output = True, text=True, timeout=25,
-                creationflags = 0x08000000)
-            if r.returncode != 0 or not r.stdout.strip():
-                return findings
-            svcs: Any = json.loads(r.stdout)
-            if isinstance(svcs, dict):
-                svcs: Any = [svcs]
+            import native_probes
+        except Exception:
+            return findings
+        try:
+            svcs: Any = native_probes.wmi_wql_dicts(
+                r'root\cimv2',
+                'SELECT Name, PathName, StartMode, Description, Started '
+                'FROM Win32_Service',
+                ['Name', 'PathName', 'StartMode', 'Description', 'Started'])
+            svcs = [s for s in svcs
+                    if s.get('PathName') and s.get('Started')]
             sus_paths: Any = ['\\temp\\', '\\appdata\\', '\\downloads\\',
                          '\\users\\public\\', '\\programdata\\',
                          '\\perflogs\\']
@@ -4198,14 +4263,20 @@ class RootkitDetector:
                     findings.append({'type': 'malicious_service',
                                      'name': name, 'path': path,
                                      'action': 'stopped_disabled'})
-        except (json.JSONDecodeError, TypeError, subprocess.TimeoutExpired):
+        except (TypeError, subprocess.TimeoutExpired):
             pass
         return findings
 
     # -- Alternate Data Streams hiding malware in NTFS --
     def _clean_alternate_data_streams(self, alert_cb, graph_cb):
-        import subprocess, os
+        import os
         findings: Any = []
+        # v29.60: native — os.walk + FindFirstStreamW (kernel32) replaces
+        # the Get-ChildItem -Stream PowerShell pipeline.
+        try:
+            import native_probes
+        except Exception:
+            return findings
         # Check common persistence locations for ADS
         check_dirs: Any = [
             os.path.expandvars(r'%APPDATA%'),
@@ -4217,40 +4288,24 @@ class RootkitDetector:
             if not os.path.isdir(d):
                 continue
             try:
-                r: Any = subprocess.run(
-                    [_PWSH, '-NoProfile', '-NonInteractive',
-                     '-Command',
-                     f'Get-ChildItem -Path "{d}" -Recurse -ErrorAction '
-                     f'SilentlyContinue | ForEach-Object {{ '
-                     f'Get-Item $_.FullName -Stream * -ErrorAction '
-                     f'SilentlyContinue | Where-Object {{ '
-                     f'$_.Stream -ne ":$DATA" -and $_.Stream -ne "Zone.Identifier" '
-                     f'}} }} | Select-Object FileName,Stream,Length '
-                     f'| ConvertTo-Json -Depth 2'],
-                    capture_output = True, text=True, timeout=30,
-                    creationflags = 0x08000000)
-                if r.returncode != 0 or not r.stdout.strip():
-                    continue
-                import json
-                streams: Any = json.loads(r.stdout)
-                if isinstance(streams, dict):
-                    streams: Any = [streams]
-                for s in streams:
-                    fname: Any = s.get('FileName', '?')
-                    stream: Any = s.get('Stream', '?')
-                    length: Any = s.get('Length', 0)
-                    if length and length > 100:  # small ADS are usually benign
-                        alert_cb(
-                            f'[ROOTKIT] Hidden NTFS Alternate Data Stream:\n'
-                            f'File: {fname}\nStream: {stream} '
-                            f'({length} bytes)\n'
-                            f'Malware can hide payloads in ADS.',
-                            Colors.GAUGE_ORANGE)
-                        graph_cb(f'ADS:{fname}', 'Rootkit-ADS', stream)
-                        findings.append({'type': 'ads', 'file': fname,
-                                         'stream': stream, 'size': length})
-            except (subprocess.TimeoutExpired, json.JSONDecodeError,
-                    TypeError):
+                for root, _dirs, files in os.walk(d):
+                    for fn in files:
+                        fp: Any = os.path.join(root, fn)
+                        streams: Any = native_probes.find_ads(fp)
+                        for stream, length in streams:
+                            # small ADS are usually benign
+                            if length and length > 100:
+                                alert_cb(
+                                    f'[ROOTKIT] Hidden NTFS Alternate Data Stream:\n'
+                                    f'File: {fp}\nStream: {stream} '
+                                    f'({length} bytes)\n'
+                                    f'Malware can hide payloads in ADS.',
+                                    Colors.GAUGE_ORANGE)
+                                graph_cb(f'ADS:{fp}', 'Rootkit-ADS', stream)
+                                findings.append({'type': 'ads', 'file': fp,
+                                                 'stream': stream,
+                                                 'size': length})
+            except (OSError, TypeError):
                 pass
         return findings
 
@@ -4390,18 +4445,15 @@ class BootkitDetector:
     def _check_driver_signatures(self, alert_cb, graph_cb):
         """Check for unsigned kernel drivers that could indicate rootkits."""
         findings: Any = []
+        # v29.60: native WMI via COM — replaces the Get-WmiObject subprocess.
         try:
-            import subprocess
-            r: Any = subprocess.run(
-                [_PWSH, '-Command',
-                 'Get-WmiObject Win32_SystemDriver | Where-Object {$_.Started -eq $true} | Select-Object Name,PathName,State | ConvertTo-Json'],
-                capture_output = True, text=True, timeout=30,
-                creationflags = 0x08000000)
-            if r.returncode == 0 and r.stdout.strip():
-                import json
-                drivers: Any = json.loads(r.stdout)
-                if isinstance(drivers, dict):
-                    drivers: Any = [drivers]
+            import native_probes
+        except Exception:
+            return findings
+        try:
+            drivers: Any = [d for d in native_probes.get_system_drivers()
+                            if d.get('Started')]
+            if drivers:
                 suspicious_drivers: Any = []
                 for d in drivers:
                     name: Any = (d.get('Name') or '').lower()
@@ -4423,14 +4475,16 @@ class BootkitDetector:
         return findings
 
     def _check_secure_boot(self, alert_cb, graph_cb):
-        import subprocess
         findings: Any = []
-        r: Any = subprocess.run(
-            [_PWSH,'-NoProfile','-NonInteractive','-Command',
-             'Confirm-SecureBootUEFI 2>&1'],
-            capture_output = True, text=True, timeout=10, creationflags=0x08000000)
-        out: Any = r.stdout.strip().lower()
-        if 'false' in out:
+        # v29.60: native registry read (SYSTEM\...\SecureBoot\State) —
+        # the exact value Confirm-SecureBootUEFI reports. Non-UEFI/locked
+        # systems read as enabled → no false alarm.
+        try:
+            import native_probes
+        except Exception:
+            return findings
+        secure_on: Any = native_probes.secure_boot_enabled()
+        if not secure_on:
             # Only alert if user has NOT bypassed TPM/BitLocker checks
             import __main__
             app: Any = getattr(__main__, '_downpour_app', None)
@@ -4486,18 +4540,31 @@ class BootkitDetector:
         return findings
 
     def _check_mbr(self, alert_cb, graph_cb):
-        import subprocess, hashlib, os, base64
+        import hashlib, os
         findings: Any = []
-        r: Any = subprocess.run(
-            [_PWSH,'-NoProfile','-NonInteractive','-Command',
-             r'try{$d=[System.IO.File]::OpenRead("\\.\PhysicalDrive0");'
-             r'$b=New-Object byte[] 512;$d.Read($b,0,512)|Out-Null;$d.Close();'
-             r'[Convert]::ToBase64String($b)}catch{"ERROR"}'],
-            capture_output = True, text=True, timeout=15, creationflags=_NO_WIN)
-        out: Any = r.stdout.strip()
-        if not out or out == 'ERROR': return findings
+        # v29.60: native raw-disk read (CreateFileW + ReadFile via
+        # pywin32) — replaces the PowerShell PhysicalDrive0 probe.
+        mbr: Any = None
         try:
-            mbr: Any = base64.b64decode(out)
+            import win32file
+            import win32con
+            hdev = win32file.CreateFile(
+                r'\\.\PhysicalDrive0',
+                win32con.GENERIC_READ,
+                win32con.FILE_SHARE_READ | win32con.FILE_SHARE_WRITE,
+                None, win32con.OPEN_EXISTING, 0, None)
+            try:
+                _hr, mbr = win32file.ReadFile(hdev, 512)
+            finally:
+                win32file.CloseHandle(hdev)
+            if not mbr or len(mbr) < 512:
+                mbr = None
+        except Exception:
+            mbr = None
+        if mbr is None:
+            return findings
+        try:
+            mhash: Any = hashlib.sha256(mbr).hexdigest()
             mhash: Any = hashlib.sha256(mbr).hexdigest()
             os.makedirs(self._DATA_DIR, exist_ok=True)
             if os.path.exists(self.MBR_BASELINE):
@@ -4801,6 +4868,211 @@ class EnhancedCveHardeningFramework:
         all_mits.update(self.custom_mitigations)
         return all_mits
 
+    def _apply_ps_native(self, ps_cmd: str) -> Tuple[bool, str]:
+        """Apply a former PowerShell mitigation command NATIVELY (v29.60).
+
+        Every command in this framework's fixed set is translated to the
+        underlying registry operation the cmdlet wraps. Returns (ok, detail).
+        """
+        import winreg
+        cmd = (ps_cmd or '').strip()
+        if not cmd:
+            return (True, 'nothing to apply')
+
+        def _reg_set(subkey, name, value, vtype=None):
+            try:
+                k = winreg.CreateKey(winreg.HKEY_LOCAL_MACHINE, subkey)
+                try:
+                    if vtype is None:
+                        vtype = (winreg.REG_DWORD if isinstance(value, int)
+                                 else winreg.REG_SZ)
+                    winreg.SetValueEx(k, name, 0, vtype, value)
+                finally:
+                    winreg.CloseKey(k)
+                return True
+            except Exception as exc:
+                _log.debug('ps_native reg_set %s: %s', name, exc)
+                return False
+
+        ok_all = True
+        notes = []
+        for part in [p.strip() for p in cmd.split(';') if p.strip()]:
+            low = part.lower()
+            handled = True
+            try:
+                if low.startswith('add-mppreference'):
+                    import re as _re
+                    ids = _re.findall(r'[0-9A-Fa-f]{8}-[0-9A-Fa-f-]{27}',
+                                      part)
+                    act_tokens = (part.split('_Actions', 1)[1].split(',')
+                                  if '_Actions' in part else ['Enabled'])
+                    for i, rid in enumerate(ids):
+                        act = act_tokens[i % len(act_tokens)].strip()
+                        act = act.split()[0] if act.split() else 'Enabled'
+                        val = {'Enabled': 1, 'AuditMode': 2, 'Warn': 6,
+                               'Disabled': 0}.get(act, 1)
+                        ok_all &= _reg_set(
+                            r'SOFTWARE\Policies\Microsoft\Windows Defender'
+                            r'\Windows Defender Exploit Guard\ASR\Rules',
+                            rid, val, winreg.REG_SZ)
+                    notes.append(f'ASR rules x{len(ids)} (reg)')
+                elif 'set-mppreference' in low:
+                    if 'enablenetworkprotection' in low:
+                        ok_all &= _reg_set(
+                            r'SOFTWARE\Policies\Microsoft\Windows Defender'
+                            r'\Windows Defender Exploit Guard\Network'
+                            r' Protection', 'EnableNetworkProtection', 1)
+                        notes.append('NetProt=1')
+                    elif 'cloudblocklevel' in low:
+                        lvl = 'High' if 'high' in low else 'Default'
+                        ok_all &= _reg_set(
+                            r'SOFTWARE\Policies\Microsoft\Windows Defender'
+                            r'\MpEngine', 'MpCloudBlockLevel', lvl,
+                            winreg.REG_SZ)
+                        notes.append(f'Cloud={lvl}')
+                    elif 'enablecontrolledfolderaccess' in low:
+                        ok_all &= _reg_set(
+                            r'SOFTWARE\Microsoft\Windows Defender\Windows'
+                            r' Defender Exploit Guard\Controlled Folder'
+                            r' Access', 'EnableControlledFolderAccess', 1)
+                        notes.append('CFA=1')
+                    elif 'signatureupdateinterval' in low:
+                        ok_all &= _reg_set(
+                            r'SOFTWARE\Policies\Microsoft\Windows Defender'
+                            r'\Signature Updates', 'SignatureUpdateInterval',
+                            1)
+                        notes.append('SigUpdate=1')
+                    elif 'puaprotection' in low:
+                        ok_all &= _reg_set(
+                            r'SOFTWARE\Microsoft\Windows Defender',
+                            'PUAProtection', 1)
+                        notes.append('PUA=1')
+                    elif 'mapsreporting' in low:
+                        ok_all &= _reg_set(
+                            r'SOFTWARE\Microsoft\Windows Defender\SpyNet',
+                            'MAPSReporting', 2)
+                        notes.append('MAPS=2')
+                    elif 'submitsamplesconsent' in low:
+                        ok_all &= _reg_set(
+                            r'SOFTWARE\Microsoft\Windows Defender\SpyNet',
+                            'SubmitSamplesConsent', 1)
+                        notes.append('Samples=1')
+                    elif 'disablerealtimemonitoring' in low:
+                        want = 0 if ('false' in low) else 1
+                        ok_all &= _reg_set(
+                            r'SOFTWARE\Microsoft\Windows Defender\Real-Time'
+                            r' Protection', 'DisableRealtimeMonitoring',
+                            want)
+                        notes.append(f'RTP={want}')
+                    else:
+                        handled = False
+                else:
+                    handled = False
+            except Exception as exc:
+                ok_all = False
+                notes.append(f'err:{exc}')
+                handled = True
+            if not handled:
+                ok_all = False
+                notes.append(f'unsupported:{part[:50]}')
+        return (ok_all, '; '.join(notes) or 'applied')
+
+    def _apply_ps_native_extra(self, ps_cmd: str) -> Tuple[bool, str]:
+        """Native applier for the remaining command families (dism, SMB
+        config, service control, PS registry paths). Returns (ok, detail)."""
+        import winreg
+        ok_all = True
+        notes = []
+        for part in [p.strip() for p in (ps_cmd or '').split(';')
+                     if p.strip()]:
+            low = part.lower()
+            try:
+                if 'disable-windowsoptionalfeature' in low:
+                    import re as _re
+                    m = _re.search(r'-FeatureName\s+([^\s;]+)', part,
+                                   _re.IGNORECASE)
+                    fname = m.group(1) if m else ''
+                    r = subprocess.run(
+                        ['dism', '/online', '/disable-feature',
+                         f'/featurename:{fname}', '/norestart'],
+                        capture_output=True, text=True, timeout=600,
+                        creationflags=_NO_WIN)
+                    ok_all &= (r.returncode == 0)
+                    notes.append(f'dism:{fname}:rc{r.returncode}')
+                elif 'set-smbclientconfiguration' in low:
+                    k = winreg.CreateKey(
+                        winreg.HKEY_LOCAL_MACHINE,
+                        r'SYSTEM\CurrentControlSet\Services'
+                        r'\LanmanWorkstation\Parameters')
+                    try:
+                        winreg.SetValueEx(k, 'RequireSecuritySignature', 0,
+                                          winreg.REG_DWORD, 1)
+                    finally:
+                        winreg.CloseKey(k)
+                    notes.append('SMB-client sig=1')
+                elif 'set-smbserverconfiguration' in low:
+                    sub = (r'SYSTEM\CurrentControlSet\Services'
+                           r'\LanmanServer\Parameters')
+                    name, val = (('SMB1', 0)
+                                 if ('enablesmb1protocol' in low and
+                                     '$false' in low)
+                                 else ('RequireSecuritySignature', 1))
+                    k = winreg.CreateKey(winreg.HKEY_LOCAL_MACHINE, sub)
+                    try:
+                        winreg.SetValueEx(k, name, 0, winreg.REG_DWORD, val)
+                    finally:
+                        winreg.CloseKey(k)
+                    notes.append(f'SMB-server {name}={val}')
+                elif 'stop-service' in low or 'set-service' in low:
+                    import re as _re
+                    m = _re.search(r'-Name\s+([^\s;]+)', part,
+                                   _re.IGNORECASE)
+                    svc = m.group(1) if m else ''
+                    if svc:
+                        subprocess.run(['sc', 'stop', svc],
+                                       capture_output=True, timeout=15,
+                                       creationflags=_NO_WIN)
+                        subprocess.run(['sc', 'config', svc, 'start=',
+                                        'disabled'],
+                                       capture_output=True, timeout=15,
+                                       creationflags=_NO_WIN)
+                        notes.append(f'{svc} stopped+disabled')
+                elif 'set-itemproperty' in low:
+                    import re as _re
+                    mpath = _re.search(r'-Path\s+"?([^"\s;]+)', part,
+                                       _re.IGNORECASE)
+                    mname = _re.search(r'-Name\s+([^\s;]+)', part,
+                                       _re.IGNORECASE)
+                    mval = _re.search(r'-Value\s+([^\s;-]+)', part,
+                                      _re.IGNORECASE)
+                    if mpath and mname and mval:
+                        rp = mpath.group(1)
+                        hive = (winreg.HKEY_LOCAL_MACHINE
+                                if rp.upper().startswith('HKLM')
+                                else winreg.HKEY_CURRENT_USER)
+                        sub = rp.split('\\', 1)[1] if '\\' in rp else rp
+                        k = winreg.CreateKey(hive, sub)
+                        try:
+                            v = mval.group(1)
+                            num = int(v) if v.lstrip('-').isdigit() else v
+                            winreg.SetValueEx(
+                                k, mname.group(1), 0,
+                                winreg.REG_DWORD if isinstance(num, int)
+                                else winreg.REG_SZ, num)
+                            notes.append(f'{mname.group(1)}={num}')
+                        finally:
+                            winreg.CloseKey(k)
+                    else:
+                        ok_all = False
+                        notes.append('Set-ItemProperty parse error')
+                else:
+                    ok_all = False
+                    notes.append(f'unsupported:{part[:50]}')
+            except Exception as exc:
+                ok_all = False
+                notes.append(f'err:{exc}')
+        return (ok_all, '; '.join(notes) or 'applied')
+
     def verify_mitigation(self, mitigation_key):
         """Verify if a mitigation is currently applied."""
         mits: Any = self.get_all_mitigations()
@@ -4814,14 +5086,24 @@ class EnhancedCveHardeningFramework:
         # Verify PowerShell settings
         if mitigation.get('ps'):
             try:
-                # Check if PowerShell command effects are active
+                # v29.60: native verification — no PowerShell subprocess.
                 if 'AttackSurfaceReductionRules' in mitigation['ps']:
-                    # Verify ASR rules are enabled
-                    result: Any = subprocess.run(
-                        [_PWSH, '-NoProfile', '-Command',
-                         'Get-MpPreference | Select-Object AttackSurfaceReductionRules_Ids'],
-                        capture_output = True, text=True, timeout=10, creationflags=_NO_WIN)
-                    if result.returncode == 0 and mitigation['ps'].split('Ids ')[1].split(' ')[0] in result.stdout:
+                    # Verify ASR rules are enabled (native: WMI Defender ns
+                    # → GPO registry fallback)
+                    try:
+                        import native_probes
+                        rule_ids: Any = native_probes.get_asr_rule_ids()
+                    except Exception:
+                        rule_ids = []
+                    want_id = (mitigation['ps'].split('Ids ')[1]
+                               .split(' ')[0]) if 'Ids ' in \
+                        mitigation['ps'] else ''
+                    want_ids: Any = [g.strip().rstrip(',')
+                                     for g in want_id.split(',')
+                                     if g.strip()]
+                    if want_ids and all(
+                            any(g.lower() == rid.lower() for rid in rule_ids)
+                            for g in want_ids):
                         details.append("ASR rule active")
                     else:
                         verified: Any = False
@@ -4985,17 +5267,20 @@ class EnhancedCveHardeningFramework:
                 # Apply PowerShell mitigations
                 if mits['ps']:
                     try:
-                        r: Any = subprocess.run(
-                            [_PWSH,'-NoProfile','-NonInteractive','-Command', mits['ps']],
-                            capture_output = True, text=True, timeout=15, creationflags=0x08000000)
-                        status: Any = 'OK' if r.returncode == 0 else 'FAIL'
-                        applied.append(f"PS:{mits['desc'][:45]}:{status}")
-
-                        if r.returncode != 0:
-                            alert_cb(f"[ERROR] PowerShell failed: {r.stderr[:100]}", Colors.GAUGE_RED)
+                        # v29.60: native application — the fixed command set
+                        # is translated to its registry/EXE operation.
+                        _ok1, _n1 = self._apply_ps_native(mits['ps'])
+                        _ok2, _n2 = self._apply_ps_native_extra(mits['ps'])
+                        status: Any = 'OK' if (_ok1 or _ok2) else 'FAIL'
+                        applied.append(
+                            f"PS:{mits['desc'][:45]}:{status} ({_n1 or _n2})")
+                        if not (_ok1 or _ok2):
+                            alert_cb(f"[ERROR] Native mitigation failed: "
+                                     f"{(_n2 or _n1)[:100]}",
+                                     Colors.GAUGE_RED)
                     except Exception as e:
                         applied.append(f"PS:{mits['desc'][:45]}:ERROR:{str(e)[:30]}")
-                        alert_cb(f"[ERROR] PowerShell exception: {str(e)}", Colors.GAUGE_RED)
+                        alert_cb(f"[ERROR] Mitigation exception: {str(e)}", Colors.GAUGE_RED)
 
                 # Apply registry mitigations
                 for key, vname, vtype, val in mits.get('reg', []):
@@ -10034,32 +10319,15 @@ class AdvancedProcessScanner:
                         )
                         if r.returncode == 0:
                             return True, f"Memory dumped -> {dump_path.name}"
-                    # PowerShell fallback via Out-Minidump
-                    ps: Any = (
-                        f"$proc = Get-Process -Id {pid} -EA 0; "
-                        f"if ($proc) {{ "
-                        f"Add-Type @'\n"
-                        f"  using System; using System.Runtime.InteropServices;\n"
-                        f"  public class MiniDump {{"
-                        f"    [DllImport(\"dbghelp.dll\")] public static extern bool "
-                        f"    MiniDumpWriteDump(IntPtr hProcess, int ProcessId, "
-                        f"    SafeHandle hFile, int DumpType, IntPtr ExcInfo, "
-                        f"    IntPtr UserStream, IntPtr Callback);\n"
-                        f"  }}\n'@; "
-                        f"$fs = [System.IO.File]::Create('{dump_path}'); "
-                        f"[MiniDump]::MiniDumpWriteDump($proc.Handle, {pid}, "
-                        f"$fs.SafeFileHandle, 2, [IntPtr]::Zero, "
-                        f"[IntPtr]::Zero, [IntPtr]::Zero); "
-                        f"$fs.Close() }}"
-                    )
-                    _: Any = subprocess.run(
-                        [_PWSH, '-NoProfile', '-NonInteractive', '-Command', ps],
-                        capture_output = True, timeout=60,
-                        creationflags = subprocess.CREATE_NO_WINDOW
-                    )
-                    if dump_path.exists() and dump_path.stat().st_size > 0:
-                        return True, f"Memory dumped -> {dump_path.name}"
-                    return False, "Memory dump failed (need Admin or Procdump)"
+                    # v29.60: native MiniDumpWriteDump via dbghelp.dll
+                    # (replaces the PowerShell Out-Minidump + Add-Type)
+                    try:
+                        import native_probes
+                        _ok, _msg = native_probes.write_minidump(
+                            pid, str(dump_path))
+                        return _ok, _msg
+                    except Exception as e:
+                        return False, f"Dump error: {e}"
                 except Exception as e:
                     return False, f"Dump error: {e}"
 
@@ -12601,8 +12869,19 @@ def _get_shared_parse_pool():
                 from concurrent.futures import ProcessPoolExecutor as _SPPE
                 try:
                     _shared_parse_pool = _SPPE(max_workers=2)
+                    # FIX-v29.60: one-time canary. On some setups every
+                    # spawned worker dies at import ("DLL load failed while
+                    # importing _ctypes") — detect that ONCE here instead of
+                    # failing per-feed forever.
+                    _canary: Any = _shared_parse_pool.submit(int, 1)
+                    _canary.result(timeout=30)
                 except Exception:
-                    _shared_parse_pool = None
+                    try:
+                        if _shared_parse_pool is not None:
+                            _shared_parse_pool.shutdown(wait=False)
+                    except Exception:
+                        pass
+                    _shared_parse_pool = None   # callers fall back in-thread
     _shared_parse_pool_used = True
     return _shared_parse_pool
 
@@ -15526,11 +15805,13 @@ class RansomwareDetector:
                 return  # pywin32 / wmi not available — skip silently
 
             # FIX: WMI requires CoInitialize when called from a non-main thread.
+            # v29.60b: once-per-thread (unbalanced per-call CoInitialize
+            # accumulated COM refcounts on this long-lived thread).
             try:
-                import pythoncom  # type: ignore[import-untyped]
-                pythoncom.CoInitialize()
+                import native_probes as _npp
+                _npp._com_ensure_initialized()
             except ImportError:
-                pass  # pythoncom unavailable on some Python builds
+                pass  # native_probes unavailable — degrade as before
 
             c: Any = _wmi.WMI()
             for drive in c.Win32_LogicalDisk(DriveType=2):  # Removable disks
@@ -16249,15 +16530,8 @@ class SystemHardeningEngine:
         self._score = 0
         self._max_score = sum(c['points'] for c in self.HARDENING_CHECKS)
 
-    def _run_ps(self, cmd: str) -> str:
-        try:
-            r: Any = subprocess.run(
-                [_PWSH, '-NonInteractive', '-Command', cmd],
-                capture_output = True, text=True, timeout=15,
-                creationflags = subprocess.CREATE_NO_WINDOW)
-            return r.stdout.strip()
-        except Exception:
-            return ''
+    # v29.60: _run_ps (PowerShell helper) removed — every check/fix has a
+    # native implementation (winreg / native_probes / native EXEs).
 
     def _check_registry(self, hkey, subkey: str, value_name: str, expected) -> bool:
         try:
@@ -16294,8 +16568,15 @@ class SystemHardeningEngine:
     def _run_check(self, check: dict) -> bool:
         name: Any = check['name']
         if 'Firewall' in name:
-            out: Any = self._run_ps('netsh advfirewall show allprofiles state')
-            return out.lower().count('on') >= 3
+            # v29.60: native netsh (was routed through PowerShell)
+            try:
+                r: Any = subprocess.run(
+                    ['netsh', 'advfirewall', 'show', 'allprofiles', 'state'],
+                    capture_output=True, text=True, timeout=10,
+                    creationflags=subprocess.CREATE_NO_WINDOW)
+                return (r.stdout or '').lower().count('on') >= 3
+            except Exception:
+                return False
         elif 'UAC' in name:
             return self._check_registry(
                 winreg.HKEY_LOCAL_MACHINE,
@@ -16403,19 +16684,88 @@ class SystemHardeningEngine:
                         pass
             return True  # No "all macros enabled" setting found
         elif 'ASR Rules' in name or 'Attack Surface Reduction' in name:
-            out: Any = self._run_ps('Get-MpPreference | Select-Object -ExpandProperty AttackSurfaceReductionRules_Ids')
-            return len(out.strip()) > 10
+            # v29.60: native probe (WMI Defender ns → GPO registry fallback)
+            try:
+                import native_probes
+                return len(native_probes.get_asr_rule_ids()) >= 1
+            except Exception:
+                return False
         elif 'Memory Integrity' in name or 'HVCI' in name:
             return self._check_registry(
                 winreg.HKEY_LOCAL_MACHINE,
                 r'SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity',
                 'Enabled', 1)
         elif 'BitLocker' in name:
-            out: Any = self._run_ps('(Get-BitLockerVolume -MountPoint C: -ErrorAction SilentlyContinue).ProtectionStatus')
-            return out.strip() in ('On', '1')
+            # v29.60: native manage-bde (was Get-BitLockerVolume via PS)
+            try:
+                r: Any = subprocess.run(
+                    ['manage-bde', '-status', 'C:'],
+                    capture_output=True, text=True, timeout=15,
+                    creationflags=subprocess.CREATE_NO_WINDOW)
+                out: Any = (r.stdout or '')
+                return 'Protection Status' in out and 'On' in \
+                    out.split('Protection Status')[1][:40]
+            except Exception:
+                return False
+        elif 'Defender Real-Time' in name:
+            try:
+                import native_probes
+                return not bool(native_probes.get_defender_pref_int(
+                    'DisableRealtimeMonitoring', 0))
+            except Exception:
+                return False
+        elif 'Defender Cloud' in name:
+            try:
+                import native_probes
+                return (native_probes.get_defender_pref_int(
+                    'MAPSReporting', 0) or 0) in (1, 2)
+            except Exception:
+                return False
+        elif 'Defender PUA' in name:
+            try:
+                import native_probes
+                return native_probes.get_defender_pref_int(
+                    'PUAProtection', 0) == 1
+            except Exception:
+                return False
+        elif 'SMBv1' in name:
+            # Native: SMB1 optional feature / server config
+            try:
+                key: Any = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                    r'SYSTEM\CurrentControlSet\Services\LanmanServer'
+                    r'\Parameters', 0, winreg.KEY_READ)
+                val, _ = winreg.QueryValueEx(key, 'SMB1')
+                winreg.CloseKey(key)
+                return val == 0
+            except Exception:
+                return True   # SMB1 registry value absent = disabled default
+        elif 'Telnet Service' in name or 'SNMP Service' in name:
+            try:
+                svc: Any = ('telnet' if 'Telnet' in name else 'snmp')
+                for s in psutil.win_service_iter():
+                    if s.info.get('name', '').lower() == svc:
+                        return s.info.get('status') != 'running'
+                return True   # service not installed
+            except Exception:
+                return True
+        elif 'Remote Assistance' in name:
+            return self._check_registry(
+                winreg.HKEY_LOCAL_MACHINE,
+                r'SYSTEM\CurrentControlSet\Control\Remote Assistance',
+                'fAllowToGetHelp', 0)
+        elif 'VNC' in name:
+            try:
+                for s in psutil.win_service_iter():
+                    if 'vnc' in (s.info.get('display_name') or '').lower() \
+                            and s.info.get('status') == 'running':
+                        return False
+                return True
+            except Exception:
+                return True
         elif check.get('check_cmd') and check.get('check_pass'):
-            out: Any = self._run_ps(check['check_cmd'])
-            return check['check_pass'](out)
+            # v29.60: the PS-based table fallback is retired; every table
+            # entry now has a native branch above.
+            return False
         return False
 
     def apply_fix(self, check_name: str) -> Tuple[bool, str]:
@@ -16512,17 +16862,33 @@ class SystemHardeningEngine:
                                     pass
                         return True, "Office macro execution restricted (VBAWarnings=3, notify only)"
                     elif 'ASR Rules' in check_name or 'Attack Surface Reduction' in check_name:
-                        self._run_ps(
-                            'Add-MpPreference -AttackSurfaceReductionRules_Ids '
-                            '"d4f940ab-401b-4efc-aadc-ad5f3c50688a",'
-                            '"3b576869-a4ec-4529-8536-b80a7769e899",'
-                            '"75668c1f-73b5-4cf0-bb93-3ecf5cb7cc84",'
-                            '"d3e037e1-3eb8-44c8-a917-57927947596d",'
-                            '"5beb7efe-fd9a-4556-801d-275e5ffc04cc",'
-                            '"9e6c4e1f-7d60-472f-ba1a-a39ef669e4b3" '
-                            '-AttackSurfaceReductionRules_Actions '
-                            'Enabled,Enabled,Enabled,Enabled,Enabled,Enabled')
-                        return True, "ASR rules enabled (6 critical rules: macro/PS/obfuscation/cred theft)"
+                        # v29.60: native — write the 6 critical ASR rules to
+                        # the GPO ASR policy key (Defender honors it).
+                        try:
+                            import native_probes
+                            rules = [
+                                'D4F940AB-401B-4EFC-AADC-AD5F3C50688A',
+                                '3B576869-A4EC-4529-8536-B80A7769E899',
+                                '75668C1F-73B5-4CF0-BB93-3ECF5CB7CC84',
+                                'D3E037E1-3EB8-44C8-A917-57927947596D',
+                                '5BEB7EFE-FD9A-4556-801D-275E5FFC04CC',
+                                '9E6C4E1F-7D60-472F-BA1A-A39EF669E4B3',
+                            ]
+                            ok_any = False
+                            for rid in rules:
+                                # Enabled via WMI-set GPO registry value
+                                _ok = native_probes._reg_set_helper(
+                                    r'SOFTWARE\Policies\Microsoft\Windows'
+                                    r' Defender\Windows Defender Exploit'
+                                    r' Guard\ASR\Rules', rid, 1)
+                                ok_any = ok_any or _ok
+                            if ok_any:
+                                return True, ("ASR rules enabled "
+                                              "(6 critical rules: macro/PS/"
+                                              "obfuscation/cred theft)")
+                            return False, "ASR registry write failed (need admin)"
+                        except Exception as e:
+                            return False, str(e)
                     elif 'Memory Integrity' in check_name or 'HVCI' in check_name:
                         try:
                             k: Any = winreg.CreateKeyEx(
@@ -16539,29 +16905,96 @@ class SystemHardeningEngine:
                             pass
                         return True, "Memory Integrity (HVCI) enabled (restart required)"
                     elif 'BitLocker' in check_name:
-                        self._run_ps(
-                            'Enable-BitLocker -MountPoint "C:" -EncryptionMethod XtsAes256 '
-                            '-UsedSpaceOnly -TpmProtector -ErrorAction SilentlyContinue')
-                        return True, "BitLocker encryption initiated on C: (may take time)"
+                        # v29.60: native manage-bde (was Enable-BitLocker PS)
+                        try:
+                            subprocess.run(
+                                ['manage-bde', '-on', 'C:', '-UsedSpaceOnly',
+                                 '-SkipHardwareTest'],
+                                capture_output=True, text=True, timeout=120,
+                                creationflags=subprocess.CREATE_NO_WINDOW)
+                            return True, ("BitLocker encryption initiated on "
+                                          "C: (may take time)")
+                        except Exception as e:
+                            return False, str(e)
                     elif 'Secure Boot' in check_name:
                         return False, "Secure Boot must be enabled in UEFI firmware settings  -  cannot be scripted"
+                    elif 'Defender Real-Time' in check_name:
+                        try:
+                            import native_probes
+                            ok = native_probes.reg_set_helper(
+                                r'SOFTWARE\Microsoft\Windows Defender'
+                                r'\Real-Time Protection',
+                                'DisableRealtimeMonitoring', 0)
+                            return (ok, "Real-time protection re-enabled"
+                                    if ok else
+                                    "need admin / tamper protection")
+                        except Exception as e:
+                            return False, str(e)
+                    elif 'Defender Cloud' in check_name:
+                        try:
+                            import native_probes
+                            ok = native_probes.reg_set_helper(
+                                r'SOFTWARE\Microsoft\Windows Defender\SpyNet',
+                                'MAPSReporting', 2)
+                            return (ok, "Cloud protection set to Advanced"
+                                    if ok else "need admin")
+                        except Exception as e:
+                            return False, str(e)
+                    elif 'Defender PUA' in check_name:
+                        try:
+                            import native_probes
+                            ok = native_probes.reg_set_helper(
+                                r'SOFTWARE\Microsoft\Windows Defender',
+                                'PUAProtection', 1)
+                            return (ok, "PUA protection enabled"
+                                    if ok else "need admin")
+                        except Exception as e:
+                            return False, str(e)
+                    elif 'SMBv1' in check_name:
+                        try:
+                            subprocess.run(
+                                ['dism', '/online', '/disable-feature',
+                                 '/featurename:SMB1Protocol', '/norestart'],
+                                capture_output=True, text=True, timeout=300,
+                                creationflags=subprocess.CREATE_NO_WINDOW)
+                            return True, "SMBv1 disabled (restart required)"
+                        except Exception as e:
+                            return False, str(e)
+                    elif 'Telnet Service' in check_name:
+                        subprocess.run(['sc', 'stop', 'telnet'],
+                                       capture_output=True, timeout=15,
+                                       creationflags=subprocess.CREATE_NO_WINDOW)
+                        subprocess.run(['sc', 'config', 'telnet', 'start=',
+                                        'disabled'],
+                                       capture_output=True, timeout=15,
+                                       creationflags=subprocess.CREATE_NO_WINDOW)
+                        return True, "Telnet service disabled"
+                    elif 'SNMP Service' in check_name:
+                        subprocess.run(['sc', 'stop', 'snmp'],
+                                       capture_output=True, timeout=15,
+                                       creationflags=subprocess.CREATE_NO_WINDOW)
+                        subprocess.run(['sc', 'config', 'snmp', 'start=',
+                                        'disabled'],
+                                       capture_output=True, timeout=15,
+                                       creationflags=subprocess.CREATE_NO_WINDOW)
+                        return True, "SNMP service disabled"
+                    elif 'Remote Assistance' in check_name:
+                        key: Any = winreg.CreateKey(
+                            winreg.HKEY_LOCAL_MACHINE,
+                            r'SYSTEM\CurrentControlSet\Control'
+                            r'\Remote Assistance')
+                        winreg.SetValueEx(key, 'fAllowToGetHelp', 0,
+                                          winreg.REG_DWORD, 0)
+                        winreg.CloseKey(key)
+                        return True, "Remote Assistance disabled"
                     elif check.get('fix_cmd'):
-                        cmd: Any = check['fix_cmd']
-                        _SAFE_PREFIXES: Any = ('netsh ','wmic ','reg ','sc ','bcdedit ','auditpol ','secedit ')
-                        import re as _re, shlex as _shlex
-                        cmd_clean: Any = _re.sub(r'[;&|`\n\r]|&&|\|\|', '', cmd).strip()
-                        if any(cmd_clean.lower().startswith(p) for p in _SAFE_PREFIXES) and len(cmd_clean) < 512:
-                            cmd: Any = cmd_clean
-                            # FIX: shell=True with a raw string is a command-injection surface.
-                            # Split into an argv list so subprocess never invokes cmd.exe/sh.
-                            try:
-                                subprocess.run(_shlex.split(cmd), shell=False, capture_output=True, timeout=15,
-                                               creationflags = subprocess.CREATE_NO_WINDOW)
-                            except ValueError:
-                                pass  # unparseable command — skip rather than fall back to shell=True
-                        else:
-                            self._run_ps(cmd)
-                        return True, f"Applied: {check_name}"
+                        # v29.60: table PS fix_cmds are retired — the known
+                        # entries have native branches above; anything left
+                        # is reported as not scriptable natively.
+                        return False, ("fix handled natively elsewhere "
+                                       "(no PS fallback)")
+                    else:
+                        return False, "No native fix available"
                 except Exception as e:
                     return False, str(e)
         return False, "Check not found"
@@ -17603,13 +18036,13 @@ def _write_hosts_file_elevated(new_content: str, hosts_path: str = r'C:\Windows\
         try:
             with os.fdopen(tmp_fd, 'w', encoding='utf-8', newline='\n') as _tf:
                 _tf.write(new_content)
-            ps: Any = f"Copy-Item -LiteralPath '{tmp_path}' -Destination '{hosts_path}' -Force"
-            r: Any = subprocess.run([_PWSH, '-NoProfile', '-NonInteractive',
-                                '-ExecutionPolicy', 'Bypass', '-Command', ps],
-                               capture_output = True, text=True, timeout=15,
-                               creationflags = _NO_WIN)
-            if r.returncode == 0:
+            # v29.60: native copy (shutil) — replaces Copy-Item via PS;
+            # cmd copy kept as the fallback (both are CFA-allowlisted).
+            try:
+                shutil.copyfile(tmp_path, hosts_path)
                 return True
+            except Exception:
+                pass
             # Attempt 3: cmd copy
             r2: Any = subprocess.run(['cmd', '/c', f'copy /y "{tmp_path}" "{hosts_path}"'],
                                 capture_output = True, timeout=10, creationflags=_NO_WIN)
@@ -17788,19 +18221,16 @@ class HardwareProfiler:
         # -- GPU -------------------------------------------------------
         has_gpu = False;  gpu_name = '';  gpu_vram_gb = 0.0
         try:
-            # Use nvidia-ml-py (maintained replacement for deprecated pynvml)
-            try:
-                from nvidia_ml_py import (nvmlInit, nvmlDeviceGetHandleByIndex,
-                                    nvmlDeviceGetName, nvmlDeviceGetMemoryInfo)
-            except ImportError:
-                from pynvml import (nvmlInit, nvmlDeviceGetHandleByIndex,
-                                    nvmlDeviceGetName, nvmlDeviceGetMemoryInfo)
-            nvmlInit()
-            h: Any = nvmlDeviceGetHandleByIndex(0)
-            gpu_name: Any = nvmlDeviceGetName(h)
-            gpu_vram_gb: Any = nvmlDeviceGetMemoryInfo(h).total / 1e9
+            # Use pynvml (nvidia-ml-py 13.x installs itself as pynvml)
+            import pynvml
+            pynvml.nvmlInit()
+            h: Any = pynvml.nvmlDeviceGetHandleByIndex(0)
+            gpu_name: Any = pynvml.nvmlDeviceGetName(h)
+            gpu_vram_gb: Any = pynvml.nvmlDeviceGetMemoryInfo(h).total / 1e9
             has_gpu: Any = True
-        except Exception:
+            pynvml.nvmlShutdown()  # Clean shutdown
+        except Exception as e:
+            # Silently handle GPU detection failures - not critical for core functionality
             pass
         if not has_gpu:
             try:
@@ -17824,14 +18254,36 @@ class HardwareProfiler:
         # -- Disk type (SSD vs HDD) ------------------------------------
         is_ssd: Any = True
         try:
-            import subprocess as _sp
-            r: Any = _sp.run(
-                [_PWSH,'-NoProfile','-Command',
-                 'Get-PhysicalDisk|Select-Object MediaType|ConvertTo-Json'],
-                capture_output = True, text=True, timeout=5,
-                creationflags = 0x08000000)
-            if 'HDD' in r.stdout or ('Unspecified' in r.stdout and 'SSD' not in r.stdout):
-                is_ssd: Any = False
+            # Use WMI to check disk type instead of PowerShell
+            try:
+                import wmi
+                c = wmi.WMI()
+                for disk in c.Win32_DiskDrive():
+                    media_type = disk.MediaType
+                    if media_type and 'HDD' in media_type:
+                        is_ssd = False
+                        break
+                    # If no explicit media type, check for SSD indicators
+                    if media_type and 'SSD' in media_type:
+                        is_ssd = True
+                        break
+            except Exception:
+                # Fallback to registry check if WMI fails
+                try:
+                    import winreg
+                    key: Any = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                                             r'HARDWARE\DEVICEMAP\Scsi\Scsi Port 0\Scsi Bus 0\Target Id 0\Logical Unit Id 0',
+                                             0, winreg.KEY_READ)
+                    try:
+                        identifier, _ = winreg.QueryValueEx(key, 'Identifier')
+                        if 'SSD' not in identifier:
+                            is_ssd = False
+                    except FileNotFoundError:
+                        pass
+                    finally:
+                        winreg.CloseKey(key)
+                except Exception:
+                    pass
         except Exception:
             pass
 
@@ -17989,6 +18441,70 @@ class HardwareProfiler:
             app._adaptive_feed_ms= int(p.feed_refresh_ms       * factor)
         except Exception:
             pass
+
+
+# ── v29.60: nvidia-smi CLI fallback (NVML-wedge rescue) ──────────────────────
+# When NVML wedges (NVMLError_DriverNotLoaded after a driver reload or a
+# sleep/resume cycle), a fresh `nvidia-smi` subprocess still talks to the
+# driver fine — it loads its own copy of NVML in its own process. This
+# fallback keeps the Perf-tab GPU gauges alive until the in-process NVML
+# state recovers. Cached 60s TTL (spawning a process every 2s poll would
+# be wasteful). Never raises; returns {} on any failure.
+_nvidia_smi_cache: Any = {'ts': 0.0, 'data': {}}
+_nvidia_smi_lock: Any = threading.Lock()
+_NVIDIA_SMI_TTL: float = 60.0
+
+
+def _query_gpu_via_nvidia_smi() -> dict:
+    """One nvidia-smi query (60s cached). Returns {} when unavailable."""
+    now: Any = time.time()
+    with _nvidia_smi_lock:
+        if now - _nvidia_smi_cache['ts'] < _NVIDIA_SMI_TTL:
+            return dict(_nvidia_smi_cache['data'])
+    data: dict = {}
+    try:
+        _smi: Any = os.path.join(
+            os.environ.get('ProgramFiles', r'C:\Program Files'),
+            'NVIDIA Corporation', 'NVSMI', 'nvidia-smi.exe')
+        if not os.path.isfile(_smi):
+            _smi = 'nvidia-smi'   # normal PATH location on modern drivers
+        out: Any = subprocess.run(
+            [_smi,
+             '--query-gpu=name,utilization.gpu,memory.used,memory.total,'
+             'temperature.gpu,fan.speed,power.draw,clocks.gr',
+             '--format=csv,noheader,nounits'],
+            capture_output=True, text=True, timeout=3,
+            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        if out.returncode == 0 and out.stdout.strip():
+            parts: Any = [p.strip() for p in out.stdout.splitlines()[0].split(',')]
+            if len(parts) >= 8:
+                def _f(v):
+                    try:
+                        if str(v).strip().upper().startswith('N/A'):
+                            return 0.0
+                        return float(v)
+                    except Exception:
+                        return 0.0
+                used: float = _f(parts[2])
+                total: float = _f(parts[3])
+                data = {
+                    'name': parts[0] or '',
+                    'gpu_percent': _f(parts[1]),
+                    'gpu_mem_used_gb': round(used / 1024.0, 1),
+                    'gpu_mem_total_gb': round(total / 1024.0, 1),
+                    'gpu_mem_percent': round(used / total * 100, 1)
+                    if total > 0 else 0.0,
+                    'gpu_temp': _f(parts[4]),
+                    'gpu_fan': int(_f(parts[5])),
+                    'gpu_power_draw_w': round(_f(parts[6]), 1),
+                    'gpu_clock_mhz': int(_f(parts[7])),
+                }
+    except Exception:
+        data = {}
+    with _nvidia_smi_lock:
+        _nvidia_smi_cache['ts'] = now
+        _nvidia_smi_cache['data'] = data
+    return dict(data)
 
 
 class HardwareMonitor:
@@ -18368,9 +18884,30 @@ class HardwareMonitor:
             _safe_log('HwMonitor', 'net_io failed', _e)
 
         # GPU via NVML (crash-safe)
+        # FIX-v29.60: NVMLError_DriverNotLoaded used to poison the stale
+        # device handle FOREVER (the old "Re-initialize NVML" no-op hit
+        # pynvml's init refcount and never refreshed the handle), so every
+        # poll cycle failed and the gauges stayed dead until app restart.
+        # Now: on failure do a full shutdown→re-init and retry ONCE with a
+        # fresh handle; if NVML stays dead, back off for 120s (probe window)
+        # and let the nvidia-smi CLI / GPUtil fallbacks answer instead.
+        # State transitions are logged once — not every cycle.
+        global NVML_AVAILABLE
         if NVML_AVAILABLE:
             try:
-                handle: Any = nvmlDeviceGetHandleByIndex(0)
+                try:
+                    handle: Any = nvmlDeviceGetHandleByIndex(0)
+                except Exception:
+                    # Stale NVML state (e.g. NVMLError_DriverNotLoaded after
+                    # a driver reload or sleep/resume). Full reset: shutdown
+                    # + fresh init + fresh device handle.
+                    try:
+                        nvmlShutdown()
+                    except Exception:
+                        pass
+                    nvmlInit()
+                    handle = nvmlDeviceGetHandleByIndex(0)
+                self._nvml_fail_count = 0
                 util: Any = nvmlDeviceGetUtilizationRates(handle)
                 stats['gpu_percent']     = util.gpu
                 stats['gpu_mem_percent'] = util.memory
@@ -18396,7 +18933,42 @@ class HardwareMonitor:
                 except Exception as _e:
                     _safe_log('HwMonitor', 'gpu clock failed', _e)
             except Exception as _e:
-                _safe_log('HwMonitor', 'gpu nvml block failed', _e)
+                self._nvml_fail_count = getattr(self, '_nvml_fail_count', 0) + 1
+                # Throttle: log the first failure and then every 30th — a
+                # wedged driver must NOT spam the error log every 2s tick.
+                if self._nvml_fail_count in (1, 30) or self._nvml_fail_count % 500 == 0:
+                    _safe_log('HwMonitor', 'gpu nvml block failed', _e)
+                # Full reset so the next probe starts clean.
+                try:
+                    nvmlShutdown()
+                except Exception:
+                    pass
+                if self._nvml_fail_count >= 5:
+                    # NVML stays wedged — stop using it for 120s and let the
+                    # fallbacks below answer. A later probe re-enables it
+                    # automatically (covers sleep/resume + driver reloads).
+                    NVML_AVAILABLE = False
+                    self._nvml_probe_after = time.time() + 120.0
+        else:
+            # NVML disabled after repeated failures — probe it periodically
+            # so a recovered driver (sleep/resume, driver reinstall) is
+            # picked up without an app restart.
+            _probe_now: Any = time.time()
+            if _probe_now >= getattr(self, '_nvml_probe_after', 0.0):
+                self._nvml_probe_after = _probe_now + 120.0
+                try:
+                    nvmlInit()
+                    NVML_AVAILABLE = True
+                    self._nvml_fail_count = 0
+                except Exception:
+                    pass   # still wedged — probe again in 120s
+        # FIX-v29.60: when NVML is unavailable/wedged (gpu_percent never set),
+        # rescue the gauges via the nvidia-smi CLI (fresh NVML in its own
+        # process — works even while the in-process NVML state is dead).
+        if stats['gpu_percent'] == 0:
+            _smi_data: Any = _query_gpu_via_nvidia_smi()
+            if _smi_data:
+                stats.update(_smi_data)
         # GPUTIL fallback even when NVML present but returned 0 (headless / no GPU)
         if stats['gpu_percent'] == 0 and GPUTIL_AVAILABLE:
             try:
@@ -18518,6 +19090,12 @@ class HardwareMonitor:
                             open_count += p.num_handles()
                         else:
                             open_count += len(p.open_files())
+                    except (psutil.NoSuchProcess, psutil.AccessDenied,
+                            psutil.ZombieProcess):
+                        # FIX-v29.60: pids routinely die / deny access between
+                        # the pids() snapshot and the Process() call — expected
+                        # races, never log them (was spamming the error log).
+                        continue
                     except Exception as _e:
                         _safe_log('HwMonitor', 'open_files pid failed', _e)
                 stats['open_files'] = open_count
@@ -18631,9 +19209,13 @@ class HardwareMonitor:
         except Exception as _e:
             _safe_log('HwMonitor', 'security block 1 failed', _e)
         try:
-            if _app_nm is not None and getattr(_app_nm, '_processes', None) is not None:
+            # FIX-v29.60: `_app_nm` was referenced here BEFORE its definition
+            # later in this method (UnboundLocalError every tick) — resolve the
+            # app backref locally instead.
+            _app_nm_early: Any = getattr(self, '_app', None)
+            if _app_nm_early is not None and getattr(_app_nm_early, '_processes', None) is not None:
                 stats['suspicious_processes'] = sum(
-                    1 for p in (getattr(_app_nm, '_processes', []) or [])
+                    1 for p in (getattr(_app_nm_early, '_processes', []) or [])
                     if getattr(p, 'is_suspicious', False))
             else:
                 from process_monitor import get_monitor
@@ -18748,7 +19330,13 @@ class HardwareMonitor:
         # v29.39: Real-time memory tracking
         try:
             mem = psutil.virtual_memory()
-            stats['cached_memory_gb'] = round(mem.cached / (1024**3), 2)
+            # FIX-v29.60: `mem.cached` / `mem.buffers` / `mem.shared` do NOT
+            # exist in psutil on Windows (AttributeError every tick) — read
+            # them defensively.
+            _cached: Any = getattr(mem, 'cached', None)
+            if _cached is None:
+                _cached = max(0, mem.total - mem.available - mem.used)
+            stats['cached_memory_gb'] = round(_cached / (1024**3), 2)
             stats['buffer_memory_gb'] = round(getattr(mem, 'buffers', 0) / (1024**3), 2)
             stats['shared_memory_gb'] = round(getattr(mem, 'shared', 0) / (1024**3), 2)
         except Exception as _e:
@@ -19164,25 +19752,63 @@ class HardwareMonitor:
             try:
                 _wmi_now: Any = __import__('time').time()
                 if _wmi_now - getattr(self, '_wmi_temp_ts', 0.0) >= 30.0:
-                    # Fast path: psutil sensors_temperatures (no COM)
-                    try:
-                        _temps: Any = psutil.sensors_temperatures()
-                        if _temps:
-                            for _name, _entries in _temps.items():
-                                if _entries:
-                                    stats['cpu_temp'] = round(float(_entries[0].current), 1)
-                                    break
-                    except Exception as _e:
-                        _safe_log('HwMonitor', 'psutil sensors_temperatures failed', _e)
-                    if stats['cpu_temp'] == 0 and WMI_AVAILABLE:
+                    # Fast path: psutil sensors_temperatures (no COM).
+                    # FIX-v29.60: gated with hasattr — psutil does not expose
+                    # sensors_temperatures on Windows at all, and calling it
+                    # raised AttributeError every 30s.
+                    _sensors_fn: Any = getattr(psutil, 'sensors_temperatures', None)
+                    if callable(_sensors_fn):
                         try:
-                            import pythoncom  # type: ignore[import-untyped]; pythoncom.CoInitialize()
+                            _temps: Any = _sensors_fn()
+                            if _temps:
+                                for _name, _entries in _temps.items():
+                                    if _entries:
+                                        stats['cpu_temp'] = round(float(_entries[0].current), 1)
+                                        break
                         except Exception as _e:
-                            _safe_log('HwMonitor', 'pythoncom CoInitialize failed', _e)
-                        w: Any = wmi.WMI(namespace=r'root\wmi')
-                        for t in w.MSAcpi_ThermalZoneTemperature():
-                            stats['cpu_temp'] = round((t.CurrentTemperature - 2732) / 10.0, 1)
-                            break
+                            _safe_log('HwMonitor', 'psutil sensors_temperatures failed', _e)
+                    if stats['cpu_temp'] == 0 and WMI_AVAILABLE:
+                        # v29.60b: COM init is once-per-thread (unbalanced
+                        # CoInitialize calls accumulate refcounts). The WMI
+                        # read uses the SWbemLocator Dispatch path, which
+                        # works on BOTH STA and MTA threads (the wmi
+                        # module's GetObject-moniker path fails on MTA
+                        # threads — it maps hresult 0x800401E4 to
+                        # x_wmi_uninitialised_thread).
+                        try:
+                            import native_probes as _npp
+                            _npp._com_ensure_initialized()
+                        except Exception as _e:
+                            _safe_log('HwMonitor',
+                                      'COM init failed', _e)
+                        _wmi_read_ok: bool = False
+                        try:
+                            import win32com.client as _w32c  # type: ignore[import-not-found]
+                            _svc: Any = _w32c.Dispatch(
+                                'WbemScripting.SWbemLocator').ConnectServer(
+                                    '.', r'root\wmi')
+                            for _t in _svc.InstancesOf(
+                                    'MSAcpi_ThermalZoneTemperature'):
+                                _ctemp: Any = _t.CurrentTemperature
+                                if _ctemp:
+                                    stats['cpu_temp'] = round(
+                                        (float(_ctemp) - 2732) / 10.0, 1)
+                                    break
+                            _wmi_read_ok = True
+                        except Exception:
+                            _wmi_read_ok = False   # MSAcpi unsupported / denied
+                        if not _wmi_read_ok:
+                            # Fallback: wmi-module moniker path (works on STA
+                            # threads). Silent — MSAcpi is unavailable on many
+                            # systems (VMs, some boards, non-admin).
+                            try:
+                                w: Any = wmi.WMI(namespace=r'root\wmi')
+                                for t in w.MSAcpi_ThermalZoneTemperature():
+                                    stats['cpu_temp'] = round(
+                                        (t.CurrentTemperature - 2732) / 10.0, 1)
+                                    break
+                            except Exception:
+                                pass
                     self._wmi_temp_ts = _wmi_now
                     self._wmi_temp_cache = stats['cpu_temp']
                 else:
@@ -19481,7 +20107,7 @@ class _RainPhysicsEngine:
                 if self._wind_gust_timer <= 0:
                     self._wind_gust_target = _random.uniform(-0.5, 0.5)
                     self._wind_gust_timer = _random.randint(120, 300)
-                self._wind_gust += (_self._wind_gust_target - self._wind_gust) * 0.05
+                self._wind_gust += (self._wind_gust_target - self._wind_gust) * 0.05
                 
                 # Storm phase transitions
                 self._storm_phase_timer += 1
@@ -19993,7 +20619,7 @@ class ImmersiveRainCanvas(tk.Canvas):
             self._physics_engine.start(
                 drops=self._drops, splashes=self._splashes, streaks=self._streaks,
                 mist=self._mist_state, puddles=self._puddle_state, clouds=self._cloud_items,
-                storm_phases=self._STORM_PHASES,
+                wind_base=self._wind_base, storm_phases=self._STORM_PHASES,
                 storm_phase_idx=self._storm_phase_idx, storm_phase_timer=self._storm_phase_timer,
                 phase_transition=self._phase_transition, target_phase_idx=self._target_phase_idx,
                 threat_level=self._threat_level,
@@ -20058,7 +20684,8 @@ class ImmersiveRainCanvas(tk.Canvas):
         _fsec: Any = {}
 
         # Process queued canvas commands from background threads (limit per frame)
-        self._process_canvas_commands()
+        if hasattr(self, '_process_canvas_commands'):
+            self._process_canvas_commands()
 
         def _fmark(name):
             _fsec[name] = (time.monotonic() - _frame_t0) * 1000.0
@@ -22169,16 +22796,11 @@ class AegisNLPPhishingEngine:
         except Exception:
             pass
 
-        # Strategy 2: PowerShell one-liner (no Tkinter, works without pywin32)
+        # Strategy 2: native clipboard read (user32) — no subprocess needed
         if text is None:
             try:
-                result: Any = subprocess.run(
-                    [_PWSH, '-NoProfile', '-Command',
-                     'Get-Clipboard'],
-                    capture_output = True, text=True, timeout=5,
-                    creationflags = subprocess.CREATE_NO_WINDOW)
-                if result.returncode == 0:
-                    text: Any = result.stdout.strip()
+                import native_probes
+                text: Any = native_probes.get_clipboard_text().strip()
             except Exception:
                 pass
 
@@ -23060,9 +23682,12 @@ class VulnerabilityScanner:
         if WMI_AVAILABLE:
             try:
                 # FIX-v28: CoInitialize required from background thread
+                # v29.60b: once-per-thread helper (no refcount accumulation)
                 try:
-                    import pythoncom  # type: ignore[import-untyped]; pythoncom.CoInitialize()
-                except Exception: pass
+                    import native_probes as _npp
+                    _npp._com_ensure_initialized()
+                except Exception:
+                    pass
                 c: Any = wmi.WMI()
                 # QFEs = quick-fix engineering (hotfixes)
                 installed: Any = {h.HotFixID for h in c.Win32_QuickFixEngineering()}
@@ -24470,10 +25095,10 @@ class downpour(tk.Tk):
                 from process_mitigation import apply_process_mitigations
                 _mit = apply_process_mitigations()
                 _enabled = sum(1 for v in _mit.values() if v)
-                _log.info('process_mitigation: %d/%d policies enabled',
+                logger.info('process_mitigation: %d/%d policies enabled',
                           _enabled, len(_mit))
             except Exception as _me:
-                _log.debug('process_mitigation failed: %s', _me)
+                logger.debug('process_mitigation failed: %s', _me)
 
             # -- State ----------------------------------------------------
             self._processes: List[ProcessInfo] = []
@@ -24491,6 +25116,9 @@ class downpour(tk.Tk):
             self._alerted_dedup: dict = {}   # msg_prefix -> last_time, for deduplication
             # DB-backed false-positive auto-suppression (FIX-v29.16)
             self._fp_suppression = FPSuppressionCache(suppress_threshold=3)
+
+            # Track which engines the user has manually started
+            self._manual_engines_started = set()
 
             # Adaptive interval state (updated by adapt_to_load every 60s)
             if hasattr(self, '_hw_profile'):
@@ -24723,6 +25351,7 @@ class downpour(tk.Tk):
             self.rain.grid(row=0, column=0, sticky='ew')
             self.rain.start = lambda: None
             self.rain.stop  = lambda: None
+            self.rain.set_lightning_callback = lambda cb: None
         logger.info("_build_ui: rain done")
 
         # -- Title / control bar -----------------------------------------------
@@ -29184,22 +29813,30 @@ class downpour(tk.Tk):
             if self._dns_alerted is None:
                 self._dns_alerted = set()
 
-            # FIX: Replace 'ipconfig /displaydns' with PowerShell Get-DnsClientCache.
-            # PREVIOUS BUG: 'ipconfig /displaydns' consistently timed out after 10 s
-            # because on Windows 10/11 ipconfig /displaydns enumerates the entire DNS
-            # cache synchronously including negative entries and can stall for many
-            # seconds on systems with large hosts files or lots of cached entries.
-            # Get-DnsClientCache queries the same underlying DNS Client service cache
-            # but returns structured objects instantly (~50 ms typical).
-            r: Any = subprocess.run(
-                [_PWSH, '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command',
-                 'Get-DnsClientCache | Select-Object -ExpandProperty Name'],
-                capture_output = True, text=True, timeout=25,
-                creationflags = 0x08000000)
-            if r.returncode != 0:
-                return  # PowerShell failed — skip this cycle silently
-            domains: Any = [d.strip().lower().rstrip('.') for d in r.stdout.splitlines()
-                       if d.strip() and '.' in d.strip()]
+            # Use Python subprocess with ipconfig /displaydns as fallback
+            # This is slower but doesn't require PowerShell
+            try:
+                r: Any = subprocess.run(
+                    ['ipconfig', '/displaydns'],
+                    capture_output = True, text=True, timeout=25,
+                    creationflags = 0x08000000)
+                if r.returncode != 0:
+                    return  # ipconfig failed — skip this cycle silently
+                
+                # Parse ipconfig output to extract domain names
+                domains: Any = []
+                lines: Any = r.stdout.splitlines()
+                for i, line in enumerate(lines):
+                    line = line.strip()
+                    if line.startswith('Record Name') and i + 1 < len(lines):
+                        # Next line typically contains the domain name
+                        next_line = lines[i + 1].strip()
+                        if '.' in next_line and not next_line.startswith('.'):
+                            domains.append(next_line.lower().rstrip('.'))
+                
+                domains = [d for d in domains if d and '.' in d]
+            except Exception:
+                return  # DNS cache check failed — skip this cycle silently
 
             def _is_trusted(domain):
                 parts: Any = domain.split('.')
@@ -29244,18 +29881,26 @@ class downpour(tk.Tk):
     def _check_rdp_brute(self):
         """Detect RDP brute force: multiple failed logon attempts (Event ID 4625) on port 3389."""
         try:
-            import subprocess
-            # Query Security event log for recent 4625 (failed logon) on RDP
-            ps: Any = ('Get-WinEvent -FilterHashtable @{LogName="Security";Id=4625;StartTime=(Get-Date).AddMinutes(-5)} '
-                  '-MaxEvents 50 -ErrorAction SilentlyContinue | '
-                  'Select-Object -ExpandProperty Message | '
-                  'Select-String "Network Information" -Context 0,3')
-            r: Any = subprocess.run([_PWSH,'-NoProfile','-NonInteractive','-Command', ps],
-                               capture_output = True, text=True, timeout=15, creationflags=0x08000000)
-            if r.stdout:
-                # Count unique source IPs
+            # v29.60: native RDP brute-force probe (EvtQuery via wevtapi —
+            # replaces the Get-WinEvent 4625 subprocess)
+            try:
+                import native_probes
+            except Exception:
+                native_probes = None
+            rdp_events: Any = []
+            if native_probes is not None:
+                rdp_events = native_probes.evt_query_events(
+                    'Security', '*[System[(EventID=4625)]]', 50)
+            if rdp_events:
+                # Count unique source IPs — EvtRender XML uses
+                # <Data Name="IpAddress"> (4625 schema)
                 import re
-                ips: Any = re.findall(r'Source Network Address:\s+(\S+)', r.stdout)
+                ips: Any = []
+                for ev in rdp_events:
+                    xml: Any = str(ev.get('xml', ''))
+                    ips.extend(re.findall(
+                        r'<Data Name="IpAddress">([0-9a-fA-F:.]+)</Data>',
+                        xml))
                 from collections import Counter
                 for ip, count in Counter(ips).items():
                     if count >= 3 and ip not in ('', '-', '127.0.0.1', '::1'):
@@ -29521,16 +30166,19 @@ class downpour(tk.Tk):
     def _check_dga_domains(self):
         """Detect DGA (Domain Generation Algorithm) domains in DNS cache.
         DGA domains are machine-generated and used by malware for C2 resilience.
-        Detection: high consonant ratio + low vowel ratio + low bigram frequency."""
+        Detection: high consonant ratio + low vowel ratio + low bigram frequency.
+        v29.60: native DNS-cache walk (dnsapi.dll) — no PowerShell."""
         try:
-            import subprocess, math
-            r: Any = subprocess.run(
-                [_PWSH, '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command',
-                 'Get-DnsClientCache | Select-Object -ExpandProperty Name'],
-                capture_output = True, text=True, timeout=25, creationflags=0x08000000)
-            if r.returncode != 0:
+            import math
+            domains: Any = set()
+            try:
+                import native_probes
+                for _n, _d in native_probes.get_dns_cache_entries():
+                    _n = str(_n).strip().lower().rstrip('.')
+                    if '.' in _n:
+                        domains.add(_n)
+            except Exception:
                 return
-            domains: Any = set(d.strip().lower().rstrip('.') for d in r.stdout.splitlines() if '.' in d.strip())
             vowels: Any = set('aeiou')
             common_bigrams: Any = {'th','he','in','er','an','re','on','at','en','nd','ti','es','or','te','of',
                               'ed','is','it','al','ar','st','to','nt','ng','se','ha','as','ou','io','le',
@@ -29670,11 +30318,15 @@ class downpour(tk.Tk):
         import subprocess
         results: Any = []
 
+        # v29.60: native applier — no PowerShell (registry + sc + dism)
         def ps(cmd, desc):
-            r: Any = subprocess.run(
-                [_PWSH,'-NoProfile','-NonInteractive','-Command', cmd],
-                capture_output = True, text=True, timeout=15, creationflags=0x08000000)
-            ok: Any = r.returncode == 0
+            try:
+                import native_probes as _np
+                _ok1, _n1 = _np.defender_ps_native(cmd)
+                _ok2, _n2 = _np.extra_ps_native(cmd)
+                ok: Any = bool(_ok1 or _ok2)
+            except Exception:
+                ok = False
             results.append((ok, desc))
             return ok
 
@@ -30904,42 +31556,14 @@ Verification Status:
         self._tooltip(_summary_row,
                       'Live RAM / Disk / CPU temp / Network totals — update every monitoring tick.')
 
-        # -- Scrollable gauge grid ---------------------------------------------
-        # Outer scroll container
-        _perf_scroll_canvas: Any = tk.Canvas(p, bg=Colors.BG_VOID, highlightthickness=0)
-        _perf_vbar: Any = tk.Scrollbar(p, orient='vertical', command=_perf_scroll_canvas.yview)
-        _perf_scroll_canvas.configure(yscrollcommand=_perf_vbar.set)
-        _perf_scroll_canvas.grid(row=1, column=0, sticky='nsew', padx=0, pady=0)
-        _perf_vbar.grid(row=1, column=1, sticky='ns')
+        # -- Gauge grid (no scroll - all gauges fit on screen) -----------------------
         p.grid_rowconfigure(1, weight=1)
         p.grid_columnconfigure(0, weight=1)
-        p.grid_columnconfigure(1, weight=0)
-        grid_frame: Any = tk.Frame(_perf_scroll_canvas, bg=Colors.BG_VOID)
-        _perf_win_id: Any = _perf_scroll_canvas.create_window((0, 0), window=grid_frame, anchor='nw')
-        def _perf_on_resize(event):
-            _perf_scroll_canvas.itemconfig(_perf_win_id, width=event.width)
-        def _perf_on_frame_configure(event):
-            _perf_scroll_canvas.configure(scrollregion=_perf_scroll_canvas.bbox('all'))
-        _perf_scroll_canvas.bind('<Configure>', _perf_on_resize)
-        grid_frame.bind('<Configure>', _perf_on_frame_configure)
-        def _perf_mousewheel(event):
-            # Only scroll the perf canvas when the pointer is actually inside it —
-            # bind_all otherwise hijacks wheel scrolling for the whole app.
-            try:
-                w = event.widget
-                if w is None or _perf_scroll_canvas.winfo_toplevel() != w.winfo_toplevel():
-                    return
-                inside: Any = _perf_scroll_canvas.winfo_containing(
-                    event.x_root, event.y_root)
-                if inside is None or not str(inside).startswith(str(grid_frame)):
-                    return
-            except Exception:
-                return
-            _perf_scroll_canvas.yview_scroll(int(-1*(event.delta/120)), 'units')
-        _perf_scroll_canvas.bind_all('<MouseWheel>', _perf_mousewheel)
+        grid_frame: Any = tk.Frame(p, bg=Colors.BG_VOID)
+        grid_frame.grid(row=1, column=0, sticky='nsew', padx=0, pady=0)
 
         # -- Gauge definitions [label, stat_key, max_val, unit, color_scheme] --
-        # REDUCED from 70+ gauges to 28 essential gauges (4 columns x 7 rows) to fit on screen without scrolling
+        # 28 essential gauges in 5-column grid
         GAUGES: Any = [
             # Row 0  -  CPU cluster (4 gauges)
             ('CPU LOAD',        'cpu_percent',     100, '%',   'heat'),
@@ -32238,9 +32862,10 @@ Verification Status:
                     reverted_items: Any = []
 
                     # Revert Windows Defender exclusions
+                    # v29.60: native revert (registry) - no PS
                     try:
-                        cmd: Any = 'Remove-MpPreference -ControlledFolderAccessDisabled -Force'
-                        subprocess.run([_PWSH, '-Command', cmd], capture_output=True, check=False, creationflags=_NO_WIN)
+                        import native_probes as _np
+                        _np.defender_revert_controlled_folder_access()
                         reverted_items.append('- Windows Defender exclusions removed')
                     except Exception as e:
                         reverted_items.append(f'- Windows Defender: {str(e)}')
@@ -33497,23 +34122,11 @@ Verification Status:
             if server.get('l2tp'):
                 try:
                     conn_name: Any = f'DownpourVPN_{host}'
-                    # Remove old connection with same name (ignore errors)
-                    subprocess.run(
-                        [_PWSH, '-NoProfile', '-Command',
-                         f'Remove-VpnConnection -Name "{conn_name}" -Force -ErrorAction SilentlyContinue'],
-                        capture_output = True, timeout=10, creationflags=0x08000000)
-                    # Add new L2TP connection
-                    _: Any = subprocess.run(
-                        [_PWSH, '-NoProfile', '-Command',
-                         f'Add-VpnConnection -Name "{conn_name}" '
-                         f'-ServerAddress "{host}" '
-                         f'-TunnelType L2tp '
-                         f'-AuthenticationMethod MSChapv2 '  # FIX: PAP sends credentials in cleartext  -  use MSChapv2
-                         f'-L2tpPsk "" '
-                         f'-Force '
-                         f'-AllUserConnection'],
-                        capture_output = True, text=True, timeout=20,
-                        creationflags = 0x08000000)
+                    # v29.60: native RAS phonebook ops (rasapi32) — no PS
+                    import native_probes
+                    native_probes.ras_delete_entry(conn_name)
+                    native_probes.ras_set_entry(
+                        conn_name, host, tunnel='l2tp', all_user=True)
                     # Connect using rasdial
                     r2: Any = subprocess.run(
                         ['rasdial', conn_name, 'vpn', 'vpn'],
@@ -33544,16 +34157,11 @@ Verification Status:
             if server.get('sstp'):
                 try:
                     conn_name: Any = f'DownpourVPN_SSTP_{host}'
-                    subprocess.run(
-                        [_PWSH, '-NoProfile', '-Command',
-                         f'Remove-VpnConnection -Name "{conn_name}" -Force -ErrorAction SilentlyContinue'],
-                        capture_output = True, timeout=10, creationflags=0x08000000)
-                    subprocess.run(
-                        [_PWSH, '-NoProfile', '-Command',
-                         f'Add-VpnConnection -Name "{conn_name}" '
-                         f'-ServerAddress "{host}" '
-                         f'-TunnelType Sstp -Force -AllUserConnection'],
-                        capture_output = True, timeout=20, creationflags=0x08000000)
+                    # v29.60: native RAS phonebook ops — no PS
+                    import native_probes
+                    native_probes.ras_delete_entry(conn_name)
+                    native_probes.ras_set_entry(
+                        conn_name, host, tunnel='sstp', all_user=True)
                     r2: Any = subprocess.run(
                         ['rasdial', conn_name],
                         capture_output = True, text=True, timeout=30,
@@ -33594,11 +34202,9 @@ Verification Status:
                     subprocess.run(['rasdial', self._vpn_current_name, '/disconnect'],
                                    capture_output = True, timeout=10,
                                    creationflags = 0x08000000)
-                    subprocess.run(
-                        [_PWSH, '-NoProfile', '-Command',
-                         f'Remove-VpnConnection -Name "{self._vpn_current_name}" '
-                         f'-Force -ErrorAction SilentlyContinue'],
-                        capture_output = True, timeout=10, creationflags=0x08000000)
+                    # v29.60: native phonebook delete — no PS
+                    import native_probes
+                    native_probes.ras_delete_entry(self._vpn_current_name)
                 except Exception:
                     pass
                 if self._winfo_ok():
@@ -33647,53 +34253,51 @@ Verification Status:
     # ==========================================================================
 
     def _get_drive_letters(self) -> set:
-        """Return set of (letter, type) tuples for all current drives."""
+        """Return set of (letter, type) tuples for all current drives.
+
+        v29.60: native - WMI Win32_LogicalDisk via COM + psutil
+        fallback (replaces the Get-PSDrive + Get-WmiObject
+        PowerShell pipeline)."""
         drives: Any = set()
         try:
-            r: Any = subprocess.run(
-                [_PWSH,'-Command',
-                 'Get-PSDrive -PSProvider FileSystem | Select-Object Name,'
-                 '@{N="Type";E={(Get-WmiObject Win32_LogicalDisk -Filter "DeviceID=\'$($_.Name):\'").DriveType}}'
-                 ' | ConvertTo-Csv -NoTypeInformation'],
-                capture_output = True, text=True, timeout=10,
-                creationflags = subprocess.CREATE_NO_WINDOW)
-            import csv, io
-            type_map: Any = {'2':'Removable','3':'Fixed','4':'Network','5':'CDROM','6':'RAM'}
-            try:
-                for row in csv.DictReader(io.StringIO(r.stdout)):
-                    try:
-                        name: Any = row.get('Name','').strip('"')
-                        dtype: Any = type_map.get(str(row.get('Type','')).strip('"').strip(), 'Unknown')
-                        if name:
-                            drives.add((name, dtype))
-                    except (ValueError, KeyError, AttributeError):
-                        # Skip malformed rows
-                        continue
-            except Exception:
-                # If CSV parsing fails, try fallback method
+            type_map: Any = {'2':'Removable','3':'Fixed',
+                             '4':'Network','5':'CDROM','6':'RAM'}
+            import native_probes
+            for row in native_probes.get_logical_disks():
                 try:
-                    import psutil
-                    for partition in psutil.disk_partitions():
-                        if partition.device and partition.device.endswith('\\'):
-                            drive: Any = partition.device[0]  # Extract C from C:\
-                            drives.add((drive, 'Unknown'))
-                except Exception:
-                    pass
+                    name: Any = (row.get('DeviceID') or '').rstrip(':\\')
+                    dtype: Any = type_map.get(
+                        str(row.get('DriveType') or ''), 'Unknown')
+                    if name:
+                        drives.add((name, dtype))
+                except (ValueError, KeyError, AttributeError):
+                    continue
         except Exception:
-            pass
+            # If WMI is unavailable, fall back to psutil partitions
+            try:
+                import psutil
+                for partition in psutil.disk_partitions():
+                    if partition.device and partition.device.endswith('\\'):
+                        drive: Any = partition.device[0]
+                        drives.add((drive, "Unknown"))
+            except Exception:
+                pass
         return drives
 
     def _get_usb_device_id(self, drive_letter: str) -> str:
+        """PNPDeviceID for a drive letter (native WMI COM — v29.60)."""
         try:
-            r: Any = subprocess.run(
-                [_PWSH,'-Command',
-                 f"(Get-WmiObject Win32_LogicalDisk -Filter \"DeviceID='{drive_letter}:'\").PNPDeviceID"],
-                capture_output = True, text=True, timeout=8,
-                creationflags = subprocess.CREATE_NO_WINDOW)
-            return r.stdout.strip()
+            import native_probes
+            rows: Any = native_probes.wmi_wql_dicts(
+                r'root\cimv2',
+                "SELECT PNPDeviceID FROM Win32_LogicalDisk WHERE "
+                f"DeviceID='{drive_letter}:'",
+                ['PNPDeviceID'])
+            if rows:
+                return str(rows[0].get('PNPDeviceID') or '').strip()
+            return ''
         except Exception:
             return ''
-
     def _block_usb_drive(self, drive_letter: str):
         try:
             key: Any = winreg.CreateKey(winreg.HKEY_LOCAL_MACHINE,
@@ -33840,11 +34444,11 @@ Verification Status:
     def _check_secure_boot(self) -> bool:
         if getattr(self, '_bypass_tpm_bitlocker', False):
             return True   # user-bypassed
+        # v29.60: native registry probe (SecureBoot\State) — the value
+        # Confirm-SecureBootUEFI reads; no PowerShell.
         try:
-            r: Any = subprocess.run([_PWSH,'-Command','Confirm-SecureBootUEFI'],
-                               capture_output = True, text=True, timeout=8,
-                               creationflags = subprocess.CREATE_NO_WINDOW)
-            return 'True' in r.stdout
+            import native_probes
+            return bool(native_probes.secure_boot_enabled())
         except Exception:
             return False
 
@@ -33868,23 +34472,30 @@ Verification Status:
             return False
 
     def _check_smb1_disabled(self) -> bool:
+        """Check SMBv1 status using Windows Registry instead of PowerShell."""
         try:
-            r: Any = subprocess.run([_PWSH,'-Command',
-                                'Get-SmbServerConfiguration | Select EnableSMB1Protocol'],
-                               capture_output = True, text=True, timeout=12,
-                               creationflags = subprocess.CREATE_NO_WINDOW)
-            return 'False' in r.stdout
+            import winreg
+            # Check registry key for SMB1 status
+            key: Any = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                                   r'SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters',
+                                   0, winreg.KEY_READ)
+            try:
+                smb1_value, _ = winreg.QueryValueEx(key, 'SMB1')
+                # If value exists and is 0, SMB1 is disabled
+                return smb1_value == 0
+            except FileNotFoundError:
+                # If key doesn't exist, SMB1 is enabled by default
+                return False
+            finally:
+                winreg.CloseKey(key)
         except Exception:
             return False
 
     def _check_asr_active(self) -> bool:
+        # v29.60: native ASR probe (WMI Defender ns → GPO registry fallback)
         try:
-            r: Any = subprocess.run([_PWSH,'-Command',
-                                'Get-MpPreference | Select AttackSurfaceReductionRules_Ids'],
-                               capture_output = True, text=True, timeout=12,
-                               creationflags = subprocess.CREATE_NO_WINDOW)
-            return len([l.strip() for l in r.stdout.splitlines()
-                        if l.strip() and len(l.strip()) > 10]) >= 3
+            import native_probes
+            return len(native_probes.get_asr_rule_ids()) >= 3
         except Exception:
             return False
 
@@ -33922,11 +34533,44 @@ Verification Status:
             return True
 
     def _check_ps_restricted(self) -> bool:
+        """Check PowerShell execution policy using Windows Registry."""
         try:
-            r: Any = subprocess.run([_PWSH,'-Command','Get-ExecutionPolicy'],
-                               capture_output = True, text=True, timeout=8,
-                               creationflags = subprocess.CREATE_NO_WINDOW)
-            return r.stdout.strip() in ('AllSigned', 'RemoteSigned', 'Restricted')
+            import winreg
+            # Check both machine and user policies
+            policies = []
+            
+            # Machine policy
+            try:
+                key: Any = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                                         r'SOFTWARE\Policies\Microsoft\Windows\PowerShell',
+                                         0, winreg.KEY_READ)
+                try:
+                    policy, _ = winreg.QueryValueEx(key, 'ExecutionPolicy')
+                    policies.append(policy)
+                except FileNotFoundError:
+                    pass
+                finally:
+                    winreg.CloseKey(key)
+            except Exception:
+                pass
+            
+            # User policy
+            try:
+                key: Any = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                                         r'SOFTWARE\Policies\Microsoft\Windows\PowerShell',
+                                         0, winreg.KEY_READ)
+                try:
+                    policy, _ = winreg.QueryValueEx(key, 'ExecutionPolicy')
+                    policies.append(policy)
+                except FileNotFoundError:
+                    pass
+                finally:
+                    winreg.CloseKey(key)
+            except Exception:
+                pass
+            
+            # If any policy is set to Restricted, AllSigned, or RemoteSigned, consider it restricted
+            return any(p in ('Restricted', 'AllSigned', 'RemoteSigned', 0, 1, 2) for p in policies)
         except Exception:
             return False
 
@@ -33954,11 +34598,11 @@ Verification Status:
 
     def _check_driver_sig_enforcement(self) -> bool:
         try:
-            r: Any = subprocess.run([_PWSH,'-Command',
-                                'bcdedit /enum | Select-String "nointegritychecks"'],
+            # v29.60: direct bcdedit (native EXE) — no PowerShell pipe
+            r: Any = subprocess.run(['bcdedit', '/enum'],
                                capture_output = True, text=True, timeout=8,
                                creationflags = subprocess.CREATE_NO_WINDOW)
-            return 'yes' not in r.stdout.lower()
+            return 'nointegritychecks  yes' not in (r.stdout or '').lower()
         except Exception:
             return True
 
@@ -34011,20 +34655,14 @@ Verification Status:
                 with os.fdopen(tmp_fd, 'w', encoding='utf-8', newline='\n') as _tf:
                     _tf.write(new_content)
 
-                # PowerShell Copy-Item is in the CFA allowlist by default
-                _NO_WIN: Any = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000)
-                ps_cmd: Any = (
-                    f"Copy-Item -Path '{tmp_path}' -Destination '{hosts}' -Force; "
-                    f"ipconfig /flushdns | Out-Null"
-                )
-                result: Any = subprocess.run(
-                    [_PWSH, '-NoProfile', '-NonInteractive',
-                     '-ExecutionPolicy', 'Bypass', '-Command', ps_cmd],
-                    capture_output = True, text=True, timeout=15,
-                    creationflags = _NO_WIN
-                )
-                if result.returncode == 0:
+                # v29.60: native copy (shutil) + ipconfig flush — replaces
+                # the PowerShell Copy-Item helper.
+                try:
+                    shutil.copyfile(tmp_path, hosts)
+                    self._dns_flush_cache()
                     return True
+                except Exception:
+                    pass
                 # Try cmd copy as fallback (cmd.exe also CFA-allowlisted)
                 result2: Any = subprocess.run(
                     ['cmd', '/c', f'copy /y "{tmp_path}" "{hosts}"'],
@@ -34035,7 +34673,7 @@ Verification Status:
                     self._dns_flush_cache()
                     return True
                 error_logger.log('HostsWrite', 'Elevated copy failed',
-                                 Exception(result.stderr.strip()))
+                                 Exception(result2.stderr.strip()))
                 return False
             finally:
                 try: _os.unlink(tmp_path)
@@ -34083,16 +34721,16 @@ Verification Status:
         if not hasattr(self, '_canary_hosts') or not self._canary_hosts:
             return
         try:
-            r: Any = subprocess.run(
-                [_PWSH,'-Command','Get-DnsClientCache | ConvertTo-Csv -NoTypeInformation'],
-                capture_output = True, text=True, timeout=10,
-                creationflags = subprocess.CREATE_NO_WINDOW)
+            # v29.60: native DNS-cache walk (dnsapi.dll) — no PowerShell
+            import native_probes
             for canary in self._canary_hosts:
-                if canary.lower() in r.stdout.lower():
-                    msg: Any = f"[ALERT] CANARY TRIGGERED: {canary} was resolved  -  recon/exfil suspected!"
-                    _m: Any = msg; self._queue_alert(_m, Colors.GAUGE_RED)
-                    self._play_alarm('CRITICAL')
-                    self._maybe_send_alert_email(msg)
+                for _n, _d in native_probes.get_dns_cache_entries():
+                    if str(_n).lower().startswith(canary.lower()) or \
+                            canary.lower() in str(_n).lower():
+                        msg: Any = f"[ALERT] CANARY TRIGGERED: {canary} was resolved  -  recon/exfil suspected!"
+                        _m: Any = msg; self._queue_alert(_m, Colors.GAUGE_RED)
+                        self._play_alarm('CRITICAL')
+                        self._maybe_send_alert_email(msg)
                     self.db.execute(
                         "INSERT OR IGNORE INTO threat_events"
                         " (timestamp,type,name,detail,severity) VALUES (?,?,?,?,?)",
@@ -34231,11 +34869,12 @@ Verification Status:
 
         # DNS cache
         try:
-            r: Any = subprocess.run(
-                [_PWSH,'-Command','Get-DnsClientCache | ConvertTo-Csv -NoTypeInformation'],
-                capture_output = True, text=True, timeout=10,
-                creationflags = subprocess.CREATE_NO_WINDOW)
-            report['sections']['dns_cache'] = r.stdout[:30000]
+            # v29.60: native DNS-cache walk — no PowerShell
+            import native_probes
+            lines_txt: Any = '\n'.join(
+                f'"{n}","{d}"' for n, d in
+                native_probes.get_dns_cache_entries())
+            report['sections']['dns_cache'] = lines_txt[:30000]
         except Exception:
             pass
 
@@ -35396,12 +36035,21 @@ Verification Status:
 
             # -- 4. SMBv1 disabled -----------------------------------------
             try:
-                r: Any = subprocess.run([_PWSH,'-Command','Get-SmbServerConfiguration | Select EnableSMB1Protocol'],
-                                   capture_output = True, text=True, creationflags=subprocess.CREATE_NO_WINDOW, timeout=15)
-                smb1_off: Any = 'False' in r.stdout
+                import winreg
+                key: Any = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                                         r'SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters',
+                                         0, winreg.KEY_READ)
+                try:
+                    smb1_value, _ = winreg.QueryValueEx(key, 'SMB1')
+                    smb1_off: Any = smb1_value == 0
+                except FileNotFoundError:
+                    # If key doesn't exist, SMB1 is enabled by default
+                    smb1_off = False
+                finally:
+                    winreg.CloseKey(key)
                 _add('SMBv1 Disabled (EternalBlue)', smb1_off, 'CRITICAL',
                      'SMBv1 enables WannaCry/EternalBlue attacks',
-                     'powershell Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol')
+                     'reg add "HKLM\\SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Parameters" /v SMB1 /t REG_DWORD /d 0 /f')
             except Exception as e:
                 _add('SMBv1 Disabled', False, 'CRITICAL', str(e))
 
@@ -35422,9 +36070,35 @@ Verification Status:
 
             # -- 6. Secure Boot --------------------------------------------
             try:
-                r: Any = subprocess.run([_PWSH,'-Command','Confirm-SecureBootUEFI'],
-                                   capture_output = True, text=True, creationflags=subprocess.CREATE_NO_WINDOW, timeout=10)
-                sb_on: Any = 'True' in r.stdout
+                # Use WMI instead of PowerShell to check Secure Boot status
+                try:
+                    import wmi
+                    c = wmi.WMI()
+                    # Query Win32_SecureBoot to check Secure Boot status
+                    secure_boot = c.Win32_SecureBoot()
+                    if secure_boot:
+                        sb_on: Any = secure_boot[0].SecureBootEnabled == True
+                    else:
+                        # Fallback to Win32_ComputerSystem for older systems
+                        system = c.Win32_ComputerSystem()[0]
+                        sb_on = getattr(system, 'SecureBootEnabled', False)
+                except Exception:
+                    # Fallback to registry check if WMI fails
+                    try:
+                        import winreg
+                        key: Any = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                                                 r'SYSTEM\CurrentControlSet\Control\SecureBoot\State',
+                                                 0, winreg.KEY_READ)
+                        try:
+                            state, _ = winreg.QueryValueEx(key, 'UEFISecureBootEnabled')
+                            sb_on = state == 1
+                        except FileNotFoundError:
+                            sb_on = False
+                        finally:
+                            winreg.CloseKey(key)
+                    except Exception:
+                        sb_on = False
+                
                 if getattr(self,'_bypass_tpm_bitlocker',False):
                     _add('Secure Boot Enabled', True, 'INFO',
                          'Bypassed by user setting  -  UEFI enforcement not required')
@@ -35432,8 +36106,8 @@ Verification Status:
                     _add('Secure Boot Enabled', sb_on, 'HIGH',
                          'Secure Boot prevents bootkit/rootkit attacks',
                          'Enable in BIOS/UEFI firmware settings')
-            except Exception:
-                _add('Secure Boot', False, 'INFO', 'UEFI check requires PS admin')
+            except Exception as e:
+                _add('Secure Boot', False, 'INFO', f'WMI/Registry check failed: {str(e)}')
 
             # -- 7. Credential Guard ---------------------------------------
             try:
@@ -35469,12 +36143,13 @@ Verification Status:
             except Exception:
                 _add('ASLR Status', True, 'INFO', 'ASLR enabled by default on Win10/11')
 
-            # -- 9. Windows Update / Patches -------------------------------
+            # -- 9. Windows Update / Patches ----------------------------
+            # v29.60: native COM (Microsoft.Update.Session) - no PS
             try:
-                r: Any = subprocess.run([_PWSH,'-Command',
-                                    '(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0 and Type=\'Software\'").Updates.Count'],
-                                   capture_output = True, text=True, creationflags=subprocess.CREATE_NO_WINDOW, timeout=20)
-                pending: Any = r.stdout.strip()
+                import native_probes
+                pending: Any = str(native_probes.count_pending_updates())
+                if pending == '-1':
+                    pending = ''
                 if pending.isdigit():
                     ok: Any = int(pending) == 0
                     _add('Windows Updates Current', ok, 'HIGH',
@@ -35511,11 +36186,11 @@ Verification Status:
             except Exception:
                 _add('RDP Status', True, 'INFO', 'Registry check failed')
 
-            # -- 12. PowerShell execution policy ---------------------------
+            # -- 12. PowerShell execution policy -------------------------
+            # v29.60: native registry probe - no PS
             try:
-                r: Any = subprocess.run([_PWSH,'-Command','Get-ExecutionPolicy'],
-                                   capture_output = True, text=True, creationflags=subprocess.CREATE_NO_WINDOW, timeout=10)
-                policy: Any = r.stdout.strip()
+                import native_probes
+                policy: Any = (native_probes.get_powershell_execution_policy() or 'Undefined')
                 safe: Any = policy in ('AllSigned', 'RemoteSigned', 'Restricted')
                 _add(f'PS ExecutionPolicy ({policy})', safe, 'HIGH' if not safe else 'PASS',
                      f'Current: {policy}. Unrestricted allows all scripts.',
@@ -35639,12 +36314,9 @@ Verification Status:
 
             # -- 27. Exploit Protection (WDEG) ----------------------------
             try:
-                r: Any = subprocess.run(
-                    [_PWSH,'-Command',
-                     '(Get-ProcessMitigation -System).DEP.Enable'],
-                    capture_output = True, text=True, timeout=10,
-                    creationflags = subprocess.CREATE_NO_WINDOW)
-                dep_on: Any = 'ON' in r.stdout.upper() or 'True' in r.stdout
+                # v29.60: native GetSystemDEPPolicy - no PS
+                import native_probes
+                dep_on: Any = native_probes.get_dep_policy() in (1, 3)
                 _add('Windows DEP / Exploit Protection', dep_on, 'HIGH',
                      'DEP (Data Execution Prevention) hardens against shellcode',
                      'powershell Set-ProcessMitigation -System -Enable DEP,SEHOP,CFG')
@@ -35653,12 +36325,9 @@ Verification Status:
 
             # -- 28. Attack Surface Reduction (ASR) Rules ------------------
             try:
-                r: Any = subprocess.run(
-                    [_PWSH,'-Command',
-                     'Get-MpPreference | Select-Object -ExpandProperty AttackSurfaceReductionRules_Ids'],
-                    capture_output = True, text=True, timeout=15,
-                    creationflags = subprocess.CREATE_NO_WINDOW)
-                asr_rules: Any = [l.strip() for l in r.stdout.splitlines() if l.strip() and len(l.strip()) > 10]
+                # v29.60: native ASR probe - no PS
+                import native_probes
+                asr_rules: Any = native_probes.get_asr_rule_ids()
                 asr_ok: Any = len(asr_rules) >= 5
                 _add(f'ASR Rules Active ({len(asr_rules)})', asr_ok, 'HIGH',
                      f"{len(asr_rules)} ASR rule(s) enabled  -  recommend 14+ for full coverage",
@@ -35668,12 +36337,10 @@ Verification Status:
 
             # -- 29. Controlled Folder Access -----------------------------
             try:
-                r: Any = subprocess.run(
-                    [_PWSH,'-Command',
-                     'Get-MpPreference | Select-Object -ExpandProperty EnableControlledFolderAccess'],
-                    capture_output = True, text=True, timeout=10,
-                    creationflags = subprocess.CREATE_NO_WINDOW)
-                cfa_on: Any = '1' in r.stdout or 'Enabled' in r.stdout or 'AuditMode' in r.stdout
+                # v29.60: native CFA probe - no PS
+                import native_probes
+                cfa_on: Any = (native_probes.get_defender_pref_int(
+                    'EnableControlledFolderAccess', 0) or 0) in (1, 2)
                 _add('Controlled Folder Access (Anti-Ransomware)', cfa_on, 'HIGH',
                      'Blocks unauthorized apps from modifying protected folders',
                      'powershell Set-MpPreference -EnableControlledFolderAccess Enabled')
@@ -35701,12 +36368,13 @@ Verification Status:
 
             # -- 31. Signed driver enforcement (WHQL) ---------------------
             try:
+                # v29.60: direct bcdedit (native EXE) - no PS pipe
                 r: Any = subprocess.run(
-                    [_PWSH,'-Command',
-                     'bcdedit /enum | Select-String "nointegritychecks"'],
-                    capture_output = True, text=True, timeout=10,
-                    creationflags = subprocess.CREATE_NO_WINDOW)
-                integrity_disabled: Any = 'yes' in r.stdout.lower() or 'nointegritychecks' in r.stdout.lower()
+                    ['bcdedit', '/enum'], capture_output=True,
+                    text=True, timeout=10,
+                    creationflags=subprocess.CREATE_NO_WINDOW)
+                integrity_disabled: Any = \
+                    'nointegritychecks  yes' in (r.stdout or '').lower()
                 _add('Driver Signature Enforcement', not integrity_disabled, 'CRITICAL',
                      'DSE disabled  -  rootkits can load unsigned drivers!' if integrity_disabled else 'Driver Signature Enforcement ON',
                      'bcdedit /set nointegritychecks off')
@@ -36257,14 +36925,11 @@ Verification Status:
         if not path or not os.path.isfile(path):
             self._sig_cache[path] = (False, __import__('time').time())
             return False
+        # v29.60: native WinVerifyTrust (wintrust.dll) + catalog/embedded
+        # fallback — replaces the Get-AuthenticodeSignature subprocess.
         try:
-            # Use simpler signtool approach via powershell
-            r: Any = subprocess.run(
-                [_PWSH,'-Command',
-                 f"(Get-AuthenticodeSignature '{path}').Status"],
-                capture_output = True, text=True, timeout=10,
-                creationflags = subprocess.CREATE_NO_WINDOW)
-            return 'Valid' in r.stdout
+            import native_probes
+            return native_probes.authenticode_status(path) == 'Valid'
         except Exception:
             return False
 
@@ -36295,19 +36960,26 @@ Verification Status:
         return results
 
     def _check_wmi_subscriptions(self) -> List[str]:
-        """Check for malicious WMI event subscriptions (persistence technique)."""
+        """Check for malicious WMI event subscriptions (persistence technique).
+
+        v29.60: native WMI COM — the binding's Filter object's Name is the
+        same output the PowerShell pipeline produced."""
         found: Any = []
         try:
-            r: Any = subprocess.run(
-                [_PWSH,'-Command',
-                 'Get-WMIObject -Namespace root\\subscription -Class __FilterToConsumerBinding | '
-                 'Select-Object -ExpandProperty Filter | ForEach-Object {$_.Name}'],
-                capture_output = True, text=True, timeout=15,
-                creationflags = subprocess.CREATE_NO_WINDOW)
-            for line in r.stdout.splitlines():
-                s: Any = line.strip()
-                if s:
-                    found.append(s)
+            import native_probes
+            svc: Any = native_probes.com_wmi_services(r'root\subscription')
+            if svc is None:
+                return found
+            for binding in svc.ExecQuery(
+                    'SELECT Filter FROM __FilterToConsumerBinding'):
+                try:
+                    f: Any = binding.Filter
+                    nm: Any = getattr(f, 'Name', None) or str(f)
+                    s: Any = str(nm).strip()
+                    if s:
+                        found.append(s)
+                except Exception:
+                    continue
         except Exception:
             pass
         return found
@@ -36373,15 +37045,15 @@ Verification Status:
         return suspicious
 
     def _get_av_status(self) -> str:
-        """Query installed antivirus via WMI SecurityCenter2."""
+        """Query installed antivirus via WMI SecurityCenter2 (native COM —
+        v29.60, replaces the Get-WmiObject subprocess)."""
         try:
-            r: Any = subprocess.run(
-                [_PWSH,'-Command',
-                 "Get-WmiObject -Namespace root\\SecurityCenter2 -Class AntiVirusProduct | "
-                 "Select-Object -ExpandProperty displayName"],
-                capture_output = True, text=True, timeout=10,
-                creationflags = subprocess.CREATE_NO_WINDOW)
-            avs: Any = [l.strip() for l in r.stdout.splitlines() if l.strip()]
+            import native_probes
+            avs: Any = [str(v).strip()
+                        for v in native_probes.wmi_get_class_prop(
+                            r'root\SecurityCenter2',
+                            'SELECT displayName FROM AntiVirusProduct',
+                            'displayName') if v]
             return ', '.join(avs) if avs else 'None detected'
         except Exception:
             return 'Query failed'
@@ -36969,19 +37641,13 @@ Verification Status:
     def _check_spectre_meltdown(self) -> dict:
         """Check Spectre/Meltdown (KVA Shadow + Branch Prediction mitigations)."""
         result: Any = {'kva_shadow': False, 'ibrs': False, 'ssbd': False, 'detail': ''}
+        # v29.60: native NtQuerySystemInformation(201) — the same syscall
+        # the SpeculationControl module calls; no PowerShell.
         try:
-            r: Any = subprocess.run(
-                [_PWSH,'-Command',
-                 'Get-SpeculationControlSettings | Select-Object -Property *'],
-                capture_output = True, text=True, timeout=15,
-                creationflags = subprocess.CREATE_NO_WINDOW)
-            out: Any = r.stdout
-            result['kva_shadow'] = 'KernelVaShadowEnabled' in out and 'True' in out
-            result['ibrs']       = 'ibrs' in out.lower()
-            result['ssbd']       = 'ssbd' in out.lower()
-            result['detail']     = out[:200].strip() if out else 'Module not available'
+            import native_probes
+            result = native_probes.query_speculation_control()
         except Exception as e:
-            result['detail'] = f'SpeculationControl module needed: {e}'
+            result['detail'] = f'SpeculationControl native probe failed: {e}'
         return result
 
     # -- Timestomp / Anti-Forensics Detection --------------------------------
@@ -37042,29 +37708,25 @@ Verification Status:
         Also checks for wevtutil cl / Clear-EventLog executions in process list.
         """
         hits: Any = []
-        # Method 1: Check Security event log for EID 1102 / 104
+        # v29.60: native EvtQuery — log-clear detection (T1070.001)
         try:
-            r: Any = subprocess.run(
-                [_PWSH,'-Command',
-                 'Get-WinEvent -FilterHashtable @{LogName="Security";Id=1102} -MaxEvents 5 -ErrorAction SilentlyContinue | '
-                 'Select-Object TimeCreated,Message | ConvertTo-Json -Depth 1'],
-                capture_output = True, text=True, timeout=15,
-                creationflags = subprocess.CREATE_NO_WINDOW)
-            if r.stdout.strip() and r.stdout.strip() != 'null':
+            import native_probes
+            evs: Any = native_probes.evt_query_events(
+                'Security', '*[System[(EventID=1102)]]', 5)
+            if evs:
                 hits.append({'event': 'Security Log Cleared (EID 1102)',
-                             'data': r.stdout.strip()[:200], 'mitre': 'T1070.001'})
+                             'data': '; '.join(e['time'] for e in evs[:5]),
+                             'mitre': 'T1070.001'})
         except Exception:
             pass
         try:
-            r: Any = subprocess.run(
-                [_PWSH,'-Command',
-                 'Get-WinEvent -FilterHashtable @{LogName="System";Id=104} -MaxEvents 5 -ErrorAction SilentlyContinue | '
-                 'Select-Object TimeCreated,Message | ConvertTo-Json -Depth 1'],
-                capture_output = True, text=True, timeout=15,
-                creationflags = subprocess.CREATE_NO_WINDOW)
-            if r.stdout.strip() and r.stdout.strip() != 'null':
+            import native_probes
+            evs2: Any = native_probes.evt_query_events(
+                'System', '*[System[(EventID=104)]]', 5)
+            if evs2:
                 hits.append({'event': 'System Log Cleared (EID 104)',
-                             'data': r.stdout.strip()[:200], 'mitre': 'T1070.001'})
+                             'data': '; '.join(e['time'] for e in evs2[:5]),
+                             'mitre': 'T1070.001'})
         except Exception:
             pass
         # Method 2: Check running processes for log-clearing tools
@@ -37165,13 +37827,10 @@ Verification Status:
         ]
         for eid, key, label in event_checks:
             try:
-                r: Any = subprocess.run(
-                    [_PWSH,'-Command',
-                     f'(Get-WinEvent -FilterHashtable @{{LogName="Security";Id={eid}}} '
-                     f'-MaxEvents 100 -ErrorAction SilentlyContinue).Count'],
-                    capture_output = True, text=True, timeout=15,
-                    creationflags = subprocess.CREATE_NO_WINDOW)
-                count: Any = int(r.stdout.strip()) if r.stdout.strip().isdigit() else 0
+                # v29.60: native count via EvtQuery (wevtapi) — no PS
+                import native_probes
+                count: Any = native_probes.evt_count_events(
+                    'Security', f'*[System[(EventID={eid})]]', 100)
                 results[key] = count
                 if count > 10:
                     results['details'].append(f'{label}: {count} events (threshold >10)')
@@ -37299,45 +37958,33 @@ Verification Status:
     def _audit_kernel_drivers(self) -> List[dict]:
         """
         MITRE T1014 Rootkit  -  Audit loaded kernel drivers for unsigned / suspicious entries.
-        Uses PowerShell Get-WmiObject Win32_SystemDriver.
+        v29.60: native WMI via COM (Win32_SystemDriver) + DISM for third-party
+        drivers — the same sources Get-WmiObject/Get-WindowsDriver wrap.
         """
         hits: Any = []
         try:
-            r: Any = subprocess.run(
-                [_PWSH,'-Command',
-                 'Get-WmiObject Win32_SystemDriver | '
-                 'Select-Object Name,PathName,State,StartMode | '
-                 'ConvertTo-Json -Depth 1'],
-                capture_output = True, text=True, timeout=20,
-                creationflags = subprocess.CREATE_NO_WINDOW)
-            if r.stdout.strip():
-                try:
-                    drivers: Any = json.loads(r.stdout)
-                    if isinstance(drivers, dict): drivers = [drivers]
-                except (json.JSONDecodeError, ValueError):
-                    drivers: Any = []
-                for d in drivers:
-                    path: Any = (d.get('PathName') or '').lower()
-                    name: Any = d.get('Name','')
-                    # Flag drivers in suspicious locations
-                    suspicious_paths: Any = ['\\temp\\','\\appdata\\','\\users\\public\\','\\downloads\\']
-                    if any(sp in path for sp in suspicious_paths):
-                        hits.append({'name': name, 'path': d.get('PathName',''),
-                                     'issue': 'Driver in suspicious path',
-                                     'state': d.get('State',''), 'mitre': 'T1014'})
+            import native_probes
+            drivers: Any = native_probes.get_system_drivers()
+            for d in drivers:
+                path: Any = (d.get('PathName') or '').lower()
+                name: Any = d.get('Name','')
+                # Flag drivers in suspicious locations
+                suspicious_paths: Any = ['\\temp\\','\\appdata\\','\\users\\public\\','\\downloads\\']
+                if any(sp in path for sp in suspicious_paths):
+                    hits.append({'name': name, 'path': d.get('PathName',''),
+                                 'issue': 'Driver in suspicious path',
+                                 'state': d.get('State',''), 'mitre': 'T1014'})
         except Exception:
             pass
-        # Also check for unsigned drivers via sigcheck (if available) or signtool
+        # Third-party driver inventory via DISM (native EXE) — was
+        # Get-WindowsDriver -Online via PowerShell
         try:
             r: Any = subprocess.run(
-                [_PWSH,'-Command',
-                 'Get-WindowsDriver -Online | Where-Object {$_.Driver -notlike "*Microsoft*"} | '
-                 'Select-Object Driver,OriginalFileName,BootCritical | '
-                 'ConvertTo-Json -Depth 1 -ErrorAction SilentlyContinue'],
-                capture_output = True, text=True, timeout=30,
+                ['dism', '/online', '/get-drivers', '/format:table'],
+                capture_output = True, text=True, timeout=60,
                 creationflags = subprocess.CREATE_NO_WINDOW)
             # Just log count for now
-            if r.stdout.strip() and r.stdout.strip() != 'null':
+            if r.stdout and r.returncode == 0:
                 pass  # Parsed in vuln scan
         except Exception:
             pass
@@ -37396,24 +38043,17 @@ Verification Status:
         RC4 (0x17) TGS requests on modern domains indicate Kerberoasting.
         """
         result: Any = {'rc4_tgs_count': 0, 'details': []}
+        # v29.60: native EvtQuery — RC4 TGS tickets (0x17) from EID 4769
         try:
-            r: Any = subprocess.run(
-                [_PWSH,'-Command',
-                 'Get-WinEvent -FilterHashtable @{LogName="Security";Id=4769} -MaxEvents 50 '
-                 '-ErrorAction SilentlyContinue | '
-                 'Where-Object {$_.Message -match "0x17"} | '
-                 'Select-Object TimeCreated, @{n="Acct";e={($_.Properties[0].Value)}} | '
-                 'ConvertTo-Json -Depth 1'],
-                capture_output = True, text=True, timeout=20,
-                creationflags = subprocess.CREATE_NO_WINDOW)
-            if r.stdout.strip() and r.stdout.strip() != 'null':
-                try:
-                    events: Any = json.loads(r.stdout)
-                    if isinstance(events, dict): events = [events]
-                except (json.JSONDecodeError, ValueError):
-                    events: Any = []
-                result['rc4_tgs_count'] = len(events)
-                result['details'] = [str(e.get('Acct','')) for e in events[:5]]
+            import native_probes
+            import re as _re
+            evs: Any = native_probes.evt_query_events(
+                'Security', '*[System[(EventID=4769)]]', 50)
+            rc4_evs: Any = [e for e in evs if '0x17' in str(e.get('xml', ''))]
+            result['rc4_tgs_count'] = len(rc4_evs)
+            for e in rc4_evs[:5]:
+                result['details'].append(
+                    f"RC4 TGS from {e.get('time','')}")
         except Exception:
             pass
         return result
@@ -37425,24 +38065,17 @@ Verification Status:
         Also checks for SeImpersonatePrivilege on non-service accounts.
         """
         hits: Any = []
+        # v29.60: native EvtQuery — EID 4624 impersonation logons
         try:
-            r: Any = subprocess.run(
-                [_PWSH,'-Command',
-                 'Get-WinEvent -FilterHashtable @{LogName="Security";Id=4624} -MaxEvents 20 '
-                 '-ErrorAction SilentlyContinue | '
-                 'Where-Object {$_.Message -match "LogonType.*9|Impersonation"} | '
-                 'Select-Object TimeCreated, Message | ConvertTo-Json -Depth 1'],
-                capture_output = True, text=True, timeout=15,
-                creationflags = subprocess.CREATE_NO_WINDOW)
-            if r.stdout.strip() and r.stdout.strip() != 'null':
-                try:
-                    events: Any = json.loads(r.stdout)
-                    if isinstance(events, dict): events = [events]
-                except (ValueError, TypeError):
-                    events: Any = []
-                for e in events[:5]:
+            import native_probes
+            evs: Any = native_probes.evt_query_events(
+                'Security', '*[System[(EventID=4624)]]', 20)
+            for e in evs:
+                xml: Any = str(e.get('xml', ''))
+                if 'LogonType' in xml and ('>9<' in xml or
+                                           'Impersonation' in xml):
                     hits.append({'event': 'Token Impersonation Logon (EID 4624)',
-                                 'data': str(e.get('TimeCreated',''))[:50],
+                                 'data': str(e.get('time',''))[:50],
                                  'mitre': 'T1134'})
         except Exception:
             pass
@@ -37743,6 +38376,8 @@ Verification Status:
 
     def _manual_start_monitoring(self):
         """User-triggered: start process, network, and hardware monitoring."""
+        if not hasattr(self, '_manual_engines_started'):
+            self._manual_engines_started = set()
         if 'monitoring' in self._manual_engines_started:
             self._queue_alert('[INFO] Monitoring already running', Colors.GAUGE_YELLOW)
             return
@@ -38467,6 +39102,88 @@ Verification Status:
             except Exception:
                 pass
 
+    def _init_defense_suite(self) -> None:
+        """v29.61: Initialize the Advanced Defense Suite.
+        Deploys honeytokens, runs CIS scoring, NTDLL integrity check,
+        cert store scan, and starts a monitoring loop for canaries and
+        process-tree anomalies. All best-effort, never blocks startup."""
+        try:
+            from advanced_defense_suite import (
+                HoneytokenSuite, CISBenchmark, NtdllIntegrityChecker,
+                SOARPlaybooks, CertificateStoreMonitor,
+                ProcessTreeAnalyzer)
+        except ImportError:
+            return  # module unavailable — skip silently
+
+        self._honeytokens = HoneytokenSuite()
+        self._soar = SOARPlaybooks()
+        self._cis = CISBenchmark()
+        self._ntdll_checker = NtdllIntegrityChecker()
+        self._cert_monitor = CertificateStoreMonitor()
+        self._pt_analyzer = ProcessTreeAnalyzer()
+
+        def _run_defense_suite():
+            # Deploy honeytokens (5 canary files + 1 DNS canary)
+            try:
+                docs = os.path.expanduser('~\\Documents')
+                n = self._honeytokens.deploy_default_suite(docs)
+                if n:
+                    self.after(0, lambda: self._queue_alert(
+                        f'[HONEYTOKEN] {n} canaries deployed',
+                        Colors.GAUGE_TEAL))
+            except Exception as e:
+                error_logger.log('DefenseSuite', 'honeytoken deploy', e)
+
+            # NTDLL integrity check (once at startup)
+            try:
+                nt = self._ntdll_checker.check()
+                if nt.get('hooked'):
+                    self.after(0, lambda: self._queue_alert(
+                        f'[ROOTKIT] ntdll hooked: {nt["detail"]}',
+                        Colors.GAUGE_RED))
+                else:
+                    logger.info('DefenseSuite: ntdll clean')
+            except Exception as e:
+                error_logger.log('DefenseSuite', 'ntdll check', e)
+
+            # CIS benchmark (once at startup)
+            try:
+                cis = self._cis.run_all()
+                logger.info('DefenseSuite: CIS score %.1f%% (%d/%d)',
+                            cis['score'], cis['passed'], cis['total'])
+                for c in cis['checks']:
+                    if not c['passed']:
+                        self.after(0, lambda cc=c: self._queue_alert(
+                            f'[CIS] FAIL: {cc["name"]}',
+                            Colors.GAUGE_YELLOW))
+            except Exception as e:
+                error_logger.log('DefenseSuite', 'cis benchmark', e)
+
+            # Cert store scan (once at startup)
+            try:
+                cs = self._cert_monitor.scan()
+                logger.info('DefenseSuite: %d root CAs',
+                            cs['total_roots'])
+            except Exception as e:
+                error_logger.log('DefenseSuite', 'cert scan', e)
+
+            # Monitoring loop: check canaries every 30s
+            while True:
+                time.sleep(30)
+                try:
+                    # File canary check
+                    triggered = self._honeytokens.check_file_canaries()
+                    for t in triggered:
+                        self.after(0, lambda tt=t: self._queue_alert(
+                            f'[HONEYTOKEN TRIGGERED] {tt.get("label", "")} '
+                            f'({tt.get("trigger_reason", "?")})',
+                            Colors.GAUGE_RED))
+                except Exception as e:
+                    error_logger.log('DefenseSuite', 'canary check', e)
+
+        threading.Thread(target=_run_defense_suite, daemon=True,
+                         name='DefenseSuite').start()
+
     def _auto_start(self):
         """Actions after window is shown — MINIMAL startup, everything else manual."""
         # FIX-v28p38: NOTHING starts automatically except essential UI plumbing.
@@ -38637,6 +39354,13 @@ Verification Status:
             self._queue_alert(
                 "[SHIELD] AV Safe-Mode: Defender exclusions added",
                 '#00e5ff')
+
+        # v29.61: Advanced Defense Suite — honeytokens, CIS scoring,
+        # NTDLL integrity, SOAR playbooks, cert store, process tree rules.
+        try:
+            self._init_defense_suite()
+        except Exception as e:
+            error_logger.log('DefenseSuite', 'init failed', e)
 
         # Freeze diagnostic (lightweight — 200ms check, no work)
         import time as _fdt
@@ -39286,8 +40010,11 @@ Verification Status:
         _lock: Any = self._proc_list_lock
 
         def do_scan():
+            # v29.60b: once-per-thread COM init (per-call CoInitialize
+            # accumulated refcounts on this long-lived scan thread)
             try:
-                import pythoncom  # type: ignore[import-untyped]; pythoncom.CoInitialize()
+                import native_probes as _npp
+                _npp._com_ensure_initialized()
             except Exception:
                 pass
             try:
@@ -39298,23 +40025,71 @@ Verification Status:
 
                 # v29.22: GPU per-process attribution via nvidia-smi compute-apps
                 # (runs in this background scan thread - never blocks the UI).
-                try:
-                    gpu_proc_map: Any = {}
-                    import subprocess as _gsp
-                    _gout: Any = _gsp.run(
-                        ['nvidia-smi', '--query-compute-apps=pid,used_memory',
-                         '--format=csv,noheader,nounits'],
-                        capture_output=True, text=True, timeout=8,
-                        creationflags=0x08000000)
-                    if _gout.returncode == 0 and _gout.stdout.strip():
-                        for _line in _gout.stdout.splitlines():
-                            _parts: Any = [x.strip() for x in _line.split(',')]
-                            if len(_parts) >= 2 and _parts[0].isdigit():
-                                _vram: Any = _parts[1].replace('[N/A]', '').strip()
-                                gpu_proc_map[int(_parts[0])] = _vram
-                    self._gpu_proc_map = gpu_proc_map
-                except Exception:
-                    self._gpu_proc_map = getattr(self, '_gpu_proc_map', {})
+                # FIX-v29: the bare 'nvidia-smi' command relies on PATH
+                # resolution, which silently fails on machines where the
+                # NVIDIA driver installer didn't add it to PATH. The old code
+                # also swallowed every exception with `except Exception: pass`,
+                # so a genuine "unable to start" failure was completely
+                # invisible in the logs and the app retried the same doomed
+                # subprocess spawn every ~2s scan cycle forever.
+                # v29.44: Improved path detection and better error handling
+                if not getattr(self, '_nvidia_smi_unavailable', False):
+                    try:
+                        gpu_proc_map: Any = {}
+                        import subprocess as _gsp, os as _gos
+                        _nv_path: Any = getattr(self, '_nvidia_smi_path', None)
+                        if _nv_path is None:
+                            _candidates: Any = [
+                                'nvidia-smi',
+                                r'C:\Windows\System32\nvidia-smi.exe',
+                                r'C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe',
+                                r'C:\Program Files\NVIDIA Corporation\NVIDIA Corporation\nvidia-smi.exe',
+                            ]
+                            for _cand in _candidates:
+                                if _cand == 'nvidia-smi' or _gos.path.isfile(_cand):
+                                    _nv_path = _cand
+                                    break
+                            self._nvidia_smi_path = _nv_path or 'nvidia-smi'
+                            _nv_path = self._nvidia_smi_path
+
+                        _gout: Any = _gsp.run(
+                            [_nv_path, '--query-compute-apps=pid,used_memory',
+                             '--format=csv,noheader,nounits'],
+                            capture_output=True, text=True, timeout=8,
+                            creationflags=0x08000000)
+                        if _gout.returncode == 0 and _gout.stdout.strip():
+                            for _line in _gout.stdout.splitlines():
+                                _parts: Any = [x.strip() for x in _line.split(',')]
+                                if len(_parts) >= 2 and _parts[0].isdigit():
+                                    # Handle [N/A] values gracefully
+                                    _vram: Any = _parts[1].replace('[N/A]', '').replace('N/A', '').strip()
+                                    gpu_proc_map[int(_parts[0])] = _vram if _vram else 0
+                        self._gpu_proc_map = gpu_proc_map
+                    except FileNotFoundError as _nv_e:
+                        self._nvidia_smi_unavailable = True
+                        self._gpu_proc_map = getattr(self, '_gpu_proc_map', {})
+                        logger.info("[GPU] nvidia-smi not found (tried PATH + "
+                                    "known install locations) — per-process "
+                                    "GPU attribution disabled: %s", _nv_e)
+                    except OSError as _nv_e:
+                        self._nvidia_smi_unavailable = True
+                        self._gpu_proc_map = getattr(self, '_gpu_proc_map', {})
+                        logger.warning(
+                            "[GPU] nvidia-smi failed to start (path=%s, "
+                            "winerror=%s) — per-process GPU attribution "
+                            "disabled. If Defender/ASR is blocking it, add an "
+                            "ExclusionProcess for nvidia-smi.exe: %s",
+                            getattr(self, '_nvidia_smi_path', '?'),
+                            getattr(_nv_e, 'winerror', '?'), _nv_e)
+                    except subprocess.TimeoutExpired as _nv_e:
+                        self._nvidia_smi_unavailable = True
+                        self._gpu_proc_map = getattr(self, '_gpu_proc_map', {})
+                        logger.warning("[GPU] nvidia-smi timed out — "
+                                    "per-process GPU attribution disabled: %s", _nv_e)
+                    except Exception as _nv_e:
+                        self._gpu_proc_map = getattr(self, '_gpu_proc_map', {})
+                        logger.debug("[GPU] nvidia-smi query error (transient, "
+                                     "will retry): %s", _nv_e)
 
                 # v29: LOLBAS abuse check — runs on every live scan cycle,
                 # not gated behind the manual "Run Threat Hunt" button.
@@ -42300,14 +43075,13 @@ Verification Status:
 
         # 3. Services referencing the file
         try:
-            svc_list: Any = _sp.run(
-                [_PWSH, '-NoProfile', '-Command',
-                 f"Get-WmiObject win32_service | Where-Object {{ $_.PathName -like '*{fname}*' }} | Select-Object Name,PathName | ConvertTo-Json"],
-                capture_output = True, text=True, timeout=15, creationflags=0x08000000)
-            if svc_list.stdout.strip():
-                import json as _json
-                svcs: Any = _json.loads(svc_list.stdout)
-                if isinstance(svcs, dict): svcs = [svcs]
+            # v29.60: native WMI via COM — was Get-WmiObject subprocess
+            import native_probes
+            svcs: Any = [
+                {'Name': s.get('Name'), 'PathName': s.get('PathName')}
+                for s in native_probes.get_services()
+                if fname and fname in (s.get('PathName') or '')]
+            if svcs:
                 for svc in svcs:
                     sname: Any = svc.get('Name', '')
                     _sp.run(['sc', 'stop', sname], capture_output=True, timeout=10, creationflags=0x08000000)
@@ -42328,12 +43102,11 @@ Verification Status:
                     item_path: Any = os.path.join(sd, item)
                     if item.lower().endswith('.lnk'):
                         try:
-                            # Read .lnk target via PowerShell
-                            r: Any = _sp.run(
-                                [_PWSH, '-NoProfile', '-Command',
-                                 f"(New-Object -COM WScript.Shell).CreateShortcut('{item_path}').TargetPath"],
-                                capture_output = True, text=True, timeout=5, creationflags=0x08000000)
-                            target: Any = r.stdout.strip()
+                            # v29.60: native .lnk resolve via the same
+                            # WScript.Shell COM object, dispatched directly
+                            # from Python (no PowerShell)
+                            import native_probes
+                            target: Any = native_probes.lnk_target(item_path)
                             if fpath_norm in os.path.normcase(target) or fname in target.lower():
                                 os.remove(item_path)
                                 results.append(f"Startup shortcut: removed {item}")
@@ -47393,10 +48166,22 @@ Verification Status:
             return '[BLOCKED: command not in DNS allowlist]'
         try:
             parts: Any = cmd.split()
-            use_shell: Any = parts[0].lower() in ('powershell',)
+            # v29.60: no shell, no PowerShell — bare EXEs only (nslookup,
+            # ipconfig, netsh). Any PowerShell command is answered natively.
+            first: Any = parts[0].lower()
+            if first in ('powershell', 'pwsh'):
+                joined: Any = ' '.join(parts[1:])
+                if 'Get-DnsClient' in joined or 'Resolve-DnsName' in joined:
+                    try:
+                        import native_probes
+                        _rows: Any = native_probes.get_dns_cache_entries()
+                        return '\n'.join(n for n, _ in _rows[:200])
+                    except Exception as exc:
+                        return f'[ERROR] {exc}'
+                return '[BLOCKED: PowerShell not used — native DNS tools only]'
             r: Any = subprocess.run(
-                cmd if use_shell else parts,
-                shell = use_shell,
+                parts,
+                shell = False,
                 capture_output = True, text=True, timeout=timeout,
                 creationflags = 0x08000000)
             return r.stdout.strip() or r.stderr.strip()
@@ -49405,9 +50190,10 @@ Verification Status:
                     reverted_items: Any = []
 
                     # Revert Windows Defender exclusions
+                    # v29.60: native revert (registry) - no PS
                     try:
-                        cmd: Any = 'Remove-MpPreference -ControlledFolderAccessDisabled -Force'
-                        subprocess.run([_PWSH, '-Command', cmd], capture_output=True, check=False, creationflags=_NO_WIN)
+                        import native_probes as _np
+                        _np.defender_revert_controlled_folder_access()
                         reverted_items.append('- Windows Defender exclusions removed')
                     except Exception as e:
                         reverted_items.append(f'- Windows Defender: {str(e)}')
@@ -52931,32 +53717,41 @@ Verification Status:
     def _fw_load_blocked_events(self):
         import threading
         def _run():
-            cmd: Any = [
-                'powershell', '-NoProfile', '-Command',
-                'Get-WinEvent -FilterHashtable @{LogName="Security";Id=5157} '
-                '-MaxEvents 100 -ErrorAction SilentlyContinue | '
-                'Select-Object TimeCreated,Message | '
-                'ForEach-Object { $_.TimeCreated.ToString("yyyy-MM-dd HH:mm:ss") + "|" + $_.Message }'
-            ]
-            out: Any = self._fw_run_cmd(cmd, timeout=30)
+            # v29.60: native EvtQuery (wevtapi.dll) — was Get-WinEvent PS
             events: Any = []
-            for line in out.splitlines():
-                if '|' not in line: continue
-                ts, _, msg = line.partition('|')
-                import re
-                proc_m: Any = re.search(r'Application Name:\s+(\S[^\n]*)', msg)
-                process: Any = proc_m.group(1).strip()[:40] if proc_m else ''
-                src_m: Any = re.search(r'Source Address:\s+(\S+)', msg)
-                src_ip: Any = src_m.group(1) if src_m else ''
-                dst_ip: Any = re.search(r'Destination Address:\s+(\S+)', msg)
-                dst_ip: Any = dst_ip.group(1) if dst_ip else ''
-                dst_port: Any = re.search(r'Destination Port:\s+(\S+)', msg)
-                dst_port: Any = dst_port.group(1) if dst_port else ''
-                proto: Any = re.search(r'Protocol:\s+(\S+)', msg)
-                proto: Any = proto.group(1) if proto else ''
-                proto_map: Any = {'6':'TCP','17':'UDP','1':'ICMP'}
-                proto: Any = proto_map.get(proto, proto)
-                events.append((ts.strip(), process, src_ip, dst_ip, dst_port, proto))
+            try:
+                import native_probes
+                evs: Any = native_probes.evt_query_events(
+                    'Security', '*[System[(EventID=5157)]]', 100)
+                for ev in evs:
+                    xml: Any = str(ev.get('xml', ''))
+                    ts: Any = str(ev.get('time', ''))
+                    # EvtRender XML data names for 5157:
+                    #   Application / SourceAddress / DestAddress /
+                    #   DestPort / Protocol
+                    proc_m: Any = re.search(
+                        r'<Data Name="Application(?: Name)?">([^<]+)', xml)
+                    process: Any = proc_m.group(1).strip()[:40] \
+                        if proc_m else ''
+                    src_m: Any = re.search(
+                        r'<Data Name="SourceAddress">([^<]+)', xml)
+                    src_ip: Any = src_m.group(1) if src_m else ''
+                    dst_ip: Any = re.search(
+                        r'<Data Name="Dest(?:ination)?Address">([^<]+)',
+                        xml)
+                    dst_ip: Any = dst_ip.group(1) if dst_ip else ''
+                    dst_port: Any = re.search(
+                        r'<Data Name="Dest(?:ination)?Port">([^<]+)', xml)
+                    dst_port: Any = dst_port.group(1) if dst_port else ''
+                    proto_m: Any = re.search(
+                        r'<Data Name="Protocol">([0-9]+)', xml)
+                    proto_map: Any = {'6':'TCP','17':'UDP','1':'ICMP'}
+                    proto: Any = proto_map.get(
+                        proto_m.group(1) if proto_m else '', '')
+                    events.append((ts.strip(), process, src_ip, dst_ip,
+                                   dst_port, proto))
+            except Exception:
+                pass
             self.after(0, lambda: self._fw_populate_events(events))
         threading.Thread(target=_run, daemon=True).start()
 
@@ -53476,34 +54271,30 @@ Verification Status:
         threading.Thread(target=_run, daemon=True).start()
 
     def _tl_fetch_events(self, max_events: int = 500) -> list:
-        import subprocess, re
-        # Pull Security log events we care about
-        ps_cmd: Any = (
-            f'Get-WinEvent -FilterHashtable @{{LogName="Security"}} '
-            f'-MaxEvents {max_events} -ErrorAction SilentlyContinue | '
-            f'Select-Object TimeCreated,Id,LevelDisplayName,Message | '
-            f'ForEach-Object {{ $_.TimeCreated.ToString("yyyy-MM-dd HH:mm:ss") + "|||" + '
-            f'$_.Id + "|||" + $_.LevelDisplayName + "|||" + '
-            f'($_.Message -replace "\\n"," " -replace "\\r","") }}'
-        )
+        import re
+        # v29.60: native EvtQuery (wevtapi.dll) — replaces the Get-WinEvent
+        # PowerShell pipeline for the Threat Timeline.
         try:
-            r: Any = subprocess.run(
-                [_PWSH, '-NoProfile', '-Command', ps_cmd],
-                capture_output = True, text=True, timeout=60, encoding='utf-8', errors='replace',
-                creationflags = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000))
-            raw: Any = r.stdout
+            import native_probes
+            raw_events: Any = native_probes.evt_query_events(
+                'Security', '*', max_events)
         except Exception:
             return []
         events: Any = []
-        for line in raw.splitlines():
-            parts: Any = line.split('|||')
-            if len(parts) < 3: continue
-            ts, eid, level = parts[0].strip(), parts[1].strip(), parts[2].strip()
-            msg: Any = parts[3].strip() if len(parts) > 3 else ''
+        for ev in raw_events:
+            ts, eid, level = str(ev.get('time', '')), str(ev.get('id', '')), \
+                str(ev.get('level', ''))
+            xml: Any = str(ev.get('xml', ''))
+            msg: Any = re.sub(r'<[^>]+>', ' ', xml)
+            msg = re.sub(r'\s+', ' ', msg).strip()
             cat, severity = self._TL_EVENT_MAP.get(eid, (f'Event {eid}', 'info'))
-            # Extract user from message
+            # Extract user from event XML (4624/4625 TargetUserName,
+            # generic SubjectUserName fallback)
             user: Any = ''
-            um: Any = re.search(r'Account Name:\s+(\S+)', msg)
+            um: Any = re.search(
+                r'<Data Name="TargetUserName">([^<]+)', xml) or re.search(
+                r'<Data Name="SubjectUserName">([^<]+)', xml) or re.search(
+                r'Account Name:\s+(\S+)', msg)
             if um: user = um.group(1)
             # Short description from message
             desc: Any = msg[:200].replace('\t', ' ')
@@ -53750,43 +54541,31 @@ Verification Status:
         self._usb_sort_col = 'Device'; self._usb_sort_rev = False
         self._usb_load_whitelist()
 
-    def _usb_run_ps(self, cmd: str, timeout: int = 20) -> str:
-        import subprocess
-        try:
-            r: Any = subprocess.run(
-                [_PWSH, '-NoProfile', '-Command', cmd],
-                capture_output = True, text=True, timeout=timeout, encoding='utf-8', errors='replace',
-                creationflags = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000))
-            return r.stdout
-        except Exception as e:
-            return str(e)
+    # v29.60: _usb_run_ps removed — USB enumeration now runs on native WMI
+    # COM (Win32_PnPEntity) and a winreg walk of the USBSTOR history key.
 
     def _usb_scan(self):
         import threading
         self._usb_status_lbl.config(text="⏳ Enumerating USB devices...", fg=Colors.GAUGE_YELLOW)
         def _run():
-            # Use WMI via PowerShell to get USB devices
-            ps: Any = (
-                "Get-PnpDevice -Class USB,HIDClass,DiskDrive -ErrorAction SilentlyContinue | "
-                "Where-Object {$_.InstanceId -like 'USB*' -or $_.InstanceId -like 'USBSTOR*'} | "
-                "Select-Object FriendlyName,InstanceId,Manufacturer,Class,Status | "
-                "ForEach-Object { "
-                "$_.FriendlyName + '|||' + $_.InstanceId + '|||' + $_.Manufacturer + '|||' + "
-                "$_.Class + '|||' + $_.Status }"
-            )
-            out: Any = self._usb_run_ps(ps, timeout=30)
+            # v29.60: native WMI via COM (Win32_PnPEntity) — the exact class
+            # Get-PnpDevice wraps; no PowerShell.
             devices: Any = []
-            for line in out.splitlines():
-                parts: Any = line.split('|||')
-                if len(parts) >= 4:
-                    devices.append({
-                        'name':  parts[0].strip() or 'Unknown Device',
-                        'id':    parts[1].strip(),
-                        'mfr':   parts[2].strip() or 'Unknown',
-                        'class': parts[3].strip(),
-                        'status':parts[4].strip() if len(parts) > 4 else '',
-                        'seen':  'Current session',
-                    })
+            try:
+                import native_probes
+                for row in native_probes.get_pnp_entities():
+                    inst: Any = str(row.get('DeviceID') or '')
+                    if inst.startswith('USB') or inst.startswith('USBSTOR'):
+                        devices.append({
+                            'name':  str(row.get('Name') or 'Unknown Device'),
+                            'id':    inst,
+                            'mfr':   'Unknown',
+                            'class': str(row.get('PNPClass') or ''),
+                            'status': str(row.get('Status') or ''),
+                            'seen':  'Current session',
+                        })
+            except Exception:
+                pass
             # Also get all USB storage from registry history
             self.after(0, lambda: self._usb_populate(devices))
         threading.Thread(target=_run, daemon=True).start()
@@ -53795,34 +54574,72 @@ Verification Status:
         import threading
         self._usb_status_lbl.config(text="⏳ Reading USB history from registry...", fg=Colors.GAUGE_YELLOW)
         def _run():
-            ps: Any = (
-                "$path = 'HKLM:\\SYSTEM\\CurrentControlSet\\Enum\\USBSTOR';"
-                "if (Test-Path $path) {"
-                "  Get-ChildItem $path | ForEach-Object {"
-                "    $devClass = $_.PSChildName;"
-                "    Get-ChildItem $_.PSPath | ForEach-Object {"
-                "      $serial = $_.PSChildName;"
-                "      $friendly = (Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue).FriendlyName;"
-                "      $mfr = (Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue).Mfg;"
-                "      $inst = $_.PSPath -replace '.*Enum\\\\','';"
-                "      Write-Output ($friendly + '|||' + $inst + '|||' + $mfr + '|||' + $devClass + '|||' + $serial)"
-                "    }"
-                "  }"
-                "}"
-            )
-            out: Any = self._usb_run_ps(ps, timeout=30)
+            # v29.60: native winreg walk of HKLM\...\Enum\USBSTOR — no PS
             devices: Any = []
-            for line in out.splitlines():
-                parts: Any = line.split('|||')
-                if len(parts) >= 4:
-                    devices.append({
-                        'name':   parts[0].strip() or 'Unknown Device',
-                        'id':     parts[1].strip(),
-                        'mfr':    parts[2].strip() or '',
-                        'class':  parts[3].strip(),
-                        'status': 'Historical',
-                        'seen':   parts[4].strip() if len(parts) > 4 else '',
-                    })
+            base: Any = None
+            try:
+                import winreg
+                base = winreg.OpenKey(
+                    winreg.HKEY_LOCAL_MACHINE,
+                    r'SYSTEM\CurrentControlSet\Enum\USBSTOR')
+                try:
+                    dev_i: Any = 0
+                    while True:
+                        try:
+                            dev_class: Any = winreg.EnumKey(base, dev_i)
+                        except OSError:
+                            break
+                        try:
+                            dev_key: Any = winreg.OpenKey(base, dev_class)
+                            serial_i: Any = 0
+                            while True:
+                                try:
+                                    serial: Any = winreg.EnumKey(dev_key,
+                                                                 serial_i)
+                                except OSError:
+                                    break
+                                try:
+                                    sk: Any = winreg.OpenKey(dev_key, serial)
+                                    try:
+                                        try:
+                                            friendly: Any = str(winreg.QueryValueEx(sk, 'FriendlyName')[0])
+                                        except Exception:
+                                            friendly: Any = 'Unknown Device'
+                                        try:
+                                            mfr: Any = str(winreg.QueryValueEx(sk, 'Mfg')[0])
+                                        except Exception:
+                                            mfr: Any = ''
+                                        inst: Any = (fr'SYSTEM\CurrentControlSet'
+                                                     fr'\Enum\USBSTOR\{dev_class}'
+                                                     fr'\{serial}')
+                                        devices.append({
+                                            'name':   friendly or 'Unknown Device',
+                                            'id':     inst,
+                                            'mfr':    mfr,
+                                            'class':  dev_class,
+                                            'status': 'Historical',
+                                            'seen':   serial,
+                                        })
+                                    finally:
+                                        winreg.CloseKey(sk)
+                                except Exception:
+                                    pass
+                                serial_i += 1
+                            winreg.CloseKey(dev_key)
+                        except Exception:
+                            pass
+                        dev_i += 1
+                except Exception:
+                    pass
+            except Exception:
+                pass
+            finally:
+                # v29.60b: the outer USBSTOR key leaked every load
+                if base is not None:
+                    try:
+                        winreg.CloseKey(base)
+                    except Exception:
+                        pass
             self.after(0, lambda: self._usb_populate(devices))
         threading.Thread(target=_run, daemon=True).start()
 
@@ -54564,16 +55381,16 @@ Verification Status:
 
             lines += ["", "=== RECENT SECURITY EVENTS (last 50) ==="]
             try:
-                ps_cmd: Any = (
-                    'Get-WinEvent -FilterHashtable @{LogName="Security";Level=2,3} '
-                    '-MaxEvents 50 -ErrorAction SilentlyContinue | '
-                    'ForEach-Object { $_.TimeCreated.ToString("yyyy-MM-dd HH:mm:ss") + " ID:" + '
-                    '$_.Id + " " + ($_.Message -replace "\\n"," ").Substring(0,[Math]::Min(120,($_.Message).Length)) }'
-                )
-                r: Any = subprocess.run([_PWSH, '-NoProfile', '-Command', ps_cmd],
-                                   capture_output = True, text=True, timeout=30,
-                                   creationflags = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000))
-                lines += r.stdout.splitlines()[:60]
+                # v29.60: native EvtQuery — warning/error events only
+                import native_probes
+                _evs: Any = []
+                for _lvl in (2, 3):
+                    _evs.extend(native_probes.evt_query_events(
+                        'Security', f'*[System[(Level={_lvl})]]', 25))
+                for _e in _evs[:50]:
+                    _xml: Any = str(_e.get('xml', ''))
+                    _m: Any = _xml[:120].replace('\n', ' ')
+                    lines.append(f"{_e.get('time','')} ID:{_e.get('id','')} {_m}")
             except Exception as e:
                 lines.append(f"Error: {e}")
 

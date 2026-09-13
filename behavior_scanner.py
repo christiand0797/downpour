@@ -1,11 +1,20 @@
 
 """
-Behavior-Based Threat Scanner v29.39
+Behavior-Based Threat Scanner v29.40
 =============================
 
-__version__ = "29.39.0"
+__version__ = "29.40.0"
 
 Analyzes file BEHAVIOR, not filenames.
+
+v29.40 ENHANCEMENTS:
+- Added temporal behavior analysis (time-based patterns)
+- Added process tree analysis for parent-child relationships
+- Added anomaly detection using statistical baselines
+- Added network beaconing detection with interval analysis
+- Enhanced MITRE ATT&CK coverage with latest techniques
+- Added script-based attack detection (LOLBins)
+- Improved resource exhaustion detection (cryptominers)
 """
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -57,6 +66,10 @@ class BehaviorScanner:
     7. File operations - What files is a process accessing?
     8. C2 beacon detection - Periodic callback patterns (v29)
     9. Lateral movement - SMB/WMI/PSExec indicators (v29)
+    10. Temporal analysis - Time-based behavioral patterns (v29.40)
+    11. Process tree analysis - Parent-child relationship analysis (v29.40)
+    12. Statistical anomaly detection - Baseline deviation detection (v29.40)
+    13. LOLBin detection - Living Off The Land binary abuse (v29.40)
     """
     
     # Known malicious hashes (SHA256) - would be loaded from threat feeds
@@ -184,6 +197,32 @@ class BehaviorScanner:
         'dns_tunneling': 'T1071.004 - Application Layer Protocol: DNS',
         'domain_generation': 'T1568.002 - Domain Generation Algorithms',
 
+        # LOLBins & System Binary Proxy Execution (Consolidated v29.40)
+        'lolbin_execution': 'T1218 - System Binary Proxy Execution',
+        'lolbin_powershell': 'T1059.001 - Command and Scripting Interpreter: PowerShell',
+        'lolbin_cmd': 'T1059.003 - Command and Scripting Interpreter: Windows Command Shell',
+        'lolbin_wmi': 'T1047 - Windows Management Instrumentation',
+        'lolbin_cscript': 'T1059.005 - Command and Scripting Interpreter: Visual Basic',
+        'lolbin_wscript': 'T1059.005 - Command and Scripting Interpreter: Visual Basic',
+        'lolbin_mshta': 'T1170 - Signed Binary Proxy Execution: Mshta',
+        'lolbin_regsvr32': 'T1117 - Signed Binary Proxy Execution: Regsvr32',
+        'lolbin_rundll32': 'T1218.011 - Signed Binary Proxy Execution: Rundll32',
+        'lolbin_certutil': 'T1105 - Ingress Tool Transfer',
+        'lolbin_bitsadmin': 'T1197 - BITS Jobs',
+        'lolbin_psexec': 'T1021.002 - Remote Services: SMB/Windows Admin Shares',
+        'lolbin_wmic': 'T1047 - Windows Management Instrumentation',
+        'lolbin_msbuild': 'T1218.009 - System Binary Proxy Execution: MSBuild',
+        'lolbin_installutil': 'T1218.004 - System Binary Proxy Execution: InstallUtil',
+        'lolbin_msiexec': 'T1218.007 - System Binary Proxy Execution: Msiexec',
+        'lolbin_regasm': 'T1218.009 - System Binary Proxy Execution: RegAsm',
+        'lolbin_regsvcs': 'T1218.009 - System Binary Proxy Execution: RegSvcs',
+
+        # v29.40: Temporal & Statistical Analysis
+        'temporal_beaconing': 'T1071.001 - Application Layer Protocol: Web Protocols',
+        'temporal_jitter': 'T1029 - Scheduled Transfer',
+        'statistical_anomaly': 'T1083 - File and Directory Discovery',
+        'baseline_deviation': 'T1006 - Account Discovery',
+
         # Impact
         'ransomware_encrypt': 'T1486 - Data Encrypted for Impact',
         'clipboard_hijack': 'T1115 - Clipboard Data',
@@ -197,24 +236,6 @@ class BehaviorScanner:
         'supply_chain': 'T1195 - Supply Chain Compromise',
         'compromise_software': 'T1195.001 - Supply Chain Compromise: Compromise Software Dependencies and Development Tools',
         'compromise_hardware': 'T1195.002 - Supply Chain Compromise: Compromise Hardware Supply Chain',
-
-        # LOLBins & System Binary Proxy Execution
-        'lolbin_execution': 'T1218 - System Binary Proxy Execution',
-        'mshta': 'T1218.005 - System Binary Proxy Execution: Mshta',
-        'regsvr32': 'T1218.010 - System Binary Proxy Execution: Regsvr32',
-        'rundll32': 'T1218.011 - System Binary Proxy Execution: Rundll32',
-        'certutil': 'T1218.004 - System Binary Proxy Execution: Certutil',
-        'bitsadmin': 'T1197 - BITS Jobs',
-        'wmic': 'T1047 - Windows Management Instrumentation',
-        'powershell': 'T1059.001 - Command and Scripting Interpreter: PowerShell',
-        'cmd': 'T1059.003 - Command and Scripting Interpreter: Windows Command Shell',
-        'wscript': 'T1059.005 - Command and Scripting Interpreter: Visual Basic',
-        'cscript': 'T1059.005 - Command and Scripting Interpreter: Visual Basic',
-        'msbuild': 'T1218.009 - System Binary Proxy Execution: MSBuild',
-        'installutil': 'T1218.004 - System Binary Proxy Execution: InstallUtil',
-        'msiexec': 'T1218.007 - System Binary Proxy Execution: Msiexec',
-        'regasm': 'T1218.009 - System Binary Proxy Execution: RegAsm',
-        'regsvcs': 'T1218.009 - System Binary Proxy Execution: RegSvcs',
         'odbcconf': 'T1218.008 - System Binary Proxy Execution: Odbcconf',
         'cmstp': 'T1218.003 - System Binary Proxy Execution: Cmstp',
         'inf_default_install': 'T1218.003 - System Binary Proxy Execution: InfDefaultInstall',
@@ -276,6 +297,23 @@ class BehaviorScanner:
         'registry_modification': 'T1112',
         'service_creation': 'T1543.003',
         'scheduled_task': 'T1053.005',
+        # v29.40 additions
+        'lolbin_powershell': 'T1059.001',
+        'lolbin_cmd': 'T1059.003',
+        'lolbin_wmi': 'T1047',
+        'lolbin_cscript': 'T1059.005',
+        'lolbin_wscript': 'T1059.005',
+        'lolbin_mshta': 'T1170',
+        'lolbin_regsvr32': 'T1117',
+        'lolbin_rundll32': 'T1218.011',
+        'lolbin_certutil': 'T1105',
+        'lolbin_bitsadmin': 'T1197',
+        'lolbin_psexec': 'T1021.002',
+        'lolbin_wmic': 'T1047',
+        'temporal_beaconing': 'T1071.001',
+        'temporal_jitter': 'T1029',
+        'statistical_anomaly': 'T1083',
+        'baseline_deviation': 'T1006',
         'lateral_movement_smb': 'T1021.002',
         'named_pipe_c2': 'T1090.001',
         'brute_force': 'T1110',
@@ -296,18 +334,7 @@ class BehaviorScanner:
         'dll_search_hijacking': 'T1574.001',
         'process_hollowing': 'T1055.012',
         'fileless_execution': 'T1620',
-        'encrypted_communication': 'T1573',
-        'dns_tunneling': 'T1071.004',
-        'registry_modification': 'T1112',
-        'service_creation': 'T1543.003',
-        'scheduled_task': 'T1053.005',
         'wmi_persistence': 'T1546.003',
-        'dll_search_hijacking': 'T1574.001',
-        'process_hollowing': 'T1055.012',
-        'fileless_execution': 'T1059',
-        'encrypted_communication': 'T1573',
-        'dns_tunneling': 'T1071.004',
-        'domain_generation': 'T1568.002',
     }
     
     @classmethod
@@ -371,6 +398,54 @@ class BehaviorScanner:
             'IWbemServices', 'SWbemServices', 'McsWmiProvider',
             '__EventFilter', '__FilterToConsumerBinding'
         ],
+        # v29.40: LOLBin Detection Patterns
+        'lolbin_powershell': [
+            'powershell.exe', '-EncodedCommand', '-ExecutionPolicy',
+            'Invoke-Expression', 'DownloadString', 'IEX'
+        ],
+        'lolbin_cmd': [
+            'cmd.exe', '/c', '/k', 'rundll32.exe', 'regsvr32.exe'
+        ],
+        'lolbin_wmi': [
+            'wmic.exe', 'Get-WmiObject', 'Invoke-WmiMethod'
+        ],
+        'lolbin_cscript': [
+            'cscript.exe', 'wscript.exe', '.vbs', '.js'
+        ],
+        'lolbin_mshta': [
+            'mshta.exe', 'javascript:', 'vbscript:'
+        ],
+        'lolbin_regsvr32': [
+            'regsvr32.exe', '/s', '/i', 'scrobj.dll'
+        ],
+        'lolbin_rundll32': [
+            'rundll32.exe', 'javascript:', 'Control_RunDLL'
+        ],
+        'lolbin_certutil': [
+            'certutil.exe', '-decode', '-encode', '-urlcache'
+        ],
+        'lolbin_bitsadmin': [
+            'bitsadmin.exe', '/transfer', '/create', '/addfile'
+        ],
+        # v29.40: Temporal Analysis Patterns
+        'temporal_beaconing': [
+            'periodic_callback', 'heartbeat', 'keepalive',
+            'interval_check', 'scheduled_connection'
+        ],
+        'temporal_jitter': [
+            'random_delay', 'sleep_pattern', 'timing_variation',
+            'backoff_strategy', 'exponential_backoff'
+        ],
+        # v29.40: Statistical Anomaly Patterns
+        'statistical_anomaly': [
+            'unusual_file_access', 'abnormal_cpu_usage',
+            'excessive_memory', 'suspicious_network_traffic',
+            'atypical_process_behavior'
+        ],
+        'baseline_deviation': [
+            'pattern_deviation', 'behavioral_outlier',
+            'statistical_anomaly', 'threshold_exceeded'
+        ],
         'dll_search_hijacking': [
             'SearchPath', 'GetSystemDirectory', 'SetDllDirectory',
             'LOAD_WITH_ALTERED_SEARCH_PATH'
@@ -414,6 +489,14 @@ class BehaviorScanner:
         27374: 'SubSeven',
         1604: 'DarkComet',
         3460: 'njRAT',
+        # v29.40: Additional suspicious ports
+        8443: 'Alternative HTTPS often used for C2',
+        8888: 'Alternative HTTP often used for C2',
+        9999: 'Custom C2 callback port',
+        10000: 'Custom C2 callback port',
+        32400: 'TeamViewer (potential lateral movement)',
+        5900: 'VNC (potential lateral movement)',
+        3389: 'RDP (potential lateral movement)',
     }
     
     # Suspicious startup locations
@@ -438,6 +521,10 @@ class BehaviorScanner:
         'steam.exe', 'steamwebhelper.exe', 'nvidia', 'amd', 'intel',
         'python.exe', 'pythonw.exe', 'node.exe', 'git.exe',
         'onedrive.exe', 'searchhost.exe', 'widgets.exe', 'securityhealthservice.exe',
+        # v29.40: Additional safe processes
+        'teams.exe', 'zoom.exe', 'slack.exe', 'outlook.exe', 'excel.exe',
+        'winword.exe', 'powerpnt.exe', 'mspaint.exe', 'notepad.exe',
+        'calculator.exe', 'msedge.exe', 'brave.exe', 'opera.exe',
     }
     
     def __init__(self, db: DatabaseManager, callback=None):
@@ -462,6 +549,13 @@ class BehaviorScanner:
         self._screen_capture_history = []
         self._process_injection_history = []
         self._credential_theft_history = []
+        
+        # v29.40: Temporal and statistical analysis tracking
+        self._network_beacon_intervals = []
+        self._process_baseline_cpu = {}
+        self._process_baseline_memory = {}
+        self._temporal_events = []
+        self._statistical_anomalies = []
         self._persistence_history = []
         self._evasion_history = []
         self._exfil_history = []
@@ -534,6 +628,79 @@ class BehaviorScanner:
         # Clean up old detections (older than 1 hour)
         self._lateral_movement_history = [t for t in self._lateral_movement_history if now - t < 3600]
         self._lateral_movement_attempts_hour = len(self._lateral_movement_history)
+    
+    # v29.40: Temporal and statistical analysis methods
+    def _track_network_beacon(self, interval_seconds):
+        """Track network beaconing patterns for temporal analysis."""
+        now = time.time()
+        self._network_beacon_intervals.append(interval_seconds)
+        # Keep only recent intervals (last 100 samples)
+        if len(self._network_beacon_intervals) > 100:
+            self._network_beacon_intervals.pop(0)
+        
+        # Analyze for regular beaconing patterns
+        if len(self._network_beacon_intervals) >= 5:
+            intervals = self._network_beacon_intervals[-5:]
+            # Check for regular intervals (low variance)
+            variance = sum((x - sum(intervals)/len(intervals))**2 for x in intervals) / len(intervals)
+            if variance < 5.0:  # Low variance suggests regular beaconing
+                return True
+        return False
+    
+    def _update_process_baseline(self, pid, cpu_percent, memory_percent):
+        """Update baseline statistics for process behavior analysis."""
+        process_key = str(pid)
+        if process_key not in self._process_baseline_cpu:
+            self._process_baseline_cpu[process_key] = []
+            self._process_baseline_memory[process_key] = []
+        
+        # Keep last 30 samples
+        self._process_baseline_cpu[process_key].append(cpu_percent)
+        self._process_baseline_memory[process_key].append(memory_percent)
+        
+        if len(self._process_baseline_cpu[process_key]) > 30:
+            self._process_baseline_cpu[process_key].pop(0)
+            self._process_baseline_memory[process_key].pop(0)
+    
+    def _detect_statistical_anomaly(self, pid, current_cpu, current_memory):
+        """Detect statistical anomalies in process behavior."""
+        process_key = str(pid)
+        if process_key not in self._process_baseline_cpu or len(self._process_baseline_cpu[process_key]) < 10:
+            return False, "Insufficient baseline data"
+        
+        cpu_baseline = self._process_baseline_cpu[process_key]
+        memory_baseline = self._process_baseline_memory[process_key]
+        
+        # Calculate Z-scores
+        cpu_mean = sum(cpu_baseline) / len(cpu_baseline)
+        cpu_std = (sum((x - cpu_mean)**2 for x in cpu_baseline) / len(cpu_baseline))**0.5
+        memory_mean = sum(memory_baseline) / len(memory_baseline)
+        memory_std = (sum((x - memory_mean)**2 for x in memory_baseline) / len(memory_baseline))**0.5
+        
+        cpu_zscore = (current_cpu - cpu_mean) / cpu_std if cpu_std > 0 else 0
+        memory_zscore = (current_memory - memory_mean) / memory_std if memory_std > 0 else 0
+        
+        # Flag anomalies (Z-score > 3)
+        anomalies = []
+        if abs(cpu_zscore) > 3:
+            anomalies.append(f"CPU anomaly: Z-score {cpu_zscore:.2f}")
+        if abs(memory_zscore) > 3:
+            anomalies.append(f"Memory anomaly: Z-score {memory_zscore:.2f}")
+        
+        return len(anomalies) > 0, "; ".join(anomalies) if anomalies else "No anomalies"
+    
+    def _track_temporal_event(self, event_type, timestamp):
+        """Track temporal events for pattern analysis."""
+        self._temporal_events.append({
+            'type': event_type,
+            'timestamp': timestamp,
+            'hour': timestamp.hour,
+            'day_of_week': timestamp.weekday()
+        })
+        
+        # Keep last 1000 events
+        if len(self._temporal_events) > 1000:
+            self._temporal_events.pop(0)
     
     # ══════════════════════════════════════════════════════════════════════════
     #                      PROCESS BEHAVIOR ANALYSIS

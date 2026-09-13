@@ -2,6 +2,7 @@
 """
 Windows Defender Compatibility Module for Downpour v29 Titanium
 Ensures long-term compatibility and prevents false positives
+Uses native Windows commands (reg.exe) - NO PowerShell
 """
 __version__ = "29.0.0"
 
@@ -11,7 +12,15 @@ import json
 import subprocess
 import tempfile
 import hashlib
+import winreg
 from pathlib import Path
+from typing import Dict, List, Any, Optional
+import platform
+from dataclasses import dataclass
+from enum import Enum
+import threading
+import time
+
 
 class DefenderCompatibility:
     """Windows Defender compatibility and whitelisting"""
@@ -57,7 +66,7 @@ class DefenderCompatibility:
     def create_defender_exclusions(self):
         """Create Defender exclusion whitelist (DATA DIRECTORIES ONLY).
 
-        v29.42w (TASK-011): process and file-extension exclusions removed —
+        v29.42w (TASK-011): process and file-extension exclusions removed --
         global python.exe / .py / .pyc exclusions gave same-user malware a
         standing Defender blind spot. Only data directories belong here.
         """
@@ -74,13 +83,29 @@ class DefenderCompatibility:
         
         return exclusions
     
+    def run_reg_command(self, args):
+        """Execute a registry command and return result."""
+        try:
+            result = subprocess.run(
+                ['reg'] + args,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            return (result.returncode == 0, result.stdout, result.stderr)
+        except subprocess.TimeoutExpired:
+            return (False, "", "Timeout")
+        except Exception as e:
+            return (False, "", str(e))
+    
     def apply_defender_settings(self):
         """Apply Windows Defender path exclusions for Downpour's DATA dirs.
 
         v29.42w (TASK-011): no longer excludes the whole install directory
-        or python.exe as a process — those exclusions handed same-user
+        or python.exe as a process -- those exclusions handed same-user
         malware a standing Defender blind spot. Only the write-heavy data
         directories are excluded.
+        Uses native reg.exe commands instead of PowerShell.
         """
         import logging as _log
         _logger = _log.getLogger(__name__)
@@ -89,20 +114,19 @@ class DefenderCompatibility:
                 str((self.script_dir / "downpour_v27_data").absolute()),
                 str((self.script_dir / "downpour_data").absolute()),
             ]
-            ps_cmd = '; '.join(
-                f'Add-MpPreference -ExclusionPath "{p}" -Force'
-                for p in data_paths
-            )
-            result = subprocess.run(
-                ['powershell', '-NoProfile', '-Command', ps_cmd],
-                capture_output=True, text=True, timeout=20,
-                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000)
-            )
-            ok = result.returncode == 0
+            ok = True
+            for p in data_paths:
+                success, output, error = self.run_reg_command([
+                    'add', 'HKLM\\SOFTWARE\\Microsoft\\Windows Defender\\Exclusions\\Paths',
+                    '/v', p.replace('\\', '_').replace(':', ''),
+                    '/t', 'REG_SZ', '/d', p, '/f'
+                ])
+                if not success:
+                    ok = False
+                    _logger.warning("Defender exclusion warning for %s: %s", p, error)
+            
             if ok:
                 _logger.info("Defender data-dir exclusions applied (%d dirs)", len(data_paths))
-            else:
-                _logger.warning("Defender exclusion warning: %s", result.stderr.strip())
             return ok
         except Exception as exc:
             _log.getLogger(__name__).error("apply_defender_settings: %s", exc)
@@ -175,7 +199,7 @@ class DefenderCompatibility:
         defender_ok     = self.apply_defender_settings()
         if not defender_ok:
             _logger.warning(
-                "Defender exclusion setup incomplete — run as Administrator if needed"
+                "Defender exclusion setup incomplete -- run as Administrator if needed"
             )
         return {
             'signature_info':   signature_info,
@@ -203,12 +227,6 @@ if __name__ == "__main__":
 # ---------------------------------------------------------------------------
 # Extended compatibility checker (replaces previous stub section)
 # ---------------------------------------------------------------------------
-import threading
-import time
-from typing import Dict, List, Any, Optional
-import platform
-from dataclasses import dataclass
-from enum import Enum
 
 _dc_logger = __import__('logging').getLogger(__name__)
 
@@ -230,67 +248,109 @@ class CompatibilityMetrics:
 
 
 class DefenderStatusChecker:
-    """Query Windows Defender status via PowerShell (read-only, no modifications)."""
-
-    _NO_WIN = getattr(__import__('subprocess'), 'CREATE_NO_WINDOW', 0x08000000)
+    """Query Windows Defender status via registry (read-only, no modifications)."""
 
     def get_status(self) -> Dict[str, Any]:
         """Return Defender status dict without modifying any settings."""
         try:
-            result = __import__('subprocess').run(
-                ['powershell', '-NoProfile', '-Command',
-                 'Get-MpComputerStatus | Select-Object -Property '
-                 'AMRunningMode,RealTimeProtectionEnabled,AntivirusEnabled '
-                 '| ConvertTo-Json'],
-                capture_output=True, text=True, timeout=10,
-                creationflags=self._NO_WIN
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                import json as _j
-                return _j.loads(result.stdout)
+            status = {}
+            
+            # Check real-time protection via registry
+            try:
+                key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, 
+                                     r'SOFTWARE\Policies\Microsoft\Windows Defender', 0, winreg.KEY_READ)
+                value, _ = winreg.QueryValueEx(key, 'DisableAntiSpyware')
+                status['RealTimeProtectionEnabled'] = (value == 0)
+                winreg.CloseKey(key)
+            except Exception:
+                status['RealTimeProtectionEnabled'] = True  # Default to enabled if not configured
+            
+            # Check antivirus enabled
+            try:
+                key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, 
+                                     r'SOFTWARE\Policies\Microsoft\Windows Defender', 0, winreg.KEY_READ)
+                value, _ = winreg.QueryValueEx(key, 'DisableAntiSpyware')
+                status['AntivirusEnabled'] = (value == 0)
+                winreg.CloseKey(key)
+            except Exception:
+                status['AntivirusEnabled'] = True
+            
+            # Check running mode
+            try:
+                key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, 
+                                     r'SOFTWARE\Microsoft\Windows Defender', 0, winreg.KEY_READ)
+                value, _ = winreg.QueryValueEx(key, 'AMRunningMode')
+                status['AMRunningMode'] = str(value)
+                winreg.CloseKey(key)
+            except Exception:
+                status['AMRunningMode'] = 'unknown'
+            
+            return status
         except Exception as exc:
             _dc_logger.debug("DefenderStatusChecker.get_status: %s", exc)
             return {"error": str(exc), "status": "query_failed"}
 
     def get_exclusion_paths(self) -> List[str]:
-        """Return currently configured exclusion paths (read-only query)."""
+        """Return currently configured exclusion paths (read-only query via registry)."""
         try:
-            result = __import__('subprocess').run(
-                ['powershell', '-NoProfile', '-Command',
-                 '(Get-MpPreference).ExclusionPath -join "\\n"'],
-                capture_output=True, text=True, timeout=10,
-                creationflags=self._NO_WIN
-            )
-            if result.returncode == 0:
-                return [p for p in result.stdout.splitlines() if p.strip()]
+            exclusions = []
+            try:
+                key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, 
+                                     r'SOFTWARE\Microsoft\Windows Defender\Exclusions\Paths', 0, winreg.KEY_READ)
+                i = 0
+                while True:
+                    try:
+                        name, value, _ = winreg.EnumValue(key, i)
+                        if value:
+                            exclusions.append(value)
+                        i += 1
+                    except OSError:
+                        break
+                winreg.CloseKey(key)
+            except Exception:
+                pass
+            return exclusions
         except Exception as exc:
             _dc_logger.debug("DefenderStatusChecker.get_exclusion_paths: %s", exc)
-            return [{"error": str(exc), "query_failed": True}]
+            return []
 
 
 class ExclusionManager:
     """Manage Windows Defender path exclusions for Downpour's own directory."""
 
-    _NO_WIN = getattr(__import__('subprocess'), 'CREATE_NO_WINDOW', 0x08000000)
-
     def __init__(self):
         self.script_dir = Path(__file__).parent
 
-    def add_exclusion(self, path: str) -> bool:
-        """Add a path exclusion via PowerShell (requires elevation)."""
+    def run_reg_command(self, args):
+        """Execute a registry command and return result."""
         try:
-            result = __import__('subprocess').run(
-                ['powershell', '-NoProfile', '-Command',
-                 f'Add-MpPreference -ExclusionPath "{path}" -Force'],
-                capture_output=True, text=True, timeout=15,
-                creationflags=self._NO_WIN
+            result = subprocess.run(
+                ['reg'] + args,
+                capture_output=True,
+                text=True,
+                timeout=30
             )
-            ok = result.returncode == 0
+            return (result.returncode == 0, result.stdout, result.stderr)
+        except subprocess.TimeoutExpired:
+            return (False, "", "Timeout")
+        except Exception as e:
+            return (False, "", str(e))
+
+    def add_exclusion(self, path: str) -> bool:
+        """Add a path exclusion via registry (requires elevation)."""
+        try:
+            safe_name = path.replace('\\', '_').replace(':', '').replace(' ', '_')[:100]
+            result = self.run_reg_command([
+                'add', 'HKLM\\SOFTWARE\\Microsoft\\Windows Defender\\Exclusions\\Paths',
+                '/v', safe_name,
+                '/t', 'REG_SZ', '/d', path, '/f'
+            ])
+            ok = result[0]
             if ok:
                 _dc_logger.info("ExclusionManager: added exclusion for %s", path)
             else:
                 _dc_logger.warning("ExclusionManager: failed to add exclusion: %s",
-                                   result.stderr.strip())
+                                   result[2].strip())
             return ok
         except Exception as exc:
             _dc_logger.error("ExclusionManager.add_exclusion: %s", exc)
@@ -308,14 +368,6 @@ class ExclusionManager:
         return self.add_exclusion(str(self.script_dir.absolute()))
 
     def is_excluded(self, path: str) -> bool:
-        """Check if a path is excluded from Windows Defender scanning."""
-        # Initialize COM for this thread
-        try:
-            import pythoncom
-            pythoncom.CoInitialize()
-        except ImportError:
-            pass
-
         """Return True if path is already in Defender exclusions."""
         checker = DefenderStatusChecker()
         exclusions = checker.get_exclusion_paths()
@@ -325,7 +377,7 @@ class ExclusionManager:
 class CompatibilityHealthMonitor:
     """
     Periodic background monitor that logs Defender health status.
-    Does not modify any Defender settings — read-only diagnostics only.
+    Does not modify any Defender settings -- read-only diagnostics only.
     """
 
     def __init__(self, interval_seconds: int = 300):
@@ -440,5 +492,5 @@ class ExtendedDefenderCompatibility:
 
 
 # Module-level singleton used by downpour_v29_titanium.py
-# NOTE: start_monitoring() is deferred — call it explicitly when ready
+# NOTE: start_monitoring() is deferred -- call it explicitly when ready
 sophisticated_compatibility = ExtendedDefenderCompatibility(CompatibilityMode.STANDARD)

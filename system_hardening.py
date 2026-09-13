@@ -268,52 +268,48 @@ class SystemHardening:
     # === CHECKER METHODS ===
     
     def check_defender_realtime(self) -> Tuple[bool, str]:
-        """Check if Windows Defender real-time protection is enabled"""
+        """Check if Windows Defender real-time protection is enabled
+
+        v29.60: native probe (WMI root\\Microsoft\\Windows\\Defender →
+        registry fallback) — replaces Get-MpPreference subprocess."""
         try:
-            result = subprocess.run(
-                ['powershell', '-Command', 'Get-MpPreference | Select-Object -ExpandProperty DisableRealtimeMonitoring'],
-                capture_output=True, text=True
-            )
-            is_disabled = result.stdout.strip().lower() == 'true'
-            return (not is_disabled, "Real-time protection is disabled" if is_disabled else "")
+            import native_probes
+            val = native_probes.get_defender_pref_int(
+                'DisableRealtimeMonitoring', 0)
+            is_disabled = bool(val)
+            return (not is_disabled, "Real-time protection is disabled"
+                    if is_disabled else "")
         except Exception:
             return (False, "Could not check status")
-    
+
     def check_defender_cloud(self) -> Tuple[bool, str]:
-        """Check if Windows Defender cloud protection is enabled"""
+        """Check if Windows Defender cloud protection is enabled (native)"""
         try:
-            result = subprocess.run(
-                ['powershell', '-Command', 'Get-MpPreference | Select-Object -ExpandProperty MAPSReporting'],
-                capture_output=True, text=True
-            )
-            maps_level = result.stdout.strip()
-            is_enabled = maps_level in ['2', '3']  # Advanced or Basic
+            import native_probes
+            maps_level = native_probes.get_defender_pref_int(
+                'MAPSReporting', 0) or 0
+            is_enabled = maps_level in [1, 2]  # Basic or Advanced
             return (is_enabled, "Cloud protection is disabled or set to None" if not is_enabled else "")
         except Exception:
             return (False, "Could not check status")
-    
+
     def check_defender_samples(self) -> Tuple[bool, str]:
-        """Check if automatic sample submission is enabled"""
+        """Check if automatic sample submission is enabled (native)"""
         try:
-            result = subprocess.run(
-                ['powershell', '-Command', 'Get-MpPreference | Select-Object -ExpandProperty SubmitSamplesConsent'],
-                capture_output=True, text=True
-            )
-            consent = result.stdout.strip()
-            is_enabled = consent in ['1', '3']  # Send safe or all samples
+            import native_probes
+            consent = native_probes.get_defender_pref_int(
+                'SubmitSamplesConsent', 0) or 0
+            is_enabled = consent in [1, 3]  # Send safe or all samples
             return (is_enabled, "Automatic sample submission is disabled" if not is_enabled else "")
         except Exception:
             return (False, "Could not check status")
-    
+
     def check_defender_pua(self) -> Tuple[bool, str]:
-        """Check if PUA (Potentially Unwanted Application) protection is enabled"""
+        """Check if PUA protection is enabled (native probe)"""
         try:
-            result = subprocess.run(
-                ['powershell', '-Command', 'Get-MpPreference | Select-Object -ExpandProperty PUAProtection'],
-                capture_output=True, text=True
-            )
-            pua = result.stdout.strip()
-            is_enabled = pua == '1'
+            import native_probes
+            pua = native_probes.get_defender_pref_int('PUAProtection', 0)
+            is_enabled = pua == 1
             return (is_enabled, "PUA protection is disabled" if not is_enabled else "")
         except Exception:
             return (False, "Could not check status")
@@ -347,16 +343,25 @@ class SystemHardening:
             return (False, "Could not check UAC status")
     
     def check_windows_update(self) -> Tuple[bool, str]:
-        """Check if Windows Update automatic updates are enabled"""
+        """Check if Windows Update automatic updates are enabled (native
+        registry read — replaces the Get-ItemProperty subprocess)"""
         try:
-            result = subprocess.run(
-                ['powershell', '-Command', 
-                 'Get-ItemProperty -Path "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\AU" -Name NoAutoUpdate -ErrorAction SilentlyContinue | Select-Object -ExpandProperty NoAutoUpdate'],
-                capture_output=True, text=True
+            key = winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r"SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU",
+                0, winreg.KEY_READ
             )
-            no_auto = result.stdout.strip()
-            is_disabled = no_auto == '1'
+            try:
+                no_auto, _ = winreg.QueryValueEx(key, "NoAutoUpdate")
+            finally:
+                winreg.CloseKey(key)
+            is_disabled = no_auto == 1
             return (not is_disabled, "Automatic updates are disabled" if is_disabled else "")
+        except OSError:
+            # Registry key absent → updates enabled by default
+            return (True, "")
+            return (True, "")
+
         except Exception:
             # If registry key doesn't exist, updates are likely enabled by default
             return (True, "")
@@ -392,13 +397,12 @@ class SystemHardening:
             return (False, "AutoRun policy not configured")
     
     def check_powershell_policy(self) -> Tuple[bool, str]:
-        """Check PowerShell execution policy"""
+        """Check PowerShell execution policy (native registry probe —
+        replaces the Get-ExecutionPolicy subprocess)"""
         try:
-            result = subprocess.run(
-                ['powershell', '-Command', 'Get-ExecutionPolicy'],
-                capture_output=True, text=True
-            )
-            policy = result.stdout.strip()
+            import native_probes
+            policy = native_probes.get_powershell_execution_policy() or \
+                'Undefined'
             # RemoteSigned or AllSigned are secure
             is_secure = policy in ['RemoteSigned', 'AllSigned', 'Restricted']
             return (is_secure, f"PowerShell policy is '{policy}' (too permissive)" if not is_secure else "")
@@ -406,15 +410,19 @@ class SystemHardening:
             return (False, "Could not check PowerShell policy")
     
     def check_smb1(self) -> Tuple[bool, str]:
-        """Check if SMBv1 is disabled"""
+        """Check if SMBv1 is disabled (native: DISM — the same component
+        store Get-WindowsOptionalFeature queries)"""
         try:
             result = subprocess.run(
-                ['powershell', '-Command', 
-                 'Get-WindowsOptionalFeature -Online -FeatureName SMB1Protocol | Select-Object -ExpandProperty State'],
-                capture_output=True, text=True
+                ['dism', '/online', '/get-featureinfo',
+                 '/featurename:SMB1Protocol'],
+                capture_output=True, text=True, timeout=120,
+                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0)
             )
-            state = result.stdout.strip()
-            is_disabled = state == 'Disabled'
+            state = result.stdout or ''
+            is_disabled = ('State : Disabled' in state or
+                           'State : Enabled with payload removed' in state
+                           ) or 'State : Disabled' in state
             return (is_disabled, "SMBv1 is enabled (major security risk)" if not is_disabled else "")
         except Exception:
             return (False, "Could not check SMBv1 status")
@@ -434,45 +442,63 @@ class SystemHardening:
     # === FIXER METHODS ===
     
     def enable_defender_realtime(self) -> Tuple[bool, str]:
-        """Enable Windows Defender real-time protection"""
+        """Enable Windows Defender real-time protection (native registry
+        write — replaces Set-MpPreference; tamper protection still guards
+        the key, so non-admin/elevated-tamper failures report like PS)"""
         try:
-            subprocess.run(
-                ['powershell', '-Command', 'Set-MpPreference -DisableRealtimeMonitoring $false'],
-                check=True, capture_output=True
-            )
+            key = winreg.CreateKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r"SOFTWARE\Microsoft\Windows Defender\Real-Time Protection")
+            try:
+                winreg.SetValueEx(key, "DisableRealtimeMonitoring", 0,
+                                  winreg.REG_DWORD, 0)
+            finally:
+                winreg.CloseKey(key)
             return (True, "Enabled real-time protection")
         except Exception as e:
             return (False, str(e))
     
     def enable_defender_cloud(self) -> Tuple[bool, str]:
-        """Enable Windows Defender cloud protection"""
+        """Enable Windows Defender cloud protection (native write)"""
         try:
-            subprocess.run(
-                ['powershell', '-Command', 'Set-MpPreference -MAPSReporting Advanced'],
-                check=True, capture_output=True
-            )
+            key = winreg.CreateKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r"SOFTWARE\Microsoft\Windows Defender\SpyNet")
+            try:
+                winreg.SetValueEx(key, "MAPSReporting", 0,
+                                  winreg.REG_DWORD, 2)  # Advanced
+            finally:
+                winreg.CloseKey(key)
             return (True, "Enabled cloud-delivered protection")
         except Exception as e:
             return (False, str(e))
     
     def enable_defender_samples(self) -> Tuple[bool, str]:
-        """Enable automatic sample submission"""
+        """Enable automatic sample submission (native write)"""
         try:
-            subprocess.run(
-                ['powershell', '-Command', 'Set-MpPreference -SubmitSamplesConsent SendSafeSamples'],
-                check=True, capture_output=True
-            )
+            key = winreg.CreateKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r"SOFTWARE\Microsoft\Windows Defender\SpyNet")
+            try:
+                winreg.SetValueEx(key, "SubmitSamplesConsent", 0,
+                                  winreg.REG_DWORD, 1)  # SendSafeSamples
+            finally:
+                winreg.CloseKey(key)
             return (True, "Enabled automatic sample submission")
         except Exception as e:
             return (False, str(e))
     
     def enable_defender_pua(self) -> Tuple[bool, str]:
-        """Enable PUA protection"""
+        """Enable PUA protection (native write)"""
         try:
-            subprocess.run(
-                ['powershell', '-Command', 'Set-MpPreference -PUAProtection Enabled'],
-                check=True, capture_output=True
-            )
+            key = winreg.CreateKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r"SOFTWARE\Microsoft\Windows Defender")
+            try:
+                winreg.SetValueEx(key, "PUAProtection", 0,
+                                  winreg.REG_DWORD, 1)  # Enabled
+            finally:
+                winreg.CloseKey(key)
             return (True, "Enabled PUA protection")
         except Exception as e:
             return (False, str(e))
@@ -544,23 +570,25 @@ class SystemHardening:
             return (False, str(e))
     
     def set_powershell_policy(self) -> Tuple[bool, str]:
-        """Set PowerShell execution policy to RemoteSigned"""
+        """Set PowerShell execution policy to RemoteSigned (native registry
+        write — replaces the Set-ExecutionPolicy subprocess)"""
         try:
-            subprocess.run(
-                ['powershell', '-Command', 'Set-ExecutionPolicy RemoteSigned -Force'],
-                check=True, capture_output=True
-            )
-            return (True, "Set PowerShell policy to RemoteSigned")
+            import native_probes
+            if native_probes.set_powershell_execution_policy('RemoteSigned'):
+                return (True, "Set PowerShell policy to RemoteSigned")
+            return (False, "Could not write ExecutionPolicy (need admin)")
         except Exception as e:
             return (False, str(e))
     
     def disable_smb1(self) -> Tuple[bool, str]:
-        """Disable SMBv1 protocol"""
+        """Disable SMBv1 protocol (native: DISM — the same component
+        servicing operation Disable-WindowsOptionalFeature wraps)"""
         try:
-            subprocess.run(
-                ['powershell', '-Command', 
-                 'Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart'],
-                check=True, capture_output=True
+            r = subprocess.run(
+                ['dism', '/online', '/disable-feature',
+                 '/featurename:SMB1Protocol', '/norestart'],
+                check=True, capture_output=True, text=True, timeout=300,
+                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0)
             )
             return (True, "Disabled SMBv1 (restart required)")
         except Exception as e:

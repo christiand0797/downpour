@@ -305,6 +305,14 @@ class KimwolfBotnetDetector:
         if db is None:
             log.debug("Corroboration check: no DB available, allowing action")
             return True  # Allow action if DB unavailable (fail-open for critical threats)
+        # Verify db has the required method (guard against wrong DB instance)
+        if not hasattr(db, 'get_indicator_sources'):
+            log.warning(f"Corroboration check: DB instance missing get_indicator_sources (type: {type(db).__name__}), re-initializing")
+            self.db = None
+            db = self._get_db()
+            if db is None or not hasattr(db, 'get_indicator_sources'):
+                log.error("Corroboration check: unable to get valid ThreatDatabase instance")
+                return True  # Fail-open
         try:
             sources = db.get_indicator_sources(indicator, indicator_type)
             if len(sources) >= min_sources:
@@ -416,14 +424,20 @@ class KimwolfBotnetDetector:
     # -----------------------------------------------------------------------
 
     def _scan_dns_cache(self):
-        """Check DNS cache for known botnet C2 domains."""
-        r = subprocess.run(
-            ["powershell", "-NoProfile", "-NonInteractive", "-Command",
-             "Get-DnsClientCache | Select-Object -ExpandProperty Name"],
-            capture_output=True, text=True, timeout=8, creationflags=_NO_WIN)
-        if r.returncode != 0:
+        """Check DNS cache for known botnet C2 domains.
+
+        v29.60: native — DnsGetCacheDataTable via dnsapi.dll (no PowerShell).
+        """
+        try:
+            import native_probes
+        except Exception:
             return
-        cached = {d.strip().lower().rstrip('.') for d in r.stdout.splitlines() if d.strip()}
+        try:
+            entries = native_probes.get_dns_cache_entries() or []
+        except Exception:
+            return
+        cached = {str(n).strip().lower().rstrip('.')
+                  for n, _d in entries if str(n).strip()}
         for domain in cached:
             if not domain or '.' not in domain:
                 continue
@@ -439,12 +453,15 @@ class KimwolfBotnetDetector:
                     self.stats["dns_hits"] += 1
                 # Corroboration gate (TASK-013): require 2+ feed sources before auto-block
                 if self._check_corroboration(domain, "domain", min_sources=2):
-                    # Block it at DNS level
-                    subprocess.run(
-                        ["powershell", "-NoProfile", "-NonInteractive", "-Command",
-                         f'Add-Content "C:\\Windows\\System32\\drivers\\etc\\hosts" "`r`n0.0.0.0 {domain}"'],
-                        capture_output=True, creationflags=_NO_WIN, timeout=5, check=False)
-                    action = f"hosts-blocked: {domain}"
+                    # Block it at DNS level (native hosts append — replaces
+                    # the PowerShell Add-Content subprocess)
+                    try:
+                        with open(r"C:\Windows\System32\drivers\etc\hosts",
+                                  "a", encoding="utf-8") as _hf:
+                            _hf.write(f"\n0.0.0.0 {domain}\n")
+                        action = f"hosts-blocked: {domain}"
+                    except Exception as _he:
+                        action = f"hosts-block-failed ({_he})"
                 else:
                     action = "hosts-block-skipped (no corroboration)"
                 self._alert(self._make_alert(
@@ -711,18 +728,17 @@ class KimwolfBotnetDetector:
         appear as legitimate devices on the network.
         """
         try:
-            # Check for suspicious virtual network adapters
-            r = subprocess.run(
-                ['powershell', '-NoProfile', '-NonInteractive', '-Command',
-                 'Get-NetAdapter -IncludeHidden | Where-Object {$_.Virtual -eq $true} '
-                 '| Select-Object Name,InterfaceDescription,MacAddress,Status '
-                 '| ConvertTo-Json -Depth 2'],
-                capture_output=True, text=True, timeout=10, creationflags=_NO_WIN)
-            if r.returncode == 0 and r.stdout.strip():
-                import json
-                adapters = json.loads(r.stdout)
-                if isinstance(adapters, dict):
-                    adapters = [adapters]
+            import native_probes  # noqa: local import (orphan module)
+            # Check for suspicious virtual network adapters — native WMI
+            # (MSFT_NetAdapter is the exact class Get-NetAdapter wraps)
+            adapters = native_probes.wmi_wql_dicts(
+                r'root\StandardCimv2',
+                'SELECT Name, InterfaceDescription, MacAddress, State, '
+                'Virtual FROM MSFT_NetAdapter',
+                ['Name', 'InterfaceDescription', 'MacAddress', 'State',
+                 'Virtual'])
+            adapters = [a for a in adapters if a.get('Virtual')]
+            if adapters:
                 legit_virtual = {'hyper-v', 'virtualbox', 'vmware', 'docker',
                                  'wsl', 'vpn', 'tailscale', 'wireguard',
                                  'nordvpn', 'loopback', 'bluetooth',

@@ -1,15 +1,9 @@
 """
 ================================================================================
-WINDOWS DEFENDER ENHANCEMENT MODULE
+WINDOWS DEFENDER ENHANCEMENT MODULE (Native Windows Commands - No PowerShell)
 ================================================================================
 
 __version__ = "29.0.0"
-
-try:
-    from vulnerability_scanner import VulnerabilityScanner
-    _KEV_AVAILABLE = True
-except ImportError:
-    _KEV_AVAILABLE = False
 
 WHAT IT DOES:
 - Enables real-time protection (if disabled)
@@ -22,15 +16,15 @@ WHAT IT DOES:
 - Keeps all settings enabled even if malware tries to disable them
 
 HOW IT WORKS:
-- Uses PowerShell commands to configure Windows Defender
-- Uses Windows Management Instrumentation (WMI) to check status
+- Uses native Windows registry commands (reg.exe) to configure Windows Defender
+- Uses Windows Management Instrumentation (WMI) via native commands to check status
 - Monitors Defender service to ensure it stays running
 - Automatically re-enables features if something disables them
 
 TECHNICAL NOTES:
 - Requires administrator privileges for most operations
-- Uses subprocess to execute PowerShell commands
-- Reads Defender status from registry and WMI
+- Uses subprocess to execute native Windows commands (no PowerShell)
+- Reads Defender status from registry
 - Some features require Windows 10/11 with latest updates
 
 ================================================================================
@@ -44,6 +38,7 @@ import time
 import threading
 import winreg
 from datetime import datetime, timedelta
+
 
 class DefenderEnhancer:
     """
@@ -59,22 +54,19 @@ class DefenderEnhancer:
         self.last_check = None
         self.check_interval = 300  # Check every 5 minutes
         
-    def run_powershell_command(self, command):
+    def run_reg_command(self, args):
         """
-        Execute a PowerShell command and return result.
+        Execute a registry command and return result.
         
         Parameters:
-        - command: PowerShell command string to execute
+        - args: list of arguments for reg.exe
         
         Returns:
         - (success: bool, output: str, error: str)
-        
-        SECURITY NOTE: Only runs predefined safe commands, never user input.
         """
         try:
-            # Run PowerShell command
             result = subprocess.run(
-                ['powershell', '-Command', command],
+                ['reg'] + args,
                 capture_output=True,
                 text=True,
                 timeout=30
@@ -83,10 +75,10 @@ class DefenderEnhancer:
             return (result.returncode == 0, result.stdout, result.stderr)
             
         except subprocess.TimeoutExpired:
-            logging.error("PowerShell command timed out")
+            logging.error("Registry command timed out")
             return (False, "", "Timeout")
         except Exception as e:
-            logging.error(f"Error running PowerShell: {e}")
+            logging.error(f"Error running registry command: {e}")
             return (False, "", str(e))
     
     def enable_realtime_protection(self):
@@ -98,10 +90,19 @@ class DefenderEnhancer:
         """
         logging.info("Enabling real-time protection...")
         
-        command = "Set-MpPreference -DisableRealtimeMonitoring $false"
-        success, output, error = self.run_powershell_command(command)
+        # DisableAntiSpyware = 0 enables real-time protection
+        success, output, error = self.run_reg_command([
+            'add', 'HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender',
+            '/v', 'DisableAntiSpyware', '/t', 'REG_DWORD', '/d', '0', '/f'
+        ])
         
-        if success:
+        # Also disable DisableRealtimeMonitoring
+        success2, _, _ = self.run_reg_command([
+            'add', 'HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Real-Time Protection',
+            '/v', 'DisableRealtimeMonitoring', '/t', 'REG_DWORD', '/d', '0', '/f'
+        ])
+        
+        if success or success2:
             logging.info("[OK] Real-time protection enabled")
             return True
         else:
@@ -119,8 +120,11 @@ class DefenderEnhancer:
         """
         logging.info("Enabling cloud-delivered protection...")
         
-        command = "Set-MpPreference -MAPSReporting Advanced"
-        success, output, error = self.run_powershell_command(command)
+        # MAPSReporting: 0=Disabled, 1=Basic, 2=Advanced
+        success, output, error = self.run_reg_command([
+            'add', 'HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\MAPS',
+            '/v', 'MAPSReporting', '/t', 'REG_DWORD', '/d', '2', '/f'
+        ])
         
         if success:
             logging.info("[OK] Cloud protection enabled")
@@ -140,8 +144,11 @@ class DefenderEnhancer:
         """
         logging.info("Enabling automatic sample submission...")
         
-        command = "Set-MpPreference -SubmitSamplesConsent SendAllSamples"
-        success, output, error = self.run_powershell_command(command)
+        # SubmitSamplesConsent: 0=Never send, 1=Send safe samples, 2=Send all samples
+        success, output, error = self.run_reg_command([
+            'add', 'HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\MAPS',
+            '/v', 'SubmitSamplesConsent', '/t', 'REG_DWORD', '/d', '2', '/f'
+        ])
         
         if success:
             logging.info("[OK] Sample submission enabled")
@@ -163,8 +170,11 @@ class DefenderEnhancer:
         """
         logging.info("Enabling PUA protection...")
         
-        command = "Set-MpPreference -PUAProtection Enabled"
-        success, output, error = self.run_powershell_command(command)
+        # PUAProtection: 0=Disabled, 1=Enabled
+        success, output, error = self.run_reg_command([
+            'add', 'HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender',
+            '/v', 'PUAProtection', '/t', 'REG_DWORD', '/d', '1', '/f'
+        ])
         
         if success:
             logging.info("[OK] PUA protection enabled")
@@ -187,8 +197,10 @@ class DefenderEnhancer:
         """
         logging.info("Enabling behavior monitoring...")
         
-        command = "Set-MpPreference -DisableBehaviorMonitoring $false"
-        success, output, error = self.run_powershell_command(command)
+        success, output, error = self.run_reg_command([
+            'add', 'HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Real-Time Protection',
+            '/v', 'DisableBehaviorMonitoring', '/t', 'REG_DWORD', '/d', '0', '/f'
+        ])
         
         if success:
             logging.info("[OK] Behavior monitoring enabled")
@@ -211,8 +223,11 @@ class DefenderEnhancer:
         """
         logging.info("Enabling network protection...")
         
-        command = "Set-MpPreference -EnableNetworkProtection Enabled"
-        success, output, error = self.run_powershell_command(command)
+        # EnableNetworkProtection: 0=Disabled, 1=Enabled (Audit), 2=Enabled (Block)
+        success, output, error = self.run_reg_command([
+            'add', 'HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\NetworkProtection',
+            '/v', 'EnableNetworkProtection', '/t', 'REG_DWORD', '/d', '2', '/f'
+        ])
         
         if success:
             logging.info("[OK] Network protection enabled")
@@ -236,8 +251,10 @@ class DefenderEnhancer:
         """
         logging.info("Enabling controlled folder access...")
         
-        command = "Set-MpPreference -EnableControlledFolderAccess Enabled"
-        success, output, error = self.run_powershell_command(command)
+        success, output, error = self.run_reg_command([
+            'add', 'HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\ControlledFolderAccess',
+            '/v', 'EnableControlledFolderAccess', '/t', 'REG_DWORD', '/d', '1', '/f'
+        ])
         
         if success:
             logging.info("[OK] Controlled folder access enabled (ransomware protection)")
@@ -256,15 +273,24 @@ class DefenderEnhancer:
         """
         logging.info("Updating virus definitions...")
         
-        command = "Update-MpSignature"
-        success, output, error = self.run_powershell_command(command)
-        
-        if success:
-            logging.info("[OK] Virus definitions updated")
-            return True
-        else:
-            logging.warning(f"[!] Could not update definitions: {error}")
-            logging.warning("They may already be up to date")
+        # Use MpCmdRun.exe which is the native command-line tool for Defender
+        try:
+            result = subprocess.run(
+                [r'C:\Program Files\Windows Defender\MpCmdRun.exe', '-SignatureUpdate'],
+                capture_output=True,
+                text=True,
+                timeout=120
+            )
+            
+            if result.returncode == 0:
+                logging.info("[OK] Virus definitions updated")
+                return True
+            else:
+                logging.warning(f"[!] Could not update definitions: {result.stderr}")
+                logging.warning("They may already be up to date")
+                return False
+        except Exception as e:
+            logging.warning(f"[!] Could not update definitions: {e}")
             return False
     
     def check_defender_status(self):
@@ -280,27 +306,55 @@ class DefenderEnhancer:
         """
         logging.info("Checking Windows Defender status...")
         
-        command = "Get-MpComputerStatus | Select-Object RealTimeProtectionEnabled, BehaviorMonitorEnabled, NISEnabled, AntivirusEnabled | ConvertTo-Json"
-        success, output, error = self.run_powershell_command(command)
+        status = {}
         
-        if success and output:
-            try:
-                import json
-                status = json.loads(output)
-                
-                logging.info("Current Defender Status:")
-                logging.info(f"  Real-time protection: {status.get('RealTimeProtectionEnabled', 'Unknown')}")
-                logging.info(f"  Behavior monitor: {status.get('BehaviorMonitorEnabled', 'Unknown')}")
-                logging.info(f"  Network protection: {status.get('NISEnabled', 'Unknown')}")
-                logging.info(f"  Antivirus enabled: {status.get('AntivirusEnabled', 'Unknown')}")
-                
-                return status
-            except Exception as e:
-                logging.error(f"Could not parse Defender status: {e}")
-                return {"error": str(e), "status": "parse_failed"}
-        else:
-            logging.warning("Could not check Defender status")
-            return {"error": "PowerShell failed", "status": "query_failed"}
+        # Check real-time protection via registry
+        try:
+            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, 
+                                 r'SOFTWARE\Policies\Microsoft\Windows Defender', 0, winreg.KEY_READ)
+            value, _ = winreg.QueryValueEx(key, 'DisableAntiSpyware')
+            status['RealTimeProtectionEnabled'] = (value == 0)
+            winreg.CloseKey(key)
+        except Exception:
+            status['RealTimeProtectionEnabled'] = 'Unknown'
+        
+        # Check behavior monitoring
+        try:
+            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, 
+                                 r'SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection', 0, winreg.KEY_READ)
+            value, _ = winreg.QueryValueEx(key, 'DisableBehaviorMonitoring')
+            status['BehaviorMonitorEnabled'] = (value == 0)
+            winreg.CloseKey(key)
+        except Exception:
+            status['BehaviorMonitorEnabled'] = 'Unknown'
+        
+        # Check network protection
+        try:
+            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, 
+                                 r'SOFTWARE\Policies\Microsoft\Windows Defender\NetworkProtection', 0, winreg.KEY_READ)
+            value, _ = winreg.QueryValueEx(key, 'EnableNetworkProtection')
+            status['NISEnabled'] = (value == 2)
+            winreg.CloseKey(key)
+        except Exception:
+            status['NISEnabled'] = 'Unknown'
+        
+        # Check antivirus enabled
+        try:
+            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, 
+                                 r'SOFTWARE\Policies\Microsoft\Windows Defender', 0, winreg.KEY_READ)
+            value, _ = winreg.QueryValueEx(key, 'DisableAntiSpyware')
+            status['AntivirusEnabled'] = (value == 0)
+            winreg.CloseKey(key)
+        except Exception:
+            status['AntivirusEnabled'] = 'Unknown'
+        
+        logging.info("Current Defender Status:")
+        logging.info(f"  Real-time protection: {status.get('RealTimeProtectionEnabled', 'Unknown')}")
+        logging.info(f"  Behavior monitor: {status.get('BehaviorMonitorEnabled', 'Unknown')}")
+        logging.info(f"  Network protection: {status.get('NISEnabled', 'Unknown')}")
+        logging.info(f"  Antivirus enabled: {status.get('AntivirusEnabled', 'Unknown')}")
+        
+        return status
     
     def enable_all_protection(self):
         """
@@ -343,7 +397,7 @@ class DefenderEnhancer:
         else:
             logging.warning("[!] Some features could not be enabled automatically.")
             logging.warning("Please check Windows Security settings manually.")
-            logging.warning("Go to: Start → Settings → Update & Security → Windows Security")
+            logging.warning("Go to: Start -> Settings -> Update & Security -> Windows Security")
         
         return success_count == total_count
     
@@ -414,6 +468,7 @@ class DefenderEnhancer:
         self.running = False
         logging.info("Defender enhancement system stopped")
 
+
 # Global instance
 _enhancer_instance = None
 
@@ -423,6 +478,7 @@ def get_enhancer() -> 'DefenderEnhancer':
     if _enhancer_instance is None:
         _enhancer_instance = DefenderEnhancer()
     return _enhancer_instance
+
 
 # For testing/standalone execution
 if __name__ == "__main__":

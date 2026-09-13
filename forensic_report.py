@@ -42,30 +42,11 @@ from typing import Any, Dict, List, Optional, Tuple
 _log = logging.getLogger(__name__)
 
 _NO_WIN = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000)
-_PWSH = os.path.join(
-    os.environ.get('SystemRoot', r'C:\Windows'),
-    'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
 
 _DATA_DIR = Path(__file__).resolve().parent / 'downpour_data'
 DDOS_BLOCKLIST_PATH = _DATA_DIR / 'ddos_blocklist.json'
 FIM_BASELINE_PATH = _DATA_DIR / 'fim_baseline.json'
 DNS_BASELINE_PATH = _DATA_DIR / 'dns_baseline.json'
-
-
-def _run_ps(command: str, timeout: int = 15) -> Optional[str]:
-    """Run a short PowerShell probe; None on failure."""
-    try:
-        r = subprocess.run(
-            [_PWSH, '-NoProfile', '-NonInteractive',
-             '-ExecutionPolicy', 'Bypass', '-Command', command],
-            capture_output=True, text=True, timeout=timeout,
-            creationflags=_NO_WIN)
-        if r.returncode == 0:
-            return (r.stdout or '').strip() or None
-        return None
-    except Exception as exc:
-        _log.debug('forensic _ps: %s', exc)
-        return None
 
 
 def _run_cmd(cmd: List[str], timeout: int = 15) -> Optional[str]:
@@ -97,91 +78,74 @@ def collect_attacker_ips() -> List[Dict[str, Any]]:
     return evidence
 
 
+def _events_to_evidence(events: List[Dict[str, Any]], ev_type: str) \
+        -> List[Dict[str, Any]]:
+    """Shape native event dicts into forensic evidence rows."""
+    out = []
+    for ev in events:
+        eid = ev.get('id', 0)
+        xml = str(ev.get('xml', ''))
+        # Message text: the rendered XML contains EventData; keep a trimmed
+        # raw blob (same purpose the PS 'Message' column served).
+        out.append({'type': ev_type if ev_type != 'auto' else
+                    f'security_event_{eid}',
+                    'event_id': eid,
+                    'timestamp': str(ev.get('time', '')),
+                    'message': xml[:200]})
+    return out
+
+
 def collect_rdp_sessions() -> List[Dict[str, Any]]:
-    """Collect RDP connection evidence from TerminalServices event log."""
-    out = _run_ps(
-        'Get-WinEvent -LogName '
-        '"Microsoft-Windows-TerminalServices-LocalSessionManager/'
-        'Operational" -MaxEvents 100 | '
-        'Where-Object {$_.Id -in (21,25,1149)} | '
-        'Select-Object TimeCreated, Id, Message | '
-        'ConvertTo-Json -Compress')
-    if not out:
-        return []
+    """Collect RDP connection evidence (native EvtQuery — replaces
+    Get-WinEvent subprocess)."""
     try:
-        events = json.loads(out)
-        if not isinstance(events, list):
-            events = [events]
-        return [{'type': 'rdp_session', 'event_id': ev.get('Id', 0),
-                 'timestamp': str(ev.get('TimeCreated', '')),
-                 'message': str(ev.get('Message', ''))[:200]}
-                for ev in events]
+        import native_probes
+        events = native_probes.evt_query_events(
+            'Microsoft-Windows-TerminalServices-LocalSessionManager/'
+            'Operational',
+            '*[System[(EventID=21) or (EventID=25) or (EventID=1149)]]',
+            100)
+        return _events_to_evidence(events, 'rdp_session')
     except Exception:
         return []
 
 
 def collect_defender_tamper() -> List[Dict[str, Any]]:
-    """Collect Defender tamper evidence (T1562.001)."""
-    out = _run_ps(
-        'Get-WinEvent -LogName '
-        '"Microsoft-Windows-Windows Defender/Operational" '
-        '-MaxEvents 50 | Where-Object {$_.Id -in (5001,5007,5010,5012)} | '
-        'Select-Object TimeCreated, Id, Message | ConvertTo-Json -Compress')
-    if not out:
-        return []
+    """Collect Defender tamper evidence (T1562.001) — native EvtQuery."""
     try:
-        events = json.loads(out)
-        if not isinstance(events, list):
-            events = [events]
-        return [{'type': 'defender_tamper', 'event_id': ev.get('Id', 0),
-                 'timestamp': str(ev.get('TimeCreated', '')),
-                 'message': str(ev.get('Message', ''))[:200]}
-                for ev in events]
+        import native_probes
+        events = native_probes.evt_query_events(
+            'Microsoft-Windows-Windows Defender/Operational',
+            '*[System[(EventID=5001) or (EventID=5007) or (EventID=5010) '
+            'or (EventID=5012)]]', 50)
+        return _events_to_evidence(events, 'defender_tamper')
     except Exception:
         return []
 
 
 def collect_account_evidence() -> List[Dict[str, Any]]:
-    """Collect account compromise evidence from Security event log."""
-    out = _run_ps(
-        'Get-WinEvent -FilterHashtable @{LogName="Security"; '
-        'Id=4625,4720,4726,4732,4740} -MaxEvents 50 | '
-        'Select-Object TimeCreated, Id, Message | '
-        'ConvertTo-Json -Compress')
-    if not out:
-        return []
+    """Collect account compromise evidence from Security log — native
+    EvtQuery (ids 4625,4720,4726,4732,4740)."""
     try:
-        events = json.loads(out)
-        if not isinstance(events, list):
-            events = [events]
-        return [{'type': f'security_event_{ev.get("Id", 0)}',
-                 'event_id': ev.get('Id', 0),
-                 'timestamp': str(ev.get('TimeCreated', '')),
-                 'message': str(ev.get('Message', ''))[:200]}
-                for ev in events]
+        import native_probes
+        events = native_probes.evt_query_events(
+            'Security',
+            '*[System[(EventID=4625) or (EventID=4720) or (EventID=4726) '
+            'or (EventID=4732) or (EventID=4740)]]', 50)
+        return _events_to_evidence(events, 'auto')
     except Exception:
         return []
 
 
 def collect_firewall_events() -> List[Dict[str, Any]]:
-    """Collect firewall block events (T1071 C2)."""
-    out = _run_ps(
-        'Get-WinEvent -LogName '
-        '"Microsoft-Windows-Windows Firewall With Advanced Security/'
-        'Firewall" -MaxEvents 50 | '
-        'Where-Object {$_.Id -in (5152,5157)} | '
-        'Select-Object TimeCreated, Id, Message | '
-        'ConvertTo-Json -Compress')
-    if not out:
-        return []
+    """Collect firewall block events (T1071 C2) — native EvtQuery."""
     try:
-        events = json.loads(out)
-        if not isinstance(events, list):
-            events = [events]
-        return [{'type': 'firewall_event', 'event_id': ev.get('Id', 0),
-                 'timestamp': str(ev.get('TimeCreated', '')),
-                 'message': str(ev.get('Message', ''))[:200]}
-                for ev in events]
+        import native_probes
+        events = native_probes.evt_query_events(
+            'Microsoft-Windows-Windows Firewall With Advanced Security/'
+            'Firewall',
+            '*[System[(EventID=5152) or (EventID=5157)]]', 50)
+        return _events_to_evidence(events, 'firewall_event')
     except Exception:
         return []
 

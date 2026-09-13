@@ -132,8 +132,18 @@ class HistoryChange:
             self.hash = self._compute_hash()
     
     def _compute_hash(self) -> str:
-        content = f"{self.session_id}{self.timestamp}{json.dumps([asdict(c) for c in self.changes])}"
-        return hashlib.sha256(content.encode()).hexdigest()[:16]
+        # FIX: `changes` may hold dicts (from commit_session's asdict
+        # serialization) OR FileChange dataclasses — handle both, and never
+        # let hash computation raise out of __post_init__.
+        try:
+            serialized = [asdict(c) if not isinstance(c, dict) else c
+                          for c in (self.changes or [])]
+            content = f"{self.session_id}{self.timestamp}" \
+                      f"{json.dumps(serialized, sort_keys=True, default=str)}"
+            return hashlib.sha256(content.encode()).hexdigest()[:16]
+        except Exception:
+            return hashlib.sha256(
+                f"{self.session_id}{self.timestamp}".encode()).hexdigest()[:16]
 
 
 class HistoryManager:
@@ -301,13 +311,11 @@ class HistoryManager:
             
             changes = self._pending_changes.copy()
             self._pending_changes.clear()
-            
+
             change_entry = HistoryChange(
                 session_id=self._current_session,
                 timestamp=datetime.now(),
-                author=author,
-                branch=branch,
-                changes=[asdict(c) for c in self._pending_changes],
+                changes=[asdict(c) for c in changes],
                 description=description,
                 message=message,
                 tags=tags or [],
@@ -319,7 +327,7 @@ class HistoryManager:
             change_id = self._save_change(change_entry)
             
             # Save file snapshots for modified files
-            for change in self._pending_changes:
+            for change in changes:
                 if change.new_content is not None:
                     self._save_file_snapshot(change.file_path, change.new_content, change_id)
             
@@ -481,8 +489,6 @@ class HistoryManager:
             revert_change = HistoryChange(
                 session_id=self._generate_session_id(),
                 timestamp=datetime.now(),
-                author="system",
-                branch="main",
                 changes=[asdict(rc) for rc in revert_changes],
                 description=f"Revert change #{change_id}: {reason}",
                 message=f"Reverted change #{change_id}. Reason: {reason}",

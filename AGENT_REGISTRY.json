@@ -69,6 +69,16 @@
       "heartbeat": "2026-09-08T20:30:00Z",
       "started_at": "2026-09-07T20:00:00Z",
       "capabilities": ["code_review", "file_ops", "bash", "threat_modeling", "mitre"]
+    },
+    {
+      "id": "agent-hardware-008",
+      "name": "Hardware Detection Specialist",
+      "specialization": ["gpu-detection", "nvidia-smi", "hardware-profiling", "driver-issues"],
+      "status": "active",
+      "current_task": "GPU nvidia-smi error fix",
+      "heartbeat": "2026-09-11T13:45:00Z",
+      "started_at": "2026-09-11T13:45:00Z",
+      "capabilities": ["code_edit", "file_ops", "bash", "gpu_debug", "driver_troubleshooting"]
     }
   ]
 }

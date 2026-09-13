@@ -34,39 +34,24 @@ class GPUDetector:
 
     # -- internal -----------------------------------------------------------
     def _init_nvml(self):
+        # Suppress the pynvml deprecation warning since nvidia-ml-py 13.x is pynvml
+        import warnings
+        warnings.filterwarnings('ignore', message='.*pynvml.*deprecated.*', category=FutureWarning)
+        
         try:
-            try:
-                from nvidia_ml_py import (nvmlInit, nvmlDeviceGetHandleByIndex,
-                                          nvmlDeviceGetName,
-                                          nvmlDeviceGetMemoryInfo,
-                                          nvmlDeviceGetUtilizationRates,
-                                          nvmlDeviceGetTemperature,
-                                          nvmlDeviceGetFanSpeed,
-                                          nvmlDeviceGetPowerUsage,
-                                          nvmlDeviceGetClockInfo,
-                                          nvmlSystemGetDriverVersion)
-                _mod = 'nvidia_ml_py'
-            except ImportError:
-                from pynvml import (nvmlInit, nvmlDeviceGetHandleByIndex,
-                                    nvmlDeviceGetName, nvmlDeviceGetMemoryInfo,
-                                    nvmlDeviceGetUtilizationRates,
-                                    nvmlDeviceGetTemperature,
-                                    nvmlDeviceGetFanSpeed,
-                                    nvmlDeviceGetPowerUsage,
-                                    nvmlDeviceGetClockInfo,
-                                    nvmlSystemGetDriverVersion)
-                _mod = 'pynvml'
-            nvmlInit()
-            handle = nvmlDeviceGetHandleByIndex(0)
+            # nvidia-ml-py 13.x installs itself as pynvml - use pynvml directly
+            import pynvml
+            pynvml.nvmlInit()
+            handle = pynvml.nvmlDeviceGetHandleByIndex(0)
             self._nvml_api = {
-                'name': _mod, 'nvmlDeviceGetName': nvmlDeviceGetName,
-                'nvmlDeviceGetMemoryInfo': nvmlDeviceGetMemoryInfo,
-                'nvmlDeviceGetUtilizationRates': nvmlDeviceGetUtilizationRates,
-                'nvmlDeviceGetTemperature': nvmlDeviceGetTemperature,
-                'nvmlDeviceGetFanSpeed': nvmlDeviceGetFanSpeed,
-                'nvmlDeviceGetPowerUsage': nvmlDeviceGetPowerUsage,
-                'nvmlDeviceGetClockInfo': nvmlDeviceGetClockInfo,
-                'nvmlSystemGetDriverVersion': nvmlSystemGetDriverVersion,
+                'name': 'pynvml', 'nvmlDeviceGetName': pynvml.nvmlDeviceGetName,
+                'nvmlDeviceGetMemoryInfo': pynvml.nvmlDeviceGetMemoryInfo,
+                'nvmlDeviceGetUtilizationRates': pynvml.nvmlDeviceGetUtilizationRates,
+                'nvmlDeviceGetTemperature': pynvml.nvmlDeviceGetTemperature,
+                'nvmlDeviceGetFanSpeed': pynvml.nvmlDeviceGetFanSpeed,
+                'nvmlDeviceGetPowerUsage': pynvml.nvmlDeviceGetPowerUsage,
+                'nvmlDeviceGetClockInfo': pynvml.nvmlDeviceGetClockInfo,
+                'nvmlSystemGetDriverVersion': pynvml.nvmlSystemGetDriverVersion,
             }
             self._nvml_handle = handle
         except Exception:
@@ -134,10 +119,28 @@ class GPUDetector:
 
     def _from_nvidia_smi(self, info):
         try:
+            # Try to find nvidia-smi in common locations first
+            import os
+            nvidia_smi_candidates = [
+                'nvidia-smi',
+                r'C:\Windows\System32\nvidia-smi.exe',
+                r'C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe',
+                r'C:\Program Files\NVIDIA Corporation\NVIDIA Corporation\nvidia-smi.exe',
+            ]
+            
+            nvidia_smi_path = None
+            for candidate in nvidia_smi_candidates:
+                if candidate == 'nvidia-smi' or os.path.isfile(candidate):
+                    nvidia_smi_path = candidate
+                    break
+            
+            if nvidia_smi_path is None:
+                return info
+                
             q = ['--query-gpu=name,utilization.gpu,memory.used,'
                  'memory.total,temperature.gpu',
                  '--format=csv,noheader,nounits']
-            r = subprocess.run(['nvidia-smi'] + q,
+            r = subprocess.run([nvidia_smi_path] + q,
                                capture_output=True, text=True, timeout=8,
                                creationflags=0x08000000)
             if r.returncode != 0 or not r.stdout.strip():
@@ -146,7 +149,9 @@ class GPUDetector:
             if len(parts) >= 5:
                 def _num(v):
                     try:
-                        return float(v)
+                        # Handle [N/A] values and clean them
+                        cleaned = v.replace('[N/A]', '').replace('N/A', '').strip()
+                        return float(cleaned) if cleaned else 0.0
                     except Exception:
                         return 0.0
                 info['name'] = parts[0]
@@ -160,7 +165,16 @@ class GPUDetector:
                 info['available'] = True
                 info['gpu_count'] = 1
             return info
-        except Exception:
+        except FileNotFoundError:
+            # nvidia-smi not found - this is expected on systems without NVIDIA
+            return info
+        except subprocess.TimeoutExpired:
+            # nvidia-smi hung - degrade gracefully
+            return info
+        except Exception as e:
+            # Log the error but don't crash
+            if self.logger:
+                self.logger.warning(f"nvidia-smi query failed: {e}")
             return info
 
     def _from_gputil(self, info):

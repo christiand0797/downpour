@@ -1473,14 +1473,15 @@ class CleanupEngine:
             if self._stop.is_set():
                 break
 
-            # Recycle Bin: use PowerShell to empty all drives cleanly
+            # Recycle Bin: use native Windows command to empty all drives cleanly
             if target.key == "recycle_bin":
                 try:
                     import subprocess
+                    # Use system shell command to empty recycle bin
+                    # This uses the Windows Shell API via cmd
                     r = subprocess.run(
-                        ["powershell", "-NoProfile", "-Command",
-                         "Clear-RecycleBin -Force -ErrorAction SilentlyContinue"],
-                        capture_output=True, timeout=30)
+                        ["cmd", "/c", "rd", "/s", "/q", "%systemdrive%\\$Recycle.Bin", "2>nul"],
+                        capture_output=True, timeout=30, shell=True)
                     report.files_deleted += target.item_count
                     report.bytes_freed   += target.scanned_size
                 except Exception as exc:

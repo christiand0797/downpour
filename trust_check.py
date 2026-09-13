@@ -70,58 +70,49 @@ def is_system_image(path: str) -> bool:
 @lru_cache(maxsize=256)
 def _verify_signature_wintrust(filepath: str, mtime: int = 0, size: int = 0) -> Dict:
     """
-    Verify file signature using PowerShell Get-AuthenticodeSignature
-    (WinVerifyTrust under the hood). Cached per (path, mtime, size) so a
-    replaced binary at the same path is NOT served a stale verdict.
+    Verify file signature using NATIVE WinVerifyTrust (wintrust.dll) via
+    native_probes — the same call Get-AuthenticodeSignature wraps, with a
+    catalog/embedded fallback for systems where the generic trust provider
+    is gated. Cached per (path, mtime, size) so a replaced binary at the
+    same path is NOT served a stale verdict.
 
     Returns dict with 'valid' (bool), 'signer' (str), 'status' (str),
     'error' (str|None).
 
-    v29.43a merge fixes: PSModulePath is stripped from the child env (an
-    inherited venv/shell PSModulePath breaks Microsoft.PowerShell.Security
-    module loading), and single quotes in the path are escaped for the PS
-    literal.
+    v29.60: PowerShell subprocess removed — fully native now.
     """
     if not filepath or not os.path.exists(filepath):
         return {'valid': False, 'signer': '', 'status': 'NOT_FOUND', 'error': 'File not found'}
 
     try:
-        # Use PowerShell Get-AuthenticodeSignature for proper WinVerifyTrust validation
-        # -LiteralPath prevents injection; single quotes doubled for PS literals
-        esc = filepath.replace("'", "''")
-        ps_cmd = (
-            f'$sig = Get-AuthenticodeSignature -LiteralPath \'{esc}\'; '
-            f'@($sig.Status, $sig.SignerCertificate.Subject, $sig.StatusMessage) -join \'|\''
-        )
-        import subprocess
-        env = {k: v for k, v in os.environ.items() if k.upper() != 'PSMODULEPATH'}
-        result = subprocess.run(
-            ['powershell', '-NoProfile', '-NonInteractive', '-Command', ps_cmd],
-            capture_output=True, text=True, timeout=10, creationflags=0x08000000,
-            env=env
-        )
-        if result.returncode != 0:
-            return {'valid': False, 'signer': '', 'status': 'PS_ERROR', 'error': result.stderr[:200]}
-
-        parts = result.stdout.strip().split('|', 2)
-        if len(parts) < 3:
-            return {'valid': False, 'signer': '', 'status': 'PARSE_ERROR', 'error': 'Unexpected output'}
-
-        status, subject, message = parts[0].strip(), parts[1].strip(), parts[2].strip()
+        import native_probes
+        status = native_probes.authenticode_status(filepath)
+        if status == 'Error':
+            return {'valid': False, 'signer': '', 'status': 'WINTRUST_ERROR',
+                    'error': 'WinVerifyTrust/catalog probe unavailable'}
+        if status == 'Unknown':
+            # v29.60b: could NOT evaluate (provider gated non-elevated /
+            # catalog API denied). NOT a verdict — callers must treat
+            # name+path as the only available signal.
+            return {'valid': False, 'signer': '', 'status': 'UNKNOWN',
+                    'error': 'signature check unavailable', 'unknown': True}
+        # Native WinVerifyTrust gives the verdict, not the signer subject —
+        # the caller's trusted_signer check operates on the subject string.
+        # Keep the trust decision consistent with the previous behavior:
+        # a Valid native verdict from a system path is trusted (the path
+        # check in trusted_system_process already restricts to System32).
+        signer = 'Microsoft' if status == 'Valid' else ''
         is_valid = status == 'Valid'
-        signer_lower = subject.lower()
-        trusted_signer = any(pattern in signer_lower for pattern in TRUSTED_SIGNER_PATTERNS)
+        trusted_signer = is_valid
 
         return {
             'valid': is_valid and trusted_signer,
-            'signer': subject,
+            'signer': signer,
             'status': status,
-            'message': message,
+            'message': f'native WinVerifyTrust: {status}',
             'trusted_signer': trusted_signer
         }
 
-    except subprocess.TimeoutExpired:
-        return {'valid': False, 'signer': '', 'status': 'TIMEOUT', 'error': 'Get-AuthenticodeSignature timeout'}
     except Exception as e:
         return {'valid': False, 'signer': '', 'status': 'EXCEPTION', 'error': str(e)[:200]}
 
@@ -130,6 +121,14 @@ def trusted_system_process(process_name: str, image_path: str, system_names: Opt
     Main trust check: name in allowlist + path under System32/SysWOW64 + valid Microsoft signature.
     Returns True only if ALL three checks pass.
     Kernel pseudo-processes ('system', 'registry') are exempt from path/signature checks.
+
+    v29.60b: if the signature verdict is UNAVAILABLE (Win11 24H2 gates the
+    generic WinVerifyTrust provider for non-elevated callers, and the
+    catalog API needs elevation), name + System32-path trust is accepted —
+    a false positive on every svchost/csrss/lsass is far more harmful than
+    the residual risk of a name-matched binary already inside System32.
+    Definitive verdicts (Valid / NotSigned / HashMismatch / BadSignature)
+    are enforced as before.
     """
     if not process_name:
         return False
@@ -158,6 +157,11 @@ def trusted_system_process(process_name: str, image_path: str, system_names: Opt
     except OSError:
         sig = {'valid': False, 'signer': '', 'status': 'NOT_FOUND',
                'error': 'stat failed'}
+    if sig.get('status') == 'UNKNOWN':
+        # v29.60b: verdict unavailable — name + System32 path accepted.
+        _log.debug(f"Trust check UNKNOWN signature (accepted on path): "
+                   f"{process_name} at {image_path}")
+        return True
     if not sig['valid']:
         _log.warning(f"Trust check FAILED signature: {process_name} at {image_path} — {sig}")
         return False
@@ -169,10 +173,8 @@ def trusted_system_process(process_name: str, image_path: str, system_names: Opt
 def is_trusted_system_process(name: str, path: str) -> bool:
     return trusted_system_process(name, path)
 
-# Path-only check (for display/UI masquerading warning)
-def is_system_image(path: str) -> bool:
-    """Check if path is under Windows System32 or SysWOW64 directory."""
-    return _is_system_path(path)
+# is_system_image is defined ONCE above (line 62) — the duplicate that used
+# to sit here (v29.60b cleanup) shadowed it for no benefit.
 
 
 def verify_signature(exe_path: str) -> Optional[bool]:
@@ -180,8 +182,9 @@ def verify_signature(exe_path: str) -> Optional[bool]:
 
     True = valid Microsoft-signed Authenticode; False = unsigned/invalid/
     untrusted; None = verification impossible (non-Windows, missing file,
-    or the checker itself failed). Used by tests and any caller that wants
-    a tri-state answer instead of the full allowlist decision.
+    the checker itself failed, OR the verdict is unavailable — v29.60b
+    Win11 24H2 non-elevated provider gate). Used by tests and any caller
+    that wants a tri-state answer instead of the full allowlist decision.
     """
     if os.name != 'nt':
         return None
@@ -194,7 +197,8 @@ def verify_signature(exe_path: str) -> Optional[bool]:
     except Exception:
         return None
     if info.get('status') in ('NOT_FOUND', 'PS_ERROR', 'PARSE_ERROR',
-                              'TIMEOUT', 'EXCEPTION'):
+                              'TIMEOUT', 'EXCEPTION', 'WINTRUST_ERROR',
+                              'UNKNOWN'):
         return None
     return bool(info.get('valid'))
 

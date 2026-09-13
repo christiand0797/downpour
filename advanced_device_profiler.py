@@ -1072,14 +1072,11 @@ class AdvancedDeviceProfiler:
             else:
                 defender_config['status'] = 'not_found'
             
-            # Check Defender settings
+            # Check Defender settings via registry
             try:
-                result = subprocess.run(['powershell', '-Command', 'Get-MpPreference'], 
+                result = subprocess.run(['reg', 'query', 'HKLM\\SOFTWARE\\Microsoft\\Windows Defender', '/v', 'DisableAntiSpyware'], 
                                       capture_output=True, text=True, timeout=10)
-                if result.returncode == 0:
-                    defender_config['config_accessible'] = True
-                else:
-                    defender_config['config_accessible'] = False
+                defender_config['config_accessible'] = (result.returncode == 0)
             except Exception:
                 defender_config['config_accessible'] = False
                 

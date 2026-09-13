@@ -34,11 +34,11 @@ except ImportError:
     GPUTIL_AVAILABLE = False
 
 try:
-    from pynvml import *
-    nvmlInit()
+    import pynvml
+    pynvml.nvmlInit()
     PYNVML_AVAILABLE = True
-    PYNVML_VERSION = nvmlSystemGetDriverVersion()
-except Exception as e:
+    PYNVML_VERSION = pynvml.nvmlSystemGetDriverVersion()
+except Exception:
     PYNVML_AVAILABLE = False
     PYNVML_VERSION = "0.0.0"
 
@@ -119,11 +119,11 @@ class EnhancedHardwareMonitor:
         # Method 1: NVIDIA GPU via pynvml
         if PYNVML_AVAILABLE:
             try:
-                gpu_count = nvmlDeviceGetCount()
+                gpu_count = pynvml.nvmlDeviceGetCount()
                 self.logger.info(f"Detected {gpu_count} NVIDIA GPUs via pynvml")
                 
                 for i in range(gpu_count):
-                    handle = nvmlDeviceGetHandleByIndex(i)
+                    handle = pynvml.nvmlDeviceGetHandleByIndex(i)
                     self.gpu_handles.append(handle)
                     
             except Exception as e:
@@ -246,7 +246,7 @@ class EnhancedHardwareMonitor:
             if PYNVML_AVAILABLE and self.gpu_handles:
                 for i, handle in enumerate(self.gpu_handles):
                     try:
-                        temp = nvmlDeviceGetTemperature(handle, NVML_TEMPERATURE_GPU)
+                        temp = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
                         self.temperature_data[f'gpu_{i}'] = temp
                     except Exception:
                         pass
@@ -337,20 +337,23 @@ class EnhancedHardwareMonitor:
                 info['multi_gpu'] = len(self.gpu_handles) > 1
                 
                 # GPU name
-                name = nvmlDeviceGetName(handle).decode('utf-8') if isinstance(nvmlDeviceGetName(handle), bytes) else nvmlDeviceGetName(handle)
-                info['name'] = name
-                info['available'] = True
+                try:
+                    name = pynvml.nvmlDeviceGetName(handle)
+                    info['name'] = name.decode('utf-8') if isinstance(name, bytes) else name
+                    info['available'] = True
+                except Exception:
+                    pass
                 
                 # GPU utilization
                 try:
-                    util = nvmlDeviceGetUtilizationRates(handle)
+                    util = pynvml.nvmlDeviceGetUtilizationRates(handle)
                     info['usage'] = util.gpu
                 except Exception:
                     pass
                 
                 # Memory information
                 try:
-                    mem = nvmlDeviceGetMemoryInfo(handle)
+                    mem = pynvml.nvmlDeviceGetMemoryInfo(handle)
                     info['memory_used'] = mem.used // (1024**2)  # MB
                     info['memory_total'] = mem.total // (1024**2)  # MB
                     info['memory_percent'] = (mem.used / mem.total) * 100
@@ -359,32 +362,33 @@ class EnhancedHardwareMonitor:
                 
                 # Temperature
                 try:
-                    info['temperature'] = nvmlDeviceGetTemperature(handle, NVML_TEMPERATURE_GPU)
+                    info['temperature'] = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
                 except Exception:
                     pass
                 
                 # Fan speed
                 try:
-                    info['fan_speed'] = nvmlDeviceGetFanSpeed(handle)
+                    info['fan_speed'] = pynvml.nvmlDeviceGetFanSpeed(handle)
                 except Exception:
                     pass
                 
                 # Power consumption
                 try:
-                    info['power_draw'] = nvmlDeviceGetPowerUsage(handle) / 1000  # Watts
+                    info['power_draw'] = pynvml.nvmlDeviceGetPowerUsage(handle) / 1000  # Watts
                 except Exception:
                     pass
                 
                 # Clock speeds
                 try:
-                    info['clock_speed'] = nvmlDeviceGetClockInfo(handle, NVML_CLOCK_GRAPHICS)
-                    info['memory_clock'] = nvmlDeviceGetClockInfo(handle, NVML_CLOCK_MEM)
+                    info['clock_speed'] = pynvml.nvmlDeviceGetClockInfo(handle, pynvml.NVML_CLOCK_GRAPHICS)
+                    info['memory_clock'] = pynvml.nvmlDeviceGetClockInfo(handle, pynvml.NVML_CLOCK_MEM)
                 except Exception:
                     pass
                 
                 # Driver version
                 try:
-                    info['driver_version'] = nvmlSystemGetDriverVersion().decode('utf-8') if isinstance(nvmlSystemGetDriverVersion(), bytes) else nvmlSystemGetDriverVersion()
+                    dv = pynvml.nvmlSystemGetDriverVersion()
+                    info['driver_version'] = dv.decode('utf-8') if isinstance(dv, bytes) else dv
                 except Exception:
                     pass
                 

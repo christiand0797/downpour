@@ -197,11 +197,10 @@ class EmergencyResponse:
         logger.info("  Disabling network adapters...")
 
         try:
-            # Disable all network adapters
+            # Disable all network adapters using wmic
             result = subprocess.run(
-                ['powershell', '-Command',
-                 'Get-NetAdapter | Where-Object {$_.Status -eq "Up"} | Disable-NetAdapter -Confirm:$false'],
-                capture_output=True, timeout=10
+                ['wmic', 'path', 'Win32_NetworkAdapter', 'where', 'NetEnabled=True', 'call', 'Disable'],
+                capture_output=True, timeout=15
             )
         except Exception as e:
             logger.warning(f"  [FAIL] Error isolating network: {e}")
@@ -491,8 +490,7 @@ class EmergencyResponse:
         
         try:
             subprocess.run(
-                ['powershell', '-Command', 
-                 'Get-NetAdapter | Where-Object {$_.Status -eq "Disabled"} | Enable-NetAdapter -Confirm:$false'],
+                ['wmic', 'path', 'Win32_NetworkAdapter', 'where', 'NetEnabled=False', 'call', 'Enable'],
                 check=True
             )
             logger.info("  [OK] Network adapters re-enabled")
@@ -566,8 +564,9 @@ class EmergencyResponse:
         logger.info("   This may take 1-2 hours to complete.")
         
         try:
+            mp_cmd_run = r'C:\Program Files\Windows Defender\MpCmdRun.exe'
             subprocess.Popen(
-                ['powershell', '-Command', 'Start-MpScan -ScanType FullScan'],
+                [mp_cmd_run, '-Scan', '-ScanType', '2'],
                 creationflags=subprocess.CREATE_NEW_CONSOLE
             )
             logger.info("[OK] System scan started in new window")

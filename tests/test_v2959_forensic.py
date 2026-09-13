@@ -17,7 +17,12 @@ with open(MAIN, encoding='utf-8', errors='replace') as f:
 
 class TestForensicReportModule(unittest.TestCase):
     def test_collect_all_evidence_structure(self):
-        with mock.patch.object(fr, '_run_ps', return_value=None), \
+        # v29.60: the collectors are native now (native_probes / _run_cmd);
+        # stub the native event walker + native cmd runner to keep the test
+        # offline-deterministic.
+        import native_probes
+        with mock.patch.object(native_probes, 'evt_query_events',
+                               return_value=[]), \
                 mock.patch.object(fr, '_run_cmd', return_value=None):
             evidence = fr.collect_all_evidence()
         for key in ('chain_of_custody', 'attacker_ips', 'rdp_sessions',

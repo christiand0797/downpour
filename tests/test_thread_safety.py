@@ -170,7 +170,9 @@ class TestExecutorPostBack:
                                 '..', 'downpour_v29_titanium.py'),
                    encoding='utf-8', errors='replace').read()
         idx = src.index('def _proc_loop')
-        chunk = src[idx: idx + 6000]
+        # FIX: the method grew past 6000 chars (live process detail rows);
+        # scan a wider window so the RuntimeError guard stays covered.
+        chunk = src[idx: idx + 12000]
         assert 'except RuntimeError' in chunk
 
 
@@ -343,9 +345,13 @@ class TestPerfTabV2928:
         assert "top_procs[:12]" in src
 
     def test_mousewheel_scoped_to_perf_tab(self):
-        """bind_all wheel scroll must not hijack other tabs."""
+        """bind_all wheel scroll must not hijack other tabs (Enter/Leave scoping)."""
         src = self._src()
-        assert 'winfo_containing' in src
+        # v29.28+: wheel is bind_all-ed only while the cursor is inside the
+        # perf canvas and unbound on Leave (O(1), Enter/Leave-scoped).
+        assert "c.bind_all('<MouseWheel>', _mw)" in src
+        assert "c.unbind_all('<MouseWheel>')" in src
+        assert "_sc.bind('<Leave>', _mw_leave)" in src
 
 
 # --------------------------------------------------------------------------
