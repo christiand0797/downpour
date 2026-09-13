@@ -15795,49 +15795,41 @@ class RansomwareDetector:
             logger.error(f"Email activity monitoring failed: {e}")
 
     def monitor_removable_media(self):
-        """Monitor removable media for worm propagation"""
+        """Monitor removable media for worm propagation.
+        v29.60b: native WMI via COM Dispatch — the wmi module's
+        moniker path fails on MTA threads (winmgmts: error)."""
         try:
-            # FIX: wmi requires win32com (pywin32). Guard the import so the
-            # method degrades gracefully when pywin32 is not installed.
-            try:
-                import wmi as _wmi  # type: ignore[import-not-found]
-            except ImportError:
-                return  # pywin32 / wmi not available — skip silently
-
-            # FIX: WMI requires CoInitialize when called from a non-main thread.
-            # v29.60b: once-per-thread (unbalanced per-call CoInitialize
-            # accumulated COM refcounts on this long-lived thread).
-            try:
-                import native_probes as _npp
-                _npp._com_ensure_initialized()
-            except ImportError:
-                pass  # native_probes unavailable — degrade as before
-
-            c: Any = _wmi.WMI()
-            for drive in c.Win32_LogicalDisk(DriveType=2):  # Removable disks
+            import native_probes
+            disks: Any = [
+                d for d in native_probes.get_logical_disks()
+                if d.get('DriveType') == 2]  # 2 = Removable
+            for drive_info in disks:
                 try:
-                    drive_letter: Any = drive.DeviceID
-                    drive_label: Any = drive.VolumeName or "No Label"
-
-                    # Check for autorun.inf files
-                    autorun_path: Any = f"{drive_letter}\\autorun.inf"
+                    drive_letter: Any = drive_info.get('DeviceID', '')
+                    if not drive_letter:
+                        continue
+                    drive_label: Any = 'No Label'
                     suspicious_files: Any = 0
 
+                    autorun_path: Any = f'{drive_letter}\\autorun.inf'
                     if os.path.exists(autorun_path):
-                        with open(autorun_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        with open(autorun_path, 'r', encoding='utf-8',
+                                  errors='ignore') as f:
                             content: Any = f.read()
-                            if any(pattern in content.lower() for pattern in ['open=', 'shell\\', 'autoplay']):
+                            if any(pattern in content.lower() for pattern in
+                                   ['open=', 'shell\\', 'autoplay']):
                                 suspicious_files += 1
 
-                    # Check for executable files in root
                     if os.path.exists(drive_letter):
                         for file in os.listdir(drive_letter):
-                            if file.lower().endswith(('.exe', '.bat', '.cmd', '.scr', '.vbs')):
+                            if file.lower().endswith(
+                                    ('.exe', '.bat', '.cmd', '.scr', '.vbs')):
                                 suspicious_files += 1
 
                     self.db.execute("""
                         INSERT INTO worm_removable_media
-                        (timestamp, drive_letter, drive_type, files_created, autorun_modified, suspicious)
+                        (timestamp, drive_letter, drive_type,
+                         files_created, autorun_modified, suspicious)
                         VALUES (?,?,?,?,?,?)
                     """, (
                         datetime.now().isoformat(),
@@ -15849,13 +15841,13 @@ class RansomwareDetector:
                     ))
 
                     if suspicious_files > 2:
-                        self._notify(f"[W] Suspicious files on removable media: {drive_letter}")
-
+                        self._notify(
+                            f'[W] Suspicious files on removable media: '
+                            f'{drive_letter}')
                 except Exception:
                     pass
-
         except Exception as e:
-            logger.error(f"Removable media monitoring failed: {e}")
+            logger.error(f'Removable media monitoring failed: {e}')
 
     def monitor_p2p_activity(self):
         """Monitor P2P applications for worm propagation"""
@@ -47212,8 +47204,13 @@ Verification Status:
         if NVML_AVAILABLE:
             try: nvmlShutdown()
             except Exception: pass
-        self.destroy()
-        # FIX-v28: Force-exit to prevent Fortran runtime abort
+        # v29.61b: os._exit(0) BEFORE destroy() — destroy() can trigger a
+        # 362s Tkinter callback-registry cleanup freeze (deletecommand scan
+        # over tens of thousands of stale after() entries), and the Job
+        # Object kill-on-close overwrites the exit code during destroy.
+        # All important cleanup (save state, close handles, stop monitors,
+        # NVML shutdown) has already completed above. The Tk window is
+        # visual-only at this point — exiting immediately is safe.
         import os as _os_exit
         _os_exit._exit(0)
 
