@@ -39107,7 +39107,8 @@ Verification Status:
                 RegistryHoneyPersistence, KernelDriverAuditor,
                 BrowserExtensionAuditor, HostsFileWatcher,
                 BitsTransferMonitor, ComHijackWatcher,
-                UacBypassIocWatcher)
+                UacBypassIocWatcher, FirewallRuleWatcher,
+                ServiceBinaryWatcher)
         except ImportError:
             return  # module unavailable — skip silently
 
@@ -39126,8 +39127,10 @@ Verification Status:
             self._bits_monitor = BitsTransferMonitor()
             self._com_watcher = ComHijackWatcher()
             self._uac_watcher = UacBypassIocWatcher()
+            self._fw_watcher = FirewallRuleWatcher()
+            self._svc_watcher = ServiceBinaryWatcher()
         except Exception as e:
-            error_logger.log('DefenseSuite', 'v29.62/63 watchers init', e)
+            error_logger.log('DefenseSuite', 'v29.62/63/64 watchers init', e)
             self._ifeo_watcher = None
             self._honey_persist = None
             self._driver_auditor = None
@@ -39136,6 +39139,8 @@ Verification Status:
             self._bits_monitor = None
             self._com_watcher = None
             self._uac_watcher = None
+            self._fw_watcher = None
+            self._svc_watcher = None
 
         def _run_defense_suite():
             # Deploy honeytokens (5 canary files + 1 DNS canary)
@@ -39259,6 +39264,22 @@ Verification Status:
                 except Exception as e:
                     error_logger.log('DefenseSuite', 'com audit', e)
 
+            # v29.64: firewall + service baselines (TOFU on first run)
+            if self._fw_watcher:
+                try:
+                    ff = self._fw_watcher.audit()
+                    logger.info('DefenseSuite: firewall-rule baseline '
+                                'built (findings=%d)', len(ff))
+                except Exception as e:
+                    error_logger.log('DefenseSuite', 'fw audit', e)
+            if self._svc_watcher:
+                try:
+                    sf = self._svc_watcher.audit()
+                    logger.info('DefenseSuite: service-binary baseline '
+                                'built (findings=%d)', len(sf))
+                except Exception as e:
+                    error_logger.log('DefenseSuite', 'svc audit', e)
+
             # Monitoring loop: check canaries every 30s
             while True:
                 time.sleep(30)
@@ -39321,6 +39342,27 @@ Verification Status:
                                 Colors.GAUGE_YELLOW))
                 except Exception as e:
                     error_logger.log('DefenseSuite', 'v29.63 loop', e)
+
+                # v29.64: firewall + service-binary diff each tick
+                try:
+                    if self._fw_watcher:
+                        for ff2 in self._fw_watcher.audit():
+                            sev = (Colors.GAUGE_RED
+                                   if ff2['severity'] == 'CRITICAL'
+                                   else Colors.GAUGE_YELLOW)
+                            self.after(0, lambda xx=ff2: self._queue_alert(
+                                f'[FIREWALL/{xx["severity"]}] '
+                                f'{xx["detail"]}', sev))
+                    if self._svc_watcher:
+                        for sf2 in self._svc_watcher.audit():
+                            sev = (Colors.GAUGE_RED
+                                   if sf2['severity'] == 'CRITICAL'
+                                   else Colors.GAUGE_YELLOW)
+                            self.after(0, lambda ss=sf2: self._queue_alert(
+                                f'[SERVICE/{ss["severity"]}] '
+                                f'{ss["detail"]}', sev))
+                except Exception as e:
+                    error_logger.log('DefenseSuite', 'v29.64 loop', e)
 
         threading.Thread(target=_run_defense_suite, daemon=True,
                          name='DefenseSuite').start()

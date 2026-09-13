@@ -34,6 +34,8 @@ Capabilities that fill genuine gaps vs commercial EDR/HIDS products
   20. BITS TRANSFER MONITOR   — Stealth BITS download channel (T1197)
   21. COM HIJACK WATCHER      — HKCU CLSID override + HKLM writable (T1546.015)
   22. UAC BYPASS IOC WATCHER  — Auto-elevate hijack slots (T1548.002)
+  23. FIREWALL RULE WATCHER   — New/changed inbound allows, OFF profiles
+  24. SERVICE BINARY WATCHER  — New/repointed service ImagePaths (T1543.003)
 
 Every function is best-effort and never raises. All native APIs —
 no PowerShell anywhere.
@@ -2240,4 +2242,242 @@ class UacBypassIocWatcher:
                 winreg.CloseKey(root)
             except Exception:
                 pass
+        return findings
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 23. FIREWALL RULE WATCHER (T1562.007 / T1562.001)
+# ══════════════════════════════════════════════════════════════════════════
+
+class FirewallRuleWatcher:
+    """Baseline + diff over inbound firewall ALLOW rules (T1562.007).
+
+    New inbound allow rules are how malware punches through the
+    perimeter (C2 listener, RDP exposure). Also flags OFF profiles
+    (T1562.001). Downpour itself creates rules (the cleanup tool
+    strips them), so TOFU baseline + weighted diff is the model.
+    """
+
+    _RISKY_PORTS = (21, 22, 23, 135, 139, 445, 3389, 5985, 5986, 4444,
+                    5555, 8080)
+
+    def __init__(self, data_dir: str = 'downpour_data'):
+        self._baseline_file = (Path(data_dir) / 'fw_rules_baseline.json')
+        self._baseline: Dict[str, str] = self._load()
+
+    def _load(self) -> Dict[str, str]:
+        try:
+            if self._baseline_file.is_file():
+                return json.loads(self._baseline_file.read_text(
+                    encoding='utf-8')).get('rules', {})
+        except Exception as exc:
+            _log.debug('fw baseline load: %s', exc)
+        return {}
+
+    def _save(self) -> None:
+        try:
+            self._baseline_file.parent.mkdir(parents=True, exist_ok=True)
+            self._baseline_file.write_text(json.dumps(
+                {'rules': self._baseline}, indent=2), encoding='utf-8')
+        except Exception as exc:
+            _log.debug('fw baseline save: %s', exc)
+
+    @staticmethod
+    def _read_rules() -> Dict[str, str]:
+        """Inbound ALLOW rules as {rule_name: port|program|remote}."""
+        import subprocess as _sp
+        out: Dict[str, str] = {}
+        try:
+            r = _sp.run(
+                ['netsh', 'advfirewall', 'firewall', 'show', 'rule',
+                 'name=all', 'dir=in'],
+                capture_output=True, text=True, timeout=20,
+                creationflags=0x08000000)
+        except Exception as exc:
+            _log.debug('netsh show rule: %s', exc)
+            return out
+        cur: Dict[str, str] = {}
+        for line in (r.stdout or '').splitlines():
+            if ':' not in line:
+                continue
+            key, _, val = line.partition(':')
+            key, val = key.strip(), val.strip()
+            kl = key.lower()
+            if kl in ('rulename', 'rule name'):
+                cur = {'name': val}
+            elif cur and kl == 'localport':
+                cur['port'] = val
+            elif cur and kl == 'program':
+                cur['program'] = val
+            elif cur and kl == 'remoteip':
+                cur['remote'] = val
+            elif cur and kl == 'enabled' and val.lower() in ('yes', 'true'):
+                nm = cur.get('name', '')
+                if nm:
+                    out[nm] = '|'.join((cur.get('port', ''),
+                                        cur.get('program', ''),
+                                        cur.get('remote', '')))
+        return out
+
+    @staticmethod
+    def _profiles_off() -> List[str]:
+        """Firewall profiles currently OFF (T1562.001)."""
+        import subprocess as _sp
+        offs: List[str] = []
+        try:
+            r = _sp.run(
+                ['netsh', 'advfirewall', 'show', 'allprofiles', 'state'],
+                capture_output=True, text=True, timeout=15,
+                creationflags=0x08000000)
+        except Exception:
+            return offs
+        prof = ''
+        for line in (r.stdout or '').splitlines():
+            if 'profile' in line.lower() and ':' in line:
+                prof = line.split(':')[0].strip()
+            elif 'state' in line.lower() and 'off' in line.lower():
+                if prof:
+                    offs.append(prof)
+        return offs
+
+    def audit(self) -> List[Dict]:
+        findings: List[Dict] = []
+        cur = self._read_rules()
+        for name, sig in cur.items():
+            old = self._baseline.get(name)
+            if old is None:
+                port = (sig.split('|')[0] or '').lower()
+                risky = any(p and port.startswith(str(p))
+                            for p in self._RISKY_PORTS)
+                findings.append({
+                    'type': 'new_allow_rule', 'rule': name,
+                    'mitre': 'T1562.007',
+                    'severity': 'HIGH' if risky else 'MEDIUM',
+                    'detail': f'New inbound firewall ALLOW rule '
+                              f'({name}): {sig or "(any)"}'})
+            elif old != sig:
+                findings.append({
+                    'type': 'rule_modified', 'rule': name,
+                    'mitre': 'T1562.007', 'severity': 'HIGH',
+                    'detail': f'Firewall rule modified: {name}: '
+                              f'{old} -> {sig}'})
+        for name in list(self._baseline):
+            if name not in cur:
+                findings.append({
+                    'type': 'rule_removed', 'rule': name,
+                    'mitre': 'T1562.007', 'severity': 'MEDIUM',
+                    'detail': f'Inbound ALLOW rule removed: {name}'})
+        for prof in self._profiles_off():
+            findings.append({
+                'type': 'profile_off', 'profile': prof,
+                'mitre': 'T1562.001', 'severity': 'CRITICAL',
+                'detail': f'Firewall profile OFF: {prof}'})
+        if cur != self._baseline:
+            self._baseline = cur
+            self._save()
+        return findings
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 24. SERVICE BINARY WATCHER (T1543.003)
+# ══════════════════════════════════════════════════════════════════════════
+
+class ServiceBinaryWatcher:
+    """Baseline + diff over service ImagePaths (T1543.003).
+
+    Covers what EventID 7045 misses: services whose binPath is
+    REPOINTED at a malicious binary (no new-service event is logged),
+    and services whose binary lives in a user-writable directory.
+    """
+
+    _USER_WRITABLE = ('\\appdata\\', '\\temp\\', '\\tmp\\',
+                      '\\programdata\\', '\\downloads\\', '\\desktop\\',
+                      '\\users\\public\\')
+    _SCRIPT_EXTS = ('.vbs', '.js', '.wsf', '.bat', '.cmd', '.ps1')
+
+    def __init__(self, data_dir: str = 'downpour_data'):
+        self._baseline_file = (Path(data_dir) /
+                               'service_binpath_baseline.json')
+        self._baseline: Dict[str, str] = self._load()
+
+    def _load(self) -> Dict[str, str]:
+        try:
+            if self._baseline_file.is_file():
+                return json.loads(self._baseline_file.read_text(
+                    encoding='utf-8')).get('services', {})
+        except Exception as exc:
+            _log.debug('svc baseline load: %s', exc)
+        return {}
+
+    def _save(self) -> None:
+        try:
+            self._baseline_file.parent.mkdir(parents=True, exist_ok=True)
+            self._baseline_file.write_text(json.dumps(
+                {'services': self._baseline}, indent=2),
+            encoding='utf-8')
+        except Exception as exc:
+            _log.debug('svc baseline save: %s', exc)
+
+    @staticmethod
+    def _norm_path(p: str) -> str:
+        p = p.strip().strip('"')
+        if p.lower().startswith('\\??\\'):
+            p = p[4:]
+        if not os.path.isfile(p) and not os.path.isabs(p):
+            cand = os.path.join(os.environ.get('SystemRoot',
+                                               r'C:\Windows'), p)
+            if os.path.isfile(cand):
+                p = cand
+        return p
+
+    def audit(self) -> List[Dict]:
+        findings: List[Dict] = []
+        try:
+            import native_probes
+            rows = native_probes.get_services()
+        except Exception as exc:
+            _log.debug('svc rows: %s', exc)
+            return findings
+        cur: Dict[str, str] = {}
+        for row in rows:
+            name = row.get('Name') or ''
+            path = row.get('PathName') or ''
+            if not name or not path:
+                continue
+            norm = self._norm_path(path)
+            low = norm.lower()
+            cur[name] = norm
+            if name not in self._baseline:
+                sev = 'MEDIUM'
+                detail = (f'New service registered: {name} -> '
+                          f'{path[:120]}')
+                if any(m in low for m in self._USER_WRITABLE):
+                    sev = 'CRITICAL'
+                    detail = (f'New service from user-writable path: '
+                              f'{name} -> {path[:120]}')
+                elif low.endswith(self._SCRIPT_EXTS):
+                    sev = 'HIGH'
+                    detail = (f'New script-interpreter service: '
+                              f'{name} -> {path[:120]}')
+                findings.append({'type': 'new_service', 'service': name,
+                                 'mitre': 'T1543.003', 'severity': sev,
+                                 'detail': detail})
+            elif self._baseline.get(name) != norm:
+                findings.append({'type': 'binary_repointed',
+                                 'service': name, 'mitre': 'T1543.003',
+                                 'severity': 'CRITICAL',
+                                 'detail': f'Service binary REPOINTED: '
+                                           f'{name}: '
+                                           f'{self._baseline.get(name)}'
+                                           f' -> {norm}'})
+        for name in list(self._baseline):
+            if name not in cur:
+                findings.append({'type': 'service_removed',
+                                 'service': name, 'mitre': 'T1543.003',
+                                 'severity': 'MEDIUM',
+                                 'detail': f'Service disappeared: '
+                                           f'{name}'})
+        if cur != self._baseline:
+            self._baseline = cur
+            self._save()
         return findings
