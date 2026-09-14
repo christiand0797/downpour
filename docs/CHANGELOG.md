@@ -1,5 +1,28 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.72 — Advanced Defense Suite: +4 capabilities (38 total)
+- **35. Security Services Watcher (T1562.001)** — baseline+diff over
+  WinDefend/wscsvc/EventLog/mpssvc/BFE start-type + state via WMI.
+  Start type changed (Auto→Disabled) = CRITICAL on Defender/Security
+  Center/EventLog, HIGH elsewhere; service stopped = CRITICAL/HIGH;
+  vanished = HIGH. TOFU baseline (Downpour never touches these).
+- **36. Remote Access Watcher (T1021.001)** — Terminal Server config
+  baseline+diff: fDenyTSConnections (RDP enabled after baseline HIGH,
+  disabled LOW info), UserAuthentication (NLA off HIGH), PortNumber
+  (non-3389 stealth listener HIGH).
+- **37. AppLocker Policy Watcher (T1562.001)** — SrpV2 per-collection
+  rule counts + legacy SRP enforcement baseline+diff. Rules cleared
+  (N→0) HIGH, rules removed HIGH, rules added LOW info (hardening or
+  install). SRP enforcement change HIGH.
+- **38. Local Group Watcher (T1078.003)** — Administrators /
+  Remote Desktop Users / Backup Operators membership via WMI
+  Win32_GroupUser baseline+diff. New member HIGH, removal MEDIUM —
+  catches access granted without any new-account event.
+- All four wired into `_init_defense_suite` (startup baselines +
+  30s loop `[SEC-SVC/]` `[RDP/]` `[APPLOCKER/]` `[GROUPS/]` alerts).
+- Suite: 38 capabilities, ~3,980 lines. Full suite **389 passed,
+  1 skipped** (143s). All four live-run clean (TOFU stable).
+
 ## v29.71 — Advanced Defense Suite: +4 capabilities (34 total)
 - **31. LSA Policy Watcher (T1003 prereq/T1562.001)** — baseline+diff
   over HKLM\...\Lsa: RunAsPPL (1→0 CRITICAL — LSASS theft trivial

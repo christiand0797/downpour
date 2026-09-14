@@ -39112,7 +39112,9 @@ Verification Status:
                 DefenderExclusionWatcher, StartupFolderWatcher,
                 NetworkConfigIntegrityWatcher, WindowsUpdateOriginWatcher,
                 ElevationPrereqChecker, LsaPolicyWatcher, SmbShareWatcher,
-                AsrRuleWatcher, ShellConfigWatcher)
+                AsrRuleWatcher, ShellConfigWatcher,
+                SecurityServicesWatcher, RemoteAccessWatcher,
+                AppLockerPolicyWatcher, LocalGroupWatcher)
         except ImportError:
             return  # module unavailable — skip silently
 
@@ -39143,6 +39145,10 @@ Verification Status:
             self._smb_watcher = SmbShareWatcher()
             self._asr_watcher = AsrRuleWatcher()
             self._shell_watcher = ShellConfigWatcher()
+            self._secsvc_watcher = SecurityServicesWatcher()
+            self._rdp_watcher = RemoteAccessWatcher()
+            self._applocker_watcher = AppLockerPolicyWatcher()
+            self._groups_watcher = LocalGroupWatcher()
         except Exception as e:
             error_logger.log('DefenseSuite', 'watchers init', e)
             self._ifeo_watcher = None
@@ -39165,6 +39171,10 @@ Verification Status:
             self._smb_watcher = None
             self._asr_watcher = None
             self._shell_watcher = None
+            self._secsvc_watcher = None
+            self._rdp_watcher = None
+            self._applocker_watcher = None
+            self._groups_watcher = None
 
         def _run_defense_suite():
             # Deploy honeytokens (5 canary files + 1 DNS canary)
@@ -39358,6 +39368,21 @@ Verification Status:
                         error_logger.log('DefenseSuite', f'{label} audit',
                                          e)
 
+            # v29.72: sec-services / RDP / applocker / groups baselines
+            for label, watcher in (
+                    ('security-services', self._secsvc_watcher),
+                    ('remote-access', self._rdp_watcher),
+                    ('applocker-policy', self._applocker_watcher),
+                    ('local-groups', self._groups_watcher)):
+                if watcher:
+                    try:
+                        fx = watcher.audit()
+                        logger.info('DefenseSuite: %s baseline built '
+                                    '(findings=%d)', label, len(fx))
+                    except Exception as e:
+                        error_logger.log('DefenseSuite', f'{label} audit',
+                                         e)
+
             # Monitoring loop: check canaries every 30s
             while True:
                 time.sleep(30)
@@ -39513,6 +39538,26 @@ Verification Status:
                                            f'{xx["detail"]}', sev))
                 except Exception as e:
                     error_logger.log('DefenseSuite', 'v29.71 loop', e)
+
+                # v29.72: sec-services / RDP / applocker / groups each tick
+                try:
+                    for watcher, tag in (
+                            (self._secsvc_watcher, 'SEC-SVC'),
+                            (self._rdp_watcher, 'RDP'),
+                            (self._applocker_watcher, 'APPLOCKER'),
+                            (self._groups_watcher, 'GROUPS')):
+                        if not watcher:
+                            continue
+                        for xf in watcher.audit():
+                            sev = (Colors.GAUGE_RED
+                                   if xf['severity'] == 'CRITICAL'
+                                   else Colors.GAUGE_YELLOW)
+                            self.after(0, lambda xx=xf, tt=tag:
+                                       self._queue_alert(
+                                           f'[{tt}/{xx["severity"]}] '
+                                           f'{xx["detail"]}', sev))
+                except Exception as e:
+                    error_logger.log('DefenseSuite', 'v29.72 loop', e)
 
         threading.Thread(target=_run_defense_suite, daemon=True,
                          name='DefenseSuite').start()

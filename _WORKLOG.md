@@ -1,5 +1,24 @@
 # Downpour v29 Titanium — Enhancement Worklog
 
+## Session 2026-09-12 — v29.72: Defense Suite +4 (38 total)
+
+**User directive:** "continue".
+
+### New capabilities (all native, no PowerShell, never raise)
+35. **SecurityServicesWatcher** — WinDefend/wscsvc/EventLog/mpssvc/BFE
+    start-type + state via WMI; tamper CRITICAL/HIGH. Live: clean.
+36. **RemoteAccessWatcher** — RDP enable/NLA/port baseline+diff.
+    Live: clean (RDP disabled, TOFU stable).
+37. **AppLockerPolicyWatcher** — SrpV2 rule counts + SRP enforcement;
+    cleared/removed HIGH, added LOW. Live: clean.
+38. **LocalGroupWatcher** — Administrators/RDP Users/Backup Operators
+    membership via Win32_GroupUser; new member HIGH. Live: clean
+    ( Administrators baseline = the 2 legit entries).
+
+### Verification
+- Full suite: **389 passed, 1 skipped** (143s).
+- Wired into `_init_defense_suite` (startup + 30s loop).
+
 ## Session 2026-09-12 — v29.71: Defense Suite +4 (34 total)
 
 **User directive:** "continue".

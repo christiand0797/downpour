@@ -46,6 +46,12 @@ Capabilities that fill genuine gaps vs commercial EDR/HIDS products
   32. SMB SHARE WATCHER       — New/changed/removed network shares
   33. ASR RULE WATCHER        — ASR rules removed/disabled (T1562.001)
   34. SHELL CONFIG WATCHER    — Browser/screensaver/AppInit hijacks
+  35. SECURITY SERVICES WATCH — WinDefend/EventLog stop+disable (T1562)
+  36. REMOTE ACCESS WATCHER   — RDP enable/NLA off/port change (T1021)
+  37. APPLOCKER POLICY WATCH  — App control rules cleared (T1562.001)
+  38. LOCAL GROUP WATCHER     — Admin/RDP/Backup group adds (T1078.003)
+  39. RESERVED (future)
+  40. RESERVED (future)
 
 Every function is best-effort and never raises. All native APIs —
 no PowerShell anywhere.
@@ -3584,6 +3590,455 @@ class ShellConfigWatcher:
                     'mitre': 'T1547', 'severity': 'HIGH',
                     'detail': f'Shell execution config changed: '
                               f'{key}: {old!r} -> {val!r}'})
+        if cur != self._baseline:
+            self._baseline = cur
+            self._save()
+        return findings
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 35. SECURITY SERVICES WATCHER (T1562.001 — defense service tampering)
+# ══════════════════════════════════════════════════════════════════════════
+
+class SecurityServicesWatcher:
+    """Baseline + diff over security-critical service configurations.
+
+    Watching (T1562.001 — 'impair defenses'):
+      WinDefend   — Defender itself (Auto→Disabled = CRITICAL)
+      wscsvc      — Security Center (hides posture from the user)
+      EventLog    — Windows Event Log (audit blackout)
+      mpssvc      — Windows Firewall
+      BFE         — Base Filtering Engine (firewall rules dead without it)
+    Start-type changes and unexpected 'Stopped' states alert. TOFU
+    baseline; Downpour never touches these services itself.
+    """
+
+    _SERVICES = ('WinDefend', 'wscsvc', 'EventLog', 'mpssvc', 'BFE')
+    _CRITICAL = ('WinDefend', 'wscsvc', 'EventLog')
+
+    def __init__(self, data_dir: str = 'downpour_data'):
+        self._baseline_file = (Path(data_dir) /
+                               'sec_services_baseline.json')
+        self._baseline: Dict[str, str] = self._load()
+
+    def _load(self) -> Dict[str, str]:
+        try:
+            if self._baseline_file.is_file():
+                return json.loads(self._baseline_file.read_text(
+                    encoding='utf-8')).get('services', {})
+        except Exception as exc:
+            _log.debug('sec-svc baseline load: %s', exc)
+        return {}
+
+    def _save(self) -> None:
+        try:
+            self._baseline_file.parent.mkdir(parents=True, exist_ok=True)
+            self._baseline_file.write_text(json.dumps(
+                {'services': self._baseline}, indent=2),
+                encoding='utf-8')
+        except Exception as exc:
+            _log.debug('sec-svc baseline save: %s', exc)
+
+    @staticmethod
+    def _read() -> Dict[str, str]:
+        import native_probes
+        rows = native_probes.wmi_wql_dicts(
+            r'root\cimv2',
+            'SELECT Name, StartMode, State FROM Win32_Service',
+            ['Name', 'StartMode', 'State'])
+        want = {n.lower() for n in SecurityServicesWatcher._SERVICES}
+        out: Dict[str, str] = {}
+        for row in rows:
+            name = (row.get('Name') or '').lower()
+            if name in want:
+                out[name] = f'{row.get("StartMode", "?")}|' \
+                            f'{row.get("State", "?")}'
+        return out
+
+    def audit(self) -> List[Dict]:
+        findings: List[Dict] = []
+        cur = self._read()
+        for name, sig in cur.items():
+            old = self._baseline.get(name)
+            if old is None:
+                continue  # TOFU
+            if old == sig:
+                continue
+            old_mode, old_state = old.split('|')
+            new_mode, new_state = sig.split('|')
+            crit = name in self._CRITICAL
+            if old_mode != new_mode:
+                sev = 'CRITICAL' if crit else 'HIGH'
+                findings.append({
+                    'type': 'sec_service_start_changed',
+                    'service': name, 'mitre': 'T1562.001',
+                    'severity': sev,
+                    'detail': f'Security service start type changed: '
+                              f'{name}: {old_mode} -> {new_mode}'})
+            if new_state.lower() == 'stopped' and \
+                    old_state.lower() != 'stopped':
+                sev = 'CRITICAL' if crit else 'HIGH'
+                findings.append({
+                    'type': 'sec_service_stopped', 'service': name,
+                    'mitre': 'T1562.001', 'severity': sev,
+                    'detail': f'Security service stopped: {name}'})
+        for name in list(self._baseline):
+            if name not in cur:
+                findings.append({
+                    'type': 'sec_service_missing', 'service': name,
+                    'mitre': 'T1562.001', 'severity': 'HIGH',
+                    'detail': f'Security service vanished: {name}'})
+        if cur != self._baseline:
+            self._baseline = cur
+            self._save()
+        return findings
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 36. REMOTE ACCESS WATCHER (T1021.001 prep / T1562.001)
+# ══════════════════════════════════════════════════════════════════════════
+
+class RemoteAccessWatcher:
+    """Baseline + diff over remote-access configuration.
+
+      fDenyTSConnections — RDP enabled (0) vs disabled (1): enabling
+        after baseline = HIGH (lateral movement prep)
+      UserAuthentication — Network-Level Auth: 0 = HIGH (credential
+        theft via pre-auth + legacy clients)
+      PortNumber         — non-standard RDP port (stealth listener)
+    All under HKLM\\SYSTEM\\CurrentControlSet\\Control\\Terminal Server.
+    """
+
+    _TS_KEY = r'SYSTEM\CurrentControlSet\Control\Terminal Server'
+    _RDP_TCP = _TS_KEY + r'\WinStations\RDP-Tcp'
+
+    def __init__(self, data_dir: str = 'downpour_data'):
+        self._baseline_file = (Path(data_dir) /
+                               'remote_access_baseline.json')
+        self._baseline: Dict[str, str] = self._load()
+
+    def _load(self) -> Dict[str, str]:
+        try:
+            if self._baseline_file.is_file():
+                return json.loads(self._baseline_file.read_text(
+                    encoding='utf-8')).get('entries', {})
+        except Exception as exc:
+            _log.debug('rdp baseline load: %s', exc)
+        return {}
+
+    def _save(self) -> None:
+        try:
+            self._baseline_file.parent.mkdir(parents=True, exist_ok=True)
+            self._baseline_file.write_text(json.dumps(
+                {'entries': self._baseline}, indent=2), encoding='utf-8')
+        except Exception as exc:
+            _log.debug('rdp baseline save: %s', exc)
+
+    @staticmethod
+    def _read() -> Dict[str, str]:
+        import winreg
+        cur: Dict[str, str] = {}
+
+        def q(sub, name):
+            try:
+                k = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                                   RemoteAccessWatcher._TS_KEY + sub,
+                                   0, winreg.KEY_READ)
+            except OSError:
+                return ''
+            try:
+                v, _t = winreg.QueryValueEx(k, name)
+                return str(v).strip()
+            except OSError:
+                return ''
+            finally:
+                try:
+                    winreg.CloseKey(k)
+                except Exception:
+                    pass
+
+        cur['rdp.fDenyTSConnections'] = q('', 'fDenyTSConnections')
+        cur['rdp.UserAuthentication'] = q('', 'UserAuthentication')
+        cur['rdp.PortNumber'] = q(r'\WinStations\RDP-Tcp',
+                                  'PortNumber')
+        return cur
+
+    def audit(self) -> List[Dict]:
+        findings: List[Dict] = []
+        cur = self._read()
+        for key, val in cur.items():
+            old = self._baseline.get(key)
+            if old is None:
+                continue  # TOFU
+            if old == val:
+                continue
+            if key == 'rdp.fDenyTSConnections':
+                # 1 = RDP denied (safe); 0 = RDP ENABLED
+                if old == '1' and val == '0':
+                    findings.append({
+                        'type': 'rdp_enabled', 'key': key,
+                        'mitre': 'T1021.001', 'severity': 'HIGH',
+                        'detail': 'Remote Desktop was ENABLED '
+                                  '(was denied)'})
+                elif old == '0' and val == '1':
+                    findings.append({
+                        'type': 'rdp_hardened', 'key': key,
+                        'mitre': 'T1021.001', 'severity': 'LOW',
+                        'detail': 'Remote Desktop disabled '
+                                  '(hardening)'})
+                else:
+                    findings.append({
+                        'type': 'rdp_flag_changed', 'key': key,
+                        'mitre': 'T1021.001', 'severity': 'HIGH',
+                        'detail': f'RDP flag changed: {key}: '
+                                  f'{old!r} -> {val!r}'})
+            elif key == 'rdp.UserAuthentication':
+                findings.append({
+                    'type': 'nla_changed', 'key': key,
+                    'mitre': 'T1021.001', 'severity': 'HIGH',
+                    'detail': f'RDP NLA setting changed: '
+                              f'{old!r} -> {val!r} '
+                              f'(0 = pre-auth credentials exposed)'})
+            elif key == 'rdp.PortNumber' and val not in ('3389', ''):
+                findings.append({
+                    'type': 'rdp_port_changed', 'key': key,
+                    'mitre': 'T1021.001', 'severity': 'HIGH',
+                    'detail': f'RDP listener port changed: '
+                              f'{old!r} -> {val!r}'})
+            else:
+                findings.append({
+                    'type': 'rdp_config_changed', 'key': key,
+                    'mitre': 'T1021.001', 'severity': 'HIGH',
+                    'detail': f'Remote access config changed: '
+                              f'{key}: {old!r} -> {val!r}'})
+        if cur != self._baseline:
+            self._baseline = cur
+            self._save()
+        return findings
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 37. APPLOCKER / SRP POLICY WATCHER (T1562.001)
+# ══════════════════════════════════════════════════════════════════════════
+
+class AppLockerPolicyWatcher:
+    """Baseline + diff over AppLocker / SRP policy (T1562.001).
+
+    Clearing application-control rules is the standard 'make room'
+    move before dropping payloads. Watches
+    HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\SrpV2 (AppLocker
+    per-collection rule counts) and the legacy SRP policy. Policy that
+    existed and then emptied = HIGH; rules added = LOW info.
+    """
+
+    _SRPV2 = r'SOFTWARE\Policies\Microsoft\Windows\SrpV2'
+    _COLLECTIONS = ('Exe', 'Dll', 'Msi', 'Script', 'Packaged app')
+    _SRP = r'POLICIES\Microsoft\Windows\Safer\CodeIdentifiers'
+
+    def __init__(self, data_dir: str = 'downpour_data'):
+        self._baseline_file = (Path(data_dir) /
+                               'applocker_baseline.json')
+        self._baseline: Dict[str, str] = self._load()
+
+    def _load(self) -> Dict[str, str]:
+        try:
+            if self._baseline_file.is_file():
+                return json.loads(self._baseline_file.read_text(
+                    encoding='utf-8')).get('entries', {})
+        except Exception as exc:
+            _log.debug('applocker baseline load: %s', exc)
+        return {}
+
+    def _save(self) -> None:
+        try:
+            self._baseline_file.parent.mkdir(parents=True, exist_ok=True)
+            self._baseline_file.write_text(json.dumps(
+                {'entries': self._baseline}, indent=2),
+                encoding='utf-8')
+        except Exception as exc:
+            _log.debug('applocker baseline save: %s', exc)
+
+    @staticmethod
+    def _read() -> Dict[str, str]:
+        import winreg
+        cur: Dict[str, str] = {}
+        for coll in AppLockerPolicyWatcher._COLLECTIONS:
+            try:
+                k = winreg.OpenKey(
+                    winreg.HKEY_LOCAL_MACHINE,
+                    AppLockerPolicyWatcher._SRPV2 + '\\' + coll,
+                    0, winreg.KEY_READ)
+            except OSError:
+                continue
+            try:
+                i = 0
+                n = 0
+                while True:
+                    try:
+                        winreg.EnumKey(k, i)
+                        n += 1
+                        i += 1
+                    except OSError:
+                        break
+                cur[f'applocker.{coll}'] = str(n)
+            finally:
+                try:
+                    winreg.CloseKey(k)
+                except Exception:
+                    pass
+        try:
+            k = winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE, AppLockerPolicyWatcher._SRP,
+                0, winreg.KEY_READ)
+        except OSError:
+            return cur
+        try:
+            lv, _t = winreg.QueryValueEx(k, 'TransparentEnabled')
+            cur['srp.enforced'] = str(lv)
+        except OSError:
+            pass
+        finally:
+            try:
+                winreg.CloseKey(k)
+            except Exception:
+                pass
+        return cur
+
+    def audit(self) -> List[Dict]:
+        findings: List[Dict] = []
+        cur = self._read()
+        for key, val in cur.items():
+            old = self._baseline.get(key)
+            if old is None:
+                continue  # TOFU
+            if key == 'srp.enforced':
+                if old != val:
+                    findings.append({
+                        'type': 'srp_changed', 'key': key,
+                        'mitre': 'T1562.001', 'severity': 'HIGH',
+                        'detail': f'SRP enforcement changed: '
+                                  f'{old!r} -> {val!r}'})
+                continue
+            try:
+                old_n = int(old)
+                cur_n = int(val)
+            except (TypeError, ValueError):
+                if old != val:
+                    findings.append({
+                        'type': 'applocker_changed', 'key': key,
+                        'mitre': 'T1562.001', 'severity': 'HIGH',
+                        'detail': f'App control policy changed: '
+                                  f'{key}: {old!r} -> {val!r}'})
+                continue
+            if cur_n == 0 and old_n > 0:
+                findings.append({
+                    'type': 'applocker_rules_cleared', 'key': key,
+                    'mitre': 'T1562.001', 'severity': 'HIGH',
+                    'detail': f'{key} rules cleared: {old_n} -> 0'})
+            elif cur_n < old_n:
+                findings.append({
+                    'type': 'applocker_rules_removed', 'key': key,
+                    'mitre': 'T1562.001', 'severity': 'HIGH',
+                    'detail': f'{key} rules removed: {old_n} -> '
+                              f'{cur_n}'})
+            elif cur_n > old_n:
+                findings.append({
+                    'type': 'applocker_rules_added', 'key': key,
+                    'mitre': 'T1562.001', 'severity': 'LOW',
+                    'detail': f'{key} rules added: {old_n} -> '
+                              f'{cur_n} (hardening or install)'})
+        if cur != self._baseline:
+            self._baseline = cur
+            self._save()
+        return findings
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 38. LOCAL GROUP MEMBERSHIP WATCHER (T1078.003)
+# ══════════════════════════════════════════════════════════════════════════
+
+class LocalGroupWatcher:
+    """Baseline + diff over local group membership (T1078.003).
+
+    Watches Administrators, Remote Desktop Users, and Backup
+    Operators via WMI Win32_GroupUser. A new member in any of these
+    is HIGH — access granted in one step that account-creation
+    watchers do not see.
+    """
+
+    _GROUPS = ('Administrators', 'Remote Desktop Users',
+               'Backup Operators')
+
+    def __init__(self, data_dir: str = 'downpour_data'):
+        self._baseline_file = (Path(data_dir) /
+                               'local_groups_baseline.json')
+        self._baseline: Dict[str, str] = self._load()
+
+    def _load(self) -> Dict[str, str]:
+        try:
+            if self._baseline_file.is_file():
+                return json.loads(self._baseline_file.read_text(
+                    encoding='utf-8')).get('groups', {})
+        except Exception as exc:
+            _log.debug('groups baseline load: %s', exc)
+        return {}
+
+    def _save(self) -> None:
+        try:
+            self._baseline_file.parent.mkdir(parents=True, exist_ok=True)
+            self._baseline_file.write_text(json.dumps(
+                {'groups': self._baseline}, indent=2),
+                encoding='utf-8')
+        except Exception as exc:
+            _log.debug('groups baseline save: %s', exc)
+
+    @staticmethod
+    def _read() -> Dict[str, str]:
+        import native_probes
+        rows = native_probes.wmi_wql_dicts(
+            r'root\cimv2',
+            'SELECT GroupComponent, PartComponent FROM Win32_GroupUser',
+            ['GroupComponent', 'PartComponent'])
+        groups = {g: [] for g in LocalGroupWatcher._GROUPS}
+        for row in rows:
+            gc = str(row.get('GroupComponent') or '')
+            pc = str(row.get('PartComponent') or '')
+            for g in LocalGroupWatcher._GROUPS:
+                if f'Name="{g}"' in gc:
+                    if '.Domain="' in pc:
+                        dom = pc.split('.Domain="', 1)[1].split(
+                            '"', 1)[0]
+                        user = pc.split('Name="', 1)[1].split(
+                            '"', 1)[0]
+                        groups[g].append(f'{dom}\\{user}')
+                    else:
+                        parts = pc.split('Name="', 1)
+                        if len(parts) > 1:
+                            groups[g].append(parts[1].split('"', 1)[0])
+        return {g: ','.join(sorted(v)) for g, v in groups.items()}
+
+    def audit(self) -> List[Dict]:
+        findings: List[Dict] = []
+        cur = self._read()
+        for group, members in cur.items():
+            old = self._baseline.get(group)
+            if old is None:
+                continue  # TOFU
+            old_set = {m for m in old.split(',') if m}
+            cur_set = {m for m in members.split(',') if m}
+            for member in sorted(cur_set - old_set):
+                findings.append({
+                    'type': 'group_member_added', 'group': group,
+                    'member': member, 'mitre': 'T1078.003',
+                    'severity': 'HIGH',
+                    'detail': f'New member in {group}: {member}'})
+            for member in sorted(old_set - cur_set):
+                findings.append({
+                    'type': 'group_member_removed', 'group': group,
+                    'member': member, 'mitre': 'T1078.003',
+                    'severity': 'MEDIUM',
+                    'detail': f'Member removed from {group}: '
+                              f'{member}'})
         if cur != self._baseline:
             self._baseline = cur
             self._save()
