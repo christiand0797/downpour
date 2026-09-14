@@ -1,5 +1,28 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.71 — Advanced Defense Suite: +4 capabilities (34 total)
+- **31. LSA Policy Watcher (T1003 prereq/T1562.001)** — baseline+diff
+  over HKLM\...\Lsa: RunAsPPL (1→0 CRITICAL — LSASS theft trivial
+  after reboot), LsaCfgFlags/NoLMHash/RestrictAnonymous/SAM/
+  LimitBlankPasswordUse (1→0 HIGH), hardening 0→1 = LOW info.
+- **32. SMB Share Watcher (T1021.002 class)** — baseline+diff over
+  LanmanServer\Shares registry (each value = share with Path=...).
+  New share HIGH (drive root CRITICAL), path changed HIGH, removed
+  MEDIUM (hardening vs cover-tracks).
+- **33. ASR Rule Watcher (T1562.001)** — paired
+  AttackSurfaceReductionRules_Ids/Actions via WMI with GPO-registry
+  fallback. Rule removed from config HIGH, block→disabled HIGH,
+  audit→block LOW info, all-cleared HIGH. ASR tampering is the classic
+  "quiet down Defender" move before payload execution.
+- **34. Shell Config Watcher (T1547)** — baseline+diff over default
+  browser ProgId (http/https UserChoice), screensaver SCRNSAVE.EXE,
+  and AppInit_DLLs/LoadAppInit_DLLs (native + WOW6432Node). All
+  changes HIGH (execution hooks, not preferences).
+- All four wired into `_init_defense_suite` (startup baselines +
+  30s loop `[LSA/]` `[SMB/]` `[ASR/]` `[SHELL/]` alerts).
+- Suite: 34 capabilities, ~3,570 lines. Full suite **389 passed,
+  1 skipped** (96s). All four live-run clean (TOFU stable).
+
 ## v29.70 — Advanced Defense Suite: +3 capabilities (30 total)
 - **28. Network Config Integrity Watcher (T1557)** — baseline+diff over
   the silent MITM prerequisites: user proxy (ProxyEnable/ProxyServer/

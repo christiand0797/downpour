@@ -1,5 +1,35 @@
 # Downpour v29 Titanium — Enhancement Worklog
 
+## Session 2026-09-12 — v29.71: Defense Suite +4 (34 total)
+
+**User directive:** "continue".
+
+### New capabilities (all native, no PowerShell, never raise)
+31. **LsaPolicyWatcher** — T1003 prereq. RunAsPPL 1→0 CRITICAL;
+    CredGuard/LMHash/null-session/blank-password weaken = HIGH.
+    Live: clean, TOFU stable.
+32. **SmbShareWatcher** — LanmanServer\Shares baseline+diff; new share
+    HIGH (drive root CRITICAL). Live: clean.
+33. **AsrRuleWatcher** — T1562.001. Paired ASR Ids+Actions via WMI,
+    GPO-registry fallback; removed/disabled HIGH. Live: clean (no ASR
+    configured on this machine — TOFU empty set stable).
+34. **ShellConfigWatcher** — default browser ProgId (http/https),
+    screensaver SCRNSAVE.EXE, AppInit_DLLs/LoadAppInit_DLLs (native +
+    WOW6432Node). Live: clean.
+
+### Dev incident (self-inflicted, caught + repaired)
+- A 30s editor timeout during the ASR insertion spliced the audit tail
+  into the middle of the file (orphaned loop body inside a bannerless
+  duplicate ShellConfig class + truncated LSA audit finding).
+- py_compile caught it immediately; repaired with a two-step
+  marker-based script (remove duplicate class span, restore the
+  state-change loop), verified by class-scan (34 unique classes) +
+  compile + live runs + full suite.
+
+### Verification
+- Full suite: **389 passed, 1 skipped** (96s).
+- Wired into `_init_defense_suite` (startup + 30s loop).
+
 ## Session 2026-09-12 — v29.70: Defense Suite +3 (30 total)
 
 **User directive:** "continue" (standing: maximize capabilities, always
