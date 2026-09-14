@@ -32492,7 +32492,16 @@ Verification Status:
                 pass
 
         except Exception as e:
-            error_logger.log('PerfFetch', 'Gauge update error', e)
+            # v29.72: include traceback tail so gauge-path failures are
+            # diagnosable (was: bare message only — a RecursionError
+            # flood was invisible without the stack).
+            try:
+                import traceback as _tb
+                _tail = _tb.format_exc()[-1200:]
+            except Exception:
+                _tail = ''
+            error_logger.log('PerfFetch', 'Gauge update error: '
+                             + _tail, e)
 
     def _perf_kill_process(self):
         """v29.28: Kill the process selected in the Performance tab top-N table.
