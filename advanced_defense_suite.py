@@ -42,6 +42,10 @@ Capabilities that fill genuine gaps vs commercial EDR/HIDS products
   28. NETWORK CONFIG WATCHER  — Proxy/PAC/DNS-resolver changes (T1557)
   29. WU ORIGIN WATCHER       — WSUS/update-source hijack (T1197)
   30. ELEVATION PREREQ CHECK  — AlwaysInstallElevated, AutoLogon creds
+  31. LSA POLICY WATCHER      — RunAsPPL/CredGuard/LMHash weakening
+  32. SMB SHARE WATCHER       — New/changed/removed network shares
+  33. ASR RULE WATCHER        — ASR rules removed/disabled (T1562.001)
+  34. SHELL CONFIG WATCHER    — Browser/screensaver/AppInit hijacks
 
 Every function is best-effort and never raises. All native APIs —
 no PowerShell anywhere.
@@ -3133,3 +3137,454 @@ class ElevationPrereqChecker:
                 winreg.CloseKey(k)
             except Exception:
                 pass
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 31. LSA POLICY WATCHER (T1003 prerequisites / T1562.001)
+# ══════════════════════════════════════════════════════════════════════════
+
+class LsaPolicyWatcher:
+    """Baseline + diff over LSA protection policy (credential-theft
+    prerequisites, T1003/T1562.001).
+
+    Watches HKLM\\SYSTEM\\CurrentControlSet\\Control\\Lsa:
+      RunAsPPL        — LSASS PPL (1→0 = CRITICAL: mimikatz-class theft
+                        becomes trivial after the next reboot)
+      LsaCfgFlags     — Credential Guard (1→0 = HIGH)
+      NoLMHash        — LM hash storage (1→0 = HIGH: weak hashes return)
+      RestrictAnonymous / RestrictAnonymousSAM — null-session enum
+      LimitBlankPasswordUse — blank-password network logons
+    All policy weakening 1→0 = HIGH unless noted CRITICAL; strengthening
+    0→1 = LOW informational (hardening, possibly Downpour itself).
+    """
+
+    _LSA_KEY = r'SYSTEM\CurrentControlSet\Control\Lsa'
+    _FIELDS = ('RunAsPPL', 'LsaCfgFlags', 'NoLMHash',
+               'RestrictAnonymous', 'RestrictAnonymousSAM',
+               'LimitBlankPasswordUse')
+    _CRITICAL_WEAKEN = ('RunAsPPL',)
+
+    def __init__(self, data_dir: str = 'downpour_data'):
+        self._baseline_file = (Path(data_dir) / 'lsa_policy_baseline.json')
+        self._baseline: Dict[str, int] = self._load()
+
+    def _load(self) -> Dict[str, int]:
+        try:
+            if self._baseline_file.is_file():
+                return json.loads(self._baseline_file.read_text(
+                    encoding='utf-8')).get('fields', {})
+        except Exception as exc:
+            _log.debug('lsa baseline load: %s', exc)
+        return {}
+
+    def _save(self) -> None:
+        try:
+            self._baseline_file.parent.mkdir(parents=True, exist_ok=True)
+            self._baseline_file.write_text(json.dumps(
+                {'fields': self._baseline}, indent=2), encoding='utf-8')
+        except Exception as exc:
+            _log.debug('lsa baseline save: %s', exc)
+
+    @staticmethod
+    def _read() -> Dict[str, int]:
+        import winreg
+        out: Dict[str, int] = {}
+        try:
+            k = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                               LsaPolicyWatcher._LSA_KEY, 0,
+                               winreg.KEY_READ)
+        except OSError:
+            return out
+        try:
+            for name in LsaPolicyWatcher._FIELDS:
+                try:
+                    v, _t = winreg.QueryValueEx(k, name)
+                    try:
+                        out[name] = int(v)
+                    except (TypeError, ValueError):
+                        pass
+                except OSError:
+                    pass
+        finally:
+            try:
+                winreg.CloseKey(k)
+            except Exception:
+                pass
+        return out
+
+    def audit(self) -> List[Dict]:
+        findings: List[Dict] = []
+        cur = self._read()
+        for name, val in cur.items():
+            old = self._baseline.get(name)
+            if old is None:
+                continue  # TOFU: first-run state is the baseline
+            if old == 1 and val != 1:
+                sev = ('CRITICAL' if name in self._CRITICAL_WEAKEN
+                       else 'HIGH')
+                findings.append({
+                    'type': 'lsa_policy_weakened', 'field': name,
+                    'mitre': 'T1562.001', 'severity': sev,
+                    'detail': f'LSA protection weakened: {name} '
+                              f'1 -> {val}'})
+            elif old != 1 and val == 1:
+                findings.append({
+                    'type': 'lsa_policy_hardened', 'field': name,
+                    'mitre': 'T1562.001', 'severity': 'LOW',
+                    'detail': f'LSA protection hardened: {name} '
+                              f'{old} -> 1'})
+            elif old != val:
+                findings.append({
+                    'type': 'lsa_policy_changed', 'field': name,
+                    'mitre': 'T1562.001', 'severity': 'MEDIUM',
+                    'detail': f'LSA policy value changed: {name} '
+                              f'{old} -> {val}'})
+        if cur != self._baseline:
+            self._baseline = cur
+            self._save()
+        return findings
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 32. SMB SHARE WATCHER (lateral movement / exposure, T1021.002 class)
+# ══════════════════════════════════════════════════════════════════════════
+
+class SmbShareWatcher:
+    """Baseline + diff over Server service SMB shares.
+
+    A planted share silently exposes a directory to the network
+    (drop zone for lateral tooling or exfil staging). Watches
+    HKLM\\SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Shares
+    (each value = one share, REG_MULTI_SZ with Path=...).
+    New share = HIGH (CRITICAL if the path is a drive root);
+    changed/removed = HIGH/MEDIUM.
+    """
+
+    _SHARES_KEY = (r'SYSTEM\CurrentControlSet\Services'
+                   r'\LanmanServer\Shares')
+
+    def __init__(self, data_dir: str = 'downpour_data'):
+        self._baseline_file = (Path(data_dir) / 'smb_shares_baseline.json')
+        self._baseline: Dict[str, str] = self._load()
+
+    def _load(self) -> Dict[str, str]:
+        try:
+            if self._baseline_file.is_file():
+                return json.loads(self._baseline_file.read_text(
+                    encoding='utf-8')).get('shares', {})
+        except Exception as exc:
+            _log.debug('smb baseline load: %s', exc)
+        return {}
+
+    def _save(self) -> None:
+        try:
+            self._baseline_file.parent.mkdir(parents=True, exist_ok=True)
+            self._baseline_file.write_text(json.dumps(
+                {'shares': self._baseline}, indent=2), encoding='utf-8')
+        except Exception as exc:
+            _log.debug('smb baseline save: %s', exc)
+
+    @staticmethod
+    def _read() -> Dict[str, str]:
+        import winreg
+        out: Dict[str, str] = {}
+        try:
+            k = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                               SmbShareWatcher._SHARES_KEY, 0,
+                               winreg.KEY_READ)
+        except OSError:
+            return out
+        try:
+            i = 0
+            while True:
+                try:
+                    name, val, _t = winreg.EnumValue(k, i)
+                    i += 1
+                except OSError:
+                    break
+                path = ''
+                if isinstance(val, (list, tuple)):
+                    for item in val:
+                        s = str(item)
+                        if s.lower().startswith('path='):
+                            path = s[5:]
+                            break
+                out[str(name).upper()] = path
+        finally:
+            try:
+                winreg.CloseKey(k)
+            except Exception:
+                pass
+        return out
+
+    def audit(self) -> List[Dict]:
+        findings: List[Dict] = []
+        cur = self._read()
+        for name, path in cur.items():
+            old = self._baseline.get(name)
+            if old is None:
+                sev = 'HIGH'
+                detail = f'New SMB share exposed: {name} -> {path}'
+                if len(path) <= 3 and path.lower().endswith(':\\'):
+                    sev = 'CRITICAL'
+                    detail = (f'New SMB share exposes a DRIVE ROOT: '
+                              f'{name} -> {path}')
+                findings.append({'type': 'new_share', 'share': name,
+                                 'path': path, 'mitre': 'T1021.002',
+                                 'severity': sev, 'detail': detail})
+            elif old != path:
+                findings.append({'type': 'share_path_changed',
+                                 'share': name, 'mitre': 'T1021.002',
+                                 'severity': 'HIGH',
+                                 'detail': f'SMB share path changed: '
+                                           f'{name}: {old} -> {path}'})
+        for name in list(self._baseline):
+            if name not in cur:
+                findings.append({'type': 'share_removed', 'share': name,
+                                 'mitre': 'T1021.002', 'severity': 'MEDIUM',
+                                 'detail': f'SMB share removed: {name}'})
+        if cur != self._baseline:
+            self._baseline = cur
+            self._save()
+        return findings
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 33. ASR RULE WATCHER (T1562.001 — attack surface reduction tampering)
+# ══════════════════════════════════════════════════════════════════════════
+
+class AsrRuleWatcher:
+    """Baseline + diff over Defender Attack Surface Reduction rules.
+
+    Paired AttackSurfaceReductionRules_Ids/Actions via WMI (fallback:
+    GPO registry where each rule value = state DWORD: 1=block,
+    2=audit, 0/6=disabled-warn variants). Rule removed from the
+    configured set or a block→disabled flip = HIGH (T1562.001);
+    audit→block = LOW informational hardening.
+    """
+
+    _NS = r'root\Microsoft\Windows\Defender'
+    _GPO_KEY = (r'SOFTWARE\Policies\Microsoft\Windows Defender'
+                r'\Windows Defender Exploit Guard\ASR\Rules')
+
+    def __init__(self, data_dir: str = 'downpour_data'):
+        self._baseline_file = (Path(data_dir) / 'asr_rules_baseline.json')
+        self._baseline: Dict[str, str] = self._load()
+
+    def _load(self) -> Dict[str, str]:
+        try:
+            if self._baseline_file.is_file():
+                return json.loads(self._baseline_file.read_text(
+                    encoding='utf-8')).get('rules', {})
+        except Exception as exc:
+            _log.debug('asr baseline load: %s', exc)
+        return {}
+
+    def _save(self) -> None:
+        try:
+            self._baseline_file.parent.mkdir(parents=True, exist_ok=True)
+            self._baseline_file.write_text(json.dumps(
+                {'rules': self._baseline}, indent=2), encoding='utf-8')
+        except Exception as exc:
+            _log.debug('asr baseline save: %s', exc)
+
+    @staticmethod
+    def _read() -> Dict[str, str]:
+        import native_probes
+        out: Dict[str, str] = {}
+        rows = native_probes.wmi_wql_dicts(
+            AsrRuleWatcher._NS,
+            'SELECT AttackSurfaceReductionRules_Ids, '
+            'AttackSurfaceReductionRules_Actions '
+            'FROM MSFT_MpPreference',
+            ['AttackSurfaceReductionRules_Ids',
+             'AttackSurfaceReductionRules_Actions'])
+        if rows:
+            ids = rows[0].get('AttackSurfaceReductionRules_Ids')
+            acts = rows[0].get('AttackSurfaceReductionRules_Actions')
+            if ids:
+                idl = ([str(x) for x in ids]
+                       if isinstance(ids, (list, tuple)) else
+                       [s.strip() for s in str(ids).split(',')
+                        if s.strip()])
+                al = ([str(x) for x in acts]
+                      if isinstance(acts, (list, tuple)) else
+                      [s.strip() for s in str(acts or '').split(',')
+                       if s.strip()])
+                for idx, guid in enumerate(idl):
+                    state = (al[idx] if idx < len(al) else '1')
+                    out[guid.upper()] = str(state)
+                return out
+        # GPO fallback: rule-name -> state DWORD
+        try:
+            import winreg
+            k = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                               AsrRuleWatcher._GPO_KEY, 0,
+                               winreg.KEY_READ)
+        except OSError:
+            return out
+        try:
+            i = 0
+            while True:
+                try:
+                    name, val, _t = winreg.EnumValue(k, i)
+                    i += 1
+                    if name:
+                        out[name.upper()] = str(val)
+                except OSError:
+                    break
+        finally:
+            try:
+                winreg.CloseKey(k)
+            except Exception:
+                pass
+        return out
+
+    def audit(self) -> List[Dict]:
+        findings: List[Dict] = []
+        cur = self._read()
+        for guid, state in cur.items():
+            old = self._baseline.get(guid)
+            if old is None:
+                continue  # TOFU
+            if old != state:
+                was_block = old in ('1',)
+                now_off = state in ('0', '6')
+                if was_block and now_off:
+                    findings.append({
+                        'type': 'asr_rule_disabled',
+                        'guid': guid,
+                        'mitre': 'T1562.001',
+                        'severity': 'HIGH',
+                        'detail': f'ASR rule disabled: '
+                                  f'{guid} ({old} -> {state})'})
+                elif not was_block and state == '1':
+                    findings.append({
+                        'type': 'asr_rule_hardened',
+                        'guid': guid,
+                        'mitre': 'T1562.001',
+                        'severity': 'LOW',
+                        'detail': f'ASR rule set to block: '
+                                  f'{guid} ({old} -> 1)'})
+                else:
+                    findings.append({
+                        'type': 'asr_rule_state_changed',
+                        'guid': guid,
+                        'mitre': 'T1562.001',
+                        'severity': 'MEDIUM',
+                        'detail': f'ASR rule state changed: '
+                                  f'{guid} ({old} -> {state})'})
+        for guid in list(self._baseline):
+            if guid not in cur:
+                findings.append({
+                    'type': 'asr_rule_removed', 'guid': guid,
+                    'mitre': 'T1562.001', 'severity': 'HIGH',
+                    'detail': f'ASR rule removed from configuration: '
+                              f'{guid}'})
+        if not cur and self._baseline:
+            findings.append({
+                'type': 'asr_all_cleared', 'mitre': 'T1562.001',
+                'severity': 'HIGH',
+                'detail': f'All {len(self._baseline)} ASR rules were '
+                          f'cleared from configuration'})
+        if cur != self._baseline:
+            self._baseline = cur
+            self._save()
+        return findings
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 34. SHELL CONFIG WATCHER (browser hijack / screensaver / AppInit)
+# ══════════════════════════════════════════════════════════════════════════
+
+class ShellConfigWatcher:
+    """Baseline + diff over shell/user-execution persistence spots.
+
+      * Default browser: HKCU UrlAssociations\\{http,https}\\UserChoice
+        ProgId — hijack points every link at an attacker binary
+      * Screensaver: HKCU Control Panel\\Desktop SCRNSAVE.EXE —
+        executes on idle (classic T1547 spot)
+      * AppInit_DLLs (+LoadAppInit_DLLs) HKLM both views — injected
+        into every GUI process that loads user32.dll
+    All changes = HIGH (these are execution hooks, not preferences).
+    """
+
+    def __init__(self, data_dir: str = 'downpour_data'):
+        self._baseline_file = (Path(data_dir) /
+                               'shell_config_baseline.json')
+        self._baseline: Dict[str, str] = self._load()
+
+    def _load(self) -> Dict[str, str]:
+        try:
+            if self._baseline_file.is_file():
+                return json.loads(self._baseline_file.read_text(
+                    encoding='utf-8')).get('entries', {})
+        except Exception as exc:
+            _log.debug('shell baseline load: %s', exc)
+        return {}
+
+    def _save(self) -> None:
+        try:
+            self._baseline_file.parent.mkdir(parents=True, exist_ok=True)
+            self._baseline_file.write_text(json.dumps(
+                {'entries': self._baseline}, indent=2), encoding='utf-8')
+        except Exception as exc:
+            _log.debug('shell baseline save: %s', exc)
+
+    @staticmethod
+    def _read() -> Dict[str, str]:
+        import winreg
+        cur: Dict[str, str] = {}
+
+        def q(hive, sub, name):
+            try:
+                k = winreg.OpenKey(hive, sub, 0, winreg.KEY_READ)
+            except OSError:
+                return ''
+            try:
+                v, _t = winreg.QueryValueEx(k, name)
+                return str(v).strip()
+            except OSError:
+                return ''
+            finally:
+                try:
+                    winreg.CloseKey(k)
+                except Exception:
+                    pass
+
+        for proto in ('http', 'https'):
+            cur[f'browser.{proto}'] = q(
+                winreg.HKEY_CURRENT_USER,
+                r'Software\Microsoft\Windows\Shell\Associations'
+                rf'\UrlAssociations\{proto}\UserChoice', 'ProgId')
+        cur['screensaver'] = q(winreg.HKEY_CURRENT_USER,
+                               r'Control Panel\Desktop',
+                               'SCRNSAVE.EXE')
+        for tag, view in (
+                ('native', r'SOFTWARE\Microsoft\Windows NT'
+                           r'\CurrentVersion\Windows'),
+                ('wow64', r'SOFTWARE\WOW6432Node\Microsoft\Windows NT'
+                          r'\CurrentVersion\Windows')):
+            cur[f'appinit.{tag}'] = q(
+                winreg.HKEY_LOCAL_MACHINE, view, 'AppInit_DLLs')
+            cur[f'loadappinit.{tag}'] = q(
+                winreg.HKEY_LOCAL_MACHINE, view, 'LoadAppInit_DLLs')
+        return cur
+
+    def audit(self) -> List[Dict]:
+        findings: List[Dict] = []
+        cur = self._read()
+        for key, val in cur.items():
+            old = self._baseline.get(key)
+            if old is None:
+                continue  # TOFU
+            if old != val:
+                findings.append({
+                    'type': 'shell_config_changed', 'key': key,
+                    'mitre': 'T1547', 'severity': 'HIGH',
+                    'detail': f'Shell execution config changed: '
+                              f'{key}: {old!r} -> {val!r}'})
+        if cur != self._baseline:
+            self._baseline = cur
+            self._save()
+        return findings

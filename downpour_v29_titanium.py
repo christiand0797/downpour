@@ -39111,7 +39111,8 @@ Verification Status:
                 ServiceBinaryWatcher, WmiSubscriptionWatcher,
                 DefenderExclusionWatcher, StartupFolderWatcher,
                 NetworkConfigIntegrityWatcher, WindowsUpdateOriginWatcher,
-                ElevationPrereqChecker)
+                ElevationPrereqChecker, LsaPolicyWatcher, SmbShareWatcher,
+                AsrRuleWatcher, ShellConfigWatcher)
         except ImportError:
             return  # module unavailable — skip silently
 
@@ -39138,6 +39139,10 @@ Verification Status:
             self._netcfg_watcher = NetworkConfigIntegrityWatcher()
             self._wu_origin_watcher = WindowsUpdateOriginWatcher()
             self._elev_checker = ElevationPrereqChecker()
+            self._lsa_watcher = LsaPolicyWatcher()
+            self._smb_watcher = SmbShareWatcher()
+            self._asr_watcher = AsrRuleWatcher()
+            self._shell_watcher = ShellConfigWatcher()
         except Exception as e:
             error_logger.log('DefenseSuite', 'watchers init', e)
             self._ifeo_watcher = None
@@ -39156,6 +39161,10 @@ Verification Status:
             self._netcfg_watcher = None
             self._wu_origin_watcher = None
             self._elev_checker = None
+            self._lsa_watcher = None
+            self._smb_watcher = None
+            self._asr_watcher = None
+            self._shell_watcher = None
 
         def _run_defense_suite():
             # Deploy honeytokens (5 canary files + 1 DNS canary)
@@ -39334,6 +39343,21 @@ Verification Status:
                 except Exception as e:
                     error_logger.log('DefenseSuite', 'elevation audit', e)
 
+            # v29.71: LSA / SMB / ASR / shell baselines
+            for label, watcher in (
+                    ('lsa-policy', self._lsa_watcher),
+                    ('smb-shares', self._smb_watcher),
+                    ('asr-rules', self._asr_watcher),
+                    ('shell-config', self._shell_watcher)):
+                if watcher:
+                    try:
+                        fx = watcher.audit()
+                        logger.info('DefenseSuite: %s baseline built '
+                                    '(findings=%d)', label, len(fx))
+                    except Exception as e:
+                        error_logger.log('DefenseSuite', f'{label} audit',
+                                         e)
+
             # Monitoring loop: check canaries every 30s
             while True:
                 time.sleep(30)
@@ -39469,6 +39493,26 @@ Verification Status:
                                 f'{ee["detail"]}', Colors.GAUGE_YELLOW))
                 except Exception as e:
                     error_logger.log('DefenseSuite', 'v29.70 loop', e)
+
+                # v29.71: LSA / SMB / ASR / shell diff each tick
+                try:
+                    for label, watcher, tag in (
+                            ('LSA', self._lsa_watcher, 'LSA'),
+                            ('SMB', self._smb_watcher, 'SMB'),
+                            ('ASR', self._asr_watcher, 'ASR'),
+                            ('SHELL', self._shell_watcher, 'SHELL')):
+                        if not watcher:
+                            continue
+                        for xf in watcher.audit():
+                            sev = (Colors.GAUGE_RED
+                                   if xf['severity'] == 'CRITICAL'
+                                   else Colors.GAUGE_YELLOW)
+                            self.after(0, lambda xx=xf, tt=tag:
+                                       self._queue_alert(
+                                           f'[{tt}/{xx["severity"]}] '
+                                           f'{xx["detail"]}', sev))
+                except Exception as e:
+                    error_logger.log('DefenseSuite', 'v29.71 loop', e)
 
         threading.Thread(target=_run_defense_suite, daemon=True,
                          name='DefenseSuite').start()
