@@ -101,6 +101,34 @@ When an agent hits usage limits and needs to hand off:
 4. Require 2+ source corroboration before auto-action
 5. Add to `intel_cache.py` for persistence
 
+### Adding Sigma Rules
+1. Drop `.yml` or `.json` files into `sigma_rules/`
+2. Engine loads them via `sigma_engine.load_user_rules()` on next start
+3. Supported logsources: `process_creation` (Image, CommandLine, ParentImage, User) and `ps_script` (ScriptBlockText)
+4. Supported modifiers: `contains`, `startswith`, `endswith`, `re`, `and/or/not`, `1 of sel*`, `all of them`
+5. Unsupported constructs (aggregation, correlation) are skipped safely
+
+### Adding YARA Rules
+1. Add `.yar` files to `yara_rules/`
+2. Include `meta` block with author, version, date, category, severity, mitre
+3. YARA-X (Rust rewrite) is preferred engine; falls back to yara-python
+
+### Using ETW Monitor
+```python
+from etw_monitor import start_monitoring, stop_monitoring, get_monitor
+start_monitoring(callback=my_alert_handler)
+stats = get_monitor().get_stats()
+alerts = get_monitor().drain_alerts()
+```
+
+### Using Ransomware Canary System
+```python
+from ransomware_canary import deploy_canaries, get_canary_system
+count = deploy_canaries(callback=my_alert_handler)
+status = get_canary_system().get_status()
+alerts = get_canary_system().get_alerts()
+```
+
 ## GitHub
 - Repo: `github.com/christiand0797/downpour`
 - Branch: `main` (single branch, commit directly)

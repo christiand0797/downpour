@@ -1,5 +1,33 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.81 — Sigma Rules, ETW Monitor, Ransomware Canary, YARA 2026 Threats
+- **40+ Sigma Detection Rules** across 7 rule files:
+  - LOLBin abuse (certutil, msiexec, bitsadmin, rundll32, regsvr32, forfiles, WMIC)
+  - Suspicious parent-child process chains (Office→cmd, browser→powershell, svchost→shell, WmiPrvSE→cmd)
+  - Credential access (LSASS dumps, Mimikatz patterns, DPAPI theft, browser credential stores, vault enumeration)
+  - Defense evasion (Defender disabling, AMSI tampering, event log clearing, shadow copy deletion, firewall mods)
+  - Persistence (scheduled tasks, registry run keys, service creation, WMI subscriptions, startup folder)
+  - Lateral movement (PsExec, remote services, RDP, network shares)
+  - PowerShell threats (encoded commands, download cradles, AMSI bypass, reflection loading, credential harvesting)
+  - Discovery (systeminfo, net view, domain trust, user enumeration, Defender exclusions, BCDEdit tampering)
+- **ETW Security Monitor** (`etw_monitor.py`): Kernel-level telemetry module with:
+  - Process creation analysis (attack tool detection, LOLBin abuse, encoded PowerShell)
+  - Registry modification tracking (persistence via run keys, services, IFEO)
+  - Named pipe monitoring (CobaltStrike, PsExec, RPC, SAM/LSA pipes)
+  - DNS query analysis (tunneling detection via label length + entropy)
+  - DLL load monitoring (AMSI DLL hijack detection)
+  - Bounded queue architecture (drop-on-full, never blocks ETW session)
+- **Ransomware Canary System** (`ransomware_canary.py`): Decoy file deployment for instant detection:
+  - 8 canary templates mimicking real user documents (Budget, Contract, Tax Returns, etc.)
+  - SHA-256 integrity verification every 5 seconds
+  - Detects deletion, renaming, encryption, and content tampering
+  - Hidden file attribute on Windows, persistent state across restarts
+  - Zero false-positive design (canaries never touched by legitimate software)
+- **3 New YARA Rule Files** for 2026 threats:
+  - `amsi_bypass.yar`: Memory patching, PowerShell reflection, CLR hooking, DLL hijack patterns
+  - `infostealer_2026.yar`: Browser credential theft, crypto wallet targeting, DPAPI abuse, clipboard hijackers, keylogger APIs
+  - `dll_sideload_injection.yar`: DLL sideloading, classic injection, process hollowing, fiber-based shellcode, APC injection, Early Bird technique
+
 ## v29.80 — Rain Canvas v29.80 & Sharded Context & Threat Feed Logging
 - **Rain Canvas v29.80**: Thunder audio (`winsound.Beep` with distance delay), screen micro-shake (3-frame ±2px jitter), rainbow effect (6-band animated arc with fade), aurora borealis (3-6 flowing color-cycling curtains), meteor shower (8 concurrent steep-angle streaking particles with gravity), atmospheric particle system (64 particles: dust/pollen/ash/embers with gravity), weather modes (rain/snow/sleet/storm/clear with smooth transitions), enhanced lightning forks (multi-branch with variable probability, secondary/tertiary branching), meteor shower spawning, ambient particle spawning per weather mode, thunder rumble with distance delay, screen micro-shake on intense lightning, rainbow chance after heavy rain.
 - **Sharded Context Architecture** (`sharded_context.py`): 16-shard consistent-hash ring, persistent snapshots with versioning, pub/sub event system, distributed locking, context compression/deduplication, TTL expiry, cross-component queries.

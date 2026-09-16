@@ -42,6 +42,10 @@
 - **Sensor Hub**: Single psutil snapshot/5s fanned to consumers
 - **Defense Suite**: 38 capabilities (security services, RDP, AppLocker, local groups, LSA, SMB, ASR, shell config watchers)
 - **PowerShell Removal Complete**: All `subprocess.run(['powershell', ...])` replaced with native Windows commands
+- **Sigma Rules**: 40+ detection rules covering LOLBins, credential access, defense evasion, persistence, lateral movement, PowerShell threats
+- **ETW Monitor** (`etw_monitor.py`): Kernel-level telemetry — process creation, registry mods, named pipes, DNS queries, DLL loads
+- **Ransomware Canary System** (`ransomware_canary.py`): Decoy file deployment with 5s integrity checks for instant ransomware detection
+- **YARA Rules v29.80**: 17 rule files including AMSI bypass detection, 2026 info-stealer patterns, DLL sideloading/injection techniques
 
 ### Test Suite
 - **389+ tests** passing (v29.72 baseline)
@@ -82,6 +86,9 @@
 | `trust_check.py` | ~300 | WinVerifyTrust signature validation |
 | `dark_web_intel.py` | ~600 | Dark web OSINT intelligence (Tor exit nodes, leak sites) |
 | `threat_feed_mega.py` | ~700 | Unified mega-feed module (15+ sources) |
+| `etw_monitor.py` | ~400 | ETW-based kernel telemetry (process, registry, DNS, pipes) |
+| `ransomware_canary.py` | ~350 | Canary file deployment and monitoring for instant ransomware detection |
+| `sigma_engine.py` | ~1.2K | Sigma rule engine (process creation + script block matching) |
 
 ## Verification Commands (Run Before/After Changes)
 
