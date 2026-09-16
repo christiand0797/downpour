@@ -129,6 +129,27 @@ status = get_canary_system().get_status()
 alerts = get_canary_system().get_alerts()
 ```
 
+### Using Credential Guard Monitor
+```python
+from credential_guard_monitor import start_credguard_monitoring, get_credguard_monitor
+start_credguard_monitoring(callback=my_alert_handler)
+status = get_credguard_monitor().get_status()
+```
+
+### Using Privilege Escalation Detector
+```python
+from privilege_escalation_detector import start_privesc_detection, get_privesc_detector
+start_privesc_detection(callback=my_alert_handler)
+alerts = get_privesc_detector().get_alerts()
+```
+
+### Using Boot Integrity Monitor
+```python
+from boot_integrity_monitor import start_boot_monitoring, get_boot_monitor
+start_boot_monitoring(callback=my_alert_handler)
+status = get_boot_monitor().get_status()
+```
+
 ## GitHub
 - Repo: `github.com/christiand0797/downpour`
 - Branch: `main` (single branch, commit directly)

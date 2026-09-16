@@ -1,5 +1,31 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.82 — Credential Guard, PrivEsc Detection, Boot Integrity, Extended Rules
+- **Credential Guard Monitor** (`credential_guard_monitor.py`):
+  - VBS/Credential Guard status monitoring via registry baselines
+  - HVCI (Hypervisor-enforced Code Integrity) change detection
+  - LSA RunAsPPL (Protected Process Light) modification alerts
+  - Secure Boot status tracking, WDAC policy change detection
+  - Critical alerts on any security weakening (T1556, T1562.001)
+- **Privilege Escalation Detector** (`privilege_escalation_detector.py`):
+  - UAC bypass monitoring (fodhelper, eventvwr, computerdefaults, sdclt, CMSTP, SilentCleanup)
+  - AlwaysInstallElevated detection, unquoted service path scanning
+  - Weak service permission auditing (Everyone/AU with write access)
+  - Token impersonation and SeDebugPrivilege abuse detection (T1548.002, T1134, T1574)
+- **Boot Integrity Monitor** (`boot_integrity_monitor.py`):
+  - SHA-256 hashing of critical boot files (winload, ntoskrnl, ci.dll, hal.dll, disk.sys)
+  - BCD configuration drift detection (test-signing, kernel debug, integrity checks)
+  - Secure Boot, BitLocker, ELAM driver load policy monitoring
+  - Bootkit/rootkit detection via boot file modification alerts (T1542, T1553)
+- **3 New Sigma Rule Files** (22 additional rules):
+  - `execution_scripting.yml`: MSHTA, CMSTP, InstallUtil, MSBuild, Wscript/Cscript, CHM, CPL execution
+  - `privilege_escalation.yml`: UAC bypass registry hijacks, token impersonation, DLL hijack, AlwaysInstallElevated
+  - `impact_exfiltration.yml`: Recovery disabling, cipher wipe, data staging, curl upload, disk wipe, screen capture
+- **3 New YARA Rule Files**:
+  - `supply_chain_attacks.yar`: Malicious npm/pip packages, trojanized installers, GitHub Actions compromise
+  - `wiper_malware.yar`: MBR overwrite, partition destruction, mass file deletion, service disruption, driver manipulation
+  - `webshell_backdoor.yar`: PHP/ASPX webshells, reverse shells, registry persistence backdoors
+
 ## v29.81 — Sigma Rules, ETW Monitor, Ransomware Canary, YARA 2026 Threats
 - **40+ Sigma Detection Rules** across 7 rule files:
   - LOLBin abuse (certutil, msiexec, bitsadmin, rundll32, regsvr32, forfiles, WMIC)

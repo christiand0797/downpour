@@ -90,6 +90,9 @@ self.after(0, lambda result: self._ui_update(result))
 | `trust_check.py` | WinVerifyTrust signature validation |
 | `etw_monitor.py` | ETW kernel telemetry (process, registry, DNS, pipes) |
 | `ransomware_canary.py` | Canary file deployment for instant ransomware detection |
+| `credential_guard_monitor.py` | VBS/Credential Guard/HVCI tampering detection |
+| `privilege_escalation_detector.py` | UAC bypass, privesc vector scanning |
+| `boot_integrity_monitor.py` | Boot file integrity, BCD drift, Secure Boot |
 | `sigma_engine.py` | Sigma rule engine (process + script block matching) |
 | `dark_web_intel.py` | Dark web OSINT intelligence module |
 | `threat_feed_mega.py` | Unified mega-feed module (15+ sources) |
@@ -98,8 +101,8 @@ self.after(0, lambda result: self._ui_update(result))
 
 | Directory | Count | Covers |
 |-----------|-------|--------|
-| `yara_rules/` | 17 files | Malware, ransomware, APT, C2, botnet, cryptominer, AMSI bypass, injection, info-stealers |
-| `sigma_rules/` | 7 files | LOLBins, credential access, defense evasion, persistence, lateral movement, PowerShell, discovery |
+| `yara_rules/` | 20 files | Malware, ransomware, APT, C2, botnet, cryptominer, AMSI bypass, injection, info-stealers, supply chain, wipers, webshells |
+| `sigma_rules/` | 10 files | LOLBins, credential access, defense evasion, persistence, lateral movement, PowerShell, discovery, scripting, privesc, impact |
 
 ## PowerShell Replacements
 

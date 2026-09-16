@@ -45,7 +45,10 @@
 - **Sigma Rules**: 40+ detection rules covering LOLBins, credential access, defense evasion, persistence, lateral movement, PowerShell threats
 - **ETW Monitor** (`etw_monitor.py`): Kernel-level telemetry — process creation, registry mods, named pipes, DNS queries, DLL loads
 - **Ransomware Canary System** (`ransomware_canary.py`): Decoy file deployment with 5s integrity checks for instant ransomware detection
-- **YARA Rules v29.80**: 17 rule files including AMSI bypass detection, 2026 info-stealer patterns, DLL sideloading/injection techniques
+- **YARA Rules v29.82**: 20 rule files including AMSI bypass, info-stealers, DLL injection, supply chain attacks, wiper malware, webshells
+- **Credential Guard Monitor** (`credential_guard_monitor.py`): VBS/HVCI/Secure Boot tampering detection
+- **Privilege Escalation Detector** (`privilege_escalation_detector.py`): UAC bypass, AlwaysInstallElevated, unquoted paths, weak services
+- **Boot Integrity Monitor** (`boot_integrity_monitor.py`): Boot file SHA-256 baselines, BCD drift, test-signing, ELAM checks
 
 ### Test Suite
 - **389+ tests** passing (v29.72 baseline)
@@ -88,6 +91,9 @@
 | `threat_feed_mega.py` | ~700 | Unified mega-feed module (15+ sources) |
 | `etw_monitor.py` | ~400 | ETW-based kernel telemetry (process, registry, DNS, pipes) |
 | `ransomware_canary.py` | ~350 | Canary file deployment and monitoring for instant ransomware detection |
+| `credential_guard_monitor.py` | ~280 | VBS/Credential Guard/HVCI tampering detection |
+| `privilege_escalation_detector.py` | ~350 | UAC bypass, privesc vector scanning |
+| `boot_integrity_monitor.py` | ~350 | Boot file integrity, BCD drift, Secure Boot monitoring |
 | `sigma_engine.py` | ~1.2K | Sigma rule engine (process creation + script block matching) |
 
 ## Verification Commands (Run Before/After Changes)
