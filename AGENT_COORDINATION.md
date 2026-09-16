@@ -46,7 +46,10 @@ Active agents and their capabilities
 ### 3. SHARED_CONTEXT.md
 Human-readable shared knowledge base updated by all agents
 
-### 4. CHANGELOG_AGENTS.md
+### 4. CLAUDE.md
+Rules and constraints all agents must follow -- read first
+
+### 5. CHANGELOG_AGENTS.md
 Agent-specific change log (supplements main CHANGELOG.md)
 
 ---
@@ -223,7 +226,10 @@ python -c "import json, datetime; ... mark complete ..."
 ## Notes for Human Operators
 
 - All coordination files are in project root
+- Read `CLAUDE.md` first -- it has the rules every agent must follow
 - Agents should be run with `--agent-id <prefix>` for identification
 - Human can manually edit WORK_QUEUE.json to inject tasks
 - Stale agents auto-marked after 2 minutes no heartbeat
 - Lock files auto-expire after 5 minutes
+- Put scratch/temp scripts in `_temp_scripts/`, not project root
+- Use `sharded_context.py` for runtime context sharing between components

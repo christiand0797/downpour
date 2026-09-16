@@ -728,8 +728,11 @@ class ThreatFeedAggregator:
 
             # Verify against signed manifest (TASK-013)
             if not self._manifest_verifier.verify_feed(feed_id, raw_content):
-                logger.error("FEED-INTEGRITY feed=%s MANIFEST_VERIFICATION_FAILED", feed_id)
-                return None
+                if not self._manifest_verifier._manifest_path(feed_id).exists():
+                    logger.warning("FEED-INTEGRITY feed=%s No manifest exists, allowing trust-on-first-use", feed_id)
+                else:
+                    logger.error("FEED-INTEGRITY feed=%s MANIFEST_VERIFICATION_FAILED", feed_id)
+                    return None
 
             import hashlib as _hh
             content_hash = _hh.sha256(raw_content).hexdigest()
@@ -843,6 +846,11 @@ class ThreatFeedAggregator:
         indicators = self.parse_feed(feed_id, content, feed_config)
         if not indicators:
             return 0
+
+        # Re-sign logic after successful parsing
+        if 'expected' in locals() and expected is not None and content_hash != expected and not strict:
+            verifier.resign(feed_id, content_hash)
+            logger.info("FEED-INTEGRITY feed=%s manifest re-signed after successful parsing", feed_id)
 
         # Store in database
         added = self.db.add_indicators_bulk(indicators)

@@ -1,5 +1,14 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.80 — Rain Canvas v29.80 & Sharded Context & Threat Feed Logging
+- **Rain Canvas v29.80**: Thunder audio (`winsound.Beep` with distance delay), screen micro-shake (3-frame ±2px jitter), rainbow effect (6-band animated arc with fade), aurora borealis (3-6 flowing color-cycling curtains), meteor shower (8 concurrent steep-angle streaking particles with gravity), atmospheric particle system (64 particles: dust/pollen/ash/embers with gravity), weather modes (rain/snow/sleet/storm/clear with smooth transitions), enhanced lightning forks (multi-branch with variable probability, secondary/tertiary branching), meteor shower spawning, ambient particle spawning per weather mode, thunder rumble with distance delay, screen micro-shake on intense lightning, rainbow chance after heavy rain.
+- **Sharded Context Architecture** (`sharded_context.py`): 16-shard consistent-hash ring, persistent snapshots with versioning, pub/sub event system, distributed locking, context compression/deduplication, TTL expiry, cross-component queries.
+- **Threat Feed Logging v29.80**: Structured JSONL with SHA-256 integrity chain, MITRE ATT&CK tactic mapping, kill chain phase tracking, GeoIP country lookup, source engine detection (YARA/Sigma/Network/Process/Ransomware/Botnet/DNS/Memory/Firewall/USB/IoT/AEGIS/Hardening/ThreatIntel/DarkWeb), indicator extraction (IP/domain/hash/email/filepath/registry/CVE), SHA-256 event chain integrity, events/minute tracking, severity counts.
+- **Export Threat Log**: CSV/JSON/HTML/Markdown with filtering (severity, engine, indicator type, time range, kill chain phase).
+- **MITRE ATT&CK Kill Chain Tracking**: Technique-to-tactic mapping, kill chain phase determination, tactic aggregation.
+- **PowerShell Removal Complete**: All `subprocess.run(['powershell', ...])` calls eliminated across 14 files; replaced with native Windows commands (`reg`, `wmic`, `netsh`, `ipconfig`, `manage-bde`, `certutil`, `signtool`, `MpCmdRun.exe`).
+- **Enhanced Indicator Extraction**: Email, file paths, registry keys, CVE IDs extracted from alerts.
+
 ## v29.72 — Advanced Defense Suite: +4 capabilities (38 total)
 - **35. Security Services Watcher (T1562.001)** — baseline+diff over
   WinDefend/wscsvc/EventLog/mpssvc/BFE start-type + state via WMI.

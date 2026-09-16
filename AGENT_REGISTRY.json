@@ -1,20 +1,23 @@
 {
+  "schema_version": "1.1",
+  "last_cleanup": "2026-09-16T00:00:00Z",
   "agents": [
     {
       "id": "agent-main-001",
       "name": "Primary Downpour Agent",
       "specialization": ["full-stack", "coordination", "ui", "threats", "performance", "network"],
-      "status": "idle",
+      "status": "stale",
       "current_task": null,
       "heartbeat": "2026-09-03T19:15:00Z",
       "started_at": "2026-09-03T12:00:00Z",
-      "capabilities": ["code_edit", "file_ops", "bash", "git", "test_run"]
+      "capabilities": ["code_edit", "file_ops", "bash", "git", "test_run"],
+      "completed_tasks": ["TASK-001", "TASK-002", "TASK-003", "TASK-004", "TASK-005", "TASK-006", "TASK-008", "TASK-009"]
     },
     {
       "id": "agent-perf-002",
       "name": "Performance Optimizer",
       "specialization": ["performance", "memory", "cpu", "gpu", "rendering"],
-      "status": "idle",
+      "status": "stale",
       "current_task": null,
       "heartbeat": "2026-09-03T12:15:00Z",
       "started_at": "2026-09-03T12:15:00Z",
@@ -24,17 +27,18 @@
       "id": "agent-config-003",
       "name": "Configuration Specialist",
       "specialization": ["config", "settings", "hot-reload", "hardware-profiles"],
-      "status": "idle",
+      "status": "stale",
       "current_task": null,
       "heartbeat": "2026-09-03T12:15:00Z",
       "started_at": "2026-09-03T12:15:00Z",
-      "capabilities": ["code_edit", "file_ops", "bash", "config_mgmt"]
+      "capabilities": ["code_edit", "file_ops", "bash", "config_mgmt"],
+      "completed_tasks": ["TASK-014"]
     },
     {
       "id": "agent-net-004",
       "name": "Network Security Engineer",
       "specialization": ["network", "vpn", "dns", "firewall", "kill-switch", "anomaly-detection"],
-      "status": "idle",
+      "status": "stale",
       "current_task": null,
       "heartbeat": "2026-09-03T12:15:00Z",
       "started_at": "2026-09-03T12:15:00Z",
@@ -44,17 +48,18 @@
       "id": "agent-test-005",
       "name": "Test Automation Engineer",
       "specialization": ["testing", "thread-safety", "integration", "unit-tests"],
-      "status": "idle",
+      "status": "stale",
       "current_task": null,
       "heartbeat": "2026-09-03T12:15:00Z",
       "started_at": "2026-09-03T12:15:00Z",
-      "capabilities": ["code_edit", "file_ops", "bash", "pytest", "test_design"]
+      "capabilities": ["code_edit", "file_ops", "bash", "pytest", "test_design"],
+      "completed_tasks": ["TASK-007"]
     },
     {
       "id": "agent-security-006",
       "name": "Threat Intelligence Analyst",
       "specialization": ["threat-intel", "mitre-attack", "yara", "behavioral-analysis"],
-      "status": "idle",
+      "status": "stale",
       "current_task": null,
       "heartbeat": "2026-09-03T12:15:00Z",
       "started_at": "2026-09-03T12:15:00Z",
@@ -64,21 +69,24 @@
       "id": "agent-audit-007",
       "name": "Security Architecture Auditor",
       "specialization": ["security-audit", "attack-surface", "threat-modeling", "hardening", "code-review"],
-      "status": "idle",
+      "status": "stale",
       "current_task": null,
       "heartbeat": "2026-09-08T20:30:00Z",
       "started_at": "2026-09-07T20:00:00Z",
-      "capabilities": ["code_review", "file_ops", "bash", "threat_modeling", "mitre"]
+      "capabilities": ["code_review", "file_ops", "bash", "threat_modeling", "mitre"],
+      "completed_tasks": ["TASK-011", "TASK-012", "TASK-013", "TASK-015", "TASK-016", "TASK-018"]
     },
     {
       "id": "agent-hardware-008",
       "name": "Hardware Detection Specialist",
       "specialization": ["gpu-detection", "nvidia-smi", "hardware-profiling", "driver-issues"],
-      "status": "active",
-      "current_task": "GPU nvidia-smi error fix",
-      "heartbeat": "2026-09-11T13:45:00Z",
+      "status": "stale",
+      "current_task": null,
+      "heartbeat": "2026-09-13T01:00:00Z",
       "started_at": "2026-09-11T13:45:00Z",
-      "capabilities": ["code_edit", "file_ops", "bash", "gpu_debug", "driver_troubleshooting"]
+      "capabilities": ["code_edit", "file_ops", "bash", "gpu_debug", "driver_troubleshooting"],
+      "completed_tasks": ["TASK-019", "TASK-020"],
+      "notes": "Completed v29.61 enhancements: enhanced rain particle system, advanced lightning, threat feed logging with export, advanced memory forensics integration, expanded MITRE coverage"
     }
   ]
 }

@@ -1,8 +1,8 @@
 # Downpour v29 Titanium - Dependencies
 # Install: pip install -r requirements.txt
 #
-# Tested with Python 3.11, 3.12, 3.13+ (3.12 recommended).
-# All packages below are guarded by try/except ImportError in the app —
+# Requires Python 3.12.10 (3.15 alpha breaks wheels; 3.12 has stable compiled wheels).
+# All packages below are guarded by try/except ImportError in the app
 # it still runs if any optional one is missing, with graceful feature
 # degradation. Recommended install command (from LAUNCH_DOWNPOUR.bat):
 #
@@ -64,3 +64,9 @@ click>=8.1.0             # CLI utilities
 rich>=13.7.0             # rich terminal output
 packaging>=24.0          # version parsing
 importlib-metadata>=8.0  # metadata access
+
+# ── v29.61 Enhanced Security Dependencies ───────────────────────────────────
+# Advanced memory forensics integration
+# (Optional - falls back to basic process analysis)
+# volatility3>=2.0.0       # Memory forensics analysis (optional)
+# memprocfs>=2.0.0         # Advanced memory parsing (optional)

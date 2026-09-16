@@ -29,7 +29,6 @@ import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Any, Tuple
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -224,7 +223,7 @@ class PersistentIntelCache:
                         return {
                             'feed_name': row[0], 'ioc_type': row[1], 'ioc_value': row[2],
                             'source': row[3], 'first_seen': row[4], 'last_seen': row[5],
-                            'expires_at': row[6], 'metadata': json.loads(row[8]) if row[8] else None
+                            'expires_at': row[6], 'metadata': json.loads(row[7]) if row[7] else None
                         }
             except Exception as e:
                 logging.error(f"Failed to get IOC: {e}")
@@ -252,7 +251,7 @@ class PersistentIntelCache:
                         results.append({
                             'feed_name': row[0], 'ioc_type': row[1], 'ioc_value': row[2],
                             'source': row[3], 'first_seen': row[4], 'last_seen': row[5],
-                            'expires_at': row[6], 'metadata': json.loads(row[8]) if row[8] else None
+                            'expires_at': row[6], 'metadata': json.loads(row[7]) if row[7] else None
                         })
                     return results
             except Exception as e:
@@ -426,7 +425,7 @@ class PersistentIntelCache:
                     VALUES (?, ?, ?, ?, ?, ?, 
                         COALESCE((SELECT records_total FROM feed_health WHERE feed_name=?), 0) + ?)
                 """, (feed_name, datetime.now(), 1 if error == "" else 0, 
-                      error, status, error if error else None, 1 if error == "" else 0))
+                      error, status, error if error else None, feed_name, 1 if error == "" else 0))
                 conn.commit()
                 return True
         except Exception as e:

@@ -1,251 +1,166 @@
-# Downpour Shared Context
+# Downpour v29 Titanium - Shared Context Document
 
-## Current State (Updated: 2026-09-08T23:00:00Z)
+## Project Overview
+**Downpour v29 Titanium** is a Windows security monitoring suite with a Tkinter GUI (~58K lines in `downpour_v29_titanium.py`). It provides real-time process monitoring, network threat detection, ransomware behavioral analysis, system hardening, memory forensics, parental controls, GPU-accelerated scanning, and the five-layer Project AEGIS defence framework.
 
-### ✅ COMPLETED v29.43d (2026-09-08)
-- **TASK-013 follow-up complete**: FeedManifestVerifier now wired into `threat_intelligence.py` legacy updater path — 6 high-priority feeds (threatfox, urlhaus, phishtank, malwarebazaar, emerging_threats, blocklist_de) verify content against signed HMAC-SHA256 manifests before parsing/storing. Trust-on-first-use baseline + rolling re-sign for dynamic feeds.
-- **Test suite expanded**: 205 total tests passing (added 6 code integrity tests + updated TASK-007 notes).
-- **TASK-010 deferred**: GPU YARA acceleration confirmed infeasible — yara-python compiles to CPU-only VM; requires custom Hyperscan/regex-CUDA port.
+## Key Architecture Decisions
 
-### ✅ COMPLETED - Critical Fixes
-1. **ERR_QUIC_PROTOCOL_ERROR Fixed** - Removed 10 false-positive DDoS block rules that were blocking Google Cloud IPs (34.x.x.x, 35.x.x.x, 160.x.x.x) used by Claude/Chrome QUIC traffic over UDP 443
-2. **Performance Tab** - Reduced from 70+ gauges to 28 essential (4×7 grid), fixed sparkline "black box" rendering issue
-3. **Tab Reorganization** - 28→16 tabs, added **Remediation History** (auto-revert) and **Possible Threats** (pre-verification) tabs
-4. **False Positive Analysis** - Context-aware port scoring with confidence thresholds, two-strike DDoS auto-block rule
-5. **Rain Effect Optimization** - Reduced particle pools, lower storm intensity, maintains visual quality
-6. **Firewall Cleanup** - Ran cleanup script as admin, only legitimate KIMWOLF C2 blocks remain
+### 1. Single-File Monolithic Architecture
+- **Decision**: Main application in single 58K-line file (`downpour_v29_titanium.py`)
+- **Rationale**: Simpler deployment, no import chain issues
+- **Trade-off**: Harder to navigate, requires AST duplicate-method checks
 
-### ✅ COMPLETED - New Features (agent-main-001)
-7. **Remediation History Tab** - Full auto-revert with quarantine restore, firewall rule removal, action logging
-   - All remediation paths (full engine, basic, remediate-all) now log to `_remediation_log`
-   - Auto-revert handles: quarantine restore, firewall rules, process kill (noted), registry (noted)
-   - Export to CSV, detail view, sorting
-8. **Possible Threats Tab** - Pre-verification holding area
-   - Verify & move to main threat log, dismiss, investigate (VT, AbuseIPDB, GreyNoise)
-   - Auto-population via `_add_possible_threat()` method
-   - Context menu with threat intel lookup
-   - Stats tracking (High/Medium/Low severity)
-9. **MITRE ATT&CK Mapping Across All Detection Modules**
-   - Main App: `MITRE_MAP` expanded to 100+ techniques
-   - Behavior Scanner: `BEHAVIOR_TO_MITRE` with 100+ mappings
-   - Network Monitor: `NETWORK_MITRE_MAP` with 35+ network techniques
-   - Threat Detection Engine: `PORT_PROFILES` for context-aware port analysis
-   - All detection paths auto-tag with MITRE ATT&CK technique IDs and names
-10. **Rain Effect 60fps Cap** - Explicit fps limiter in `ImmersiveRainCanvas._animate()` with 16.67ms minimum interval
-11. **Laptop/Desktop Detection** - Hardware profile detects battery, lid state, thermal throttling
-    - Laptop-specific: reduced rain intensity on battery, thermal throttling reduces worker counts
-    - Added `is_laptop`, `battery_percent`, `battery_plugged`, `lid_state`, `thermal_throttling`, `thermal_state` to HardwareProfile
-12. **Network Baseline Learning & Anomaly Detection**
-    - NetworkMonitor tracks threats/hour, C2 servers detected, exfiltration attempts, lateral movement, DNS tunneling, port scans
-    - OSINT reputation checking (GreyNoise, AbuseIPDB, Shodan, Censys, ThreatWinds, ThreatRadar)
-    - MITRE ATT&CK tagging for all network detections
-    - Real-time metrics for Performance tab
-13. **Encrypted Credential Store for VPN/Proxy**
-    - VPNKillSwitch and VPNManager use DPAPI-compatible Windows Credential Manager via netsh
-    - QUIC protocol error handling with explicit allow rules for DNS(53), HTTP(80), HTTPS(443), QUIC(443 UDP), LAN subnets
-    - Kill switch allows HTTP/HTTPS/QUIC/LAN traffic while blocking everything else
+### 2. Threading Model
+- **Main thread**: Tkinter event loop only
+- **Background threads**: `ThreadPoolExecutor` (`self._executor`) for I/O, CPU work
+- **Thread-safe GUI**: All widget updates via `self.after(0, callback)`
+- **Background DB access**: Use `self._executor.submit()` + `self.after(0, callback)`
 
-### ✅ COMPLETED - Security Architecture Audit (agent-audit-007, 2026-09-07)
+### 3. No PowerShell Policy
+- **Rule**: Zero `subprocess.run(['powershell', ...])` calls
+- **Reason**: PowerShell PATH hijacking risk, slow startup, quoting hell
+- **Replacements**: `reg.exe`, `wmic`, `netsh`, `manage-bde`, `certutil`, `MpCmdRun.exe`, `ipconfig`, `sc`, `wevtutil`
 
-14. **Full-project security architecture audit** (read-only, v29.42v) —
-    end-to-end attack surface mapped; top-5 risk matrix produced. Full report:
-    `docs/SECURITY_AUDIT_2026-09-07.md`. Top risks: (1) Defender
-    self-exclusion blind spot (ExclusionProcess `python.exe` + global
-    `.pyc`/`.pyd` extension exclusions + user-writable-dir ExclusionPath, ASR
-    rule restored to AuditMode not Enabled); (2) feed ingestion has NO
-    integrity verification (`VERIFICATION_HASHES` are placeholder strings) and
-    feeds drive automatic netsh blocks; (3) PowerShell command-injection from
-    threat-name interpolation in remediation; (4) no privilege segregation;
-    (5) config/quarantine/DB tamperability (`chmod` is a no-op on Windows).
-    Follow-ups queued as TASK-011…TASK-018 (3 CRITICAL, 3 HIGH, 2 MEDIUM).
-    Also fixed: duplicate TASK-006 in `WORK_QUEUE.json` (marked superseded),
-    malformed trailing tokens in `AGENT_REGISTRY.json` (was invalid JSON).
+### 4. Python Version Lock
+- **Required**: Python 3.12.10 (not 3.15 alpha, not 3.11)
+- **Reason**: 3.15 breaks wheels; 3.12 has stable compiled wheels for all deps
+- **Launcher**: `LAUNCH.bat` enforces Python 3.12+
 
-### ✅ COMPLETED v29.43d (2026-09-08)
+### 5. Main-Thread DB Rule
+- **Never**: `self.db.execute()` in `after()` loops
+- **Correct**: `self._executor.submit()` + `self.after(0, callback)`
 
-23. **TASK-013 follow-up complete**: FeedManifestVerifier now wired into `threat_intelligence.py` legacy updater path — 6 high-priority feeds (threatfox, urlhaus, phishtank, malwarebazaar, emerging_threats, blocklist_de) verify content against signed HMAC-SHA256 manifests before parsing/storing. Trust-on-first-use baseline + rolling re-sign for dynamic feeds.
-24. **Test suite expanded**: 205 total tests passing (added 6 code integrity tests + updated TASK-007 notes).
-25. **TASK-010 deferred**: GPU YARA acceleration confirmed infeasible — yara-python compiles to CPU-only VM; requires custom Hyperscan/regex-CUDA port.
+## Current Status (v29.80)
 
-### ✅ COMPLETED v29.43f (2026-09-08)
+### Completed Features
+- **Rain Canvas v29.80**: Thunder audio, screen shake, rainbow, aurora, meteor shower, particle system, weather modes (rain/snow/sleet/storm/clear)
+- **Sharded Context** (`sharded_context.py`): Distributed context with pub/sub, persistence, snapshots
+- **Threat Feed Logging**: Structured JSONL with SHA-256 integrity chain, MITRE ATT&CK mapping, kill chain tracking
+- **Export Threat Log**: CSV/JSON/HTML/Markdown with filtering (severity, engine, indicator type, time range, kill chain)
+- **AEGIS 5 Layers**: Physical, TCP Stack, Ingestion, NLP Phishing, Memory Shield
+- **300+ Threat Feeds**: With HMAC integrity, HTTPS-only, per-fetch SHA256
+- **Sensor Hub**: Single psutil snapshot/5s fanned to consumers
+- **Defense Suite**: 38 capabilities (security services, RDP, AppLocker, local groups, LSA, SMB, ASR, shell config watchers)
+- **PowerShell Removal Complete**: All `subprocess.run(['powershell', ...])` replaced with native Windows commands
 
-26. **TASK-014 surface complete**: `ConfigManager.tamper_detected` now surfaced in status bar as "Config: OK" / "Config: TAMPERED!" pill with 30s refresh. Added `_sb_tamper` label in status bar, `_refresh_tamper_pill()` method, and scheduled it in `_auto_start` after status pills.
+### Test Suite
+- **389+ tests** passing (v29.72 baseline)
+- Run: `<Python312 dir>\python.exe -m pytest tests -q`
 
-### ✅ COMPLETED - Security Hardening v29.42w (2026-09-08)
+## Active TODOs (from TODO.md)
 
-15. **TASK-011 (CRITICAL)** — Defender exclusions narrowed to DATA DIRS ONLY
-    (downpour_data / downpour_v27_data / downpour_tmp) across
-    `enhanced_bypass_system.run()`, `defender_compatibility`
-    (apply_defender_settings + create_defender_exclusions) and ALL 3
-    launchers; `ExclusionProcess python.exe` and global `.pyc`/`.pyd`
-    ExclusionExtension calls REMOVED; ASR rule 3b576869 restore switched
-    AuditMode → **Enabled**.
-16. **TASK-012 (CRITICAL)** — `_remove_wmi_subscription`: WMI class name
-    validated against `^[A-Za-z_][A-Za-z0-9_]*$` + consumer name
-    single-quote-escaped before PowerShell interpolation. Correction:
-    `advanced_threat_analyzer.py:446` was already quote-doubling (audit
-    over-stated it).
-17. **TASK-014 (HIGH)** — `config.json` HMAC-SHA256 signing with
-    DPAPI-protected key (`config.json.sig` + `config.json.key`, RAW fallback),
-    tamper flag + `register_tamper_callback`, hot-reload path reuses the
-    verified `_load_from_file`. Tests: 2 hot-reload tests updated to the
-    signed-edit contract + new `test_tamper_detection_rejects_unsigned_edit`.
-    **139/139 tests pass.** Open: surface `ConfigManager.tamper_detected` in UI.
-18. **TASK-017 (MED)** — KEV hot-path: `file_scanner._get_kev_index()` +
-    `process_monitor._get_kev_products()` shared hourly caches (thread-safe,
-    hash-map lookups, backoff on scanner failure),
-    `threat_detection_engine._get_vuln_scanner()` singleton, whole-token
-    product match (kills the file_scanner.py:70 FP). Partial progress:
-    TASK-013 (HTTPS-only done), TASK-015 (`_safe_procs` path-bound done).
-19. **TASK-016 (HIGH)** — quarantine unified in new
-    `quarantine_core.py`: AES-256-GCM (DPAPI-protected key, XOR fallback),
-    **write-ahead** manifest + self-verified encrypted copy BEFORE original delete,
-    collision-safe naming, tamper-refusing hash-verified restore with full
-    metadata (DACL/SACL/Owner/timestamps). Wired into
-    `advanced_threat_remediation._quarantine_file`, main `mitigate()`,
-    `_remediation_revert`, and `system_cleanup.restore_quarantined_files`.
-    Legacy XOR sidecars stay restorable. Boot-time reconciliation
-    (`reconcile_quarantine()`) for orphaned quarantine entries.
-    **154/154 tests pass** (quarantine_core tests have API mismatch — see TASK-016 notes).
-20. **TASK-013 (CRITICAL)** — Feed integrity: HTTPS-only enforced in
-    `_verify_url_security` (plain-HTTP allowlist removed).
-    `FeedManifestVerifier` added to `threat_feed_aggregator.py` — signed
-    HMAC-SHA256 manifests with DPAPI-protected key, verified before parsing.
-    Corroboration gate added to `ultimate_threat_intel` `ThreatDatabase.get_indicator_sources()`
-    and `kimwolf_botnet_detector._check_corroboration()` — requires 2+ independent
-    feed sources before firewall blocks / hosts file modifications. Auto-actions
-    now skip with 'no corroboration' message when single-source only.
-21. **TASK-015 (HIGH)** — `trust_check.py`: WinVerifyTrust-based signature
-    validation via PowerShell Get-AuthenticodeSignature. `trusted_system_process()`
-    requires: (1) name in allowlist, (2) image path under `%SystemRoot%\System32`
-    or SysWOW64, (3) valid Microsoft/WHQL digital signature. Kernel pseudo-processes
-    (system, registry) exempt from path/signature. Wired into:
-    `downpour_v29_titanium._analyze` (connection scan skip),
-    `behavior_scanner.analyze_running_processes` (exact name + path + signature),
-    `threat_response_center` (masquerading warning T1036 when path not in Windows dir).
-    `process_monitor.system_processes` documented as unreferenced legacy.
-22. **TASK-018 (MED)** — `sensor_hub.py`: single psutil snapshot per tick (5s)
-    fanned out over bounded queues (max 1000) to threat_detection, ransomware,
-    network, and UI consumers. Rewired orphaned modules: process_monitor,
-    network_monitor now consume from hub instead of independent psutil polls.
-    Capped unbounded `network_monitor._dns_counts` with 5-min window + max 1000
-    entries. Capped unbounded `_alert_dedup` with 1hr TTL + max 5000 entries.
-20. **TASK-013 + TASK-015 (v29.42y)** — feed ingestion: both fetch paths
-    HTTPS-only, per-fetch FEED-INTEGRITY sha256 audit lines, cert-exempt
-    TLS hosts log loudly; agent-audit-001's HMAC manifest class merged
-    (fixed its in-flight IndentationError); kimwolf `_block_ip_firewall`
-    documented as dead code (audit auto-block claim corrected).
-    Allowlists: `trust_check.py` (WinVerifyTrust + PSModulePath-safe
-    Get-AuthenticodeSignature fallback, cached) wired into
-    behavior_scanner (substring skip fixed — was `safe in name`!) and the
-    threat_response_center display. **154/154 tests** (8 new).
-    ENVIRONMENT GOTCHA: PowerShell spawned from this suite can fail with
-    "module could not be loaded" when PSModulePath is inherited — strip it
-    from the child env (see trust_check.verify_signature).
+### HIGH PRIORITY
+- [ ] **GPU ML workloads** -- gpu_executor pool exists (50% cores) but no CUDA ML workloads (cupy/tensorflow not installed)
+- [ ] **Tab overlap on small windows** -- `minsize(1280, 700)` helps but ttk.Notebook has no native tab scrolling
 
-### 🔄 AVAILABLE FOR OTHER AGENTS
+### MEDIUM PRIORITY
+- [ ] Unit tests for thread-safety mechanisms (partial: 16 tests in `test_thread_safety.py`)
+- [ ] Consolidate 19+ OSINT lookup buttons into dispatcher
 
-| Task | Assignee | Priority | Files |
-|------|----------|----------|-------|
-| TASK-011: Narrow Defender exclusions | ✅ DONE v29.42w | ~~CRITICAL~~ | enhanced_bypass_system.py, defender_compatibility.py, all 3 launchers |
-| TASK-012: PS command-injection hardening | ✅ DONE v29.42w | ~~CRITICAL~~ | advanced_threat_remediation.py (analyzer call was already escaped) |
-| TASK-013: Feed integrity (hash manifests, corroboration) | ✅ DONE v29.43d (HTTPS-only both fetch paths + sha256 audit lines; HMAC manifest class merged + wired into threat_intelligence.py legacy updater path) | ~~CRITICAL~~ | downpour_v29_titanium.py, threat_feed_aggregator.py, threat_intelligence.py |
-| TASK-014: Config.json signing / tamper alerting | ✅ DONE v29.42w + surface v29.43f | ~~High~~ | config.py + tests + status bar pill |
-| TASK-015: Signature-bound allowlists | ✅ DONE v29.42y (trust_check.py; behavior_scanner substring-skip fixed) | ~~High~~ | trust_check.py (new), behavior_scanner.py, threat_response_center.py |
-| TASK-016: Quarantine unification (AES-GCM + verified restore) | ✅ DONE v29.42x | ~~High~~ | quarantine_core.py (new), downpour_v29_titanium.py, advanced_threat_remediation.py, system_cleanup.py |
-| TASK-017: KEV/EPSS hot-path cache | ✅ DONE v29.42w | ~~Medium~~ | file_scanner.py, process_monitor.py, threat_detection_engine.py |
-| TASK-018: SensorHub consolidation + orphan retirement | ✅ DONE v29.42y | ~~Medium~~ | sensor_hub.py (new), downpour_v29_titanium.py, process_monitor.py, network_monitor.py, file_monitor.py, ransomware_detector.py |
-| TASK-007: Automated test suite | ✅ DONE v29.43d | ~~Medium~~ | tests/test_task007_critical_paths.py, test_quarantine_core.py, test_trust_check.py, test_port_profiles.py, test_code_integrity.py |
+### LOW PRIORITY
+- [ ] System tray minimize support (pystray installed, needs wiring)
+- [ ] Dark mode detection for Windows 11
+- [ ] Export-to-PDF for security reports
 
----
+## Critical Files for New Agents
 
-## Key Code Locations
+| File | Lines | Purpose |
+|------|-------|---------|
+| `downpour_v29_titanium.py` | ~58K | Main app, GUI, all core logic |
+| `sharded_context.py` | ~976 | Distributed context management with pub/sub |
+| `revolutionary_enhancements.py` | ~2K | Neural scorer, performance helpers |
+| `enhanced_memory_manager.py` | ~1K | GC tuning, memory monitoring |
+| `security_hardening.py` | ~1K | Input validation, encryption |
+| `defender_compatibility.py` | ~400 | Defender status, exclusions |
+| `sensor_hub.py` | ~700 | Central psutil snapshot distributor |
+| `threat_feed_aggregator.py` | ~1.5K | 300+ feed aggregator with HMAC integrity |
+| `vulnerability_scanner.py` | ~2K | CVE/KEV/CEV/EPSS scanner |
+| `advanced_defense_suite.py` | ~4K | 38-capability defense watchers |
+| `intel_cache.py` | ~500 | Persistent SQLite intel cache |
+| `quarantine_core.py` | ~1K | AES-GCM unified quarantine service |
+| `pe_analyzer.py` | ~500 | Static PE analysis with EMBER features |
+| `trust_check.py` | ~300 | WinVerifyTrust signature validation |
+| `dark_web_intel.py` | ~600 | Dark web OSINT intelligence (Tor exit nodes, leak sites) |
+| `threat_feed_mega.py` | ~700 | Unified mega-feed module (15+ sources) |
 
-### Main Application
-- `downpour_v29_titanium.py` - 55k+ lines, main Tkinter app class `downpour`
-- Tab definitions: line ~23900 (`_TAB_DEFS`)
-- Remediation tab: `_build_remediation_tab` (~line 26637)
-- Possible Threats tab: `_build_possible_threats_tab` (~line 26918)
-- Performance tab: `_build_performance_tab` (~line 29112)
-- Rain canvas: `ImmersiveRainCanvas` class (~line 19048)
-- HardwareProfile: line ~718
-- Alert queue: `_queue_alert` (~line 38039)
+## Verification Commands (Run Before/After Changes)
 
-### New Methods Added
-- `_add_possible_threat()` - Auto-populate possible threats from detections (~line 27142)
-- `_remediation_revert()` - Auto-revert logic for quarantine, firewall, etc.
-- Remediation logging in `_threats_remediate_selected`, `_threats_remediate_all`, `_threats_basic_remediate`
-- `_auto_tag_mitre()` - Auto-detect MITRE tags in Possible Threats tab
-- `_get_mitre_tag()` / `_get_mitre_tag_full()` - Network MITRE tagging
-- `_auto_tag_mitre()` - Behavior scanner MITRE tagging
+```powershell
+# 1. Compile check
+& '<Python312 install dir>\python.exe' -m py_compile downpour_v29_titanium.py
 
-### Network/VPN
-- `downpour_vpn_module.py` - VPN kill switch, DNS leak test, QUIC handling
-- `network_monitor.py` - Connection monitoring, port scan detection, baseline learning
-- Firewall rules use `netsh advfirewall` with `CREATE_NO_WINDOW`
+# 2. AST duplicate method check
+python -c "
+import ast
+with open('downpour_v29_titanium.py', encoding='utf-8', errors='replace') as f:
+    tree = ast.parse(f.read())
+for node in ast.walk(tree):
+    if isinstance(node, ast.ClassDef) and node.name == 'downpour':
+        names = [n.name for n in node.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
+        dupes = {n for n in names if names.count(n) > 1}
+        print(f'{len(names)} methods, {len(dupes)} duplicates:', dupes or 'none')
+"
 
-### Threat Detection
-- `threat_detection_engine.py` - Port analysis with `PORT_PROFILES` confidence scoring
-- `behavior_scanner.py` - Process/network behavior analysis with MITRE tagging
-- `mega_threat_signatures.py` - `PORT_PROFILES`, `SUSPICIOUS_PORTS`, malware families
+# 3. Run tests
+<Python312 install dir>\python.exe -m pytest tests -q
 
-### Config/Hardware
-- `config.py` - Configuration management
-- `device_adaptation_engine.py` - Hardware profiling
-- `advanced_hardware_monitor.py` - Real-time metrics
-- `HardwareProfile` - Now includes laptop detection fields
+# 4. Run health check (52 validation checks)
+python downpour_health_check.py
+```
 
-### Security-Critical Locations (2026-09-07 audit — see docs/SECURITY_AUDIT_2026-09-07.md)
-- Defender exclusions: `enhanced_bypass_system.py:58-68`, `defender_compatibility.py:98-99` (ExclusionProcess python.exe + .pyc/.pyd — to be removed, TASK-011)
-- ASR rule toggle: `LAUNCH_V29_TITANIUM.bat:181-190` (disable during pip) + `:240` (restore — currently AuditMode, should be Enabled)
-- Feed verification placeholders: `downpour_v29_titanium.py:10374-10379` (`VERIFICATION_HASHES` — strings, not hashes); HTTP feed allowlist `:10430-10441`
-- PS injection sites: `advanced_threat_remediation.py:915-919` (WMI cleanup), `advanced_threat_analyzer.py:447-448` (Get-AuthenticodeSignature)
-- Quarantine formats: `downpour_v29_titanium.py:9791-9810` (plain move), `advanced_threat_remediation.py:954-979` (XOR 0x5A), `threat_response_center.py` (GUI)
-- Restore path (no hash verify): `system_cleanup.py:121-138`
-- Name-only allowlists: `threat_response_center.py:58-77`, `process_monitor.py:102`, `downpour_v29_titanium.py:9325-9327`
-- Corroboration gate: `downpour_v29_titanium.py:9737-9756` | "secure" temp dir chmod no-op: `:10385-10386`
-- KEV hot-path constructs: `file_scanner.py:55`, `process_monitor.py:30`, `threat_detection_engine.py:830`
+## Key Conventions
 
----
+### Thread-Safe GUI
+```python
+# From background thread - ALWAYS marshal to main thread
+def _add_alert(self, msg, color):
+    if threading.current_thread() is not threading.main_thread():
+        self.after(0, lambda: self._add_alert(msg, color))
+        return
+    # ... main thread code
+```
 
-## Coordination Protocol
+### Error Handling Pattern
+```python
+try:
+    # risky operation
+except Exception as e:
+    _safe_log('ComponentName', 'description', e)
+    # never re-raise in background threads
+```
 
-### For Other Agents:
-1. **Claim a task** - Update `WORK_QUEUE.json` with your agent ID and `claimed_at`
-2. **Register** - Add yourself to `AGENT_REGISTRY.json`
-3. **Heartbeat** - Update `heartbeat` every 30-60 seconds while working
-4. **Log progress** - Update task `status` and add notes
-5. **Complete** - Set `status: completed` with `completed_at` timestamp
+## PowerShell Ban
+**Zero `subprocess.run(['powershell', ...])` calls allowed**
 
-### File Lock Convention:
-- Create `.lock.<filename>` before editing major files
-- Delete after commit
-- Max 5 minutes
+| PowerShell | Native Replacement |
+|------------|-------------------|
+| `Add-MpPreference` | `reg add` |
+| `Get-MpPreference` | `reg query` |
+| `Set-MpPreference` | `reg add` |
+| `Get-MpComputerStatus` | `wmic /namespace:\\root\cimv2\security\microsoftvolumeencryption path Win32_EncryptableVolume` |
+| `Get-WmiObject` | `wmic` |
+| `Get-NetAdapter` | `wmic nic` |
+| `Get-PnpDevice` | `wmic path Win32_PnPEntity` |
+| `Get-DnsClientServerAddress` | `netsh interface ip show dns` |
+| `Clear-RecycleBin` | `cmd /c rd /s /q %systemdrive%\$Recycle.Bin` |
+| `Start-MpScan` | `MpCmdRun.exe -Scan -ScanType 2` |
 
-### Communication:
-- Use `SHARED_CONTEXT.md` for findings
-- Task handoffs: update `WORK_QUEUE.json` with `from_agent`/`to_agent` notes
-- Blockers: add `blocked_by` field to task
+## Agent Coordination
 
----
+Agents coordinate via these files (see `AGENT_COORDINATION.md` for full protocol):
+- `WORK_QUEUE.json` -- task queue with status tracking
+- `AGENT_REGISTRY.json` -- agent capabilities and heartbeats
+- `sharded_context.py` -- runtime context sharing via `ShardedContextManager`
+- `CLAUDE.md` -- rules and constraints all agents must follow
 
-## Known Issues / Gotchas
+## Launch
+```cmd
+LAUNCH_DOWNPOUR.bat    # Recommended -- run as Administrator
+# Or directly:
+python downpour_v29_titanium.py
+```
 
-1. **Tkinter threading** - All UI updates must use `self.after()` or `self._orig_after()`, never direct widget calls from background threads
-2. **COM initialization** - Background threads using WMI/psutil need `pythoncom.CoInitializeEx(0)` 
-3. **Admin required** - Firewall rules, network isolation need elevation
-4. **psutil locking** - Global `_PSUTIL_LOCK` serializes all psutil calls (see line ~404 in main)
-5. **Lazy tabs** - 8 tabs load on first click via `_on_tab_changed_lazy`
-6. **Windows `os.chmod()` is a no-op** — `chmod(0o700)` on the "secure" temp dir (`downpour_v29_titanium.py:10385`) does NOT restrict access; default user ACLs apply. Use `icacls`/`win32security` DACLs.
-7. ~~`VERIFICATION_HASHES` are placeholder strings~~ **RESOLVED v29.43d** — HTTPS-only both fetch paths, HMAC manifest class merged, sha256 audit lines per fetch, `verify_feed` wired into legacy `threat_intelligence.py` updater path (6 feeds: threatfox, urlhaus, phishtank, malwarebazaar, emerging_threats, blocklist_de). Trust-on-first-use baseline + rolling re-sign.
-8. ~~Name-only allowlists are spoofable~~ **RESOLVED v29.42y/43i** — `trust_check.py` wired into behavior_scanner + threat_response_center + heartbeat. Never add new name-based safe-process checks; use `trusted_system_process()`.
-9. ~~PS command injection via threat data~~ **RESOLVED v29.42w** — WMI cleanup validates + escapes. Still: never add new f-string `{name}`/`{path}` PS interpolations; use `-EncodedCommand` or quote-double.
-10. ~~Three quarantine formats coexist~~ **RESOLVED v29.43d** — unified `quarantine_core.py` v2 QuarantineService (AES-GCM, write-ahead manifest, DACL preservation, hash-verified restore). All 4 producers migrated. Remaining: GUI producer legacy `.quar` files on disk need `migrate_legacy_entries()` ingestion at next boot.
-
----
-
-## Next Steps for Other Agents
-
-**agent-perf-002**: TASK-010 (GPU YARA — DEFERRED: yara-python has no GPU execution model; needs custom matcher e.g. Hyperscan)
-**agent-audit-007**: all audit CRITICAL/HIGH items closed; §11 architectural horizon (privilege split, PPL) is the long-term path
-**unclaimed**: code_integrity baseline needs to be generated on the production machine (`python code_integrity.py baseline`)
+## GitHub
+- Repo: `github.com/christiand0797/downpour`
+- Branch: `main` (single branch, no long-lived branches)
+- Commit straight to `main`

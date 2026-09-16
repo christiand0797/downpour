@@ -3,7 +3,7 @@
 Behavior-Based Threat Scanner v29.40
 =============================
 
-__version__ = "29.40.0"
+__version__ = "29.61.0"
 
 Analyzes file BEHAVIOR, not filenames.
 
@@ -223,6 +223,39 @@ class BehaviorScanner:
         'statistical_anomaly': 'T1083 - File and Directory Discovery',
         'baseline_deviation': 'T1006 - Account Discovery',
 
+        # v29.61: Advanced Memory Forensics & ETW Integration
+        'memory_injection': 'T1055 - Process Injection',
+        'reflective_dll': 'T1620 - Reflective Code Loading',
+        'process_doppelganging': 'T1055.013 - Process Injection: Process Doppelgängering',
+        'atom_bombing': 'T1055.014 - Process Injection: VDSO Hijacking',
+        'syscall_evasion': 'T1106 - Native API / Direct Syscalls',
+        'etw_manipulation': 'T1562.006 - Impair Defenses: Indicator Blocking',
+        'etw_bypass': 'T1562.006 - Impair Defenses: Indicator Blocking',
+        'kernel_driver': 'T1068 - Exploitation for Privilege Escalation',
+        'rootkit_signature': 'T1014 - Rootkit',
+        'usermode_hooking': 'T1055 - Process Injection',
+        'iat_hooking': 'T1055.001 - DLL Injection',
+        'inline_hooking': 'T1055.002 - Process Injection: Portable Executable Injection',
+
+        # v29.61: Enhanced Supply Chain & DLL Hijacking
+        'dll_sideloading': 'T1574.002 - Hijack Execution Flow: DLL Side-Loading',
+        'dll_search_order': 'T1574.001 - DLL Search Order Hijacking',
+        'dll_proxying': 'T1574.002 - Hijack Execution Flow: DLL Side-Loading',
+        'com_hijacking': 'T1546.015 - Event Triggered Execution: Hijack Execution Flow',
+        'service_dll_hijack': 'T1574.002 - Hijack Execution Flow: DLL Side-Loading',
+        'appinit_dlls': 'T1546.010 - Event Triggered Execution: AppInit DLLs',
+
+        # v29.61: Advanced Persistence & Lateral Movement
+        'named_pipe_c2': 'T1090.001 - Proxy: Internal Proxy',
+        'rpc_binding': 'T1021.003 - Remote Services: Distributed Component Object Model',
+        'dcom_hijacking': 'T1021.003 - Remote Services: Distributed Component Object Model',
+        'wmi_event_consumer': 'T1546.003 - Event Triggered Execution: WMI',
+        'custom_schtask': 'T1053.005 - Scheduled Task/Job: Scheduled Task',
+        'custom_service': 'T1543.003 - Create or Modify System Process: Windows Service',
+        'access_token_manipulation': 'T1134 - Access Token Manipulation',
+        'token_theft': 'T1134.001 - Access Token Manipulation: Token Impersonation/Theft',
+        'token_impersonation': 'T1134.004 - Access Token Manipulation: Parent PID Spoofing',
+
         # Impact
         'ransomware_encrypt': 'T1486 - Data Encrypted for Impact',
         'clipboard_hijack': 'T1115 - Clipboard Data',
@@ -314,6 +347,36 @@ class BehaviorScanner:
         'temporal_jitter': 'T1029',
         'statistical_anomaly': 'T1083',
         'baseline_deviation': 'T1006',
+        # v29.61: Advanced Memory Forensics
+        'memory_injection': 'T1055',
+        'reflective_dll': 'T1620',
+        'process_doppelganging': 'T1055.013',
+        'atom_bombing': 'T1055.014',
+        'syscall_evasion': 'T1106',
+        'etw_manipulation': 'T1562.006',
+        'etw_bypass': 'T1562.006',
+        'kernel_driver': 'T1068',
+        'rootkit_signature': 'T1014',
+        'usermode_hooking': 'T1055',
+        'iat_hooking': 'T1055.001',
+        'inline_hooking': 'T1055.002',
+        # v29.61: Enhanced Supply Chain
+        'dll_sideloading': 'T1574.002',
+        'dll_search_order': 'T1574.001',
+        'dll_proxying': 'T1574.002',
+        'com_hijacking': 'T1546.015',
+        'service_dll_hijack': 'T1574.002',
+        'appinit_dlls': 'T1546.010',
+        # v29.61: Advanced Persistence
+        'named_pipe_c2': 'T1090.001',
+        'rpc_binding': 'T1021.003',
+        'dcom_hijacking': 'T1021.003',
+        'wmi_event_consumer': 'T1546.003',
+        'custom_schtask': 'T1053.005',
+        'custom_service': 'T1543.003',
+        'access_token_manipulation': 'T1134',
+        'token_theft': 'T1134.001',
+        'token_impersonation': 'T1134.004',
         'lateral_movement_smb': 'T1021.002',
         'named_pipe_c2': 'T1090.001',
         'brute_force': 'T1110',
@@ -833,6 +896,51 @@ class BehaviorScanner:
                 except Exception:
                     pass
                 
+                # v29.61: Check 6 - Advanced memory forensics integration
+                try:
+                    # Check for process hollowing indicators
+                    if hasattr(proc, 'memory_maps'):
+                        mem_maps = proc.memory_maps()
+                        rx_sections = [m for m in mem_maps if 'r-x' in m.perms]
+                        if len(rx_sections) > 20:  # Unusual number of executable sections
+                            threat_indicators.append("Unusual executable memory sections - possible process hollowing")
+                            severity = 'critical'
+                except Exception:
+                    pass
+                
+                # v29.61: Check 7 - ETW manipulation detection
+                try:
+                    cmdline = ' '.join(pinfo['cmdline']) if pinfo['cmdline'] else ''
+                    etw_bypass_indicators = [
+                        '--silence-logging-events',
+                        '--disable-logging',
+                        '--block-logging',
+                        'etw',
+                        'event-trace',
+                        'silence-logging'
+                    ]
+                    if any(indicator in cmdline.lower() for indicator in etw_bypass_indicators):
+                        threat_indicators.append("ETW manipulation indicators detected")
+                        severity = 'critical'
+                except Exception:
+                    pass
+                
+                # v29.61: Check 8 - Named pipe C2 detection
+                try:
+                    # Check for suspicious named pipe patterns
+                    if hasattr(proc, 'open_files'):
+                        open_files = proc.open_files()
+                        for f in open_files:
+                            if f.path.startswith('\\\\.\\pipe\\'):
+                                pipe_name = f.path.replace('\\\\.\\pipe\\', '').lower()
+                                suspicious_pipes = ['comsvc', 'msft-', 'windows', 'lsass', 'sam', 'ntds']
+                                if any(susp in pipe_name for susp in suspicious_pipes):
+                                    if 'svchost' not in name.lower() and 'services' not in name.lower():
+                                        threat_indicators.append(f"Suspicious named pipe access: {f.path}")
+                                        severity = 'high'
+                except Exception:
+                    pass
+                
                 # Only report if we found actual suspicious behavior
                 if threat_indicators:
                     # v29.39: Track behavior anomalies for real-time metrics
@@ -861,6 +969,15 @@ class BehaviorScanner:
                             if tag:
                                 mitre_tags.append(tag)
                     
+                    # v29.61: Enhanced behavioral context extraction
+                    behavioral_context = {
+                        'parent_pid': None,
+                        'child_count': len(proc.children()) if hasattr(proc, 'children') else 0,
+                        'thread_count': proc.num_threads() if hasattr(proc, 'num_threads') else 0,
+                        'handle_count': proc.num_handles() if hasattr(proc, 'num_handles') else 0,
+                        'creation_time': pinfo.get('create_time', 0),
+                    }
+                    
                     suspicious.append({
                         'pid': pinfo['pid'],
                         'name': pinfo['name'],
@@ -869,7 +986,8 @@ class BehaviorScanner:
                         'indicators': threat_indicators,
                         'severity': severity,
                         'type': 'process_behavior',
-                        'mitre': '; '.join(mitre_tags) if mitre_tags else ''
+                        'mitre': '; '.join(mitre_tags) if mitre_tags else '',
+                        'context': behavioral_context,
                     })
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 pass  # Process may have exited during scan - skip it

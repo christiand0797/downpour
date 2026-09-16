@@ -1,5 +1,5 @@
 # TODO / Current State — Downpour v29 Titanium
-# Last verified: 2026-09-09 (v29.48 — push-based event delivery)
+# Last verified: 2026-09-16 (v29.80 — rain canvas enhancements, sharded context, threat feed logging, audit cleanup)
 
 **READ THIS FIRST if you are a new agent picking up this project.**
 This file was badly stale (dated April 2026) until this rewrite. `_WORKLOG.md`
@@ -70,6 +70,8 @@ authoritative history. This file is the current-state snapshot + what's left.
   gap — modules were shipped but never connected to the alert pipeline).
 - **v29.55** — sysmon_monitor wired into security monitors: rich kernel
   telemetry (process/network/file/DNS/registry) with graceful degradation.
+- **v29.80** — Rain canvas v29.80 enhancements: Thunder audio (`winsound.Beep`), screen micro-shake (3-frame ±2px jitter), rainbow effect (6-band animated arc), aurora borealis (flowing curtains with color cycling), meteor shower (steep-angle streaking particles), atmospheric particle system (dust/pollen/ash/embers with gravity), weather modes (rain/snow/sleet/storm/clear with smooth transitions), enhanced lightning forks (multi-branch with variable probability), meteor shower spawning, ambient particle spawning per weather mode, thunder rumble with distance delay, screen micro-shake on intense lightning, rainbow chance after heavy rain. Sharded Context architecture (`sharded_context.py`): 16-shard consistent-hash ring, persistent snapshots with versioning, pub/sub event system, distributed locking, context compression. Threat feed logging: Structured JSONL with SHA-256 integrity chain, MITRE ATT&CK tactic mapping, kill chain phase tracking, GeoIP country lookup, source engine detection, indicator extraction (IP/domain/hash/email/filepath/registry/CVE), SHA-256 event chain integrity, events/minute tracking, severity counts. Export threat log: CSV/JSON/HTML/Markdown with filtering (severity, engine, indicator type, time range, kill chain phase). PowerShell removal complete: all `subprocess.run(['powershell', ...])` replaced with native Windows commands (`reg`, `wmic`, `netsh`, `ipconfig`, `manage-bde`, `certutil`, `signtool`, `MpCmdRun.exe`).
+- **v29.50** — `port_firewall_unblock.py`: one-click removal of ALL
 - **`pefile` MUST be present in the venv** (requirements.txt lists it) — it
   went missing once and `test_notepad_analyzes_clean` fails on `is_pe=False`.
 - **Main-thread DB-freeze rule (v29.14)**: every `self.db.*` / `count_intel()`
@@ -162,6 +164,7 @@ Full report: `docs/SECURITY_AUDIT_2026-09-07.md`. Queue: TASK-011…TASK-018 in
       `advanced_threat_remediation.py:915-919` (WMI cleanup),
       `advanced_threat_analyzer.py:447-448` (`Get-AuthenticodeSignature`).
       Use `-EncodedCommand` / native APIs / strict single-quote doubling.
+      **COMPLETE v29.80**: All `subprocess.run(['powershell', ...])` calls eliminated across 14 files; replaced with native Windows commands (`reg`, `wmic`, `netsh`, `ipconfig`, `manage-bde`, `certutil`, `signtool`, `MpCmdRun.exe`).
 - [x] **TASK-013 (CRITICAL): Feed integrity.** DONE v29.42y — both fetch paths HTTPS-only (main `_fetch_feed` + `threat_feed_aggregator.fetch_feed`), per-fetch `FEED-INTEGRITY` sha256 audit lines, cert-exempt TLS hosts log loudly; concurrent agent added the HMAC manifest class in threat_feed_aggregator. PARTIAL v29.42w (HTTPS-only `_verify_url_security` + placeholder-hash removal done). `VERIFICATION_HASHES`
       (`downpour_v29_titanium.py:10374-10379`) are placeholder *strings*, not
       hashes; HTTP feeds allowed (`:10430-10441`); feed IOCs auto-create
@@ -218,6 +221,16 @@ Full report: `docs/SECURITY_AUDIT_2026-09-07.md`. Queue: TASK-011…TASK-018 in
       when non-admin) and `_show_proc_detail` reports it. GPU *monitoring*
       (util/temp/mem gauges) has worked since v28 via NVML. What remains is
       actually *running compute* on the GPU, which requires the CUDA toolchain.
+
+- [x] **Rain canvas v29.80 methods** — All rain canvas methods implemented in v29.80:
+      `_play_thunder` (winsound.Beep with distance delay), `_trigger_shake`
+      (3-frame ±2px jitter), `_trigger_rainbow` (6-band animated arc),
+      `_update_aurora` (3-6 flowing color-cycling curtains), `_spawn_meteor`/
+      `_update_meteors` (8 concurrent steep-angle particles), `_spawn_particle`/
+      `_update_particles` (64-particle atmospheric system), `_trigger_aurora`,
+      `_trigger_lightning_forks` (multi-branch with variable probability),
+      `_set_weather_mode`/`_update_weather_transitions` (rain/snow/sleet/storm/clear
+      with smooth transitions), `_spawn_ambient_particles` (per weather mode).
 - [x] **Feed health dashboard UI tab** — `feed_status` DB table has real data
       (from the OSINT/threat-feed work), no UI surfaces it yet. FIXED v29.15:
       Intel-tab feed Status column now shows `[OK]`/`[FAIL]`/`[STALE]`/
