@@ -198,6 +198,39 @@ status = get_dpapi_monitor().get_status()
 alerts = get_dpapi_monitor().get_alerts()
 ```
 
+### Using WiFi Security Intelligence
+```python
+from wifi_security_intelligence import start_wifi_intelligence, get_wifi_intel
+start_wifi_intelligence(callback=my_alert_handler, scan_interval=45.0)
+status = get_wifi_intel().get_status()
+networks = get_wifi_intel().scan_now()
+inventory = get_wifi_intel().get_network_inventory()
+```
+
+### Using C2 Beacon Detector
+```python
+from beacon_detector import start_beacon_detection, get_beacon_detector
+start_beacon_detection(callback=my_alert_handler)
+status = get_beacon_detector().get_status()
+tracked = get_beacon_detector().get_tracked_connections()
+```
+
+### Using Browser Security Monitor
+```python
+from browser_security_monitor import start_browser_monitoring, get_browser_monitor
+start_browser_monitoring(callback=my_alert_handler)
+status = get_browser_monitor().get_status()
+inventory = get_browser_monitor().get_extension_inventory()
+```
+
+### Using Bluetooth Security Monitor
+```python
+from bluetooth_security_monitor import start_bt_monitoring, get_bt_monitor
+start_bt_monitoring(callback=my_alert_handler)
+status = get_bt_monitor().get_status()
+devices = get_bt_monitor().get_device_inventory()
+```
+
 ### Using Print Spooler Monitor
 ```python
 from print_spooler_monitor import start_spooler_monitoring, get_spooler_monitor

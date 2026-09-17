@@ -1,5 +1,47 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.86 — All Tabs Restored + WiFi Intel, Beacon Detector, Browser & BT Security
+- **All Tabs Restored**: 30 tabs active (up from 17). Restored: CVE Dashboard, WiFi Security,
+  DNS, Memory Forensics, Threat Hunt, Sandbox, Services, USB Guard, IoT Discovery,
+  Timeline, Remote Access, Cleanup, Parental Controls
+- **WiFi Security Intelligence** (`wifi_security_intelligence.py`):
+  - Rogue AP / Evil Twin detection via SSID-BSSID mapping and auth comparison
+  - Deauthentication flood detection (connection drop frequency analysis)
+  - Signal strength baseline & anomaly alerting (possible AP spoofing)
+  - Suspicious SSID pattern matching (honeypot lures, attack tool names)
+  - Known attack tool OUI detection (Hak5 WiFi Pineapple, Flipper)
+  - Channel change monitoring, weak auth honeypot indicators
+  - Inspired by RuView spatial intelligence concepts (T1557.002, T1200, T1040, T1498)
+- **C2 Beacon Detector** (`beacon_detector.py`):
+  - Connection timing analysis using coefficient of variation (RITA-J algorithm)
+  - Beacon score: lower = more regular intervals = more likely C2
+  - Known C2 port detection (4444, 5555, 31337, 8443, etc.)
+  - Connection frequency tracking with 2-hour sliding window
+  - Automatic stale data cleanup and 1-hour dedup per destination (T1071, T1573, T1571)
+- **Browser Security Monitor** (`browser_security_monitor.py`):
+  - Chrome/Edge/Brave extension inventory and change detection
+  - Dangerous permission flagging (webRequest, cookies, tabs, nativeMessaging)
+  - Crypto wallet extension monitoring (MetaMask, Phantom, Coinbase, etc.)
+  - Credential database modification detection (Login Data mtime tracking)
+  - Browser hijacking detection (homepage/search engine changes)
+  - Manifest analysis for high-risk permission combinations (T1176, T1555.003, T1185)
+- **Bluetooth Security Monitor** (`bluetooth_security_monitor.py`):
+  - Paired device inventory via registry enumeration
+  - New device pairing alerts with suspicious name pattern detection
+  - Attack tool name detection (Flipper, Ubertooth, BlueHydra)
+  - Bluetooth adapter state change monitoring (enabled/disabled)
+  - Device removal tracking (T1011.001, T1200)
+- **New YARA Rules** (`yara_rules/browser_threats.yar`):
+  - Malicious_Browser_Extension_Loader — extension + data theft + exfil patterns
+  - Browser_Credential_Stealer — Login Data/Cookies/DPAPI targeting
+  - C2_Beacon_Framework — beacon/jitter/shellcode framework indicators
+  - WiFi_Attack_Tool — aircrack/wifipumpkin/evil twin tool detection
+- **New Sigma Rules** (`sigma_rules/beacon_detection.yml`):
+  - C2 beacon framework command lines (Cobalt Strike, Sliver, Mythic, Havoc, BruteRatel)
+  - Periodic network connection patterns (curl loops, netcat, reverse shells)
+  - Browser extension sideloading via CLI or registry
+  - Bluetooth reconnaissance tool detection
+
 ## v29.85 — Print Spooler, COM Hijack, DNS Security Monitors + Rain & GPU Fixes
 - **Print Spooler Attack Monitor** (`print_spooler_monitor.py`):
   - PrintNightmare (CVE-2021-34527) and SpoolFool (CVE-2022-21999) exploitation detection

@@ -25621,25 +25621,38 @@ class downpour(tk.Tk):
         logger.info("_build_ui: notebook bound, building tabs...")
 
 # -- Create all tab frames and register with notebook ------------------
-        # REDUCED from 28 tabs to 15 essential tabs for better usability
+        # v29.86: ALL tabs restored \u2014 use scroll arrows for navigation
         _TAB_DEFS: Any = [
-            ('_tab_dashboard',  '\U0001f5f2 Dashboard',  self._build_dashboard),       # Main overview
-            ('_tab_threats',    '\U0001f6a8 Threats',     self._build_threats_tab),      # Threat log & remediation (PRIORITY)
-            ('_tab_remediation','\U0001f9fe Remediation',   self._build_remediation_tab),  # v29.5 history + verification center
-            ('_tab_possible_threats', '\U0001f50e Possible', self._build_possible_threats_tab), # Pre-verification holding
-            ('_tab_processes',  '\u2699 Processes',       self._build_processes_tab),    # Process management
-            ('_tab_network',    '\U0001f310 Network',     self._build_network_tab),      # Network monitoring
-            ('_tab_scanner',    '\U0001f50d Scanner',     self._build_scanner_tab),      # File/process scanning
-            ('_tab_intel',      '\u2622 Intel',           self._build_intel_tab),        # Threat intelligence
-            ('_tab_hardening',  '\U0001f6e1 Hardening',   self._build_combined_audit_tab), # Security hardening
-            ('_tab_performance','\U0001f4ca Performance',   self._build_performance_tab),  # System performance
-            ('_tab_ransomware', '\u2620 Ransomware',      self._build_ransomware_tab),   # Ransomware protection
-            ('_tab_firewall',   '\U0001f525 Firewall',    self._build_firewall_tab),     # Firewall management
-            ('_tab_aegis',      '\u2694 Aegis',           self._build_aegis_tab),        # AEGIS security layers
-            ('_tab_vpn',        '\U0001f510 VPN',         self._build_vpn_tab),          # VPN/Privacy
-            ('_tab_emergency',  '\U0001f6a8 Emergency',   self._build_emergency_tab),    # Emergency response
-            ('_tab_settings',   '\u2699 Settings',        self._build_settings_tab),     # Settings
-            ('_tab_forensic',   '\U0001f50e Forensics',  self._build_forensic_tab),    # v29.59 Forensic investigation
+            ('_tab_dashboard',  '\U0001f5f2 Dashboard',  self._build_dashboard),
+            ('_tab_threats',    '\U0001f6a8 Threats',     self._build_threats_tab),
+            ('_tab_remediation','\U0001f9fe Remediation', self._build_remediation_tab),
+            ('_tab_possible_threats', '\U0001f50e Possible', self._build_possible_threats_tab),
+            ('_tab_processes',  '\u2699 Processes',       self._build_processes_tab),
+            ('_tab_network',    '\U0001f310 Network',     self._build_network_tab),
+            ('_tab_scanner',    '\U0001f50d Scanner',     self._build_scanner_tab),
+            ('_tab_intel',      '\u2622 Intel',           self._build_intel_tab),
+            ('_tab_cve',        '\U0001f6e0 CVE',         self._build_cve_dashboard_tab),
+            ('_tab_hardening',  '\U0001f6e1 Hardening',   self._build_combined_audit_tab),
+            ('_tab_performance','\U0001f4ca Performance', self._build_performance_tab),
+            ('_tab_ransomware', '\u2620 Ransomware',      self._build_ransomware_tab),
+            ('_tab_firewall',   '\U0001f525 Firewall',    self._build_firewall_tab),
+            ('_tab_wifi',       '\U0001f4f6 WiFi',        self._build_wifi_tab),
+            ('_tab_dns',        '\U0001f310 DNS',         self._build_dns_tab),
+            ('_tab_aegis',      '\u2694 Aegis',           self._build_aegis_tab),
+            ('_tab_memory',     '\U0001f9e0 Memory',      self._build_memory_tab),
+            ('_tab_forensic',   '\U0001f50e Forensics',   self._build_forensic_tab),
+            ('_tab_hunt',       '\U0001f3af Hunt',        self._build_hunt_tab),
+            ('_tab_sandbox',    '\U0001f4e6 Sandbox',     self._build_sandbox_tab),
+            ('_tab_services',   '\U0001f527 Services',    self._build_services_tab),
+            ('_tab_usb',        '\U0001f50c USB',         self._build_usb_tab),
+            ('_tab_iot',        '\U0001f4e1 IoT',         self._build_iot_tab),
+            ('_tab_timeline',   '\U0001f4c5 Timeline',    self._build_timeline_tab),
+            ('_tab_remote',     '\U0001f4bb Remote',      self._build_remote_access_tab),
+            ('_tab_cleanup',    '\U0001f9f9 Cleanup',     self._build_cleanup_tab),
+            ('_tab_vpn',        '\U0001f510 VPN',         self._build_vpn_tab),
+            ('_tab_parental',   '\U0001f46a Parental',    self._build_parental_tab),
+            ('_tab_emergency',  '\U0001f6a8 Emergency',   self._build_emergency_tab),
+            ('_tab_settings',   '\u2699 Settings',        self._build_settings_tab),
         ]
         # Maps self._tab_xxx (inner) -> outer frame added to notebook; used by _select_tab()
         self._nb_outer: dict = {}
@@ -38884,6 +38897,78 @@ Verification Status:
                 except Exception as _e:
                     _safe_log('USBThreat', 'scan failed', _e)
             self._executor.submit(_start_usb_threat)
+        # v29.86: WiFi security intelligence (rogue AP, evil twin, deauth)
+        if not getattr(self, '_wifi_intel_started', False):
+            self._wifi_intel_started = True
+
+            def _start_wifi_intel():
+                try:
+                    from wifi_security_intelligence import start_wifi_intelligence
+                    if start_wifi_intelligence(
+                            callback=lambda a: self._queue_alert(
+                                f'[WIFI] {a.category}: {a.details[:140]}',
+                                Colors.GAUGE_ORANGE)):
+                        self._queue_alert(
+                            '[WIFI-INTEL] WiFi security intelligence active '
+                            '(rogue AP, evil twin, deauth detection)',
+                            Colors.GAUGE_TEAL)
+                except Exception as _e:
+                    _safe_log('WiFiIntel', 'start failed', _e)
+            self._executor.submit(_start_wifi_intel)
+        # v29.86: C2 beacon detector (connection timing analysis)
+        if not getattr(self, '_beacon_det_started', False):
+            self._beacon_det_started = True
+
+            def _start_beacon_det():
+                try:
+                    from beacon_detector import start_beacon_detection
+                    if start_beacon_detection(
+                            callback=lambda a: self._queue_alert(
+                                f'[BEACON] {a.category}: {a.details[:140]}',
+                                Colors.GAUGE_RED)):
+                        self._queue_alert(
+                            '[BEACON] C2 beacon detector active '
+                            '(timing analysis, jitter scoring)',
+                            Colors.GAUGE_TEAL)
+                except Exception as _e:
+                    _safe_log('BeaconDet', 'start failed', _e)
+            self._executor.submit(_start_beacon_det)
+        # v29.86: Browser security monitor (extensions, credentials, hijacking)
+        if not getattr(self, '_browser_sec_started', False):
+            self._browser_sec_started = True
+
+            def _start_browser_sec():
+                try:
+                    from browser_security_monitor import start_browser_monitoring
+                    if start_browser_monitoring(
+                            callback=lambda a: self._queue_alert(
+                                f'[BROWSER] {a.category}: {a.details[:140]}',
+                                Colors.GAUGE_ORANGE)):
+                        self._queue_alert(
+                            '[BROWSER] Browser security monitor active '
+                            '(extensions, credentials, hijacking)',
+                            Colors.GAUGE_TEAL)
+                except Exception as _e:
+                    _safe_log('BrowserSec', 'start failed', _e)
+            self._executor.submit(_start_browser_sec)
+        # v29.86: Bluetooth security monitor (device inventory, pairing)
+        if not getattr(self, '_bt_sec_started', False):
+            self._bt_sec_started = True
+
+            def _start_bt_sec():
+                try:
+                    from bluetooth_security_monitor import start_bt_monitoring
+                    if start_bt_monitoring(
+                            callback=lambda a: self._queue_alert(
+                                f'[BT] {a.category}: {a.details[:140]}',
+                                Colors.GAUGE_ORANGE)):
+                        self._queue_alert(
+                            '[BT] Bluetooth security monitor active '
+                            '(device tracking, pairing alerts)',
+                            Colors.GAUGE_TEAL)
+                except Exception as _e:
+                    _safe_log('BTSec', 'start failed', _e)
+            self._executor.submit(_start_bt_sec)
         self._queue_alert('[OK] USB, Service, ARP, WMI, FIM + Extended Threat monitors active', Colors.GAUGE_GREEN)
 
     def _manual_start_aegis(self):

@@ -42,7 +42,7 @@
 - **Sensor Hub**: Single psutil snapshot/5s fanned to consumers
 - **Defense Suite**: 38 capabilities (security services, RDP, AppLocker, local groups, LSA, SMB, ASR, shell config watchers)
 - **PowerShell Removal Complete**: All `subprocess.run(['powershell', ...])` replaced with native Windows commands
-- **Sigma Rules**: 16 rule files (90+ detection rules) covering LOLBins, credential access, defense evasion, persistence, lateral movement, PowerShell, Kerberos, WMI, schtasks, exfiltration, BYOVD drivers
+- **Sigma Rules**: 17 rule files (95+ detection rules) covering LOLBins, credential access, defense evasion, persistence, lateral movement, PowerShell, Kerberos, WMI, schtasks, exfiltration, BYOVD drivers, C2 beaconing, browser sideloading, BT recon
 - **ETW Monitor** (`etw_monitor.py`): Kernel-level telemetry — process creation, registry mods, named pipes, DNS queries, DLL loads
 - **Ransomware Canary System** (`ransomware_canary.py`): Decoy file deployment with 5s integrity checks for instant ransomware detection
 - **YARA Rules v29.84**: 25 rule files including AMSI bypass, info-stealers, DLL injection, supply chain, wipers, webshells, fileless, BYOVD, RAT, PS obfuscation, credential dumpers
@@ -58,6 +58,10 @@
 - **Print Spooler Monitor** (`print_spooler_monitor.py`): PrintNightmare/SpoolFool detection, spooler service monitoring, suspicious DLL scanning
 - **COM Hijack Detector** (`com_hijack_detector.py`): CLSID hijacking detection, UAC bypass COM objects, TreatAs redirection monitoring
 - **DNS Security Monitor** (`dns_security_monitor.py`): DNS server change detection, DoH bypass, DGA domain detection, DNS tunneling indicators
+- **WiFi Security Intelligence** (`wifi_security_intelligence.py`): Rogue AP/evil twin detection, deauth flood indicators, signal anomaly, attack tool OUI detection
+- **C2 Beacon Detector** (`beacon_detector.py`): Connection timing analysis, coefficient of variation scoring, known C2 port detection
+- **Browser Security Monitor** (`browser_security_monitor.py`): Extension inventory, dangerous permission flagging, credential access, browser hijacking
+- **Bluetooth Security Monitor** (`bluetooth_security_monitor.py`): Paired device tracking, suspicious name detection, adapter state monitoring
 
 ### Test Suite
 - **389+ tests** passing (v29.72 baseline)
@@ -113,6 +117,10 @@
 | `print_spooler_monitor.py` | ~337 | PrintNightmare/SpoolFool detection, spooler service monitoring |
 | `com_hijack_detector.py` | ~256 | COM object hijacking detection (CLSID, UAC bypass, TreatAs) |
 | `dns_security_monitor.py` | ~326 | DNS security (server changes, DoH bypass, DGA, tunneling) |
+| `wifi_security_intelligence.py` | ~420 | WiFi signal intel (rogue AP, evil twin, deauth, signal anomaly) |
+| `beacon_detector.py` | ~310 | C2 beacon detection (timing analysis, jitter scoring) |
+| `browser_security_monitor.py` | ~420 | Browser security (extensions, credentials, hijacking) |
+| `bluetooth_security_monitor.py` | ~280 | Bluetooth security (device tracking, pairing alerts) |
 
 ## Verification Commands (Run Before/After Changes)
 
