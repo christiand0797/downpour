@@ -290,6 +290,47 @@ alerts = get_lateral_detector().get_alerts()
 alert = get_lateral_detector().scan_command_line("psexec.exe", "psexec.exe \\\\target -s cmd")
 ```
 
+### Using Data Exfiltration Monitor
+```python
+from data_exfiltration_monitor import start_exfil_monitoring, get_exfil_monitor
+start_exfil_monitoring(callback=my_alert_handler)
+status = get_exfil_monitor().get_status()
+alerts = get_exfil_monitor().get_alerts()
+```
+
+### Using Anti-Forensics Detector
+```python
+from anti_forensics_detector import start_antiforensics_detection, get_antiforensics_detector
+start_antiforensics_detection(callback=my_alert_handler)
+status = get_antiforensics_detector().get_status()
+# Real-time command line scanning:
+alert = get_antiforensics_detector().scan_command_line("sdelete.exe", "sdelete -p 3 secret.docx")
+```
+
+### Using Scheduled Task Monitor
+```python
+from scheduled_task_monitor import start_schtask_monitoring, get_schtask_monitor
+start_schtask_monitoring(callback=my_alert_handler)
+status = get_schtask_monitor().get_status()
+alerts = get_schtask_monitor().get_alerts()
+```
+
+### Using WMI Persistence Detector
+```python
+from wmi_persistence_detector import start_wmi_persist_detection, get_wmi_persist_detector
+start_wmi_persist_detection(callback=my_alert_handler)
+status = get_wmi_persist_detector().get_status()
+inventory = get_wmi_persist_detector().get_subscription_inventory()
+```
+
+### Using Gaming Protection Monitor
+```python
+from gaming_protection_monitor import start_gaming_protection, get_gaming_monitor
+start_gaming_protection(callback=my_alert_handler)
+status = get_gaming_monitor().get_status()
+alerts = get_gaming_monitor().get_alerts()
+```
+
 ## GitHub
 - Repo: `github.com/christiand0797/downpour`
 - Branch: `main` (single branch, commit directly)

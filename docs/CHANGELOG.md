@@ -1,5 +1,53 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.88 — Data Exfiltration, Anti-Forensics, Scheduled Tasks, WMI Persistence, Gaming Protection
+- **Data Exfiltration Monitor** (`data_exfiltration_monitor.py`):
+  - Suspicious outbound port monitoring (FTP, SSH, SMTP, Tor, IRC, DNS tunneling)
+  - Tor network connection detection (ports 9001, 9050, 9150 = critical alert)
+  - DNS tunneling indicator detection (direct DNS connections on port 53)
+  - Archive staging detection in temp/Downloads/Desktop directories
+  - Large archive alerts (>50MB critical, >10MB medium) for exfil staging (T1048, T1567, T1071.004)
+- **Anti-Forensics Detector** (`anti_forensics_detector.py`):
+  - Event log clearing detection via record count baseline monitoring
+  - Complete log wipe detection (Security, System, Application, Sysmon, Defender)
+  - Prefetch file mass deletion detection (>50% reduction = anti-forensics)
+  - Anti-forensics tool command line scanning (sdelete, eraser, bleachbit, timestomp)
+  - Audit policy tampering detection (auditpol /clear, /remove) (T1070, T1070.001, T1070.004)
+- **Scheduled Task Persistence Monitor** (`scheduled_task_monitor.py`):
+  - New scheduled task creation detection with baseline comparison
+  - Known malware task name pattern matching (GUID, hex, fake Windows Update)
+  - Suspicious task action analysis (PowerShell, cmd, wscript, mshta, rundll32)
+  - User-writable path execution detection (AppData, Temp, Downloads)
+  - SYSTEM privilege task alerting (T1053.005)
+- **WMI Persistence Detector** (`wmi_persistence_detector.py`):
+  - WMI event filter creation monitoring (new filter = persistence indicator)
+  - CommandLineEventConsumer audit (most common WMI persistence vector)
+  - ActiveScriptEventConsumer detection (script-based persistence)
+  - FilterToConsumerBinding inventory tracking
+  - Suspicious consumer name pattern matching (GUID, hex, exec/loader/beacon) (T1546.003)
+- **Gaming Protection Monitor** (`gaming_protection_monitor.py`):
+  - Cheat tool detection (Cheat Engine, ArtMoney, WeMod, PLITCH, trainers)
+  - Memory editor / debugger alerting (x64dbg, OllyDbg, ReClass, HxD)
+  - DLL injection tool detection (Extreme Injector, Xenos, GDIHook)
+  - DDoS / network attack tool detection (LOIC, HOIC, slowloris, hping)
+  - Lag switch / network throttling detection (clumsy, NetLimiter)
+  - SYN flood attack detection (>100 half-open connections)
+  - Connection flooding from single IP detection (>50 connections)
+  - Audio device hijacking / unexpected switching alerts
+  - Connection spike detection (3x increase in 30 seconds) (T1055, T1498)
+- **New YARA Rules** (4 files):
+  - `data_exfiltration.yar` — rclone, mega, DNS tunneling, archive staging (2 rules)
+  - `anti_forensics.yar` — evidence destruction tools, log tampering scripts (2 rules)
+  - `gaming_cheats.yar` — Cheat Engine, DLL injectors, DDoS tools (3 rules)
+  - `wmi_persistence.yar` — WMI event subscriptions, scheduled task persistence (2 rules)
+- **New Sigma Rules** (`gaming_antiforensics_persist.yml`):
+  - Data Exfiltration Tool Execution (rclone, mega, DNS tunneling)
+  - Anti-Forensics Evidence Destruction (secure delete, log clearing, audit tampering)
+  - Gaming Cheat Tool Execution (Cheat Engine, injectors, DDoS tools)
+  - WMI Event Subscription Persistence (CommandLineEventConsumer, mofcomp)
+- Updated CLAUDE.md with integration patterns for all 5 new modules
+- Updated QUICK_REFERENCE.md: 32 YARA rule files, 19 Sigma rule files
+
 ## v29.87 — BadUSB Detector, Lateral Movement, VSS Monitor, Network Share Monitor
 - **Keystroke Injection / BadUSB Detector** (`keystroke_injection_detector.py`):
   - Known BadUSB hardware detection (Arduino Leonardo, Teensy, Flipper, Digispark, ESP32-S2/S3)

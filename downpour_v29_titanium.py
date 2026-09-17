@@ -39041,6 +39041,96 @@ Verification Status:
                 except Exception as _e:
                     _safe_log('LateralDet', 'start failed', _e)
             self._executor.submit(_start_lateral_det)
+        # v29.88: Data exfiltration monitor (outbound transfers, DNS tunneling, staging)
+        if not getattr(self, '_exfil_mon_started', False):
+            self._exfil_mon_started = True
+
+            def _start_exfil_mon():
+                try:
+                    from data_exfiltration_monitor import start_exfil_monitoring
+                    if start_exfil_monitoring(
+                            callback=lambda a: self._queue_alert(
+                                f'[EXFIL] {a.category}: {a.details[:140]}',
+                                Colors.GAUGE_RED)):
+                        self._queue_alert(
+                            '[EXFIL] Data exfiltration monitor active '
+                            '(outbound transfers, DNS tunneling, staging)',
+                            Colors.GAUGE_TEAL)
+                except Exception as _e:
+                    _safe_log('ExfilMon', 'start failed', _e)
+            self._executor.submit(_start_exfil_mon)
+        # v29.88: Anti-forensics detector (log clearing, prefetch deletion, audit tampering)
+        if not getattr(self, '_antifor_det_started', False):
+            self._antifor_det_started = True
+
+            def _start_antifor_det():
+                try:
+                    from anti_forensics_detector import start_antiforensics_detection
+                    if start_antiforensics_detection(
+                            callback=lambda a: self._queue_alert(
+                                f'[ANTIFOR] {a.category}: {a.details[:140]}',
+                                Colors.GAUGE_RED)):
+                        self._queue_alert(
+                            '[ANTIFOR] Anti-forensics detector active '
+                            '(event log clearing, prefetch, audit tampering)',
+                            Colors.GAUGE_TEAL)
+                except Exception as _e:
+                    _safe_log('AntiForDet', 'start failed', _e)
+            self._executor.submit(_start_antifor_det)
+        # v29.88: Scheduled task persistence monitor
+        if not getattr(self, '_schtask_mon_started', False):
+            self._schtask_mon_started = True
+
+            def _start_schtask_mon():
+                try:
+                    from scheduled_task_monitor import start_schtask_monitoring
+                    if start_schtask_monitoring(
+                            callback=lambda a: self._queue_alert(
+                                f'[SCHTASK] {a.category}: {a.details[:140]}',
+                                Colors.GAUGE_RED)):
+                        self._queue_alert(
+                            '[SCHTASK] Scheduled task monitor active '
+                            '(new task creation, suspicious actions, persistence)',
+                            Colors.GAUGE_TEAL)
+                except Exception as _e:
+                    _safe_log('SchTaskMon', 'start failed', _e)
+            self._executor.submit(_start_schtask_mon)
+        # v29.88: WMI persistence detector (event subscriptions, CommandLineEventConsumer)
+        if not getattr(self, '_wmi_persist_started', False):
+            self._wmi_persist_started = True
+
+            def _start_wmi_persist():
+                try:
+                    from wmi_persistence_detector import start_wmi_persist_detection
+                    if start_wmi_persist_detection(
+                            callback=lambda a: self._queue_alert(
+                                f'[WMIPERSIST] {a.category}: {a.details[:140]}',
+                                Colors.GAUGE_RED)):
+                        self._queue_alert(
+                            '[WMIPERSIST] WMI persistence detector active '
+                            '(event filters, consumers, bindings)',
+                            Colors.GAUGE_TEAL)
+                except Exception as _e:
+                    _safe_log('WMIPersist', 'start failed', _e)
+            self._executor.submit(_start_wmi_persist)
+        # v29.88: Gaming protection monitor (cheat tools, DDoS, lag switch, audio hijack)
+        if not getattr(self, '_gaming_prot_started', False):
+            self._gaming_prot_started = True
+
+            def _start_gaming_prot():
+                try:
+                    from gaming_protection_monitor import start_gaming_protection
+                    if start_gaming_protection(
+                            callback=lambda a: self._queue_alert(
+                                f'[GAMING] {a.category}: {a.details[:140]}',
+                                Colors.GAUGE_RED)):
+                        self._queue_alert(
+                            '[GAMING] Gaming protection active '
+                            '(cheat tools, DDoS, lag switch, audio hijack)',
+                            Colors.GAUGE_TEAL)
+                except Exception as _e:
+                    _safe_log('GamingProt', 'start failed', _e)
+            self._executor.submit(_start_gaming_prot)
         self._queue_alert('[OK] USB, Service, ARP, WMI, FIM + Extended Threat monitors active', Colors.GAUGE_GREEN)
 
     def _manual_start_aegis(self):
