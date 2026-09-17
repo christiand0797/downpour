@@ -1,5 +1,40 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.87 — BadUSB Detector, Lateral Movement, VSS Monitor, Network Share Monitor
+- **Keystroke Injection / BadUSB Detector** (`keystroke_injection_detector.py`):
+  - Known BadUSB hardware detection (Arduino Leonardo, Teensy, Flipper, Digispark, ESP32-S2/S3)
+  - HID device arrival monitoring with VID/PID analysis
+  - Suspicious device name pattern matching (Rubber Ducky, Bash Bunny, O.MG, USB Ninja)
+  - Rapid keyboard cycling attack detection (3+ keyboards in 5 minutes)
+  - Device enumeration via wmic Win32_Keyboard and Win32_PnPEntity (T1200, T1059.001, T1091)
+- **Lateral Movement Detector** (`lateral_movement_detector.py`):
+  - Inbound connection monitoring on lateral movement ports (RPC, SMB, RDP, WinRM)
+  - PsExec-style service installation detection (randomized 8-char names, remcom, paexec)
+  - 17 lateral tool command line signatures (Impacket, CrackMapExec, evil-winrm, secretsdump)
+  - RDP brute force detection (5+ connections from same IP in 5 minutes)
+  - New service creation monitoring with baseline comparison (T1021, T1047, T1053, T1570)
+- **Shadow Copy / VSS Monitor** (`shadow_copy_monitor.py`):
+  - VSS service state monitoring (stopped = ransomware indicator)
+  - Shadow copy count baseline and deletion detection
+  - All shadow copies deleted = critical ransomware alert
+  - Windows Recovery disabled detection (bcdedit recoveryenabled)
+  - Uses vssadmin, sc, bcdedit — no PowerShell (T1490, T1562.001)
+- **Network Share Monitor** (`network_share_monitor.py`):
+  - Local share enumeration and change detection (creation/removal alerts)
+  - Admin share tampering detection (C$, ADMIN$, IPC$ removal = critical)
+  - Share permission auditing (Everyone/Full access flagging)
+  - Mapped network drive change detection (lateral movement indicator)
+  - External SMB session monitoring (non-RFC1918 IPs)
+  - Suspicious share name pattern matching (T1021.002, T1135, T1039)
+- **New YARA Rules**:
+  - `lateral_movement.yar` — PsExec, WinRM, SMB share abuse, RDP lateral movement (4 rules)
+  - `badusb_attacks.yar` — BadUSB payload scripts, VSS deletion scripts (2 rules)
+- **New Sigma Rules** (`sigma_rules/lateral_movement_tools.yml`):
+  - Lateral movement tool execution (PsExec, Impacket, CrackMapExec, WinRM)
+  - BadUSB / keystroke injection tool detection
+  - Shadow copy deletion (ransomware indicator)
+  - Network share reconnaissance and abuse
+
 ## v29.86 — All Tabs Restored + WiFi Intel, Beacon Detector, Browser & BT Security
 - **All Tabs Restored**: 30 tabs active (up from 17). Restored: CVE Dashboard, WiFi Security,
   DNS, Memory Forensics, Threat Hunt, Sandbox, Services, USB Guard, IoT Discovery,

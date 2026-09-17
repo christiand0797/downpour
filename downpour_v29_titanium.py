@@ -38969,6 +38969,78 @@ Verification Status:
                 except Exception as _e:
                     _safe_log('BTSec', 'start failed', _e)
             self._executor.submit(_start_bt_sec)
+        # v29.87: BadUSB / keystroke injection detector
+        if not getattr(self, '_badusb_started', False):
+            self._badusb_started = True
+
+            def _start_badusb():
+                try:
+                    from keystroke_injection_detector import start_badusb_detection
+                    if start_badusb_detection(
+                            callback=lambda a: self._queue_alert(
+                                f'[BADUSB] {a.category}: {a.details[:140]}',
+                                Colors.GAUGE_RED)):
+                        self._queue_alert(
+                            '[BADUSB] Keystroke injection detector active '
+                            '(HID monitoring, known attack hardware)',
+                            Colors.GAUGE_TEAL)
+                except Exception as _e:
+                    _safe_log('BadUSB', 'start failed', _e)
+            self._executor.submit(_start_badusb)
+        # v29.87: Network share monitor (SMB, mapped drives, admin shares)
+        if not getattr(self, '_share_mon_started', False):
+            self._share_mon_started = True
+
+            def _start_share_mon():
+                try:
+                    from network_share_monitor import start_share_monitoring
+                    if start_share_monitoring(
+                            callback=lambda a: self._queue_alert(
+                                f'[SHARE] {a.category}: {a.details[:140]}',
+                                Colors.GAUGE_ORANGE)):
+                        self._queue_alert(
+                            '[SHARE] Network share monitor active '
+                            '(SMB shares, mapped drives, sessions)',
+                            Colors.GAUGE_TEAL)
+                except Exception as _e:
+                    _safe_log('ShareMon', 'start failed', _e)
+            self._executor.submit(_start_share_mon)
+        # v29.87: Shadow copy / VSS tampering monitor
+        if not getattr(self, '_vss_mon_started', False):
+            self._vss_mon_started = True
+
+            def _start_vss_mon():
+                try:
+                    from shadow_copy_monitor import start_vss_monitoring
+                    if start_vss_monitoring(
+                            callback=lambda a: self._queue_alert(
+                                f'[VSS] {a.category}: {a.details[:140]}',
+                                Colors.GAUGE_RED)):
+                        self._queue_alert(
+                            '[VSS] Shadow copy monitor active '
+                            '(VSS state, backup deletion, recovery config)',
+                            Colors.GAUGE_TEAL)
+                except Exception as _e:
+                    _safe_log('VSSMon', 'start failed', _e)
+            self._executor.submit(_start_vss_mon)
+        # v29.87: Lateral movement detector (PsExec, WinRM, RDP brute force)
+        if not getattr(self, '_lateral_det_started', False):
+            self._lateral_det_started = True
+
+            def _start_lateral_det():
+                try:
+                    from lateral_movement_detector import start_lateral_detection
+                    if start_lateral_detection(
+                            callback=lambda a: self._queue_alert(
+                                f'[LATERAL] {a.category}: {a.details[:140]}',
+                                Colors.GAUGE_RED)):
+                        self._queue_alert(
+                            '[LATERAL] Lateral movement detector active '
+                            '(PsExec, WinRM, RDP, service installs)',
+                            Colors.GAUGE_TEAL)
+                except Exception as _e:
+                    _safe_log('LateralDet', 'start failed', _e)
+            self._executor.submit(_start_lateral_det)
         self._queue_alert('[OK] USB, Service, ARP, WMI, FIM + Extended Threat monitors active', Colors.GAUGE_GREEN)
 
     def _manual_start_aegis(self):

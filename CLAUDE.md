@@ -257,6 +257,39 @@ status = get_dns_monitor().get_status()
 alert = get_dns_monitor().check_domain("xyzab123random.tk")
 ```
 
+### Using Keystroke Injection / BadUSB Detector
+```python
+from keystroke_injection_detector import start_badusb_detection, get_badusb_detector
+start_badusb_detection(callback=my_alert_handler)
+status = get_badusb_detector().get_status()
+alerts = get_badusb_detector().get_alerts()
+```
+
+### Using Network Share Monitor
+```python
+from network_share_monitor import start_share_monitoring, get_share_monitor
+start_share_monitoring(callback=my_alert_handler)
+status = get_share_monitor().get_status()
+inventory = get_share_monitor().get_share_inventory()
+```
+
+### Using Shadow Copy / VSS Monitor
+```python
+from shadow_copy_monitor import start_vss_monitoring, get_vss_monitor
+start_vss_monitoring(callback=my_alert_handler)
+status = get_vss_monitor().get_status()
+alerts = get_vss_monitor().get_alerts()
+```
+
+### Using Lateral Movement Detector
+```python
+from lateral_movement_detector import start_lateral_detection, get_lateral_detector
+start_lateral_detection(callback=my_alert_handler)
+alerts = get_lateral_detector().get_alerts()
+# Real-time command line scanning for lateral tools:
+alert = get_lateral_detector().scan_command_line("psexec.exe", "psexec.exe \\\\target -s cmd")
+```
+
 ## GitHub
 - Repo: `github.com/christiand0797/downpour`
 - Branch: `main` (single branch, commit directly)
