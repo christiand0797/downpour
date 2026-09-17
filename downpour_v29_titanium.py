@@ -20296,12 +20296,11 @@ class ImmersiveRainCanvas(tk.Canvas):
     _COLORS: Any = _COLORS_NEAR + _COLORS_MID  # compat
 
     # Storm phase definitions: (name, intensity_mult, wind_range, lightning_chance, fog_alpha)
-    # OPTIMIZED: Reduced intensity multipliers and lightning chances for CPU savings
     _STORM_PHASES: Any = [
-        ('calm',    0.3, (-0.05, 0.2), 0.0000, 0.10),
-        ('drizzle', 0.5, (-0.1, 0.3), 0.0005, 0.15),
-        ('storm',   0.7, (-0.2, 0.5), 0.0030, 0.25),
-        ('tempest', 0.9, (-0.3, 0.7), 0.0080, 0.35),
+        ('calm',    0.4, (-0.05, 0.2), 0.0000, 0.12),
+        ('drizzle', 0.6, (-0.1, 0.4), 0.0008, 0.18),
+        ('storm',   0.85, (-0.2, 0.6), 0.0050, 0.30),
+        ('tempest', 1.0, (-0.3, 0.8), 0.0120, 0.40),
     ]
 
     # ── Construction ──────────────────────────────────────────────────────
@@ -20310,7 +20309,7 @@ class ImmersiveRainCanvas(tk.Canvas):
                          bg = '#080c18', highlightthickness=0, **kw)
         self.w = width
         self.h = height
-        self.intensity = min(intensity, 60)
+        self.intensity = min(intensity, 120)
         self._running = False
         self._frame = 0
         self._moon_enabled = True
@@ -20359,7 +20358,7 @@ class ImmersiveRainCanvas(tk.Canvas):
         self._drop_widths = []
         self._init_drops()
 
-        self._SPLASH_POOL = 30  # Reduced from 50
+        self._SPLASH_POOL = 50
         self._splashes = []
         self._splash_items = []
         for _ in range(self._SPLASH_POOL):
@@ -20367,7 +20366,7 @@ class ImmersiveRainCanvas(tk.Canvas):
                                     fill = '', width=1)
             self._splash_items.append(oid)
 
-        self._STREAK_POOL = 40  # Reduced from 70
+        self._STREAK_POOL = 70
         self._streaks = []
         self._streak_items = []
         for _ in range(self._STREAK_POOL):
@@ -20375,7 +20374,7 @@ class ImmersiveRainCanvas(tk.Canvas):
             self._streak_items.append(lid)
 
         # Fog / mist layer (pre-allocated semi-transparent bands at bottom)
-        self._FOG_BANDS = 3  # Reduced from 5
+        self._FOG_BANDS = 5
         self._fog_items = []
         for _ in range(self._FOG_BANDS):
             fid: Any = self.create_rectangle(-10, -10, -5, -5,
@@ -20384,7 +20383,7 @@ class ImmersiveRainCanvas(tk.Canvas):
 
         self._lightning_overlay = self.create_rectangle(
             -10, -10, -5, -5, fill='', outline='', state='hidden')
-        self._BOLT_POOL = 6  # Reduced from 24
+        self._BOLT_POOL = 12
         self._bolt_items = []
         self._bolt_glow_items = []
         for _ in range(self._BOLT_POOL):
@@ -20771,12 +20770,12 @@ class ImmersiveRainCanvas(tk.Canvas):
             # if a coords() call is expensive, touch only enough drops to stay
             # under ~50ms of canvas time per frame, regardless of EMA state.
             _coords_ema: float = getattr(self, '_coords_cost_ema', 0.0)
-            if _coords_ema >= 8.0:
-                _coords_budget_ms: float = 50.0
+            if _coords_ema >= 16.0:
+                _coords_budget_ms: float = 80.0
                 _max_calls: int = max(1, int(_coords_budget_ms / _coords_ema))
                 _n_drops: int = len(self._drops)
                 _need_stride: int = int(math.ceil(_n_drops / max(_max_calls, 1)))
-                _drop_stride = max(_drop_stride, min(_need_stride, 80))
+                _drop_stride = max(_drop_stride, min(_need_stride, 40))
             self._update_drops(dt_scale, _drop_stride, _degrade)
             if not _degrade:
                 _fmark('drops')
@@ -20840,9 +20839,9 @@ class ImmersiveRainCanvas(tk.Canvas):
         # and stops it from stealing whole seconds of GUI time when the system
         # is struggling (observed: 1-4.4s frames under pressure).
         self._load_ema = (self._load_ema * 0.7) + _frame_ms * 0.3
-        if self._load_ema > 450:
-            self._anim_allowed = min(1200, self._anim_allowed * 2)
-        elif self._load_ema < 45:
+        if self._load_ema > 600:
+            self._anim_allowed = min(800, self._anim_allowed * 2)
+        elif self._load_ema < 60:
             self._anim_allowed = 100  # fast again when load is gone
         # Hard freeze under sustained load: if a frame is pathologically slow
         # (even once, at low backoff), stop drawing entirely (static sky) until
@@ -20855,10 +20854,10 @@ class ImmersiveRainCanvas(tk.Canvas):
         # During the post-freeze probe window the EMA is seeded very high so
         # the stride is maxed and frames are cheap; skip the freeze trigger
         # there so the probe can actually run its ramp-down.
-        if not _frozen and _probe <= 0 and (_frame_ms > 700 or self._load_ema > 600):
+        if not _frozen and _probe <= 0 and (_frame_ms > 1200 or self._load_ema > 900):
             self._anim_frozen = True
-            self._anim_freeze_countdown = 50  # ~25s of frozen sky (up from 25)
-            self._anim_allowed = 500
+            self._anim_freeze_countdown = 30  # ~15s of frozen sky then retry
+            self._anim_allowed = 400
             try:
                 logger.info('[RAIN] animation frozen to protect GUI (frame %.0fms)',
                             _frame_ms)
@@ -20876,9 +20875,9 @@ class ImmersiveRainCanvas(tk.Canvas):
                 # EMA is seeded VERY high so the first probe frames run at max
                 # stride (≈3 coords ≈ tens of ms) and ramp up gracefully as
                 # EMA decays toward the measured frame cost.
-                self._anim_allowed = 1200
-                self._load_ema = 6000
-                self._anim_probe_ticks = 12
+                self._anim_allowed = 400
+                self._load_ema = 800
+                self._anim_probe_ticks = 8
                 try:
                     logger.info('[RAIN] animation resumed (cooldown elapsed) '
                                 'at peak back-off')
@@ -25973,74 +25972,196 @@ class downpour(tk.Tk):
             pass
 
     def _activate_gaming_mode(self):
-        """Activate comprehensive gaming optimization mode"""
+        """Toggle comprehensive gaming optimization mode with protection monitors."""
+        if getattr(self, '_gaming_mode_active', False):
+            self._deactivate_gaming_mode()
+            return
+        self._gaming_mode_active = True
+
         def apply_gaming_mode():
             try:
-                # Apply gaming optimizations
+                import subprocess
                 optimizations: Any = []
+                _cnw = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000)
 
-                # 1. Optimize CPU for gaming
+                # 1. Lower Downpour's own CPU priority so the game gets headroom
                 try:
-                    import subprocess
-                    # Set CPU priority to high
-                    subprocess.run(['wmic', 'process', 'where', 'name="python.exe"', 'call', 'setpriority', '128'],
-                                  capture_output = True, check=False)
-                    optimizations.append("CPU priority optimized")
+                    subprocess.run(
+                        ['wmic', 'process', 'where', 'name="python.exe"',
+                         'call', 'setpriority', '64'],
+                        capture_output=True, check=False, creationflags=_cnw)
+                    optimizations.append("Downpour priority lowered (below normal)")
                 except Exception:
-                    optimizations.append("CPU optimization skipped")
+                    optimizations.append("Priority change skipped")
 
-                # 2. Optimize memory for gaming
+                # 2. Memory cleanup
                 try:
                     import gc
                     gc.collect()
                     if hasattr(self, '_enhanced_memory') and self._enhanced_memory:
                         self._enhanced_memory.optimize_for_gaming()
-                    optimizations.append("Memory optimized for gaming")
+                    optimizations.append("Memory optimized")
                 except Exception:
                     optimizations.append("Memory optimization skipped")
 
-                # 3. Disable background processes
+                # 3. Stop non-essential Windows services for latency
                 try:
-                    services_to_stop: Any = ['SysMain', 'Themes', 'Windows Search']
-                    for service in services_to_stop:
-                        subprocess.run(['sc', 'stop', service], capture_output=True, check=False)
-                    optimizations.append("Background processes optimized")
+                    for service in ('SysMain', 'Windows Search'):
+                        subprocess.run(
+                            ['sc', 'stop', service],
+                            capture_output=True, check=False, creationflags=_cnw)
+                    optimizations.append("Background services paused")
                 except Exception:
-                    optimizations.append("Background optimization skipped")
+                    optimizations.append("Service optimization skipped")
 
-                # 4. Optimize power settings
+                # 4. High performance power plan
                 try:
-                    subprocess.run(['powercfg', '/setactive', 'SCHEME_MIN'],
-                                  capture_output = True, check=False)
-                    optimizations.append("Power set to high performance")
+                    subprocess.run(
+                        ['powercfg', '/setactive', 'SCHEME_MIN'],
+                        capture_output=True, check=False, creationflags=_cnw)
+                    optimizations.append("Power: high performance")
                 except Exception:
                     optimizations.append("Power optimization skipped")
 
-                # 5. Optimize visual effects
+                # 5. Reduce visual effects
                 try:
-                    subprocess.run(['reg', 'add', r'HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects',
-                                  '/v', 'VisualFXSetting', '/t', 'REG_DWORD', '/d', '2', '/f'],
-                                  capture_output = True, check=False)
-                    optimizations.append("Visual effects optimized")
+                    subprocess.run(
+                        ['reg', 'add',
+                         r'HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects',
+                         '/v', 'VisualFXSetting', '/t', 'REG_DWORD', '/d', '2', '/f'],
+                        capture_output=True, check=False, creationflags=_cnw)
+                    optimizations.append("Visual effects reduced")
                 except Exception:
                     optimizations.append("Visual optimization skipped")
 
-                # Update performance optimizer
+                # 6. Start gaming protection monitors
+                _gaming_monitors_started: Any = []
                 try:
-                    if hasattr(self, 'performance_optimizer'):
-                        self.performance_optimizer.optimization_level = 5
-                        self.performance_optimizer.optimize_for_gaming()
+                    from gaming_protection_monitor import start_gaming_protection, get_gaming_monitor
+                    if not getattr(self, '_gaming_prot_started', False):
+                        self._gaming_prot_started = True
+                        if start_gaming_protection(
+                                callback=lambda a: self._queue_alert(
+                                    f'[GAMING] {a.category}: {a.details[:140]}',
+                                    Colors.GAUGE_RED)):
+                            _gaming_monitors_started.append('Gaming protection')
                 except Exception:
                     pass
+                try:
+                    from firewall_tamper_detector import start_fw_tamper_detection
+                    if not getattr(self, '_fwtamper_started', False):
+                        self._fwtamper_started = True
+                        if start_fw_tamper_detection(
+                                callback=lambda a: self._queue_alert(
+                                    f'[FIREWALL] {a.category}: {a.details[:140]}',
+                                    Colors.GAUGE_RED)):
+                            _gaming_monitors_started.append('Firewall guard')
+                except Exception:
+                    pass
+                try:
+                    from amsi_bypass_detector import start_amsi_detection
+                    if not getattr(self, '_amsi_det_started', False):
+                        self._amsi_det_started = True
+                        if start_amsi_detection(
+                                callback=lambda a: self._queue_alert(
+                                    f'[AMSI] {a.category}: {a.details[:140]}',
+                                    Colors.GAUGE_RED)):
+                            _gaming_monitors_started.append('AMSI guard')
+                except Exception:
+                    pass
+                try:
+                    from dll_hijack_detector import start_dllhijack_detection
+                    if not getattr(self, '_dllhijack_started', False):
+                        self._dllhijack_started = True
+                        if start_dllhijack_detection(
+                                callback=lambda a: self._queue_alert(
+                                    f'[DLLHIJACK] {a.category}: {a.details[:140]}',
+                                    Colors.GAUGE_RED)):
+                            _gaming_monitors_started.append('DLL hijack guard')
+                except Exception:
+                    pass
+                if _gaming_monitors_started:
+                    optimizations.append(f"Monitors: {', '.join(_gaming_monitors_started)}")
 
-                self.after(0, lambda: self.show_notification("Gaming Mode Activated", "System optimized for gaming"))
+                # 7. Reduce Downpour UI overhead for efficient background operation
+                def _apply_ui_savings():
+                    try:
+                        # Lower rain FPS and intensity while gaming
+                        if hasattr(self, 'rain') and self.rain:
+                            self._gaming_saved_intensity = getattr(self.rain, 'intensity', 40)
+                            self._gaming_saved_anim_allowed = getattr(self.rain, '_anim_allowed', 100)
+                            self.rain.intensity = 15
+                            self.rain._anim_allowed = 500
+                            self.rain._max_fps = 10
+                            self.rain._min_frame_interval_ms = 100.0
+                        # Slow the perf loop so it doesn't compete for CPU
+                        self._gaming_saved_perf_interval = getattr(self, '_perf_interval_ms', 500)
+                        self._perf_interval_ms = 3000
+                        # Update the gaming mode button to show active state
+                        optimizations.append("UI overhead reduced (rain 10fps, perf 3s)")
+                    except Exception:
+                        pass
+                    # Update gaming mode button appearance
+                    try:
+                        self._set_status(
+                            f'GAMING MODE ACTIVE — {len(optimizations)} optimizations applied  '
+                            f'| Click Gaming Mode again to deactivate')
+                        self.show_notification(
+                            "Gaming Mode ON",
+                            f"{len(optimizations)} optimizations active\n"
+                            f"{'; '.join(optimizations[:4])}")
+                    except Exception:
+                        pass
+                self.after(0, _apply_ui_savings)
                 logger.info("Gaming mode activated: %s", "; ".join(optimizations))
 
             except Exception as e:
                 self.after(0, lambda _e=str(e): self.show_notification("Gaming Mode Error", _e))
                 logger.error("Gaming mode activation error: %s", e)
 
-        threading.Thread(target=apply_gaming_mode, daemon=True).start()
+        self._executor.submit(apply_gaming_mode)
+
+    def _deactivate_gaming_mode(self):
+        """Restore normal operation after gaming mode."""
+        self._gaming_mode_active = False
+
+        def restore():
+            try:
+                import subprocess
+                _cnw = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000)
+                # Restore Downpour priority to normal
+                subprocess.run(
+                    ['wmic', 'process', 'where', 'name="python.exe"',
+                     'call', 'setpriority', '32'],
+                    capture_output=True, check=False, creationflags=_cnw)
+                # Restart paused services
+                for service in ('SysMain', 'Windows Search'):
+                    subprocess.run(
+                        ['sc', 'start', service],
+                        capture_output=True, check=False, creationflags=_cnw)
+                # Balanced power plan
+                subprocess.run(
+                    ['powercfg', '/setactive', 'SCHEME_BALANCED'],
+                    capture_output=True, check=False, creationflags=_cnw)
+            except Exception:
+                pass
+
+            def _restore_ui():
+                try:
+                    if hasattr(self, 'rain') and self.rain:
+                        self.rain.intensity = getattr(self, '_gaming_saved_intensity', 40)
+                        self.rain._anim_allowed = getattr(self, '_gaming_saved_anim_allowed', 100)
+                        self.rain._max_fps = 60
+                        self.rain._min_frame_interval_ms = 16.67
+                    self._perf_interval_ms = getattr(self, '_gaming_saved_perf_interval', 500)
+                    self._set_status('Gaming Mode deactivated — normal operation restored')
+                    self.show_notification("Gaming Mode OFF", "Normal operation restored")
+                except Exception:
+                    pass
+            self.after(0, _restore_ui)
+            logger.info("Gaming mode deactivated")
+
+        self._executor.submit(restore)
 
     # -- Dead CTk code removed in Phase 41 (was ~3300 lines of unreachable
     #    customtkinter UI code — _create_performance_dashboard,
@@ -26158,7 +26279,7 @@ class downpour(tk.Tk):
         btn_row.grid(row=0, column=0, columnspan=2, sticky='ew', padx=8, pady=4)
         buttons: Any = [
             ("🎮 Gaming Mode",   self._activate_gaming_mode,  Colors.GAUGE_GREEN,
-             "Suspend heavy background scans for lower latency / FPS"),
+             "Toggle Gaming Mode — optimizes system, starts protection monitors, reduces UI overhead"),
             ("🔬 Scan Now",       self._scan_processes_now,    Colors.GAUGE_BLUE,
              "Run an immediate process + threat scan"),
             ("🌐 Update Intel",   self._update_intel_now,      Colors.GAUGE_TEAL,
@@ -31712,13 +31833,37 @@ Verification Status:
         _proc_actions.grid(row=_proc_action_row, column=0, columnspan=4,
                            sticky='ew', padx=10, pady=(0,4))
         _perf_kill_btn = tk.Button(
-            _proc_actions, text='🚫 Kill Selected', font=('Consolas', 8, 'bold'),
+            _proc_actions, text='🚫 Kill Task', font=('Consolas', 8, 'bold'),
             fg=Colors.GAUGE_RED, bg=Colors.GLASS_CARD, relief='flat',
             activebackground=Colors.GLASS_LIGHT, activeforeground=Colors.GAUGE_RED,
             cursor='hand2', command=self._perf_kill_process)
         _perf_kill_btn.pack(side='left', padx=2, pady=2)
         self._tooltip(_perf_kill_btn,
-                      'Kill the process highlighted in the table above. Always asks first.')
+                      'Terminate the selected process. Always confirms first.')
+        _perf_analyze_btn = tk.Button(
+            _proc_actions, text='🔬 Analyze Task', font=('Consolas', 8, 'bold'),
+            fg=Colors.GAUGE_TEAL, bg=Colors.GLASS_CARD, relief='flat',
+            activebackground=Colors.GLASS_LIGHT, activeforeground=Colors.GAUGE_TEAL,
+            cursor='hand2', command=self._perf_analyze_process)
+        _perf_analyze_btn.pack(side='left', padx=2, pady=2)
+        self._tooltip(_perf_analyze_btn,
+                      'Show detailed info: path, command line, threads, connections, DLLs.')
+        _perf_priority_btn = tk.Button(
+            _proc_actions, text='⚡ Set Priority', font=('Consolas', 8, 'bold'),
+            fg=Colors.GAUGE_ORANGE, bg=Colors.GLASS_CARD, relief='flat',
+            activebackground=Colors.GLASS_LIGHT, activeforeground=Colors.GAUGE_ORANGE,
+            cursor='hand2', command=self._perf_set_priority)
+        _perf_priority_btn.pack(side='left', padx=2, pady=2)
+        self._tooltip(_perf_priority_btn,
+                      'Change the CPU priority of the selected process.')
+        _perf_openpath_btn = tk.Button(
+            _proc_actions, text='📂 Open File Location', font=('Consolas', 8, 'bold'),
+            fg=Colors.GAUGE_BLUE, bg=Colors.GLASS_CARD, relief='flat',
+            activebackground=Colors.GLASS_LIGHT, activeforeground=Colors.GAUGE_BLUE,
+            cursor='hand2', command=self._perf_open_file_location)
+        _perf_openpath_btn.pack(side='left', padx=2, pady=2)
+        self._tooltip(_perf_openpath_btn,
+                      'Open the folder containing the selected process executable.')
         _perf_clear_btn = tk.Button(
             _proc_actions, text='🗑 Clear Table', font=('Consolas', 8, 'bold'),
             fg=Colors.TEXT_DIM, bg=Colors.GLASS_CARD, relief='flat',
@@ -31731,6 +31876,24 @@ Verification Status:
                                    fg=Colors.TEXT_DIM, bg=Colors.BG_VOID)
         _perf_count_lbl.pack(side='left', padx=8, pady=2)
         self._perf_count_lbl = _perf_count_lbl
+
+        # v29.90: Right-click context menu on process table
+        self._proc_ctx_menu = tk.Menu(self._perf_proc_tree, tearoff=0,
+                                       bg=Colors.GLASS_CARD, fg='#ccccee',
+                                       activebackground=Colors.GAUGE_TEAL,
+                                       activeforeground='#ffffff',
+                                       font=('Consolas', 9))
+        self._proc_ctx_menu.add_command(label='Analyze Task', command=self._perf_analyze_process)
+        self._proc_ctx_menu.add_command(label='Kill Task', command=self._perf_kill_process)
+        self._proc_ctx_menu.add_command(label='Set Priority', command=self._perf_set_priority)
+        self._proc_ctx_menu.add_command(label='Open File Location', command=self._perf_open_file_location)
+
+        def _proc_right_click(event):
+            iid = self._perf_proc_tree.identify_row(event.y)
+            if iid:
+                self._perf_proc_tree.selection_set(iid)
+                self._proc_ctx_menu.tk_popup(event.x_root, event.y_root)
+        self._perf_proc_tree.bind('<Button-3>', _proc_right_click)
 
         # -- Live network interface table ------------------------------------
         _net_row_base = _proc_row_base + 3
@@ -32607,6 +32770,192 @@ Verification Status:
                     self.after(0, _fail)
                 except Exception:
                     pass
+        self._executor.submit(_do)
+
+    def _perf_analyze_process(self):
+        """Show detailed process info: path, cmdline, threads, connections, DLLs."""
+        if not hasattr(self, '_perf_proc_tree'):
+            return
+        sel = self._perf_proc_tree.selection()
+        if not sel:
+            self._set_status('Select a process row first.')
+            return
+        try:
+            vals: Any = self._perf_proc_tree.item(sel[0], 'values')
+            pid: Any = str(vals[0])
+            name: Any = str(vals[1])
+        except Exception:
+            return
+        if not pid.isdigit():
+            return
+
+        def _do():
+            try:
+                import psutil as _psutil
+                proc: Any = _psutil.Process(int(pid))
+                info_lines: Any = []
+                info_lines.append(f'--- Process Analysis: {name} (PID {pid}) ---')
+                try:
+                    info_lines.append(f'Path: {proc.exe()}')
+                except Exception:
+                    info_lines.append('Path: (access denied)')
+                try:
+                    info_lines.append(f'Command: {" ".join(proc.cmdline())[:200]}')
+                except Exception:
+                    info_lines.append('Command: (access denied)')
+                try:
+                    info_lines.append(f'Status: {proc.status()}')
+                except Exception:
+                    pass
+                try:
+                    info_lines.append(f'User: {proc.username()}')
+                except Exception:
+                    pass
+                try:
+                    ct = proc.create_time()
+                    import datetime
+                    info_lines.append(f'Started: {datetime.datetime.fromtimestamp(ct).strftime("%Y-%m-%d %H:%M:%S")}')
+                except Exception:
+                    pass
+                try:
+                    mem = proc.memory_info()
+                    info_lines.append(f'Memory RSS: {mem.rss / (1024*1024):.1f} MB')
+                    info_lines.append(f'Memory VMS: {mem.vms / (1024*1024):.1f} MB')
+                except Exception:
+                    pass
+                try:
+                    info_lines.append(f'Threads: {proc.num_threads()}')
+                except Exception:
+                    pass
+                try:
+                    conns = proc.net_connections(kind='inet')
+                    info_lines.append(f'Network connections: {len(conns)}')
+                    for c in conns[:5]:
+                        info_lines.append(f'  {c.status}: {c.laddr} -> {c.raddr}')
+                    if len(conns) > 5:
+                        info_lines.append(f'  ... and {len(conns)-5} more')
+                except Exception:
+                    pass
+                try:
+                    io = proc.io_counters()
+                    info_lines.append(f'Disk read: {io.read_bytes/(1024*1024):.1f} MB')
+                    info_lines.append(f'Disk write: {io.write_bytes/(1024*1024):.1f} MB')
+                except Exception:
+                    pass
+                try:
+                    nice = proc.nice()
+                    prio_map = {0: 'Normal', 64: 'Idle', 128: 'High',
+                                256: 'Realtime', 16384: 'Below Normal',
+                                32: 'Normal', 32768: 'Above Normal'}
+                    info_lines.append(f'Priority: {prio_map.get(nice, nice)}')
+                except Exception:
+                    pass
+                result_text = '\n'.join(info_lines)
+
+                def _show():
+                    _win = tk.Toplevel(self)
+                    _win.title(f'Process Analysis — {name} (PID {pid})')
+                    _win.configure(bg=Colors.BG_VOID)
+                    _win.geometry('620x450')
+                    _text = tk.Text(_win, font=('Consolas', 9), bg=Colors.BG_VOID,
+                                    fg='#ccccee', insertbackground='#ccccee',
+                                    relief='flat', wrap='word', padx=12, pady=12)
+                    _text.pack(fill='both', expand=True)
+                    _text.insert('1.0', result_text)
+                    _text.config(state='disabled')
+                    tk.Button(_win, text='Close', font=('Consolas', 9),
+                              fg=Colors.GAUGE_TEAL, bg=Colors.GLASS_CARD, relief='flat',
+                              command=_win.destroy).pack(pady=6)
+                self.after(0, _show)
+            except Exception as _e:
+                self.after(0, lambda: self._set_status(f'Analyze failed: {_e}'))
+        self._executor.submit(_do)
+
+    def _perf_set_priority(self):
+        """Change the CPU priority of the selected process."""
+        if not hasattr(self, '_perf_proc_tree'):
+            return
+        sel = self._perf_proc_tree.selection()
+        if not sel:
+            self._set_status('Select a process row first.')
+            return
+        try:
+            vals: Any = self._perf_proc_tree.item(sel[0], 'values')
+            pid: Any = str(vals[0])
+            name: Any = str(vals[1])
+        except Exception:
+            return
+        if not pid.isdigit():
+            return
+
+        prio_win = tk.Toplevel(self)
+        prio_win.title(f'Set Priority — {name} (PID {pid})')
+        prio_win.configure(bg=Colors.BG_VOID)
+        prio_win.geometry('320x280')
+        tk.Label(prio_win, text=f'Set priority for {name}',
+                 font=('Consolas', 10, 'bold'), fg=Colors.GAUGE_TEAL,
+                 bg=Colors.BG_VOID).pack(pady=10)
+
+        priorities = [
+            ('Realtime', 256, Colors.GAUGE_RED),
+            ('High', 128, Colors.GAUGE_ORANGE),
+            ('Above Normal', 32768, Colors.GAUGE_ORANGE),
+            ('Normal', 32, Colors.GAUGE_GREEN),
+            ('Below Normal', 16384, Colors.GAUGE_BLUE),
+            ('Idle', 64, Colors.TEXT_DIM),
+        ]
+        for label, nice_val, color in priorities:
+            def _set(n=nice_val, l=label):
+                def _do():
+                    try:
+                        import psutil as _psutil
+                        proc = _psutil.Process(int(pid))
+                        proc.nice(n)
+                        self.after(0, lambda: self._set_status(
+                            f'Priority of {name} (PID {pid}) set to {l}'))
+                    except Exception as _e:
+                        self.after(0, lambda: self._set_status(
+                            f'Priority change failed: {_e}'))
+                self._executor.submit(_do)
+                prio_win.destroy()
+            tk.Button(prio_win, text=label, font=('Consolas', 9, 'bold'),
+                      fg=color, bg=Colors.GLASS_CARD, relief='flat',
+                      width=20, cursor='hand2', command=_set).pack(pady=3)
+
+    def _perf_open_file_location(self):
+        """Open Explorer to the folder containing the selected process executable."""
+        if not hasattr(self, '_perf_proc_tree'):
+            return
+        sel = self._perf_proc_tree.selection()
+        if not sel:
+            self._set_status('Select a process row first.')
+            return
+        try:
+            vals: Any = self._perf_proc_tree.item(sel[0], 'values')
+            pid: Any = str(vals[0])
+        except Exception:
+            return
+        if not pid.isdigit():
+            return
+
+        def _do():
+            try:
+                import psutil as _psutil
+                import os
+                import subprocess
+                proc = _psutil.Process(int(pid))
+                exe_path = proc.exe()
+                folder = os.path.dirname(exe_path)
+                if os.path.isdir(folder):
+                    subprocess.run(
+                        ['explorer', '/select,', exe_path],
+                        check=False,
+                        creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000))
+                    self.after(0, lambda: self._set_status(f'Opened: {folder}'))
+                else:
+                    self.after(0, lambda: self._set_status(f'Path not found: {folder}'))
+            except Exception as _e:
+                self.after(0, lambda: self._set_status(f'Open location failed: {_e}'))
         self._executor.submit(_do)
 
     def _harden_analyze(self):

@@ -1,5 +1,32 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.90 — Gaming Mode Overhaul, Rain Animation Restoration, Performance Tab Task Manager
+- **Gaming Mode Overhaul** (`_activate_gaming_mode` / `_deactivate_gaming_mode`):
+  - Toggle on/off (click again to deactivate, restores all settings)
+  - Auto-starts all gaming protection monitors (anti-DDoS, firewall, AMSI, DLL hijack)
+  - Lowers Downpour CPU priority to Below Normal so games get full CPU
+  - Pauses SysMain and Windows Search services for reduced latency
+  - Sets High Performance power plan (restores Balanced on deactivate)
+  - Reduces rain animation to 10fps / intensity 15 for minimal GPU/CPU draw
+  - Slows performance loop to 3s interval (normally 500ms)
+  - Restores all original settings on deactivate
+- **Rain Animation Restoration** (`ImmersiveRainCanvas`):
+  - Intensity cap raised from 60 to 120 (was over-throttled)
+  - Splash pool: 30 → 50, streak pool: 40 → 70, fog bands: 3 → 5, bolt pool: 6 → 12
+  - Storm phases restored to fuller intensity (calm 0.4x, drizzle 0.6x, storm 0.85x, tempest 1.0x)
+  - Degradation threshold raised: coords_cost_ema 8ms → 16ms, max stride 80 → 40
+  - Frame cost EMA backoff raised: 450ms → 600ms, recovery threshold 45ms → 60ms
+  - Freeze threshold raised: 700ms → 1200ms frame / 600 → 900 EMA (much harder to freeze)
+  - Post-freeze recovery: starts at 400ms interval (was 1200ms), EMA seed 800 (was 6000)
+  - Result: visually richer rain with storms, lightning, fog — closer to early builds
+- **Performance Tab Task Manager Features**:
+  - **Analyze Task** button + right-click: shows path, cmdline, memory, threads, connections, I/O, priority
+  - **Set Priority** button + right-click: change process priority (Realtime/High/AboveNormal/Normal/BelowNormal/Idle)
+  - **Open File Location** button + right-click: opens Explorer to process exe folder
+  - Right-click context menu on process table with all 4 actions (Analyze/Kill/Priority/Open)
+  - Kill button renamed "Kill Task" for consistency
+- 809 methods, 0 duplicates (verified before and after)
+
 ## v29.89 — DLL Hijack Detector, AMSI Bypass Monitor, Firewall Tamper Detection, Gaming Mod Whitelist
 - **DLL Search Order Hijack Detector** (`dll_hijack_detector.py`):
   - 50+ known hijackable DLL database (version.dll, winmm.dll, cryptbase.dll, amsi.dll, etc.)
