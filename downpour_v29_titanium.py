@@ -20746,8 +20746,8 @@ class ImmersiveRainCanvas(tk.Canvas):
             # multi-second frames again; observed 21.4s freeze). Tying degrade
             # to the coords cost self-regulates: cosmetics resume only when
             # canvas ops are genuinely cheap again.
-            _degrade: bool = self._anim_allowed > 150 or (
-                getattr(self, '_coords_cost_ema', 0.0) >= 8.0)
+            _degrade: bool = self._anim_allowed > 300 or (
+                getattr(self, '_coords_cost_ema', 0.0) >= 20.0)
             if not _degrade:
                 _fmark('phase')
             # under load, stride the drops (only 1/N touched per frame). Stride
@@ -20757,11 +20757,11 @@ class ImmersiveRainCanvas(tk.Canvas):
             # to climb through the backoff tiers. The EMA term is linear in the
             # measured frame cost so a pathological 3.6s frame (~3600 EMA) gets
             # ~24-36x striding -> 3-5 coords() calls max.
-            _drop_stride: int = 1 if self._anim_allowed <= 300 else (
-                2 if self._anim_allowed <= 600 else 4)
+            _drop_stride: int = 1 if self._anim_allowed <= 400 else (
+                2 if self._anim_allowed <= 700 else 3)
             _ema_now: float = getattr(self, '_load_ema', 0.0)
-            _ema_stride: int = 1 + int(_ema_now / 150.0)
-            _drop_stride = max(_drop_stride, min(_ema_stride, 40))
+            _ema_stride: int = 1 + int(_ema_now / 300.0)
+            _drop_stride = max(_drop_stride, min(_ema_stride, 20))
             # FIX-v29.41k: stride from MEASURED per-coords() cost, not frame
             # EMA. The frame EMA oscillates: cheap probe frames decay it to
             # ~83, which collapses the linear term back to 1 and a 120-drop
