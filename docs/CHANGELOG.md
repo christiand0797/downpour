@@ -1,5 +1,84 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.85 — Print Spooler, COM Hijack, DNS Security Monitors + Rain & GPU Fixes
+- **Print Spooler Attack Monitor** (`print_spooler_monitor.py`):
+  - PrintNightmare (CVE-2021-34527) and SpoolFool (CVE-2022-21999) exploitation detection
+  - 8 exploit command patterns (Add-PrinterDriver, AddPrinterDriverEx, SpoolFool, dementor)
+  - Print spooler service state change monitoring (start/stop/tamper)
+  - Suspicious DLL scanning in spool driver directories (mimilib, mimispool, beacon)
+  - Registry hardening checks (Point and Print, driver install restrictions, RPC auth)
+  - Print driver baseline and new driver installation alerts (T1068, T1187)
+- **COM Object Hijack Detector** (`com_hijack_detector.py`):
+  - 9 high-value CLSID monitors (Session Moniker UAC bypass, eventvwr/sdclt handlers, Scheduled Task COM)
+  - HKCU\SOFTWARE\Classes\CLSID baseline and change detection for new registrations
+  - InprocServer32 user-level override detection for persistence
+  - TreatAs CLSID redirection monitoring (critical severity)
+  - Uses reg.exe only — no PowerShell (T1546.015)
+- **DNS Security Monitor** (`dns_security_monitor.py`):
+  - DNS server baseline and unauthorized change detection
+  - Known-bad DNS server detection (malware resolvers)
+  - DNS-over-HTTPS auto-mode bypass detection via registry
+  - Domain analysis: suspicious TLDs, long labels (tunneling), Shannon entropy (DGA)
+  - 15 high-risk TLD checks, 10 known DoH endpoints (T1071.004, T1048.003, T1568.002)
+- **Bug Fixes**:
+  - FIX: Rain animation broken — disabled dual-update physics engine that fought with _update_drops over drop positions (2x speed + jitter + drops recycling instantly)
+  - FIX: _coords_cost_ema seeded at 8.0 (equal to degradation threshold) — lowered to 2.0 so early frames render at full quality
+  - FIX: nvidia-smi error constantly retrying — generic Exception handler in process scanner now gives up after 5 failures instead of retrying every 2s forever
+  - FIX: nvidia-smi CLI fallback backs off for 5 minutes after 3 consecutive failures instead of trying every 60s indefinitely
+  - FIX: Added stdin=subprocess.DEVNULL to nvidia-smi subprocess calls to prevent stdin inheritance issues
+
+## v29.84 — Named Pipe Monitor, Token Manipulation, DPAPI Theft, PS Obfuscation, Credential Dumpers
+- **Named Pipe Security Monitor** (`named_pipe_monitor.py`):
+  - 25+ known malicious pipe signatures (Cobalt Strike, PsExec, Meterpreter, DarkSide ransomware)
+  - Pipe baseline and change detection (new pipe creation alerts)
+  - Suspicious pipe naming pattern detection (GUID-named, numeric-only)
+  - Real-time monitoring via os.listdir on \\.\pipe namespace (T1071.001, T1569.002)
+- **Token Manipulation Detector** (`token_manipulation_detector.py`):
+  - 13 token attack tool signatures (JuicyPotato, PrintSpoofer, SweetPotato, GodPotato, Incognito, etc.)
+  - 14 token manipulation command patterns (Mimikatz token::, incognito, steal_token, RunAs abuse)
+  - 8 dangerous privilege monitoring rules (SeDebugPrivilege, SeImpersonatePrivilege, SeTcbPrivilege, etc.)
+  - Process scanning and privilege auditing via wmic and whoami (T1134, T1134.001, T1134.003)
+- **DPAPI Credential Theft Monitor** (`dpapi_monitor.py`):
+  - DPAPI master key directory monitoring with modification time baselines
+  - Browser credential store access detection (Chrome, Edge, Firefox Login Data/Cookies)
+  - Credential Manager vault file access monitoring
+  - 12 DPAPI attack command patterns (Mimikatz dpapi::, SharpDPAPI, DonPAPI, LaZagne)
+  - WiFi password extraction detection (netsh wlan show profiles key=clear) (T1555.003, T1555.004)
+- **2 New YARA Rule Files**:
+  - `powershell_obfuscation.yar`: String concat, backtick, Invoke-Obfuscation, compression chains, SecureString abuse
+  - `credential_dumpers.yar`: Mimikatz, LSASS dump techniques, SAM/SYSTEM extraction, NTDSUtil, LaZagne
+- **2 New Sigma Rule Files** (11 additional rules):
+  - `data_exfiltration.yml`: DNS tunneling, data compression staging, cloud CLI upload, HTTP POST, ADS hiding, network share staging
+  - `living_off_the_land_drivers.yml`: BYOVD sc.exe loading, rundll32 driver install, Sysmon/minifilter unload, test signing enable
+
+## v29.83 — TLS Cert Monitor, AD/Kerberos Detection, Clipboard Security, BYOVD/RAT Rules
+- **TLS Certificate Monitor** (`tls_certificate_monitor.py`):
+  - Windows certificate store baselining and change detection (Root, AuthRoot, CA, UserRoot)
+  - Known-malicious CA detection (Superfish, eDellRoot, Komodia, CNNIC sub-CA)
+  - Weak key detection (< 2048-bit RSA), SHA-1 algorithm alerting
+  - New certificate addition and removal monitoring with critical severity for root stores
+  - Uses certutil.exe and reg.exe only — no PowerShell (T1553.004)
+- **AD & Kerberos Attack Detector** (`ad_attack_detector.py`):
+  - 16 attack tool signatures (SharpHound, Rubeus, Mimikatz, Impacket, CrackMapExec, etc.)
+  - 12 AD reconnaissance command patterns (nltest, dsquery, net group, gpresult, setspn, etc.)
+  - 8 Kerberos attack patterns (Kerberoasting, AS-REP roasting, DCSync, Golden/Silver tickets, PtH/PtT)
+  - 11 Windows Security event ID monitors (TGT/TGS requests, pre-auth failures, privilege grants)
+  - Real-time process scanning and security event log analysis (T1558, T1087, T1003)
+- **Clipboard Security Monitor** (`clipboard_monitor.py`):
+  - Cryptocurrency clipper malware detection (BTC, ETH, XMR, LTC, SOL address patterns)
+  - Sensitive data exposure alerting (API keys, AWS keys, private keys, JWTs, connection strings)
+  - Suspicious content detection (encoded PowerShell, base64 shellcode, reverse shell patterns)
+  - Rapid clipboard change detection (automated clipper behavior, >10 changes in 5 seconds)
+  - Win32 API clipboard access via ctypes — no external dependencies (T1115)
+- **3 New YARA Rule Files**:
+  - `fileless_malware.yar`: PS cradles, .NET assembly loading, WMI persistence, VBScript/JScript runners, registry payloads
+  - `byovd_attacks.yar`: 20 known vulnerable drivers, driver loading patterns, EDR killer, kernel callback removal, physical memory access
+  - `rat_frameworks.yar`: Cobalt Strike Beacon, Sliver, Havoc, Brute Ratel C4, Mythic agent detection
+- **3 New Sigma Rule Files** (16 additional rules):
+  - `kerberos_attacks.yml`: SPN enumeration, AS-REP roasting, DCSync, Golden/Silver tickets, ticket extraction
+  - `wmi_abuse_detection.yml`: Remote WMI execution, event subscription persistence, DCOM lateral movement, AV enumeration
+  - `scheduled_task_abuse.yml`: Suspicious schtasks creation, temp path execution, remote creation, XML import, masquerading
+
 ## v29.82 — Credential Guard, PrivEsc Detection, Boot Integrity, Extended Rules
 - **Credential Guard Monitor** (`credential_guard_monitor.py`):
   - VBS/Credential Guard status monitoring via registry baselines

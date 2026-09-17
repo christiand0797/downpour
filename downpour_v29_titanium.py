@@ -18445,11 +18445,16 @@ class HardwareProfiler:
 _nvidia_smi_cache: Any = {'ts': 0.0, 'data': {}}
 _nvidia_smi_lock: Any = threading.Lock()
 _NVIDIA_SMI_TTL: float = 60.0
+_nvidia_smi_fail_streak: int = 0
+_nvidia_smi_disabled_until: float = 0.0
 
 
 def _query_gpu_via_nvidia_smi() -> dict:
     """One nvidia-smi query (60s cached). Returns {} when unavailable."""
+    global _nvidia_smi_fail_streak, _nvidia_smi_disabled_until
     now: Any = time.time()
+    if now < _nvidia_smi_disabled_until:
+        return {}
     with _nvidia_smi_lock:
         if now - _nvidia_smi_cache['ts'] < _NVIDIA_SMI_TTL:
             return dict(_nvidia_smi_cache['data'])
@@ -18459,13 +18464,14 @@ def _query_gpu_via_nvidia_smi() -> dict:
             os.environ.get('ProgramFiles', r'C:\Program Files'),
             'NVIDIA Corporation', 'NVSMI', 'nvidia-smi.exe')
         if not os.path.isfile(_smi):
-            _smi = 'nvidia-smi'   # normal PATH location on modern drivers
+            _smi = 'nvidia-smi'
         out: Any = subprocess.run(
             [_smi,
              '--query-gpu=name,utilization.gpu,memory.used,memory.total,'
              'temperature.gpu,fan.speed,power.draw,clocks.gr',
              '--format=csv,noheader,nounits'],
             capture_output=True, text=True, timeout=3,
+            stdin=subprocess.DEVNULL,
             creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         if out.returncode == 0 and out.stdout.strip():
             parts: Any = [p.strip() for p in out.stdout.splitlines()[0].split(',')]
@@ -18491,8 +18497,15 @@ def _query_gpu_via_nvidia_smi() -> dict:
                     'gpu_power_draw_w': round(_f(parts[6]), 1),
                     'gpu_clock_mhz': int(_f(parts[7])),
                 }
+            _nvidia_smi_fail_streak = 0
+        else:
+            _nvidia_smi_fail_streak += 1
     except Exception:
+        _nvidia_smi_fail_streak += 1
         data = {}
+    if _nvidia_smi_fail_streak >= 3:
+        _nvidia_smi_disabled_until = now + 300.0
+        _nvidia_smi_fail_streak = 0
     with _nvidia_smi_lock:
         _nvidia_smi_cache['ts'] = now
         _nvidia_smi_cache['data'] = data
@@ -20307,10 +20320,10 @@ class ImmersiveRainCanvas(tk.Canvas):
         self._last_frame_time = 0.0
         # Adaptive load degradation state (EMA of frame cost + tick backoff)
         self._load_ema = 0.0
-        # FIX-v29.41k: per-coords() cost EMA drives the drop stride directly
-        # (see _update_drops). Seed at a modest 5ms so early frames are a bit
-        # conservative while the real cost is being measured.
-        self._coords_cost_ema = 8.0
+        # FIX-v29.85: seed at 2ms (below the 8ms degradation threshold) so
+        # early frames render at full quality. The real cost replaces this
+        # within a few frames via the EMA in _update_drops.
+        self._coords_cost_ema = 2.0
         self._anim_allowed = 100
         self._anim_frozen = False
         self._anim_freeze_countdown = 60
@@ -20494,23 +20507,11 @@ class ImmersiveRainCanvas(tk.Canvas):
         self._init_moon()
         self.bind('<Configure>', self._on_resize)
         
-        # Initialize background physics engine
-        self._physics_engine = _RainPhysicsEngine(
-            width=self.w, height=self.h, intensity=self.intensity,
-            drop_data=self._drops, splash_data=self._splashes, streak_data=self._streaks,
-            mist_data=self._mist_state, puddle_data=self._puddle_state, cloud_data=self._cloud_items,
-            wind_base=self._wind_base, storm_phases=self._STORM_PHASES,
-        )
-        self._physics_engine.start(
-            drops=self._drops, splashes=self._splashes, streaks=self._streaks,
-            mist=self._mist_state, puddles=self._puddle_state, clouds=self._cloud_items,
-            wind_base=self._wind_base, storm_phases=self._STORM_PHASES,
-            storm_phase_idx=self._storm_phase_idx, storm_phase_timer=self._storm_phase_timer,
-            phase_transition=self._phase_transition, target_phase_idx=self._target_phase_idx,
-            threat_level=self._threat_level,
-            wind_gust=self._wind_gust, wind_gust_target=self._wind_gust_target,
-            wind_gust_timer=self._wind_gust_timer,
-        )
+        # FIX-v29.85: physics engine DISABLED — it fights with _update_drops
+        # over drop positions (both update d['y']/d['x'] every frame, causing
+        # 2x speed + jitter + instant recycling = broken rain). _update_drops
+        # handles physics AND rendering correctly on its own.
+        self._physics_engine = None
         
         self.bind('<Configure>', self._on_resize)
 
@@ -20674,28 +20675,11 @@ class ImmersiveRainCanvas(tk.Canvas):
         self._running = True
         self._stop_flag.clear()
         self._last_frame_time = time.monotonic()
-        # Start background physics engine
-        if hasattr(self, '_physics_engine'):
-            self._physics_engine.start(
-                drops=self._drops, splashes=self._splashes, streaks=self._streaks,
-                mist=self._mist_state, puddles=self._puddle_state, clouds=self._cloud_items,
-                wind_base=self._wind_base, storm_phases=self._STORM_PHASES,
-                storm_phase_idx=self._storm_phase_idx, storm_phase_timer=self._storm_phase_timer,
-                phase_transition=self._phase_transition, target_phase_idx=self._target_phase_idx,
-                threat_level=self._threat_level,
-                wind_gust=self._wind_gust, wind_gust_target=self._wind_gust_target,
-                wind_gust_timer=self._wind_gust_timer,
-            )
-        self._stop_flag.clear()
-        self._last_frame_time = time.monotonic()
         self._animate()
 
     def stop(self):
         self._running = False
         self._stop_flag.set()
-        # Stop background physics engine
-        if hasattr(self, '_physics_engine'):
-            self._physics_engine.stop()
 
     def set_lightning_callback(self, cb):
         self._lightning_cb = cb
@@ -20750,26 +20734,6 @@ class ImmersiveRainCanvas(tk.Canvas):
         def _fmark(name):
             _fsec[name] = (time.monotonic() - _frame_t0) * 1000.0
         try:
-            # Update physics engine with current parameters
-            if hasattr(self, '_physics_engine'):
-                self._physics_engine.update_params(
-                    dt_scale=dt_scale,
-                    degraded=self._anim_allowed > 150 or getattr(self, '_coords_cost_ema', 0.0) >= 8.0,
-                    frame=self._frame,
-                    storm_phase_idx=self._storm_phase_idx,
-                    storm_phase_timer=self._storm_phase_timer,
-                    phase_transition=self._phase_transition,
-                    target_phase_idx=self._target_phase_idx,
-                    threat_level=self._threat_level,
-                    wind_gust=self._wind_gust,
-                    wind_gust_target=self._wind_gust_target,
-                    wind_gust_timer=self._wind_gust_timer,
-                )
-                # Get physics updates from background thread
-                physics_update = self._physics_engine.get_physics_updates()
-                if physics_update:
-                    self._apply_physics_update(physics_update)
-            
             self._update_wind(dt_scale)
             self._update_storm_phase()
             # Adaptive layer skip: under frame-cost pressure, drop the cosmetic
@@ -40511,6 +40475,7 @@ Verification Status:
                             [_nv_path, '--query-compute-apps=pid,used_memory',
                              '--format=csv,noheader,nounits'],
                             capture_output=True, text=True, timeout=8,
+                            stdin=_gsp.DEVNULL,
                             creationflags=0x08000000)
                         if _gout.returncode == 0 and _gout.stdout.strip():
                             for _line in _gout.stdout.splitlines():
@@ -40543,8 +40508,16 @@ Verification Status:
                                     "per-process GPU attribution disabled: %s", _nv_e)
                     except Exception as _nv_e:
                         self._gpu_proc_map = getattr(self, '_gpu_proc_map', {})
-                        logger.debug("[GPU] nvidia-smi query error (transient, "
-                                     "will retry): %s", _nv_e)
+                        _nv_fail_ct = getattr(self, '_nvidia_smi_fail_count', 0) + 1
+                        self._nvidia_smi_fail_count = _nv_fail_ct
+                        if _nv_fail_ct >= 5:
+                            self._nvidia_smi_unavailable = True
+                            logger.info("[GPU] nvidia-smi failed %d times — "
+                                        "per-process GPU attribution disabled: %s",
+                                        _nv_fail_ct, _nv_e)
+                        elif _nv_fail_ct <= 2:
+                            logger.debug("[GPU] nvidia-smi query error (%d/5, "
+                                         "will retry): %s", _nv_fail_ct, _nv_e)
 
                 # v29: LOLBAS abuse check — runs on every live scan cycle,
                 # not gated behind the manual "Run Threat Hunt" button.

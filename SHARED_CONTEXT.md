@@ -42,13 +42,22 @@
 - **Sensor Hub**: Single psutil snapshot/5s fanned to consumers
 - **Defense Suite**: 38 capabilities (security services, RDP, AppLocker, local groups, LSA, SMB, ASR, shell config watchers)
 - **PowerShell Removal Complete**: All `subprocess.run(['powershell', ...])` replaced with native Windows commands
-- **Sigma Rules**: 40+ detection rules covering LOLBins, credential access, defense evasion, persistence, lateral movement, PowerShell threats
+- **Sigma Rules**: 16 rule files (90+ detection rules) covering LOLBins, credential access, defense evasion, persistence, lateral movement, PowerShell, Kerberos, WMI, schtasks, exfiltration, BYOVD drivers
 - **ETW Monitor** (`etw_monitor.py`): Kernel-level telemetry — process creation, registry mods, named pipes, DNS queries, DLL loads
 - **Ransomware Canary System** (`ransomware_canary.py`): Decoy file deployment with 5s integrity checks for instant ransomware detection
-- **YARA Rules v29.82**: 20 rule files including AMSI bypass, info-stealers, DLL injection, supply chain attacks, wiper malware, webshells
+- **YARA Rules v29.84**: 25 rule files including AMSI bypass, info-stealers, DLL injection, supply chain, wipers, webshells, fileless, BYOVD, RAT, PS obfuscation, credential dumpers
 - **Credential Guard Monitor** (`credential_guard_monitor.py`): VBS/HVCI/Secure Boot tampering detection
 - **Privilege Escalation Detector** (`privilege_escalation_detector.py`): UAC bypass, AlwaysInstallElevated, unquoted paths, weak services
 - **Boot Integrity Monitor** (`boot_integrity_monitor.py`): Boot file SHA-256 baselines, BCD drift, test-signing, ELAM checks
+- **TLS Certificate Monitor** (`tls_certificate_monitor.py`): Certificate store baselining, known-bad CA detection, weak key/SHA-1 alerting
+- **AD & Kerberos Attack Detector** (`ad_attack_detector.py`): BloodHound/Rubeus/Mimikatz detection, Kerberoast/AS-REP roast/DCSync, AD recon
+- **Clipboard Security Monitor** (`clipboard_monitor.py`): Crypto clipper malware, sensitive data exposure, rapid clipboard change detection
+- **Named Pipe Monitor** (`named_pipe_monitor.py`): Malicious pipe detection (C2, PsExec, ransomware), pipe baseline/change tracking
+- **Token Manipulation Detector** (`token_manipulation_detector.py`): Potato attacks, Mimikatz tokens, RunAs abuse, dangerous privilege monitoring
+- **DPAPI Monitor** (`dpapi_monitor.py`): Master key access, browser credential theft, vault file monitoring, WiFi password extraction
+- **Print Spooler Monitor** (`print_spooler_monitor.py`): PrintNightmare/SpoolFool detection, spooler service monitoring, suspicious DLL scanning
+- **COM Hijack Detector** (`com_hijack_detector.py`): CLSID hijacking detection, UAC bypass COM objects, TreatAs redirection monitoring
+- **DNS Security Monitor** (`dns_security_monitor.py`): DNS server change detection, DoH bypass, DGA domain detection, DNS tunneling indicators
 
 ### Test Suite
 - **389+ tests** passing (v29.72 baseline)
@@ -95,6 +104,15 @@
 | `privilege_escalation_detector.py` | ~350 | UAC bypass, privesc vector scanning |
 | `boot_integrity_monitor.py` | ~350 | Boot file integrity, BCD drift, Secure Boot monitoring |
 | `sigma_engine.py` | ~1.2K | Sigma rule engine (process creation + script block matching) |
+| `tls_certificate_monitor.py` | ~310 | TLS cert store baselining, known-bad CAs, weak key detection |
+| `ad_attack_detector.py` | ~325 | AD/Kerberos attack detection (BloodHound, Kerberoast, DCSync) |
+| `clipboard_monitor.py` | ~290 | Clipboard security (crypto clipper, sensitive data, rapid changes) |
+| `named_pipe_monitor.py` | ~230 | Named pipe monitoring (C2 pipes, PsExec, malicious patterns) |
+| `token_manipulation_detector.py` | ~300 | Token theft, impersonation, potato attacks, privilege auditing |
+| `dpapi_monitor.py` | ~320 | DPAPI credential theft (master keys, browser creds, vault files) |
+| `print_spooler_monitor.py` | ~337 | PrintNightmare/SpoolFool detection, spooler service monitoring |
+| `com_hijack_detector.py` | ~256 | COM object hijacking detection (CLSID, UAC bypass, TreatAs) |
+| `dns_security_monitor.py` | ~326 | DNS security (server changes, DoH bypass, DGA, tunneling) |
 
 ## Verification Commands (Run Before/After Changes)
 

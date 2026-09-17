@@ -150,6 +150,80 @@ start_boot_monitoring(callback=my_alert_handler)
 status = get_boot_monitor().get_status()
 ```
 
+### Using TLS Certificate Monitor
+```python
+from tls_certificate_monitor import start_tls_monitoring, get_tls_monitor
+start_tls_monitoring(callback=my_alert_handler)
+status = get_tls_monitor().get_status()
+alerts = get_tls_monitor().get_alerts()
+```
+
+### Using AD & Kerberos Attack Detector
+```python
+from ad_attack_detector import start_ad_detection, get_ad_detector
+start_ad_detection(callback=my_alert_handler)
+# Also usable for real-time process scanning:
+alert = get_ad_detector().scan_command_line("rubeus.exe", "rubeus.exe kerberoast")
+```
+
+### Using Clipboard Security Monitor
+```python
+from clipboard_monitor import start_clipboard_monitoring, get_clipboard_monitor
+start_clipboard_monitoring(callback=my_alert_handler)
+status = get_clipboard_monitor().get_status()
+alerts = get_clipboard_monitor().get_alerts()
+```
+
+### Using Named Pipe Monitor
+```python
+from named_pipe_monitor import start_pipe_monitoring, get_pipe_monitor
+start_pipe_monitoring(callback=my_alert_handler)
+status = get_pipe_monitor().get_status()
+alerts = get_pipe_monitor().get_alerts()
+```
+
+### Using Token Manipulation Detector
+```python
+from token_manipulation_detector import start_token_detection, get_token_detector
+start_token_detection(callback=my_alert_handler)
+# Real-time command line scanning:
+alert = get_token_detector().scan_command_line("juicypotato.exe", "juicypotato.exe -l 1337")
+```
+
+### Using DPAPI Monitor
+```python
+from dpapi_monitor import start_dpapi_monitoring, get_dpapi_monitor
+start_dpapi_monitoring(callback=my_alert_handler)
+status = get_dpapi_monitor().get_status()
+alerts = get_dpapi_monitor().get_alerts()
+```
+
+### Using Print Spooler Monitor
+```python
+from print_spooler_monitor import start_spooler_monitoring, get_spooler_monitor
+start_spooler_monitoring(callback=my_alert_handler)
+status = get_spooler_monitor().get_status()
+# Real-time command line scanning for PrintNightmare patterns:
+alert = get_spooler_monitor().scan_command_line("rundll32.exe", "AddPrinterDriverEx")
+```
+
+### Using COM Hijack Detector
+```python
+from com_hijack_detector import start_com_detection, get_com_detector
+start_com_detection(callback=my_alert_handler)
+status = get_com_detector().get_status()
+alerts = get_com_detector().get_alerts()
+```
+
+### Using DNS Security Monitor
+```python
+from dns_security_monitor import start_dns_monitoring, get_dns_monitor
+start_dns_monitoring(callback=my_alert_handler)
+status = get_dns_monitor().get_status()
+# Analyze a domain for suspicious characteristics:
+alert = get_dns_monitor().check_domain("xyzab123random.tk")
+```
+
 ## GitHub
 - Repo: `github.com/christiand0797/downpour`
 - Branch: `main` (single branch, commit directly)
