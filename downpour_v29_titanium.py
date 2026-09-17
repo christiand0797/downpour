@@ -230,6 +230,17 @@ import ctypes
 import gc
 import hashlib
 
+# v29.90c: Suppress Windows error dialogs for child processes (nvidia-smi.exe
+# crashes produce "Application Error" popups without this). SEM_FAILCRITICALERRORS
+# prevents "file not found" dialogs, SEM_NOGPFAULTERRORBOX prevents crash dialogs.
+try:
+    _k32 = ctypes.windll.kernel32
+    _SEM_FAILCRITICALERRORS = 0x0001
+    _SEM_NOGPFAULTERRORBOX = 0x0002
+    _k32.SetErrorMode(_SEM_FAILCRITICALERRORS | _SEM_NOGPFAULTERRORBOX)
+except Exception:
+    pass
+
 # FP Suppression module (shared with threat_intelligence.py)
 from fp_suppression import FPSuppressionCache, fp_fingerprint, FingerprintError
 
