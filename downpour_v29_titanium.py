@@ -18460,10 +18460,17 @@ def _query_gpu_via_nvidia_smi() -> dict:
             return dict(_nvidia_smi_cache['data'])
     data: dict = {}
     try:
-        _smi: Any = os.path.join(
-            os.environ.get('ProgramFiles', r'C:\Program Files'),
-            'NVIDIA Corporation', 'NVSMI', 'nvidia-smi.exe')
-        if not os.path.isfile(_smi):
+        _smi: Any = None
+        for _candidate in [
+            os.path.join(os.environ.get('SystemRoot', r'C:\Windows'),
+                         'System32', 'nvidia-smi.exe'),
+            os.path.join(os.environ.get('ProgramFiles', r'C:\Program Files'),
+                         'NVIDIA Corporation', 'NVSMI', 'nvidia-smi.exe'),
+        ]:
+            if os.path.isfile(_candidate):
+                _smi = _candidate
+                break
+        if _smi is None:
             _smi = 'nvidia-smi'
         out: Any = subprocess.run(
             [_smi,
@@ -25971,6 +25978,103 @@ class downpour(tk.Tk):
         except Exception:
             pass
 
+    def _activate_turbo_mode(self):
+        """v29.90: Toggle Turbo Mode — maximizes Downpour's resource usage for fastest scanning."""
+        if getattr(self, '_turbo_mode_active', False):
+            self._deactivate_turbo_mode()
+            return
+        self._turbo_mode_active = True
+
+        def apply_turbo():
+            import subprocess
+            _cnw = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000)
+            try:
+                import psutil
+                proc = psutil.Process()
+                self._turbo_prev_nice = proc.nice()
+                proc.nice(psutil.HIGH_PRIORITY_CLASS)
+            except Exception:
+                self._turbo_prev_nice = None
+            # Increase thread pool
+            try:
+                self._turbo_prev_workers = self._executor._max_workers
+                self._executor._max_workers = max(16, os.cpu_count() or 8)
+            except Exception:
+                self._turbo_prev_workers = None
+            # Speed up performance refresh
+            try:
+                self._turbo_prev_perf_interval = getattr(self, '_perf_refresh_interval', 2000)
+                self._perf_refresh_interval = 500
+            except Exception:
+                pass
+            # Boost rain to max
+            try:
+                if hasattr(self, '_rain_canvas') and self._rain_canvas:
+                    self._turbo_prev_rain_fps = getattr(self._rain_canvas, '_fps', 30)
+                    self._turbo_prev_rain_intensity = getattr(self._rain_canvas, 'intensity', 60)
+                    self._rain_canvas._fps = 60
+                    self._rain_canvas.intensity = 120
+            except Exception:
+                pass
+
+            def _ui():
+                self._set_status('TURBO MODE ON — max resources, High priority, fastest scan rates')
+                self.show_notification(
+                    "TURBO MODE ON",
+                    "Downpour is now running at maximum performance:\n"
+                    "• Process priority: HIGH\n"
+                    "• Thread pool: expanded\n"
+                    "• Scan refresh: 500ms\n"
+                    "• Rain: max intensity\n"
+                    "| Click TURBO again to deactivate")
+                self._queue_alert('[TURBO] Max resource mode ACTIVATED — '
+                                  'priority HIGH, fastest refresh rates',
+                                  Colors.GAUGE_RED)
+            self.after(0, _ui)
+        self._executor.submit(apply_turbo)
+
+    def _deactivate_turbo_mode(self):
+        """v29.90: Restore normal resource usage from Turbo Mode."""
+        self._turbo_mode_active = False
+        def restore_turbo():
+            try:
+                import psutil
+                proc = psutil.Process()
+                prev = getattr(self, '_turbo_prev_nice', None)
+                if prev is not None:
+                    proc.nice(prev)
+                else:
+                    proc.nice(psutil.NORMAL_PRIORITY_CLASS)
+            except Exception:
+                pass
+            try:
+                prev_workers = getattr(self, '_turbo_prev_workers', None)
+                if prev_workers is not None:
+                    self._executor._max_workers = prev_workers
+            except Exception:
+                pass
+            try:
+                prev_interval = getattr(self, '_turbo_prev_perf_interval', 2000)
+                self._perf_refresh_interval = prev_interval
+            except Exception:
+                pass
+            try:
+                if hasattr(self, '_rain_canvas') and self._rain_canvas:
+                    prev_fps = getattr(self, '_turbo_prev_rain_fps', 30)
+                    prev_intensity = getattr(self, '_turbo_prev_rain_intensity', 60)
+                    self._rain_canvas._fps = prev_fps
+                    self._rain_canvas.intensity = prev_intensity
+            except Exception:
+                pass
+
+            def _ui():
+                self._set_status('Turbo Mode deactivated — normal operation restored')
+                self.show_notification("TURBO MODE OFF", "Normal operation restored")
+                self._queue_alert('[TURBO] Deactivated — normal resource usage restored',
+                                  Colors.GAUGE_TEAL)
+            self.after(0, _ui)
+        self._executor.submit(restore_turbo)
+
     def _activate_gaming_mode(self):
         """Toggle comprehensive gaming optimization mode with protection monitors."""
         if getattr(self, '_gaming_mode_active', False):
@@ -26278,6 +26382,8 @@ class downpour(tk.Tk):
         btn_row: Any = tk.Frame(p, bg=Colors.BG_VOID)
         btn_row.grid(row=0, column=0, columnspan=2, sticky='ew', padx=8, pady=4)
         buttons: Any = [
+            ("[ZAP] TURBO",       self._activate_turbo_mode,   Colors.GAUGE_RED,
+             "Toggle Turbo Mode — max CPU priority, fastest scan/refresh rates, full resource usage"),
             ("🎮 Gaming Mode",   self._activate_gaming_mode,  Colors.GAUGE_GREEN,
              "Toggle Gaming Mode — optimizes system, starts protection monitors, reduces UI overhead"),
             ("🔬 Scan Now",       self._scan_processes_now,    Colors.GAUGE_BLUE,
@@ -26292,6 +26398,8 @@ class downpour(tk.Tk):
              "Open the Ransomware Protection panel"),
             ("[ALERT] PANIC",          self._panic_button,          Colors.GAUGE_RED,
              "FULL EMERGENCY LOCKDOWN — isolates network, kills suspicious processes, captures forensics"),
+            ("[FW] Manager",      self._fw_rule_manager,       Colors.GAUGE_TEAL,
+             "View/unblock ALL Downpour firewall rules — fix blocked apps like Spotify, Claude, Discord"),
         ]
         for i, (txt, cmd, col, tip) in enumerate(buttons):
             _qb: Any = tk.Button(btn_row, text=txt, font=('Consolas', 9, 'bold'),
@@ -27200,6 +27308,12 @@ class downpour(tk.Tk):
              Colors.GAUGE_PURPLE,  "v30: export blocklist + rate tracker to CSV"),
             ("🧹 Purge DDoS Blocks", self._ddos_purge_blocklist,
              Colors.GAUGE_RED,     "v30: unblock + forget all persisted DDoS blocks"),
+            ("🔥 Firewall Mgr",    self._fw_rule_manager,
+             Colors.GAUGE_TEAL,    "v29.90: View/selectively unblock ANY Downpour firewall rule — "
+                                   "search, filter, pick which rules to remove"),
+            ("✅ Unblock Trusted", self._unblock_trusted_apps,
+             Colors.GAUGE_GREEN,   "v29.90: Auto-remove blocks on Spotify, Claude, Discord, "
+                                   "Steam, browsers, and other known-safe apps"),
             ("🔓 Unblock ALL",      self._port_unblock_all,
              Colors.GAUGE_TEAL,    "v29.50: remove ALL Downpour firewall rules "
                                    "(DDoS/C2/emergency/kill-switch/hunt/etc) — "
@@ -41996,6 +42110,24 @@ Verification Status:
         except ValueError:
             return  # not a valid IP — don't attempt to block garbage input
 
+        # v29.90: Skip blocking if IP belongs to a trusted app
+        try:
+            import psutil as _psutil_ddos
+            for conn in _psutil_ddos.net_connections(kind='inet'):
+                if conn.raddr and conn.raddr.ip == ip:
+                    try:
+                        proc = _psutil_ddos.Process(conn.pid)
+                        pname = proc.name().lower()
+                        if pname in self._TRUSTED_APPS:
+                            logger.info('[DDOS] Skipping auto-block of %s — '
+                                        'belongs to trusted app %s',
+                                        ip, self._TRUSTED_APPS[pname])
+                            return
+                    except (_psutil_ddos.NoSuchProcess, _psutil_ddos.AccessDenied):
+                        pass
+        except Exception:
+            pass
+
         # v29.5: require corroboration — never auto-block on a single alert.
         # A one-off port-scan/beacon false positive against a CDN or AI API
         # endpoint (Claude/Chrome QUIC over UDP 443) caused ERR_QUIC_PROTOCOL_ERROR
@@ -42732,38 +42864,35 @@ Verification Status:
             except Exception as _e:
                 _safe_log('PortUnblock', 'detect failed', _e)
         self._executor.submit(_work)
-        # Risk-confirmed delete on the main thread (house convention)
+        # v29.90: Simplified dialog — straightforward Yes=remove, No=cancel
         try:
             import port_firewall_unblock
             count = len(port_firewall_unblock.list_downpour_rules())
             if count == 0:
+                mb.showinfo('Unblock ALL', 'No Downpour firewall rules found — nothing to unblock.')
                 return
             if not mb.askyesno(
                     'Unblock ALL',
                     f'Remove ALL {count} Downpour firewall rule(s)?\n\n'
                     'This covers DDoS shield blocks, C2 blocks, emergency '
                     'isolates, VPN kill-switch rules, hunt/MISP/lock-down '
-                    'blocks, and more.\n\nRun dry-run preview first?\n'
-                    '(Yes = preview only, No = delete all rules)',
+                    'blocks, and more.\n\n'
+                    'Yes = Remove all rules now\n'
+                    'No = Cancel (keep rules)',
                     icon='warning'):
-                # user chose "No" = actually delete (risk-confirmed)
-                def _delete():
-                    try:
-                        result = port_firewall_unblock.unblock(
-                            dry_run=False)
-                        n = len(result.get('removed', []))
-                        errs = result.get('errors', [])
-                        self._queue_alert(
-                            f'[UNBLOCK] Removed {n} rule(s)'
-                            + (f' ({len(errs)} errors)' if errs else '')
-                            + '.', Colors.GAUGE_TEAL)
-                    except Exception as _e:
-                        _safe_log('PortUnblock', 'unblock failed', _e)
-                self._executor.submit(_delete)
-            else:
-                self._queue_alert(
-                    '[UNBLOCK] Dry-run: see the console / audit trail.',
-                    Colors.GAUGE_YELLOW)
+                return
+            def _delete():
+                try:
+                    result = port_firewall_unblock.unblock(dry_run=False)
+                    n = len(result.get('removed', []))
+                    errs = result.get('errors', [])
+                    self._queue_alert(
+                        f'[UNBLOCK] Removed {n} rule(s)'
+                        + (f' ({len(errs)} errors)' if errs else '')
+                        + '.', Colors.GAUGE_GREEN)
+                except Exception as _e:
+                    _safe_log('PortUnblock', 'unblock failed', _e)
+            self._executor.submit(_delete)
         except Exception as _e:
             _safe_log('PortUnblock', 'dialog failed', _e)
 
@@ -47463,6 +47592,24 @@ Verification Status:
 
     def _do_block_ip(self, ip: str):
         """Block an IP  -  tries Aegis WFP kernel blocker, falls back to netsh."""
+        # v29.90: Skip blocking if IP belongs to a trusted app process
+        try:
+            import psutil
+            for conn in psutil.net_connections(kind='inet'):
+                if conn.raddr and conn.raddr.ip == ip:
+                    try:
+                        proc = psutil.Process(conn.pid)
+                        pname = proc.name().lower()
+                        if pname in self._TRUSTED_APPS:
+                            app_label = self._TRUSTED_APPS[pname]
+                            self._queue_alert(
+                                f'[SKIP] {ip} belongs to {app_label} (trusted) — not blocking',
+                                Colors.GAUGE_TEAL)
+                            return
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        pass
+        except Exception:
+            pass
         try:
             if self.aegis:
                 ok, msg = self.aegis.block_ip(ip)
@@ -56705,6 +56852,302 @@ Verification Status:
         tk.Button(btn_row, text='Close', font=('Consolas', 9),
                   fg=Colors.TEXT_DIM, bg=Colors.GLASS_CARD, relief='flat',
                   padx=10, pady=4, command=win.destroy).pack(side='left', padx=4)
+
+    # v29.90: Known-safe services that should never be firewall-blocked.
+    # Maps process name -> description for the UI.
+    _TRUSTED_APPS: Any = {
+        'spotify.exe': 'Spotify',
+        'discord.exe': 'Discord',
+        'steam.exe': 'Steam',
+        'steamwebhelper.exe': 'Steam Web Helper',
+        'steamservice.exe': 'Steam Service',
+        'epicgameslauncher.exe': 'Epic Games',
+        'chrome.exe': 'Google Chrome',
+        'msedge.exe': 'Microsoft Edge',
+        'firefox.exe': 'Firefox',
+        'brave.exe': 'Brave Browser',
+        'claude.exe': 'Claude Desktop',
+        'code.exe': 'VS Code',
+        'teams.exe': 'Microsoft Teams',
+        'slack.exe': 'Slack',
+        'zoom.exe': 'Zoom',
+        'onedrive.exe': 'OneDrive',
+        'dropbox.exe': 'Dropbox',
+        'whatsapp.exe': 'WhatsApp',
+        'telegram.exe': 'Telegram',
+        'signal.exe': 'Signal',
+        'obs64.exe': 'OBS Studio',
+        'obs32.exe': 'OBS Studio',
+        'nvidia share.exe': 'NVIDIA Share',
+        'nvcontainer.exe': 'NVIDIA Container',
+        'gameoverlayui.exe': 'Steam Overlay',
+        'battlenet.exe': 'Battle.net',
+        'origin.exe': 'EA Origin',
+        'eadesktop.exe': 'EA Desktop',
+        'upc.exe': 'Ubisoft Connect',
+        'gog galaxy.exe': 'GOG Galaxy',
+        'itunes.exe': 'iTunes',
+        'windowsterminal.exe': 'Windows Terminal',
+        'powershell.exe': 'PowerShell',
+        'svchost.exe': 'Windows Service Host',
+        'searchhost.exe': 'Windows Search',
+        'runtimebroker.exe': 'Runtime Broker',
+        'windowsstore.exe': 'Microsoft Store',
+    }
+
+    def _fw_rule_manager(self):
+        """v29.90: Comprehensive firewall rule manager — view/unblock any Downpour rule."""
+        import tkinter as tk
+        from tkinter import messagebox as mb
+
+        win = tk.Toplevel(self)
+        win.title('Downpour Firewall Rule Manager')
+        win.geometry('780x520')
+        win.configure(bg=Colors.BG_VOID)
+
+        tk.Label(win, text='FIREWALL RULE MANAGER',
+                 font=('Consolas', 12, 'bold'), fg=Colors.GAUGE_TEAL,
+                 bg=Colors.BG_VOID).pack(pady=(10, 2))
+        tk.Label(win, text='All firewall rules created by Downpour — select and unblock to restore access',
+                 font=('Consolas', 8), fg=Colors.TEXT_DIM,
+                 bg=Colors.BG_VOID).pack(pady=(0, 8))
+
+        # Treeview for rules
+        import tkinter.ttk as ttk
+        cols = ('name', 'direction', 'action', 'remoteip', 'protocol')
+        tree_frame = tk.Frame(win, bg=Colors.BG_VOID)
+        tree_frame.pack(fill='both', expand=True, padx=10, pady=4)
+
+        rule_tree = ttk.Treeview(tree_frame, columns=cols, show='headings',
+                                  height=15, selectmode='extended')
+        for col, w in [('name', 280), ('direction', 70), ('action', 70),
+                        ('remoteip', 200), ('protocol', 80)]:
+            rule_tree.heading(col, text=col.upper())
+            rule_tree.column(col, width=w, stretch=(col == 'name'))
+        vsb = ttk.Scrollbar(tree_frame, orient='vertical', command=rule_tree.yview)
+        rule_tree.configure(yscrollcommand=vsb.set)
+        rule_tree.pack(side='left', fill='both', expand=True)
+        vsb.pack(side='right', fill='y')
+
+        rule_tree.tag_configure('block', foreground=Colors.GAUGE_RED)
+        rule_tree.tag_configure('allow', foreground=Colors.GAUGE_GREEN)
+
+        status_lbl = tk.Label(win, text='Loading...', font=('Consolas', 8),
+                               fg=Colors.TEXT_DIM, bg=Colors.BG_VOID)
+        status_lbl.pack(pady=2)
+
+        # Load rules in background
+        def _load_rules():
+            try:
+                from port_firewall_unblock import list_downpour_rules
+                rules = list_downpour_rules()
+            except Exception:
+                rules = []
+                # Fallback: parse netsh output directly
+                try:
+                    import subprocess
+                    _cnw = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000)
+                    result = subprocess.run(
+                        ['netsh', 'advfirewall', 'firewall', 'show', 'rule', 'name=all'],
+                        capture_output=True, text=True, timeout=20, creationflags=_cnw)
+                    if result.returncode == 0:
+                        import re
+                        current = {}
+                        for line in result.stdout.splitlines():
+                            line = line.strip()
+                            if not line:
+                                if current.get('name', '').lower().startswith('downpour'):
+                                    rules.append(current)
+                                current = {}
+                                continue
+                            if ':' in line:
+                                k, _, v = line.partition(':')
+                                k = k.strip().lower()
+                                v = v.strip()
+                                if k == 'rule name':
+                                    current['name'] = v
+                                elif k == 'direction':
+                                    current['dir'] = v
+                                elif k == 'action':
+                                    current['action'] = v
+                                elif k == 'remoteip':
+                                    current['remoteip'] = v
+                                elif k == 'protocol':
+                                    current['protocol'] = v
+                        if current.get('name', '').lower().startswith('downpour'):
+                            rules.append(current)
+                except Exception:
+                    pass
+
+            def _populate():
+                rule_tree.delete(*rule_tree.get_children())
+                for r in rules:
+                    name = r.get('name', '')
+                    direction = r.get('dir', '')
+                    action = r.get('action', '')
+                    remoteip = r.get('remoteip', '')
+                    protocol = r.get('protocol', '')
+                    tag = 'block' if 'block' in action.lower() else 'allow'
+                    rule_tree.insert('', 'end',
+                                     values=(name, direction, action, remoteip, protocol),
+                                     tags=(tag,))
+                status_lbl.config(
+                    text=f'{len(rules)} Downpour firewall rule(s) found')
+            self.after(0, _populate)
+        self._executor.submit(_load_rules)
+
+        # Action buttons
+        btn_row = tk.Frame(win, bg=Colors.BG_VOID)
+        btn_row.pack(pady=8)
+
+        def _unblock_selected():
+            sel = rule_tree.selection()
+            if not sel:
+                mb.showwarning('Unblock', 'Select one or more rules first.')
+                return
+            names = [rule_tree.item(s, 'values')[0] for s in sel]
+            if not mb.askyesno('Unblock',
+                               f'Remove {len(names)} firewall rule(s)?\n\n'
+                               + '\n'.join(names[:8])
+                               + ('\n...' if len(names) > 8 else '')):
+                return
+            def _do():
+                import subprocess
+                _cnw = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000)
+                removed = 0
+                for name in names:
+                    try:
+                        subprocess.run(
+                            ['netsh', 'advfirewall', 'firewall', 'delete',
+                             'rule', f'name={name}'],
+                            capture_output=True, timeout=10, check=False,
+                            creationflags=_cnw)
+                        removed += 1
+                    except Exception:
+                        pass
+                self.after(0, lambda: self._queue_alert(
+                    f'[UNBLOCK] Removed {removed}/{len(names)} firewall rule(s)',
+                    Colors.GAUGE_TEAL))
+                self.after(100, lambda: self._executor.submit(_load_rules))
+            self._executor.submit(_do)
+            for s in sel:
+                rule_tree.delete(s)
+
+        def _unblock_all():
+            children = rule_tree.get_children()
+            if not children:
+                mb.showinfo('Unblock', 'No rules to remove.')
+                return
+            n = len(children)
+            if not mb.askyesno('Unblock ALL',
+                               f'Remove ALL {n} Downpour firewall rule(s)?\n\n'
+                               'This will restore full network access for anything '
+                               'Downpour has blocked.'):
+                return
+            def _do():
+                try:
+                    from port_firewall_unblock import unblock
+                    result = unblock(dry_run=False)
+                    removed = len(result.get('removed', []))
+                    self.after(0, lambda: self._queue_alert(
+                        f'[UNBLOCK] Removed ALL {removed} Downpour firewall rule(s)',
+                        Colors.GAUGE_GREEN))
+                except Exception as _e:
+                    import subprocess
+                    _cnw = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000)
+                    count = 0
+                    for child in children:
+                        name = rule_tree.item(child, 'values')[0]
+                        try:
+                            subprocess.run(
+                                ['netsh', 'advfirewall', 'firewall', 'delete',
+                                 'rule', f'name={name}'],
+                                capture_output=True, timeout=10, check=False,
+                                creationflags=_cnw)
+                            count += 1
+                        except Exception:
+                            pass
+                    self.after(0, lambda: self._queue_alert(
+                        f'[UNBLOCK] Removed {count} rule(s) (fallback)',
+                        Colors.GAUGE_TEAL))
+                self.after(100, lambda: self._executor.submit(_load_rules))
+            self._executor.submit(_do)
+
+        def _search_filter():
+            query = search_var.get().strip().lower()
+            for child in rule_tree.get_children():
+                vals = rule_tree.item(child, 'values')
+                match = any(query in str(v).lower() for v in vals)
+                if query and not match:
+                    rule_tree.detach(child)
+            if not query:
+                self._executor.submit(_load_rules)
+
+        search_var = tk.StringVar()
+        tk.Entry(btn_row, textvariable=search_var, font=('Consolas', 9),
+                 bg=Colors.GLASS_CARD, fg='#ccccee', insertbackground='#ccccee',
+                 width=20).pack(side='left', padx=4)
+        tk.Button(btn_row, text='🔍 Filter', font=('Consolas', 8, 'bold'),
+                  fg=Colors.GAUGE_TEAL, bg=Colors.GLASS_CARD, relief='flat',
+                  command=_search_filter).pack(side='left', padx=2)
+        tk.Button(btn_row, text='🔄 Refresh', font=('Consolas', 8, 'bold'),
+                  fg=Colors.GAUGE_BLUE, bg=Colors.GLASS_CARD, relief='flat',
+                  command=lambda: self._executor.submit(_load_rules)).pack(side='left', padx=2)
+        tk.Button(btn_row, text='✅ Unblock Selected', font=('Consolas', 8, 'bold'),
+                  fg=Colors.GAUGE_GREEN, bg=Colors.GLASS_CARD, relief='flat',
+                  command=_unblock_selected).pack(side='left', padx=4)
+        tk.Button(btn_row, text='🔓 Unblock ALL', font=('Consolas', 8, 'bold'),
+                  fg=Colors.GAUGE_ORANGE, bg=Colors.GLASS_CARD, relief='flat',
+                  command=_unblock_all).pack(side='left', padx=4)
+        tk.Button(btn_row, text='Close', font=('Consolas', 8),
+                  fg=Colors.TEXT_DIM, bg=Colors.GLASS_CARD, relief='flat',
+                  command=win.destroy).pack(side='left', padx=4)
+
+    def _unblock_trusted_apps(self):
+        """v29.90: Remove all Downpour firewall rules blocking known-safe apps."""
+        import subprocess
+        _cnw = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000)
+
+        def _do():
+            try:
+                from port_firewall_unblock import list_downpour_rules
+                rules = list_downpour_rules()
+            except Exception:
+                rules = []
+            if not rules:
+                self.after(0, lambda: self._queue_alert(
+                    '[UNBLOCK] No Downpour firewall rules found', Colors.GAUGE_TEAL))
+                return
+
+            unblocked = []
+            for r in rules:
+                name = str(r.get('name', ''))
+                ip = str(r.get('remoteip', ''))
+                prog = str(r.get('program', '')).lower()
+                # Check if the rule blocks a trusted app
+                is_trusted = any(app in prog for app in self._TRUSTED_APPS)
+                if is_trusted:
+                    try:
+                        subprocess.run(
+                            ['netsh', 'advfirewall', 'firewall', 'delete',
+                             'rule', f'name={name}'],
+                            capture_output=True, timeout=10, check=False,
+                            creationflags=_cnw)
+                        unblocked.append(name)
+                    except Exception:
+                        pass
+
+            if unblocked:
+                self.after(0, lambda: self._queue_alert(
+                    f'[UNBLOCK] Unblocked {len(unblocked)} rule(s) for trusted apps: '
+                    + ', '.join(unblocked[:5])
+                    + ('...' if len(unblocked) > 5 else ''),
+                    Colors.GAUGE_GREEN))
+            else:
+                self.after(0, lambda: self._queue_alert(
+                    '[UNBLOCK] No trusted-app blocks found — all clear',
+                    Colors.GAUGE_TEAL))
+        self._executor.submit(_do)
 
     def _net_export_csv(self):
         """Export all network connections to CSV."""
