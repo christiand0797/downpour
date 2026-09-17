@@ -75,7 +75,6 @@ INJECTION_TOOLS = [
     re.compile(r'(?i)dll.?injector'),
     re.compile(r'(?i)xenos.*inject'),
     re.compile(r'(?i)gdihook'),
-    re.compile(r'(?i)reshade'),
 ]
 
 OVERLAY_TOOLS = [
@@ -98,13 +97,40 @@ NETWORK_ATTACK_TOOLS = [
     re.compile(r'(?i)clumsy.*\.exe'),
 ]
 
-KNOWN_GAME_PROCESSES = {
-    'csgo.exe', 'cs2.exe', 'valorant.exe', 'fortnite',
-    'apex_legends', 'pubg', 'overwatch', 'destiny2',
-    'callofduty', 'warzone', 'minecraft', 'roblox',
-    'leagueoflegends', 'dota2', 'tf2', 'gta5',
-    'rocketleague', 'rainbowsix', 'deadbydaylight',
-    'escapefromtarkov', 'rust', 'ark', 'dayz',
+ONLINE_COMPETITIVE_GAMES = {
+    'csgo.exe', 'cs2.exe', 'valorant.exe', 'valorant-win64-shipping.exe',
+    'fortnitelient-win64-shipping.exe', 'fortniteclient-win64-shipping.exe',
+    'apex_legends.exe', 'r5apex.exe',
+    'tslgame.exe', 'pubg.exe',
+    'overwatch.exe',
+    'destiny2.exe',
+    'cod.exe', 'modernwarfare.exe',
+    'robloxplayerbeta.exe',
+    'league of legends.exe', 'leagueclient.exe',
+    'dota2.exe',
+    'hl2.exe',
+    'rocketleague.exe',
+    'rainbowsix.exe', 'vulkan_r6.exe',
+    'deadbydaylight-win64-shipping.exe',
+    'escapefromtarkov.exe',
+    'rustclient.exe',
+    'forzahorizon5.exe', 'forzahorizon4.exe', 'forzamotorsport.exe',
+    'halo infinite.exe', 'haloinfinite.exe',
+    'sea of thieves.exe',
+    'helldivers2.exe',
+}
+
+SINGLEPLAYER_MOD_SAFE = {
+    'reshade', 'reshade32', 'reshade64',
+    'rtxremix', 'nvidia rtx remix', 'bridge.exe',
+    'vortex', 'nexusmods', 'mod organizer',
+    'frostymodmanager', 'frostyfix',
+    'flawlesswidescren', 'specialk',
+    'cyberpunk2077.exe', 'nfsu2-hd-road.exe',
+    'speed.exe', 'speed2.exe', 'nfsu2.exe', 'nfsu.exe',
+    'witcher3.exe', 'eldenring.exe', 'skyrimse.exe',
+    'fallout4.exe', 'starfield.exe', 'oblivion.exe',
+    'gta5.exe', 'rdr2.exe', 'gtav.exe',
 }
 
 SYN_FLOOD_THRESHOLD = 100
@@ -213,7 +239,9 @@ class GamingProtectionMonitor:
                 time.sleep(1.0)
 
     def _check_cheat_tools(self) -> None:
-        """Detect running cheat tools and memory editors."""
+        """Detect running cheat/attack tools. Only flags cheat tools
+        when an online competitive game is running — single-player
+        mods (ReShade, RTX Remix, Vortex, etc.) are whitelisted."""
         now_ts = datetime.now(timezone.utc).isoformat()
         now = time.time()
         try:
@@ -225,59 +253,69 @@ class GamingProtectionMonitor:
             if result.returncode != 0:
                 return
 
+            all_procs: List[tuple] = []
+            online_game_running = False
             for line in result.stdout.splitlines():
                 parts = line.strip().split('","')
                 if len(parts) < 2:
                     continue
                 proc_name = parts[0].strip('"').lower()
                 pid = parts[1].strip('"') if len(parts) > 1 else ''
+                all_procs.append((proc_name, pid))
+                if proc_name in ONLINE_COMPETITIVE_GAMES:
+                    online_game_running = True
 
+            for proc_name, pid in all_procs:
                 proc_key = f'{proc_name}:{pid}'
                 last = self._alerted_processes.get(proc_key, 0)
                 if now - last < 600:
                     continue
 
-                for pattern in CHEAT_TOOLS:
-                    if pattern.search(proc_name):
-                        self._add_alert(GamingAlert(
-                            timestamp=now_ts,
-                            category='cheat_tool_detected',
-                            details=f'Game cheat tool running: {proc_name} (PID {pid})',
-                            indicator=proc_key,
-                            severity='critical',
-                            mitre_id='T1055',
-                            process_name=proc_name,
-                        ))
-                        self._alerted_processes[proc_key] = now
-                        break
+                if any(safe in proc_name for safe in SINGLEPLAYER_MOD_SAFE):
+                    continue
 
-                for pattern in MEMORY_EDITORS:
-                    if pattern.search(proc_name):
-                        self._add_alert(GamingAlert(
-                            timestamp=now_ts,
-                            category='memory_editor_detected',
-                            details=f'Memory editor / debugger running: {proc_name} (PID {pid})',
-                            indicator=proc_key,
-                            severity='high',
-                            mitre_id='T1055',
-                            process_name=proc_name,
-                        ))
-                        self._alerted_processes[proc_key] = now
-                        break
+                if online_game_running:
+                    for pattern in CHEAT_TOOLS:
+                        if pattern.search(proc_name):
+                            self._add_alert(GamingAlert(
+                                timestamp=now_ts,
+                                category='cheat_tool_online',
+                                details=f'Cheat tool while online game running: {proc_name} (PID {pid})',
+                                indicator=proc_key,
+                                severity='critical',
+                                mitre_id='T1055',
+                                process_name=proc_name,
+                            ))
+                            self._alerted_processes[proc_key] = now
+                            break
 
-                for pattern in INJECTION_TOOLS:
-                    if pattern.search(proc_name):
-                        self._add_alert(GamingAlert(
-                            timestamp=now_ts,
-                            category='injection_tool_detected',
-                            details=f'DLL injection tool running: {proc_name} (PID {pid})',
-                            indicator=proc_key,
-                            severity='critical',
-                            mitre_id='T1055.001',
-                            process_name=proc_name,
-                        ))
-                        self._alerted_processes[proc_key] = now
-                        break
+                    for pattern in MEMORY_EDITORS:
+                        if pattern.search(proc_name):
+                            self._add_alert(GamingAlert(
+                                timestamp=now_ts,
+                                category='memory_editor_online',
+                                details=f'Memory editor while online game running: {proc_name} (PID {pid})',
+                                indicator=proc_key,
+                                severity='high',
+                                mitre_id='T1055',
+                                process_name=proc_name,
+                            ))
+                            self._alerted_processes[proc_key] = now
+                            break
+
+                    for pattern in INJECTION_TOOLS:
+                        if pattern.search(proc_name):
+                            self._add_alert(GamingAlert(
+                                timestamp=now_ts,
+                                category='injection_tool_online',
+                                details=f'DLL injector while online game running: {proc_name} (PID {pid})',
+                                indicator=proc_key,
+                                severity='critical',
+                                mitre_id='T1055.001',
+                                process_name=proc_name,
+                            ))
+                            self._alerted_processes[proc_key] = now
+                            break
 
                 for pattern in NETWORK_ATTACK_TOOLS:
                     if pattern.search(proc_name):

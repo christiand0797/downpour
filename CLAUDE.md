@@ -329,6 +329,35 @@ from gaming_protection_monitor import start_gaming_protection, get_gaming_monito
 start_gaming_protection(callback=my_alert_handler)
 status = get_gaming_monitor().get_status()
 alerts = get_gaming_monitor().get_alerts()
+# Note: Cheat/memory tools only alert when online competitive games are running.
+# Single-player mods (ReShade, RTX Remix, Vortex, etc.) are whitelisted.
+# DDoS/lag tools always alert regardless.
+```
+
+### Using DLL Hijack Detector
+```python
+from dll_hijack_detector import start_dllhijack_detection, get_dllhijack_detector
+start_dllhijack_detection(callback=my_alert_handler)
+status = get_dllhijack_detector().get_status()
+alerts = get_dllhijack_detector().get_alerts()
+```
+
+### Using AMSI Bypass Detector
+```python
+from amsi_bypass_detector import start_amsi_detection, get_amsi_detector
+start_amsi_detection(callback=my_alert_handler)
+status = get_amsi_detector().get_status()
+# Real-time command line scanning:
+alert = get_amsi_detector().scan_command_line("powershell.exe", "AmsiScanBuffer bypass")
+```
+
+### Using Firewall Tamper Detector
+```python
+from firewall_tamper_detector import start_fw_tamper_detection, get_fw_tamper_detector
+start_fw_tamper_detection(callback=my_alert_handler)
+status = get_fw_tamper_detector().get_status()
+# Real-time command line scanning:
+alert = get_fw_tamper_detector().scan_command_line("netsh.exe", "advfirewall set allprofiles state off")
 ```
 
 ## GitHub

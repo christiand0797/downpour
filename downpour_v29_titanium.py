@@ -39131,6 +39131,60 @@ Verification Status:
                 except Exception as _e:
                     _safe_log('GamingProt', 'start failed', _e)
             self._executor.submit(_start_gaming_prot)
+        # v29.89: DLL search order hijack detector
+        if not getattr(self, '_dllhijack_started', False):
+            self._dllhijack_started = True
+
+            def _start_dllhijack():
+                try:
+                    from dll_hijack_detector import start_dllhijack_detection
+                    if start_dllhijack_detection(
+                            callback=lambda a: self._queue_alert(
+                                f'[DLLHIJACK] {a.category}: {a.details[:140]}',
+                                Colors.GAUGE_RED)):
+                        self._queue_alert(
+                            '[DLLHIJACK] DLL hijack detector active '
+                            '(search order hijacking, side-loading, PATH abuse)',
+                            Colors.GAUGE_TEAL)
+                except Exception as _e:
+                    _safe_log('DLLHijack', 'start failed', _e)
+            self._executor.submit(_start_dllhijack)
+        # v29.89: AMSI bypass / Defender tampering detector
+        if not getattr(self, '_amsi_det_started', False):
+            self._amsi_det_started = True
+
+            def _start_amsi_det():
+                try:
+                    from amsi_bypass_detector import start_amsi_detection
+                    if start_amsi_detection(
+                            callback=lambda a: self._queue_alert(
+                                f'[AMSI] {a.category}: {a.details[:140]}',
+                                Colors.GAUGE_RED)):
+                        self._queue_alert(
+                            '[AMSI] AMSI bypass detector active '
+                            '(provider tampering, Defender state, bypass patterns)',
+                            Colors.GAUGE_TEAL)
+                except Exception as _e:
+                    _safe_log('AMSIDet', 'start failed', _e)
+            self._executor.submit(_start_amsi_det)
+        # v29.89: Firewall tamper detector (profile disable, rule adds, service stops)
+        if not getattr(self, '_fwtamper_started', False):
+            self._fwtamper_started = True
+
+            def _start_fwtamper():
+                try:
+                    from firewall_tamper_detector import start_fw_tamper_detection
+                    if start_fw_tamper_detection(
+                            callback=lambda a: self._queue_alert(
+                                f'[FIREWALL] {a.category}: {a.details[:140]}',
+                                Colors.GAUGE_RED)):
+                        self._queue_alert(
+                            '[FIREWALL] Firewall tamper detector active '
+                            '(profile state, new rules, service monitoring)',
+                            Colors.GAUGE_TEAL)
+                except Exception as _e:
+                    _safe_log('FWTamper', 'start failed', _e)
+            self._executor.submit(_start_fwtamper)
         self._queue_alert('[OK] USB, Service, ARP, WMI, FIM + Extended Threat monitors active', Colors.GAUGE_GREEN)
 
     def _manual_start_aegis(self):

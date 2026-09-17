@@ -1,5 +1,35 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.89 — DLL Hijack Detector, AMSI Bypass Monitor, Firewall Tamper Detection, Gaming Mod Whitelist
+- **DLL Search Order Hijack Detector** (`dll_hijack_detector.py`):
+  - 50+ known hijackable DLL database (version.dll, winmm.dll, cryptbase.dll, amsi.dll, etc.)
+  - Writable directory scanning (Temp, Downloads, Desktop, AppData, ProgramData)
+  - New DLL alongside executables = side-loading alert
+  - User-writable directories in system PATH detection
+  - Periodic re-scan with baseline comparison (T1574.001, T1574.002, T1574.007)
+- **AMSI Bypass Detector** (`amsi_bypass_detector.py`):
+  - AMSI provider registry monitoring (provider removal = critical alert)
+  - Windows Defender service state monitoring (stopped/missing = critical)
+  - 19 AMSI bypass command line patterns (AmsiScanBuffer, AmsiInitFailed, Reflection)
+  - 12 Defender tampering patterns (DisableRealtimeMonitoring, sc stop WinDefend, etc.)
+  - Real-time command line scanning API (T1562.001, T1059.001)
+- **Firewall Tamper Detector** (`firewall_tamper_detector.py`):
+  - Firewall profile state monitoring (Domain/Private/Public ON->OFF = critical)
+  - New inbound allow rule detection with suspicious port flagging
+  - MpsSvc service stop detection (firewall service killed)
+  - 11 firewall tampering command line patterns (netsh, sc, reg)
+  - Inbound allow rule baseline and change tracking (T1562.004)
+- **Gaming Protection Update** (`gaming_protection_monitor.py`):
+  - Single-player mod whitelist: ReShade, RTX Remix, Vortex, Nexus Mods, Frosty, SpecialK
+  - Cheat/memory tool alerts ONLY when online competitive games are detected
+  - Online game database: Forza, CS2, Valorant, Apex, Fortnite, R6, Rocket League, etc.
+  - DDoS/lag/attack tools always alert regardless of game mode
+  - Removed ReShade from injection tools list (legitimate modding tool)
+- **New YARA Rules** (`dll_hijacking.yar`):
+  - DLL Search Order Hijack — side-loading proxy DLL patterns (1 rule)
+  - AMSI Bypass Script — bypass technique detection in scripts (1 rule)
+  - Firewall Tampering Script — firewall disabling detection (1 rule)
+
 ## v29.88 — Data Exfiltration, Anti-Forensics, Scheduled Tasks, WMI Persistence, Gaming Protection
 - **Data Exfiltration Monitor** (`data_exfiltration_monitor.py`):
   - Suspicious outbound port monitoring (FTP, SSH, SMTP, Tor, IRC, DNS tunneling)

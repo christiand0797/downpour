@@ -101,7 +101,7 @@ self.after(0, lambda result: self._ui_update(result))
 
 | Directory | Count | Covers |
 |-----------|-------|--------|
-| `yara_rules/` | 32 files | Malware, ransomware, APT, C2, botnet, cryptominer, AMSI bypass, injection, info-stealers, supply chain, wipers, webshells, fileless, BYOVD, RAT, PS obfuscation, cred dumpers, browser threats, WiFi attacks, lateral movement, BadUSB, data exfiltration, anti-forensics, gaming cheats, WMI persistence |
+| `yara_rules/` | 33 files | Malware, ransomware, APT, C2, botnet, cryptominer, AMSI bypass, injection, info-stealers, supply chain, wipers, webshells, fileless, BYOVD, RAT, PS obfuscation, cred dumpers, browser threats, WiFi attacks, lateral movement, BadUSB, data exfiltration, anti-forensics, gaming cheats, WMI persistence, DLL hijacking, firewall tampering |
 | `sigma_rules/` | 19 files | LOLBins, credential access, defense evasion, persistence, lateral movement, PowerShell, discovery, scripting, privesc, impact, Kerberos, WMI, schtasks, exfiltration, BYOVD drivers, C2 beaconing, browser sideloading, BT recon, BadUSB, VSS deletion, share recon, gaming protection, anti-forensics, WMI persistence |
 
 ## PowerShell Replacements
