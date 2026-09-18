@@ -3467,6 +3467,7 @@ try:
     nvmlDeviceGetPowerUsage = pynvml.nvmlDeviceGetPowerUsage
     nvmlDeviceGetClockInfo = pynvml.nvmlDeviceGetClockInfo
     NVML_CLOCK_GRAPHICS = pynvml.NVML_CLOCK_GRAPHICS
+    nvmlInit()
     NVML_AVAILABLE: Any = True
 except Exception:
     NVML_AVAILABLE: Any = False
@@ -18224,16 +18225,12 @@ class HardwareProfiler:
         # -- GPU -------------------------------------------------------
         has_gpu = False;  gpu_name = '';  gpu_vram_gb = 0.0
         try:
-            # Use pynvml (nvidia-ml-py 13.x installs itself as pynvml)
-            import pynvml
-            pynvml.nvmlInit()
-            h: Any = pynvml.nvmlDeviceGetHandleByIndex(0)
-            gpu_name: Any = pynvml.nvmlDeviceGetName(h)
-            gpu_vram_gb: Any = pynvml.nvmlDeviceGetMemoryInfo(h).total / 1e9
-            has_gpu: Any = True
-            pynvml.nvmlShutdown()  # Clean shutdown
+            if NVML_AVAILABLE:
+                h: Any = nvmlDeviceGetHandleByIndex(0)
+                gpu_name: Any = nvmlDeviceGetName(h)
+                gpu_vram_gb: Any = nvmlDeviceGetMemoryInfo(h).total / 1e9
+                has_gpu: Any = True
         except Exception as e:
-            # Silently handle GPU detection failures - not critical for core functionality
             pass
         if not has_gpu:
             try:
@@ -18504,7 +18501,7 @@ def _query_gpu_via_nvidia_smi() -> dict:
                 used: float = _f(parts[2])
                 total: float = _f(parts[3])
                 data = {
-                    'name': parts[0] or '',
+                    'gpu_name': parts[0] or '',
                     'gpu_percent': _f(parts[1]),
                     'gpu_mem_used_gb': round(used / 1024.0, 1),
                     'gpu_mem_total_gb': round(total / 1024.0, 1),
@@ -23570,7 +23567,7 @@ class FloatingWidget(tk.Toplevel):
             s: Any = self.hw.get_stats()
             self._cpu_var.set(f"CPU: {s['cpu_percent']:5.1f}%  {s['cpu_temp']:.0f} degC")
             self._ram_var.set(f"RAM: {s['ram_percent']:5.1f}%  {s['ram_used_gb']:.1f}GB")
-            gpu_str: Any = f"{s['gpu_percent']:.0f}%/{s['gpu_temp']:.0f} degC" if s['gpu_percent'] else "N/A"
+            gpu_str: Any = f"{s['gpu_percent']:.0f}%/{s['gpu_temp']:.0f} degC" if s.get('gpu_name') else "N/A"
             self._gpu_var.set(f"GPU: {gpu_str}")
             self._net_var.set(f"^{s['net_sent_mb']:.1f} v{s['net_recv_mb']:.1f} MB")
             self.after(2000, self._update)
@@ -25861,6 +25858,7 @@ class downpour(tk.Tk):
         self.bind('<Control-r>', lambda e: self._toggle_rain_btn())
         self.bind('<Control-p>', lambda e: self._panic_button())
         self.bind('<Control-q>', lambda e: self._safe_exit())
+        self.bind('<Control-t>', lambda e: self._activate_turbo_mode())
         self.bind('<Escape>',    lambda e: self._dismiss_alerts())
         # Tab cycling
         self.bind('<Control-Tab>',       lambda e: self._scroll_tabs(1))
@@ -41076,6 +41074,7 @@ Verification Status:
             cpu_temp = s.get('cpu_temp', 0) or 0
             ram_pct = s.get('ram_percent', 0) or 0
             gpu_pct = s.get('gpu_percent', 0) or 0
+            gpu_has_data = bool(s.get('gpu_name'))
             net_up = s.get('net_send_rate', 0) or 0
             net_dn = s.get('net_recv_rate', 0) or 0
             cpu_color = Colors.GAUGE_RED if cpu_pct > 85 else (Colors.GAUGE_ORANGE if cpu_pct > 60 else Colors.GAUGE_BLUE)
@@ -41085,7 +41084,7 @@ Verification Status:
             if hasattr(self, '_cpu_lbl'):
                 self._cpu_lbl.config(text=f"{cpu_pct:.1f}%", fg=cpu_color)
                 self._ram_lbl.config(text=f"{ram_pct:.1f}%", fg=ram_color)
-                self._gpu_lbl.config(text=f"{gpu_pct:.0f}%" if gpu_pct else "N/A", fg=gpu_color)
+                self._gpu_lbl.config(text=f"{gpu_pct:.0f}%" if gpu_has_data else "N/A", fg=gpu_color)
                 self._tmp_lbl.config(text=f"{cpu_temp:.0f} degC" if cpu_temp else "--", fg=tmp_color)
                 def _rate(kbs):
                     return f"{kbs/1024:.1f}M" if kbs >= 1024 else f"{kbs:.0f}K"
@@ -41134,6 +41133,7 @@ Verification Status:
             cpu_temp: Any = s.get('cpu_temp', 0) or 0
             ram_pct: Any = s.get('ram_percent', 0) or 0
             gpu_pct: Any = s.get('gpu_percent', 0) or 0
+            gpu_has_data: Any = bool(s.get('gpu_name'))
             net_up: Any = s.get('net_send_rate', 0) or 0
             net_dn: Any = s.get('net_recv_rate', 0) or 0
             disk_pct: Any = s.get('disk_used_percent', 0) or 0
@@ -41148,7 +41148,7 @@ Verification Status:
                 return
             self._cpu_lbl.config(text=f"{cpu_pct:.1f}%", fg=cpu_color)
             self._ram_lbl.config(text=f"{ram_pct:.1f}%", fg=ram_color)
-            self._gpu_lbl.config(text=f"{gpu_pct:.0f}%" if gpu_pct else "N/A", fg=gpu_color)
+            self._gpu_lbl.config(text=f"{gpu_pct:.0f}%" if gpu_has_data else "N/A", fg=gpu_color)
             self._tmp_lbl.config(text=f"{cpu_temp:.0f} degC" if cpu_temp else "--", fg=tmp_color)
             # Net: show rate in KB/s or MB/s
             def _rate(kbs):
@@ -41746,11 +41746,17 @@ Verification Status:
         def _count():
             try:
                 n: Any = self.db.count_intel()
-                self.after(0, lambda c=n: (
-                    hasattr(self, '_stat_labels') and
-                    'iocs' in self._stat_labels and
-                    self._stat_labels['iocs'].config(text=f"{c:,}")
-                ))
+                def _apply(c=n):
+                    if hasattr(self, '_stat_labels') and 'iocs' in self._stat_labels:
+                        self._stat_labels['iocs'].config(text=f"{c:,}")
+                    if c > 0 and hasattr(self, '_intel_status'):
+                        hp = self._hw_profile
+                        tier_txt = (f"[ZAP] {hp.tier}  "
+                                    f"{hp.ncpu}c / {hp.ram_gb:.0f}GB"
+                                    f"{'  GPU' if hp.has_gpu else ''}")
+                        self._intel_status.config(
+                            text=f"{tier_txt}  |  Intel: {c:,} IOCs")
+                self.after(0, _apply)
             except Exception:
                 pass
         try:
@@ -51713,24 +51719,43 @@ Verification Status:
         import tkinter as tk
 
         tip_win: list = [None]
+        suppress: list = [False]
+        sched_id: list = [None]
+
+        def _show():
+            sched_id[0] = None
+            if suppress[0]:
+                return
+            if tip_win[0]:
+                return
+            try:
+                x: Any = widget.winfo_rootx() + widget.winfo_width() // 2
+                y: Any = widget.winfo_rooty() + widget.winfo_height() + 4
+                tw: Any = tk.Toplevel(widget)
+                tw.overrideredirect(True)
+                tw.configure(bg=Colors.GLASS_DARK,
+                             highlightbackground = Colors.GLASS_BORDER,
+                             highlightthickness = 1)
+                tk.Label(tw, text=text, font=('Consolas', 8),
+                         fg = Colors.TEXT_LIGHT, bg=Colors.GLASS_DARK,
+                         padx = 8, pady=4, wraplength=320,
+                         justify = 'left').pack()
+                tw.geometry(f'+{x}+{y}')
+                tip_win[0] = tw
+            except Exception:
+                pass
 
         def _enter(e):
-            x: Any = widget.winfo_rootx() + widget.winfo_width() // 2
-            y: Any = widget.winfo_rooty() + widget.winfo_height() + 4
-            tw: Any = tk.Toplevel(widget)
-            tw.overrideredirect(True)
-            tw.attributes('-topmost', True)
-            tw.configure(bg=Colors.GLASS_DARK,
-                         highlightbackground = Colors.GLASS_BORDER,
-                         highlightthickness = 1)
-            tk.Label(tw, text=text, font=('Consolas', 8),
-                     fg = Colors.TEXT_LIGHT, bg=Colors.GLASS_DARK,
-                     padx = 8, pady=4, wraplength=320,
-                     justify = 'left').pack()
-            tw.geometry(f'+{x}+{y}')
-            tip_win[0] = tw
+            if suppress[0]:
+                return
+            if sched_id[0]:
+                widget.after_cancel(sched_id[0])
+            sched_id[0] = widget.after(400, _show)
 
         def _leave(e):
+            if sched_id[0]:
+                widget.after_cancel(sched_id[0])
+                sched_id[0] = None
             if tip_win[0]:
                 try:
                     tip_win[0].destroy()
@@ -51738,9 +51763,16 @@ Verification Status:
                     pass
                 tip_win[0] = None
 
+        def _press(e):
+            suppress[0] = True
+            _leave(e)
+            def _unsuppress():
+                suppress[0] = False
+            widget.after(500, _unsuppress)
+
         widget.bind('<Enter>', _enter)
         widget.bind('<Leave>', _leave)
-        widget.bind('<ButtonPress>', _leave)
+        widget.bind('<ButtonPress>', _press)
 
     # ═══════════════════════════════════════════════════════════════════════════
     #  TOAST NOTIFICATION SYSTEM
