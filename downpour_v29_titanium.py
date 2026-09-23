@@ -990,6 +990,24 @@ except ImportError:
 import warnings as _w
 _w.filterwarnings('ignore', category=DeprecationWarning, module='pynvml')
 _w.filterwarnings('ignore', message='.*pynvml.*deprecated.*', category=FutureWarning)
+
+# Cognitive Immune System (CIS) - Meta-defense layer
+try:
+    from cognitive_immune_system import (
+        create_cognitive_immune_system, integrate_with_downpour,
+        CognitiveImmuneSystem, AdversarialRedTeamer, ThreatEvolutionPredictor,
+        SemanticIntegrityVerifier, Epitope, Signal, Detector, CellType, SignalType
+    )
+    COGNITIVE_IMMUNE_SYSTEM_AVAILABLE: Any = True
+except ImportError:
+    COGNITIVE_IMMUNE_SYSTEM_AVAILABLE: Any = False
+    create_cognitive_immune_system: Any = None
+    integrate_with_downpour: Any = None
+    CognitiveImmuneSystem: Any = None
+    AdversarialRedTeamer: Any = None
+    ThreatEvolutionPredictor: Any = None
+    SemanticIntegrityVerifier: Any = None
+
 try:
     import pynvml as nvml  # type: ignore[import-not-found]
 except ImportError:
@@ -24948,6 +24966,46 @@ class downpour(tk.Tk):
             if self.threat_response_center:
                 logger.info("[OK] Threat Response Center active")
 
+            # Cognitive Immune System (CIS) - Meta-defense layer
+            if COGNITIVE_IMMUNE_SYSTEM_AVAILABLE:
+                try:
+                    cis_config = {
+                        "naive_pool_size": 200,
+                        "max_detectors": 5000,
+                        "affinity_threshold": 0.7,
+                        "clonal_expansion_factor": 3,
+                        "mutation_rate": 0.1,
+                        "tolerance_threshold": 0.05,
+                        "memory_retention_days": 90
+                    }
+                    self.cis = create_cognitive_immune_system(cis_config)
+                    
+                    # Wire CIS with existing components
+                    if SENSOR_HUB_AVAILABLE:
+                        try:
+                            self.cis.sensor_hub = get_sensor_hub()
+                        except Exception:
+                            pass
+                    if hasattr(self, 'ai_engine'):
+                        self.cis.ai_engine = self.ai_engine
+                    if hasattr(self, 'threat_db'):
+                        self.cis.threat_db = self.threat_db
+                    elif hasattr(self, 'ultimate_threat_intel_db'):
+                        self.cis.threat_db = self.ultimate_threat_intel_db
+                    if hasattr(self, 'quarantine_core'):
+                        self.cis.quarantine = self.quarantine_core
+                    
+                    # Integrate with Downpour
+                    integrate_with_downpour(self.cis, self)
+                    
+                    logger.info("[OK] Cognitive Immune System active")
+                except Exception as e:
+                    logger.error(f"Cognitive Immune System initialization failed: {e}")
+                    self.cis = None
+            else:
+                logger.warning("Cognitive Immune System not available")
+                self.cis = None
+
             logger.info("All core engines initialized successfully")
 
         except Exception as e:
@@ -48673,6 +48731,14 @@ Verification Status:
                     obj.stop()
             except Exception:
                 pass
+        # Stop Cognitive Immune System
+        if hasattr(self, 'cis') and self.cis:
+            try:
+                self.cis.stop()
+                logger.info("Cognitive Immune System stopped")
+            except Exception as e:
+                logger.error(f"CIS shutdown error: {e}")
+        
         # Trigger ephemeral session wipe before the interpreter tears down
         try:
             self.aegis_memory._ephemeral_wipe()
