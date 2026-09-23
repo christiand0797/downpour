@@ -158,20 +158,64 @@ class Detector:
         return 0.0
     
     def _semantic_similarity(self, a: str, b: str) -> float:
-        """Simple semantic similarity for behavior patterns"""
-        # Could be enhanced with embeddings
+        """Enhanced semantic similarity for behavior patterns"""
+        # Token-based Jaccard similarity
         a_tokens = set(a.lower().split())
         b_tokens = set(b.lower().split())
+        
         if not a_tokens or not b_tokens:
             return 0.0
-        return len(a_tokens & b_tokens) / len(a_tokens | b_tokens)
+        
+        # Jaccard index
+        intersection = len(a_tokens & b_tokens)
+        union = len(a_tokens | b_tokens)
+        jaccard = intersection / union if union > 0 else 0.0
+        
+        # Also check for substring containment (e.g., "powershell_execution" in "encoded_powershell_execution")
+        if a in b or b in a:
+            jaccard = max(jaccard, 0.7)
+        
+        # Check for common technique prefixes
+        technique_prefixes = ["T1055", "T1059", "T1003", "T1486", "T1027", "T1071", "T1218", "T1547", "T1055.012", "T1055.002"]
+        for prefix in technique_prefixes:
+            if prefix in a and prefix in b:
+                jaccard = max(jaccard, 0.8)
+        
+        # Check for common behavior categories
+        behavior_categories = {
+            "execution": ["powershell", "cmd", "wscript", "cscript", "mshta", "rundll32", "regsvr32", "certutil", "bitsadmin"],
+            "injection": ["injection", "hollowing", "apc", "thread", "remote_thread", "queue_user_apc"],
+            "credential": ["dump", "lsass", "sam", "ntds", "credential", "sekurlsa"],
+            "encryption": ["encrypt", "ransom", "crypt", "locker", "aes", "rsa"],
+            "obfuscation": ["encode", "base64", "xor", "pack", "obfuscate", "stealth"],
+            "persistence": ["registry", "service", "task", "startup", "wmi", "com", "hijack"],
+            "c2": ["beacon", "callback", "dns", "http", "https", "domain", "ip"],
+            "evasion": ["bypass", "disable", "unhook", "tamper", "anti", "av", "edr", "defender"],
+            "discovery": ["enum", "scan", "query", "net view", "whoami", "systeminfo"],
+            "collection": ["collect", "archive", "exfil", "upload", "staging"],
+        }
+        
+        a_cats = set()
+        b_cats = set()
+        for cat, keywords in behavior_categories.items():
+            if any(k in a.lower() for k in keywords):
+                a_cats.add(cat)
+            if any(k in b.lower() for k in keywords):
+                b_cats.add(cat)
+        
+        if a_cats and b_cats:
+            cat_overlap = len(a_cats & b_cats) / len(a_cats | b_cats) if (a_cats | b_cats) else 0
+            # Boost similarity if they share behavior categories
+            jaccard = max(jaccard, cat_overlap * 0.6)
+        
+        return min(1.0, jaccard)
 
 
 @dataclass
 class ImmuneMemory:
     """Long-term immunological memory"""
     epitopes: Dict[Epitope, Dict[str, Any]] = field(default_factory=dict)
-    detector_lineages: Dict[str, List[str]] = field(default_factory=dict)  # epitope -> detector IDs
+    detector_lineages: Dict[str, List[str]] = field(default_factory=lambda: defaultdict(list))  # detector_id -> epitope patterns
     response_history: deque = field(default_factory=lambda: deque(maxlen=10000))
     
     def remember(self, epitope: Epitope, detector_id: str, outcome: str):
@@ -627,21 +671,80 @@ class CognitiveImmuneSystem:
     def _mutate_receptor(self, receptor: Epitope):
         """Somatic hypermutation of a receptor"""
         if receptor.pattern_type == "ip":
-            # Mutate IP pattern (adjust CIDR)
-            pass
+            # Mutate IP pattern - adjust CIDR or shift IP range
+            import ipaddress
+            try:
+                if "/" in receptor.pattern:
+                    net = ipaddress.ip_network(receptor.pattern, strict=False)
+                    # Shift network by small random amount
+                    shift = random.randint(-256, 256)
+                    new_net_int = int(net.network_address) + shift
+                    if new_net_int >= 0 and new_net_int <= 0xFFFFFFFF:
+                        new_net = ipaddress.ip_network((new_net_int, net.prefixlen))
+                        receptor.pattern = str(new_net)
+                else:
+                    # Single IP - mutate to nearby IP
+                    ip = ipaddress.ip_address(receptor.pattern)
+                    shift = random.randint(-10, 10)
+                    new_ip_int = int(ip) + shift
+                    if 0 <= new_ip_int <= 0xFFFFFFFF:
+                        receptor.pattern = str(ipaddress.ip_address(new_ip_int))
+            except Exception:
+                pass
+                
         elif receptor.pattern_type == "domain":
-            # Mutate domain pattern
-            pass
+            # Mutate domain pattern - add/remove subdomain, change TLD
+            parts = receptor.pattern.split(".")
+            if len(parts) > 2 and random.random() < 0.4:
+                # Add/remove subdomain
+                if random.random() < 0.5:
+                    parts.insert(0, f"sub{random.randint(1,99)}")
+                else:
+                    parts.pop(0)
+            if random.random() < 0.2:
+                # Change TLD
+                tlds = ["com", "net", "org", "io", "co", "xyz", "top", "site"]
+                parts[-1] = random.choice(tlds)
+            if random.random() < 0.3:
+                # Add random subdomain prefix
+                prefix = f"{random.randint(1000,9999)}"
+                parts.insert(0, prefix)
+            receptor.pattern = ".".join(parts) if parts else "example.com"
+                
         elif receptor.pattern_type == "behavior":
-            # Mutate behavior pattern - add/remove tokens
+            # Mutate behavior pattern - add/remove/modify tokens
             tokens = receptor.pattern.split()
             if tokens and random.random() < 0.5:
                 tokens.pop(random.randrange(len(tokens)))
             if random.random() < 0.3:
                 tokens.append(f"mutated_{random.randint(1,100)}")
+            if random.random() < 0.2 and len(tokens) > 1:
+                # Swap two tokens
+                i, j = random.sample(range(len(tokens)), 2)
+                tokens[i], tokens[j] = tokens[j], tokens[i]
             receptor.pattern = " ".join(tokens) if tokens else "mutated_behavior"
         
-        receptor.affinity = max(0.1, receptor.affinity * random.uniform(0.8, 1.2))
+        elif receptor.pattern_type == "hash":
+            # Hash mutation - just adjust affinity (can't mutate actual hash)
+            pass
+            
+        elif receptor.pattern_type == "semantic":
+            # Semantic mutation - add related terms
+            semantic_terms = ["malicious", "suspicious", "anomalous", "covert", "evasive", "persistent", "stealth"]
+            if random.random() < 0.3:
+                receptor.pattern = f"{receptor.pattern} {random.choice(semantic_terms)}"
+        
+        elif receptor.pattern_type == "sequence":
+            # Sequence mutation - add/remove steps
+            tokens = receptor.pattern.split()
+            if tokens and random.random() < 0.4:
+                tokens.pop(random.randrange(len(tokens)))
+            if random.random() < 0.3:
+                tokens.append(f"step_{random.randint(1,100)}")
+            receptor.pattern = " ".join(tokens) if tokens else "mutated_sequence"
+        
+        # Adjust affinity with bounded random walk
+        receptor.affinity = max(0.05, min(1.0, receptor.affinity * random.uniform(0.75, 1.25)))
         self.stats["somatic_mutations"] += 1
     
     def _effector_response(self, detector: Detector, epitope: Epitope, context: Dict):
@@ -707,15 +810,46 @@ class CognitiveImmuneSystem:
         actions = []
         
         if epitope.pattern_type == "process_id" and self.quarantine:
-            pid = int(epitope.pattern)
-            actions.append(f"quarantine_process:{pid}")
-            # Would call quarantine.quarantine_process(pid)
+            try:
+                pid = int(epitope.pattern)
+                actions.append(f"quarantine_process:{pid}")
+                # Call quarantine if available
+                if hasattr(self.quarantine, 'quarantine_process'):
+                    self.quarantine.quarantine_process(pid)
+            except (ValueError, TypeError):
+                pass
         
-        if epitope.pattern_type == "ip" and hasattr(self, '_block_ip'):
+        if epitope.pattern_type == "ip":
+            # Block IP via Windows firewall
             actions.append(f"block_ip:{epitope.pattern}")
+            try:
+                import subprocess
+                ip = epitope.pattern
+                # Add Windows firewall rule to block outbound
+                subprocess.run([
+                    "netsh", "advfirewall", "firewall", "add", "rule",
+                    f"name=CIS_Block_{ip}", "dir=out", "action=block",
+                    f"remoteip={ip}", "enable=yes"
+                ], capture_output=True, timeout=10, check=False)
+            except Exception:
+                pass
         
         if epitope.pattern_type == "hash" and self.quarantine:
             actions.append(f"quarantine_file_hash:{epitope.pattern}")
+            try:
+                if hasattr(self.quarantine, 'quarantine_by_hash'):
+                    self.quarantine.quarantine_by_hash(epitope.pattern)
+            except Exception:
+                pass
+        
+        # Quarantine file if path available in context
+        if "file_path" in context and self.quarantine:
+            try:
+                if hasattr(self.quarantine, 'quarantine_file'):
+                    self.quarantine.quarantine_file(context["file_path"])
+                    actions.append(f"quarantine_file:{context['file_path']}")
+            except Exception:
+                pass
         
         actions.append("alert:critical")
         actions.append("forensic_capture")
@@ -1118,16 +1252,72 @@ class AdversarialRedTeamer:
         self.results_history = deque(maxlen=1000)
     
     def _load_attack_patterns(self) -> List[Dict]:
-        """Load known attack patterns for testing"""
+        """Load known attack patterns for testing - comprehensive MITRE ATT&CK coverage"""
         return [
-            {"name": "process_injection", "technique": "T1055", "epitopes": ["process_injection"]},
-            {"name": "command_execution", "technique": "T1059", "epitopes": ["command_line_execution"]},
-            {"name": "credential_dumping", "technique": "T1003", "epitopes": ["credential_dumping"]},
-            {"name": "data_encryption", "technique": "T1486", "epitopes": ["rapid_file_encryption"]},
-            {"name": "obfuscation", "technique": "T1027", "epitopes": ["obfuscated_code"]},
-            {"name": "c2_beaconing", "technique": "T1071", "epitopes": ["periodic_network_callback"]},
-            {"name": "lolbin", "technique": "T1218", "epitopes": ["lolbin_execution"]},
-            {"name": "registry_persistence", "technique": "T1547", "epitopes": ["registry_persistence"]},
+            # Execution
+            {"name": "process_injection", "technique": "T1055", "epitopes": ["process_injection", "thread_hijacking", "apc_injection", "queue_user_apc", "thread_execution_hijacking"]},
+            {"name": "command_execution", "technique": "T1059", "epitopes": ["command_line_execution", "powershell_execution", "cmd_execution", "wscript_execution", "cscript_execution", "mshta_execution", "rundll32_execution", "regsvr32_execution"]},
+            {"name": "service_execution", "technique": "T1569", "epitopes": ["service_execution", "sc_create", "sc_start"]},
+            {"name": "scheduled_task", "technique": "T1053", "epitopes": ["scheduled_task_creation", "task_scheduler", "at_command", "schtasks"]},
+            
+            # Persistence
+            {"name": "registry_persistence", "technique": "T1547", "epitopes": ["registry_persistence", "run_key", "runonce_key", "winlogon_shell", "services_key"]},
+            {"name": "service_persistence", "technique": "T1543", "epitopes": ["service_creation", "service_modification", "driver_load"]},
+            {"name": "wmi_persistence", "technique": "T1546", "epitopes": ["wmi_event_subscription", "wmi_consumer", "wmi_filter"]},
+            {"name": "scheduled_task_persistence", "technique": "T1053.005", "epitopes": ["scheduled_task_creation", "task_scheduler_xml", "com_handler"]},
+            {"name": "dll_search_order_hijacking", "technique": "T1574.001", "epitopes": ["dll_hijacking", "side_loading", "phantom_dll"]},
+            {"name": "com_hijacking", "technique": "T1546.015", "epitopes": ["com_hijacking", "clsid_hijack", "inproc_server"]},
+            
+            # Privilege Escalation
+            {"name": "token_manipulation", "technique": "T1134", "epitopes": ["token_impersonation", "token_theft", "make_token", "duplicate_token"]},
+            {"name": "bypass_uac", "technique": "T1548", "epitopes": ["uac_bypass", "fodhelper", "eventvwr", "computerdefaults"]},
+            {"name": "exploitation", "technique": "T1068", "epitopes": ["local_exploit", "kernel_exploit", "driver_exploit"]},
+            
+            # Defense Evasion
+            {"name": "obfuscation", "technique": "T1027", "epitopes": ["obfuscated_code", "base64_encoding", "xor_encoding", "packed_executable", "steganography", "html_application"]},
+            {"name": "disable_defender", "technique": "T1562.001", "epitopes": ["disable_defender", "realtime_monitoring_off", "mppreference", "set-mppreference"]},
+            {"name": "indicator_removal", "technique": "T1070", "epitopes": ["clear_logs", "wevtutil_clear", "file_deletion", "timestomp"]},
+            {"name": "masquerading", "technique": "T1036", "epitopes": ["masquerading", "legitimate_name", "right_to_left_override", "double_extension"]},
+            {"name": "process_hollowing", "technique": "T1055.012", "epitopes": ["process_hollowing", "process_doppelganging", "process_herpaderping"]},
+            {"name": "dll_injection", "technique": "T1055.001", "epitopes": ["dll_injection", "loadlibrary", "create_remote_thread"]},
+            {"name": "amsi_bypass", "technique": "T1562.002", "epitopes": ["amsi_bypass", "amsiutils", "reflection_amsi", "patching_amsi"]},
+            {"name": "etw_bypass", "technique": "T1562.002", "epitopes": ["etw_bypass", "etw_patching", "ntdll_etw"]},
+            
+            # Credential Access
+            {"name": "credential_dumping", "technique": "T1003", "epitopes": ["credential_dumping", "lsass_dump", "lsass_memory", "sam_dump", "ntds_dump", "sekurlsa", "procdump", "comsvcs"]},
+            {"name": "keylogging", "technique": "T1056", "epitopes": ["keylogger", "getasynckeystate", "sethook", "raw_input"]},
+            {"name": "credential_in_registry", "technique": "T1552.001", "epitopes": ["registry_credentials", "password_in_registry", "autologon"]},
+            
+            # Discovery
+            {"name": "system_discovery", "technique": "T1082", "epitopes": ["system_info", "systeminfo", "wmic_computersystem", "hostname"]},
+            {"name": "network_discovery", "technique": "T1018", "epitopes": ["network_scan", "arp_scan", "net_view", "ping_sweep", "port_scan"]},
+            {"name": "process_discovery", "technique": "T1057", "epitopes": ["process_list", "tasklist", "pslist", "get_process"]},
+            {"name": "account_discovery", "technique": "T1087", "epitopes": ["account_enum", "net_user", "net_group", "whoami"]},
+            
+            # Lateral Movement
+            {"name": "smb_lateral", "technique": "T1021.002", "epitopes": ["psexec", "wmiexec", "smbexec", "atexec", "dcom_lateral"]},
+            {"name": "rdp_hijacking", "technique": "T1563.002", "epitopes": ["rdp_hijacking", "tscon", "shadow_session"]},
+            
+            # Collection
+            {"name": "data_staging", "technique": "T1074", "epitopes": ["data_staging", "archive_data", "compress_data", "staging_directory"]},
+            {"name": "email_collection", "technique": "T1114", "epitopes": ["email_collection", "outlook_pst", "exchange_web_services"]},
+            {"name": "clipboard_data", "technique": "T1115", "epitopes": ["clipboard_monitor", "getclipboard", "clipboard_data"]},
+            
+            # Command & Control
+            {"name": "c2_beaconing", "technique": "T1071", "epitopes": ["periodic_network_callback", "dns_beaconing", "http_beaconing", "https_beaconing", "websocket_c2"]},
+            {"name": "domain_fronting", "technique": "T1090.004", "epitopes": ["domain_fronting", "cdn_c2", "cloudflare_c2"]},
+            {"name": "protocol_tunneling", "technique": "T1572", "epitopes": ["dns_tunneling", "icmp_tunneling", "http_tunneling"]},
+            {"name": "dynamic_resolution", "technique": "T1568.002", "epitopes": ["dga", "domain_generation", "fast_flux"]},
+            
+            # Exfiltration
+            {"name": "exfiltration_c2", "technique": "T1041", "epitopes": ["exfil_c2", "exfil_http", "exfil_dns", "exfil_ftp"]},
+            {"name": "exfiltration_web", "technique": "T1048", "epitopes": ["exfil_web", "cloud_storage", "pastebin", "github_exfil"]},
+            
+            # Impact
+            {"name": "data_encryption", "technique": "T1486", "epitopes": ["rapid_file_encryption", "ransomware_encryption", "file_renaming", "ransom_note", "vss_deletion"]},
+            {"name": "data_destruction", "technique": "T1485", "epitopes": ["data_destruction", "wipe_disk", "sdelete", "cipher_wipe"]},
+            {"name": "service_stop", "technique": "T1489", "epitopes": ["stop_service", "disable_service", "sc_stop", "net_stop"]},
+            {"name": "defacement", "technique": "T1491", "epitopes": ["defacement", "web_deface", "index_html_replace"]},
         ]
     
     def start(self):
@@ -1226,35 +1416,122 @@ class ThreatEvolutionPredictor:
             self._generate_predictions()
     
     def _generate_predictions(self):
-        """Generate threat evolution predictions"""
+        """Generate threat evolution predictions using MITRE ATT&CK technique chaining"""
         # Analyze recent threat patterns
-        recent_threats = list(self.cis.memory.response_history)[-1000:]
+        recent_threats = list(self.cis.memory.response_history)[-2000:]
         
         # Group by technique
         technique_counts = defaultdict(int)
+        technique_sequences = []  # Track technique sequences
+        prev_tech = None
+        
         for event in recent_threats:
             tech = event.get("metadata", {}).get("technique")
             if tech:
                 technique_counts[tech] += 1
+                if prev_tech and prev_tech != tech:
+                    technique_sequences.append((prev_tech, tech))
+                prev_tech = tech
+        
+        # Build transition matrix for Markov chain
+        transitions = defaultdict(lambda: defaultdict(int))
+        for src, dst in technique_sequences:
+            transitions[src][dst] += 1
         
         # Predict next techniques based on ATT&CK chaining
-        # (simplified - would use Markov chains or graph analysis)
         predictions = []
+        
+        # 1. Frequency-based predictions
         for tech, count in sorted(technique_counts.items(), key=lambda x: -x[1])[:5]:
             predictions.append({
                 "technique": tech,
                 "probability": min(0.9, count / 100),
-                "reasoning": f"Observed {count} times recently",
-                "predicted_at": datetime.now().isoformat()
+                "reasoning": f"Observed {count} times recently (frequency-based)",
+                "predicted_at": datetime.now().isoformat(),
+                "type": "frequency"
             })
         
+        # 2. Transition-based predictions (Markov chain)
+        for src_tech, targets in transitions.items():
+            total = sum(targets.values())
+            for dst_tech, count in sorted(targets.items(), key=lambda x: -x[1])[:3]:
+                prob = count / total
+                if prob > 0.2:  # Only high-confidence transitions
+                    predictions.append({
+                        "technique": dst_tech,
+                        "probability": min(0.9, prob * 0.8),  # Slightly reduced for chain
+                        "reasoning": f"Follows {src_tech} ({count}/{total} transitions)",
+                        "predicted_at": datetime.now().isoformat(),
+                        "type": "transition",
+                        "source_technique": src_tech
+                    })
+        
+        # 3. ATT&CK tactic progression predictions
+        tactic_order = [
+            "reconnaissance", "resource_development", "initial_access", "execution",
+            "persistence", "privilege_escalation", "defense_evasion", "credential_access",
+            "discovery", "lateral_movement", "collection", "command_and_control",
+            "exfiltration", "impact"
+        ]
+        
+        technique_to_tactic = {
+            "T1055": "defense_evasion", "T1059": "execution", "T1055": "defense_evasion",
+            "T1486": "impact", "T1027": "defense_evasion", "T1071": "command_and_control",
+            "T1218": "defense_evasion", "T1547": "persistence", "T1543": "persistence",
+            "T1546": "persistence", "T1053": "persistence", "T1574": "defense_evasion",
+            "T1546": "persistence", "T1134": "privilege_escalation", "T1548": "privilege_escalation",
+            "T1068": "privilege_escalation", "T1027": "defense_evasion", "T1562": "defense_evasion",
+            "T1070": "defense_evasion", "T1036": "defense_evasion", "T1055.012": "defense_evasion",
+            "T1055.001": "defense_evasion", "T1562": "defense_evasion", "T1562": "defense_evasion",
+            "T1003": "credential_access", "T1056": "credential_access", "T1552": "credential_access",
+            "T1082": "discovery", "T1018": "discovery", "T1057": "discovery", "T1087": "discovery",
+            "T1021": "lateral_movement", "T1563": "lateral_movement", "T1074": "collection",
+            "T1114": "collection", "T1115": "collection", "T1071": "command_and_control",
+            "T1090": "command_and_control", "T1572": "command_and_control", "T1568": "command_and_control",
+            "T1041": "exfiltration", "T1048": "exfiltration", "T1486": "impact", "T1485": "impact",
+            "T1489": "impact", "T1491": "impact",
+        }
+        
+        # Determine current tactic phase
+        recent_tactics = [technique_to_tactic.get(t, "unknown") for t in technique_counts.keys()]
+        if recent_tactics:
+            current_phase = max(set(recent_tactics), key=recent_tactics.count)
+            try:
+                current_idx = tactic_order.index(current_phase)
+                # Predict next tactic phase
+                if current_idx + 1 < len(tactic_order):
+                    next_tactic = tactic_order[current_idx + 1]
+                    # Find techniques in next tactic
+                    next_techniques = [t for t, tac in technique_to_tactic.items() if tac == next_tactic]
+                    for tech in next_techniques[:3]:
+                        predictions.append({
+                            "technique": tech,
+                            "probability": 0.4,
+                            "reasoning": f"Tactic progression: {current_phase} -> {next_tactic}",
+                            "predicted_at": datetime.now().isoformat(),
+                            "type": "tactic_progression"
+                        })
+            except ValueError:
+                pass
+        
+        # Deduplicate and sort
+        seen = set()
+        unique_predictions = []
         for pred in predictions:
+            key = (pred["technique"], pred["type"])
+            if key not in seen:
+                seen.add(key)
+                unique_predictions.append(pred)
+        
+        # Sort by probability and limit
+        unique_predictions.sort(key=lambda x: -x["probability"])
+        unique_predictions = unique_predictions[:10]
+        
+        for pred in unique_predictions:
             self.predictions.append(pred)
-            
-            # Pre-emptively create detectors for predicted threats
             self._create_predictive_detectors(pred)
         
-        logger.info(f"Generated {len(predictions)} threat evolution predictions")
+        logger.info(f"Generated {len(unique_predictions)} threat evolution predictions")
     
     def _create_predictive_detectors(self, prediction: Dict):
         """Create detectors for predicted threats"""
@@ -1375,14 +1652,34 @@ class SemanticIntegrityVerifier:
                             "alert": "semantic_drift_detected",
                             "component": key,
                             "baseline": baseline_hash[:16],
-                            "current": current_hash[:16]
+                            "current": current_hash[:16],
+                            "severity": "critical"
                         }
                     ))
                     
                     logger.critical(f"SEMANTIC DRIFT: {key} has been modified!")
                     
+                    # Also log to security audit
+                    self._log_security_audit(key, baseline_hash, current_hash)
+                    
             except Exception as e:
                 logger.error(f"Integrity verification failed for {key}: {e}")
+    
+    def _log_security_audit(self, component: str, baseline: str, current: str):
+        """Log semantic drift to security audit log"""
+        try:
+            audit_entry = {
+                "timestamp": datetime.now().isoformat(),
+                "event": "semantic_drift_detected",
+                "component": component,
+                "baseline_hash": baseline,
+                "current_hash": current,
+                "action_required": "immediate_review"
+            }
+            with open("security_audit.log", "a") as f:
+                f.write(json.dumps(audit_entry) + "\n")
+        except Exception as e:
+            logger.error(f"Failed to log security audit: {e}")
 
 
 # ============================================================================
