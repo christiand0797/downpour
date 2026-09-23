@@ -30,6 +30,7 @@ import threading
 from datetime import datetime, timedelta
 from pathlib import Path
 from collections import defaultdict, deque
+from typing import Dict, List, Optional, Any
 import hashlib
 
 # Safe ML imports

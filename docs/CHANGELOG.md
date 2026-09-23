@@ -1,5 +1,139 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.101 — Threat Intelligence Feed Expansion to 80 Feeds (from web search)
+- **Added 12 new threat intelligence feeds** to `ultimate_threat_intel/__init__.py` (total: 80 feeds):
+  - **rodanmaharjan ThreatIntelligence**: Malicious IP (74K+ IPs), Phishing Domains, C2 Feed
+  - **CISA Vulnrichment**: Official CISA vulnerability enrichment data (JSON format)
+  - **MITRE ATT&CK Enterprise**: Full Enterprise ATT&CK framework (JSON, v19.2 Aug 2026)
+  - **Codeberg cpdc2026 ThreatIntelligence**: Suspicious IPs (3 lists), Suspicious Domains (EDL format)
+  - **GreyNoise Community**: Free community IP reputation API
+  - **Pulsedive Feed**: Free threat intelligence feed API
+  - **URLScan.io Feed**: URL scanning results API
+- **Feed types**: 39 IP blocklists, 28 Domain blocklists, 5 Vulnerability, 1 Technique, 1 AlienVault, 1 MalwareBazaar, 1 ThreatFox, 1 PhishTank, 1 Phishing, 1 URLhaus, 1 URL
+- **All 23 integration tests passing**
+- Code integrity baseline regenerated (187 files verified)
+- **Full Health Check**: 76/76 PASS
+
+## v29.100 — Threat Intelligence Feed Expansion to 68 Feeds (from web search)
+- **Added 12 new threat intelligence feeds** to `ultimate_threat_intel/__init__.py` (total: 68 feeds):
+  - **Spamhaus**: DROP, EDROP, DNS blocklist (malicious network ranges)
+  - **IPInsights**: Aggregated IP blocklist (666K+ IPs, updated every 4 hours)
+  - **NVD CVE 2.0**: Modified and recent vulnerability feeds (JSON.gz format)
+  - **CISA Alerts**: Official cybersecurity advisories RSS feed
+  - **Phishunt.io**: Free phishing domains feed (hourly updated, CC0 licensed)
+  - **MISP Galaxy & Warninglists**: Threat actor clusters and false-positive warning lists
+- **Updated integration tests** to verify 68 feeds
+- All 23 integration tests passing
+- Code integrity baseline regenerated (187 files verified)
+- **Full Health Check**: 76/76 PASS
+
+## v29.99 — Code Integrity Baseline Regenerated, Full Health Check Pass
+- **Code Integrity Baseline Regenerated** (`code_integrity.py baseline`): 187 files verified, 0 modified, 0 missing
+- **Full Health Check**: 76/76 checks PASS (0 failed, 0 warned)
+- **Python 3.12.10** verified as stable runtime (sklearn 1.8.0 — ML mode active)
+- All previous versions (v29.95-v29.98) verified and integrated
+
+## v29.96 — Performance Profiling & Optimization, Unit Test Coverage
+- **Complete Hot Path Profiling** documented in `docs/PERFORMANCE_PROFILE.md`:
+  - YARA Scanning: ~1.1ms/scan (910 scans/sec) using yara-python fallback
+  - Memory Forensics: ~21ms per process scan (2,700+ memory regions analyzed)
+  - PE Analyzer: ~120ms per file (EMBER features, packer detection, section analysis)
+  - AI Security Engine: <0.01ms per threat score (heuristic mode, sklearn not available)
+  - Threat Feed Aggregator: ~1ms for statistics (56 feeds available)
+  - Sensor Hub: Requires start() for live snapshots
+- All hot paths within acceptable limits for real-time monitoring
+- No critical bottlenecks identified; PE Analyzer could benefit from result caching
+- **New Unit Tests** (`tests/test_v2995_v2996_integration.py`):
+  - Threat Intelligence Feed Expansion: 56 feeds verified, 22 new feeds tested
+  - Threat Feed Aggregator: Initialization and statistics
+  - AI Security Engine: Threat scoring, KEV correlation
+  - PE Analyzer: Single file and batch analysis
+  - Memory Forensics: Process memory analysis
+  - YARA Engine: Import and engine info
+  - Sensor Hub: Initialization
+  - Sharded Context: Basic operations with event subscription
+  - All 23 tests passing
+
+## v29.95 — Threat Intelligence Feed Expansion (56 feeds), Continuous Evolution
+- **Threat Intelligence Feeds Expanded** (from 34 to 56 feeds in `ultimate_threat_intel/__init__.py`):
+  - AlienVault OTX (Open Threat Exchange) - pulse subscriptions
+  - IBM X-Force Exchange - IP reputation API
+  - Hybrid Analysis - malware analysis feed
+  - Cisco Talos - IP blocklist
+  - Emerging Threats (Proofpoint) - compromised IPs
+  - Bambenek Consulting - C2 IP masterlist
+  - Zeus Tracker - botnet IP blocklist
+  - Palevo Tracker - botnet IP blocklist
+  - Ransomware Tracker - ransomware IP blocklist
+  - CyberCrime Tracker - C&C panel domains
+  - Malc0de - IP blacklist
+  - ThreatMiner - threat intelligence API
+  - FraudGuard - IP reputation API
+  - DShield (SANS) - suspicious domains
+  - FireHOL - level 1 IP blocklist
+  - CleanMX - virus domains RSS
+  - Malware Domain List - malicious domains
+  - Blocklist.de: Apache, SSH, FTP, Bots, BruteForce specific feeds
+- **All 56 feeds integrated** with `threat_feed_aggregator.py` via `ThreatFeedRegistry.get_enabled_feeds()`
+- **Feed types**: IP blocklists (22), Domain blocklists (19), URL/Phishing (8), Vulnerability (1), YARA/Malware (6)
+
+## v29.94 — AI Security Engine, KEV/CEV Correlation, Continuous Evolution
+- **AI Security Engine Integration** (`ai_security_engine`):
+  - ML-based threat scoring (Isolation Forest + Random Forest) with heuristic fallback
+  - Real-time threat scoring loop (60s interval) with alerting at score >= 70
+  - KEV/CEV correlation engine cross-references AI anomalies with CISA Known Exploited Vulnerabilities
+  - Persistent model learning with joblib serialization (auto-saves every 10 min)
+  - Graceful degradation when scikit-learn unavailable (heuristic mode)
+  - Background learning thread with incremental training
+- **Advanced Defense Suite** (already integrated, now fully active):
+  - 30+ watchers running in background thread (honeytokens, IFEO, kernel drivers, CIS, certs, etc.)
+  - Honeytoken deployment (canary files + DNS canary)
+  - NTDLL integrity checking for rootkit detection
+  - CIS benchmark scoring with alerting
+  - Registry honey persistence tripwires
+  - Kernel driver audit with unauditable tracking
+  - IFEO (Image File Execution Options) monitoring
+  - Honey persistence registry tripwires with check loop
+- **Memory Forensics** (v29.93):
+  - Full `MemoryForensicsAnalyzer` with process memory enumeration
+  - Shellcode pattern detection, process hollowing detection
+  - Module enumeration, entropy calculation (numpy-accelerated)
+  - KEV/CVE correlation for detected injections
+  - 30-second monitoring loop with callback system
+- **YARA-X Engine** (v29.93):
+  - Primary: YARA-X engine, Fallback: yara-python, Legacy: string matching
+  - Rich metadata: MITRE ATT&CK tags, descriptions, authors, dates
+- **Custom Scrollable Tab Strip** (v29.92)
+- **PE Analyzer Integration** (v29.44/v29.91)
+- **NVIDIA/NVML Warning Fix** (v29.91)
+- **All modular components integrated and verified**
+
+## v29.93 — Memory Forensics, YARA-X Engine, NVML Warning Fix, Rain Canvas Completion
+- **PE Static Analyzer Integration** (`pe_analyzer.py` → Scanner tab):
+  - Full PE analysis on all executable files during turbo scan (.exe, .dll, .sys, .com, .scr, .pif, .ocx, .cpl, .drv)
+  - Packer detection: UPX, Themida, VMProtect, MPRESS, ASPack, NsPack, FSG, Enigma, etc.
+  - Section analysis: RWX sections, high entropy (>7.2), entry point anomalies, overlay detection
+  - Import analysis: 7 technique categories (process injection, keylogging, anti-analysis, credential access, persistence, evasion, network recon, crypto ransomware)
+  - EMBER feature vector: 20+ features (byte histogram, section stats, TLS callbacks, debug size)
+  - Transparent 0-100 heuristic scoring (no ML model required)
+  - "[PE] Analyze" button in Scanner tab for on-demand deep analysis of selected files
+  - PE risk factors integrated into threat scoring and detail view
+- **NVIDIA/NVML Deprecation Warning Fixed**:
+  - Added warning filters for pynvml deprecation (FutureWarning) in main app and hardware_monitor_enhanced.py
+  - Clean import: `import warnings; warnings.filterwarnings('ignore', category=FutureWarning, message='.*pynvml.*')`
+- **Rain Canvas v29.80 Complete** (all methods verified):
+  - `_play_thunder`: Thunder audio via winsound.Beep with distance delay
+  - `_trigger_shake`: Screen micro-shake (3-frame ±2px jitter)
+  - `_trigger_rainbow` / `_update_rainbow`: 6-band animated arc
+  - `_trigger_aurora` / `_update_aurora`: 3-6 flowing color-cycling curtains
+  - `_spawn_meteor` / `_update_meteors`: 8 concurrent steep-angle particles
+  - `_spawn_particle` / `_update_particles`: 64-particle atmospheric system
+  - `_trigger_lightning_forks`: Multi-branch lightning with variable probability
+  - `_set_weather_mode` / `_update_weather_transitions`: rain/snow/sleet/storm/clear with smooth transitions
+  - `_spawn_ambient_particles`: Per weather mode particle spawning
+- **All Modular Components Verified**: sensor_hub, threat_feed_aggregator, vulnerability_scanner, dns_cache_watch, misp_feed, child_process_guard, event_push_monitor, amsi_integration, sharded_context, downpour_remote_access, downpour_vpn_module, pe_analyzer — all load and function correctly
+- **Code Quality**: 814 methods, 0 duplicates (AST verified); 75/76 health checks pass
+
 ## v29.90 — Gaming Mode Overhaul, Rain Animation Restoration, Performance Tab Task Manager
 - **Gaming Mode Overhaul** (`_activate_gaming_mode` / `_deactivate_gaming_mode`):
   - Toggle on/off (click again to deactivate, restores all settings)

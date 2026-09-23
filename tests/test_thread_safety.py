@@ -969,6 +969,98 @@ class TestV2941K5PerfTabLive:
             fn()
         assert inst._geo_cache.get('8.8.8.8') == '--'
 
+# --------------------------------------------------------------------------
+# v29.91 — PE Analyzer integration into file scanner
+# --------------------------------------------------------------------------
+
+class TestPEAnalyzerIntegration:
+    """Regression guards for the PE Analyzer integration (v29.44 improvement catalog 1d)."""
+
+    def _src(self) -> str:
+        return open(os.path.join(os.path.dirname(__file__),
+                                 '..', 'downpour_v29_titanium.py'),
+                    encoding='utf-8', errors='replace').read()
+
+    def test_pe_analyze_button_wired_in_scanner_tab(self):
+        """Scanner tab must have the [PE] Analyze button."""
+        src = self._src()
+        assert '[PE] Analyze' in src
+        assert 'self._pe_analyze_selected' in src
+
+    def test_analyze_file_calls_pe_analyzer_for_executables(self):
+        """_analyze_file must invoke pe_analyzer.analyze_pe for .exe/.dll/.sys files."""
+        src = self._src()
+        # Find the worker _analyze_file (inside _do_file_scan), not _analyze_filesystem_anomalies
+        idx = src.index('def _do_file_scan')
+        idx2 = src.index('def _analyze_file(fpath):', idx)
+        chunk = src[idx2:idx2 + 1000]  # pe_analyzer is ~829 chars in
+        assert 'pe_analyzer' in chunk
+        assert 'analyze_pe' in chunk
+        assert '.exe' in chunk or '.dll' in chunk or '.sys' in chunk
+
+    def test_pe_analysis_contributes_to_threat_score(self):
+        """PE risk score must be merged into the overall threat score."""
+        src = self._src()
+        idx = src.index('def _do_file_scan')
+        idx2 = src.index('def _analyze_file(fpath):', idx)
+        chunk = src[idx2:idx2 + 3000]  # pe_analysis.risk_score is ~2518 chars in
+        # Must check pe_analysis.risk_score and merge
+        assert 'pe_analysis.risk_score' in chunk
+        assert 'max(score, pe_analysis.risk_score)' in chunk or 'score = max(score' in chunk
+
+    def test_pe_risk_factors_added_to_rules(self):
+        """PE risk factors (packers, RWX, high entropy, overlay, EMBER) must appear in rules."""
+        src = self._src()
+        idx = src.index('def _do_file_scan')
+        idx2 = src.index('def _analyze_file(fpath):', idx)
+        chunk = src[idx2:idx2 + 3500]  # Packer: is ~2821 chars in
+        for factor in ('Packer:', 'RWX:', 'HiEnt:', 'Overlay:', 'EMBER:'):
+            assert factor in chunk, f'missing PE risk factor in rules: {factor}'
+
+    def test_pe_analysis_stored_in_threat_record(self):
+        """Threat record must include pe_analysis for re-analysis/detail view."""
+        src = self._src()
+        idx = src.index('def _do_file_scan')
+        idx2 = src.index("threat_rec: Any = {", idx)
+        chunk = src[idx2:idx2 + 500]  # pe_analysis is ~379 chars in
+        assert "'pe_analysis': pe_analysis" in chunk
+
+    def test_pe_analyze_selected_method_exists(self):
+        """_pe_analyze_selected must exist and show messagebox with analysis."""
+        src = self._src()
+        assert 'def _pe_analyze_selected(self):' in src
+        assert 'messagebox.showinfo' in src
+        assert 'PE Analysis:' in src
+
+    def test_pe_analyzer_module_loads(self):
+        """pe_analyzer module must be importable and have analyze_pe."""
+        import pe_analyzer
+        assert hasattr(pe_analyzer, 'analyze_pe')
+        assert hasattr(pe_analyzer, 'PEAnalysisResult')
+        assert hasattr(pe_analyzer, 'ember_features')
+        assert hasattr(pe_analyzer, 'ember_score')
+
+    def test_pe_analysis_works_on_system_binary(self):
+        """Analyzing a known-good system binary should complete without error."""
+        import pe_analyzer
+        import os
+        test_file = r'C:\Windows\System32\notepad.exe'
+        if os.path.exists(test_file):
+            result = pe_analyzer.analyze_pe(test_file)
+            assert result.is_pe is True
+            assert result.is_dll is False
+            assert 0 <= result.risk_score <= 100
+            assert isinstance(result.packers_detected, list)
+            assert isinstance(result.rwx_sections, list)
+            assert isinstance(result.high_entropy_sections, list)
+            assert isinstance(result.suspicious_imports, list)
+            assert isinstance(result.risk_factors, list)
+            assert isinstance(result.ember_score, int)
+            assert 0 <= result.ember_score <= 100
+        else:
+            import pytest
+            pytest.skip('notepad.exe not found')
+
     def test_ip_api_get_is_https_first_with_http_fallback(self):
         """All geo call sites share _ip_api_get; it must try HTTPS before the
         plain-HTTP fallback and return {} on total failure."""

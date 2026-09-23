@@ -215,6 +215,265 @@ except ImportError:
     DEFENDER_COMPATIBILITY_AVAILABLE: Any = False
     defender_compat: Any = None  # type: ignore[assignment]
 
+# -- Additional Threat Intelligence & Monitoring Modules (v29.95) ---------------
+try:
+    import sigma_engine
+    SIGMA_ENGINE_AVAILABLE: Any = True
+except ImportError:
+    SIGMA_ENGINE_AVAILABLE: Any = False
+
+try:
+    from yara_rules_manager import YaraRulesManager
+    YARA_RULES_MANAGER_AVAILABLE: Any = True
+except ImportError:
+    YARA_RULES_MANAGER_AVAILABLE: Any = False
+    YaraRulesManager: Any = None
+
+try:
+    from stix_taxii_feed import TAXII21Client as STIXTAXIIFeed
+    STIX_TAXII_AVAILABLE: Any = True
+except ImportError:
+    STIX_TAXII_AVAILABLE: Any = False
+    STIXTAXIIFeed: Any = None
+
+try:
+    from child_process_guard import ChildProcessGuard
+    CHILD_PROCESS_GUARD_AVAILABLE: Any = True
+except ImportError:
+    CHILD_PROCESS_GUARD_AVAILABLE: Any = False
+    ChildProcessGuard: Any = None
+
+try:
+    from event_push_monitor import EventPushMonitor
+    EVENT_PUSH_MONITOR_AVAILABLE: Any = True
+except ImportError:
+    EVENT_PUSH_MONITOR_AVAILABLE: Any = False
+    EventPushMonitor: Any = None
+
+try:
+    from amsi_integration import AMSIIntegration
+    AMSI_INTEGRATION_AVAILABLE: Any = True
+except ImportError:
+    AMSI_INTEGRATION_AVAILABLE: Any = False
+    AMSIIntegration: Any = None
+
+try:
+    from beacon_detector import BeaconDetector
+    BEACON_DETECTOR_AVAILABLE: Any = True
+except ImportError:
+    BEACON_DETECTOR_AVAILABLE: Any = False
+    BeaconDetector: Any = None
+
+try:
+    from lolbins_detector import LOLBinFinding
+    LOLBINS_DETECTOR_AVAILABLE: Any = True
+except ImportError:
+    LOLBINS_DETECTOR_AVAILABLE: Any = False
+    LOLBinFinding: Any = None
+
+try:
+    from gaming_protection_monitor import GamingProtectionMonitor
+    GAMING_PROTECTION_AVAILABLE: Any = True
+except ImportError:
+    GAMING_PROTECTION_AVAILABLE: Any = False
+    GamingProtectionMonitor: Any = None
+
+try:
+    from firewall_tamper_detector import FirewallTamperDetector
+    FIREWALL_TAMPER_AVAILABLE: Any = True
+except ImportError:
+    FIREWALL_TAMPER_AVAILABLE: Any = False
+    FirewallTamperDetector: Any = None
+
+try:
+    from amsi_bypass_detector import start_amsi_detection
+    AMSI_BYPASS_DETECTOR_AVAILABLE: Any = True
+except ImportError:
+    AMSI_BYPASS_DETECTOR_AVAILABLE: Any = False
+    start_amsi_detection: Any = None
+
+try:
+    from dll_hijack_detector import DLLHijackDetector
+    DLL_HIJACK_DETECTOR_AVAILABLE: Any = True
+except ImportError:
+    DLL_HIJACK_DETECTOR_AVAILABLE: Any = False
+    DLLHijackDetector: Any = None
+
+try:
+    from scheduled_task_monitor import ScheduledTaskMonitor
+    SCHEDULED_TASK_MONITOR_AVAILABLE: Any = True
+except ImportError:
+    SCHEDULED_TASK_MONITOR_AVAILABLE: Any = False
+    ScheduledTaskMonitor: Any = None
+
+try:
+    from wmi_persistence_detector import WMIPersistenceDetector
+    WMI_PERSISTENCE_AVAILABLE: Any = True
+except ImportError:
+    WMI_PERSISTENCE_AVAILABLE: Any = False
+    WMIPersistenceDetector: Any = None
+
+try:
+    from data_exfiltration_monitor import DataExfiltrationMonitor
+    DATA_EXFILTRATION_AVAILABLE: Any = True
+except ImportError:
+    DATA_EXFILTRATION_AVAILABLE: Any = False
+    DataExfiltrationMonitor: Any = None
+
+try:
+    from anti_forensics_detector import AntiForensicsDetector
+    ANTI_FORENSICS_AVAILABLE: Any = True
+except ImportError:
+    ANTI_FORENSICS_AVAILABLE: Any = False
+    AntiForensicsDetector: Any = None
+
+try:
+    from lateral_movement_detector import LateralMovementDetector
+    LATERAL_MOVEMENT_AVAILABLE: Any = True
+except ImportError:
+    LATERAL_MOVEMENT_AVAILABLE: Any = False
+    LateralMovementDetector: Any = None
+
+try:
+    from shadow_copy_monitor import ShadowCopyMonitor
+    SHADOW_COPY_MONITOR_AVAILABLE: Any = True
+except ImportError:
+    SHADOW_COPY_MONITOR_AVAILABLE: Any = False
+    ShadowCopyMonitor: Any = None
+
+try:
+    from network_share_monitor import NetworkShareMonitor
+    NETWORK_SHARE_MONITOR_AVAILABLE: Any = True
+except ImportError:
+    NETWORK_SHARE_MONITOR_AVAILABLE: Any = False
+    NetworkShareMonitor: Any = None
+
+try:
+    from keystroke_injection_detector import KeystrokeInjectionDetector
+    KEYSTROKE_INJECTION_AVAILABLE: Any = True
+except ImportError:
+    KEYSTROKE_INJECTION_AVAILABLE: Any = False
+    KeystrokeInjectionDetector: Any = None
+
+try:
+    from bluetooth_security_monitor import BluetoothSecurityMonitor
+    BLUETOOTH_SECURITY_AVAILABLE: Any = True
+except ImportError:
+    BLUETOOTH_SECURITY_AVAILABLE: Any = False
+    BluetoothSecurityMonitor: Any = None
+
+try:
+    from wifi_security_intelligence import WiFiSecurityIntelligence
+    WIFI_SECURITY_INTELLIGENCE_AVAILABLE: Any = True
+except ImportError:
+    WIFI_SECURITY_INTELLIGENCE_AVAILABLE: Any = False
+    WiFiSecurityIntelligence: Any = None
+
+try:
+    from usb_protection import USBProtection
+    USB_PROTECTION_AVAILABLE: Any = True
+except ImportError:
+    USB_PROTECTION_AVAILABLE: Any = False
+    USBProtection: Any = None
+
+try:
+    from tls_certificate_monitor import TLSCertificateMonitor
+    TLS_CERT_MONITOR_AVAILABLE: Any = True
+except ImportError:
+    TLS_CERT_MONITOR_AVAILABLE: Any = False
+    TLSCertificateMonitor: Any = None
+
+try:
+    from credential_guard_monitor import CredentialGuardMonitor
+    CREDENTIAL_GUARD_AVAILABLE: Any = True
+except ImportError:
+    CREDENTIAL_GUARD_AVAILABLE: Any = False
+    CredentialGuardMonitor: Any = None
+
+try:
+    from dpapi_monitor import DPAPIMonitor
+    DPAPI_MONITOR_AVAILABLE: Any = True
+except ImportError:
+    DPAPI_MONITOR_AVAILABLE: Any = False
+    DPAPIMonitor: Any = None
+
+try:
+    from clipboard_monitor import ClipboardSecurityMonitor
+    CLIPBOARD_MONITOR_AVAILABLE: Any = True
+except ImportError:
+    CLIPBOARD_MONITOR_AVAILABLE: Any = False
+    ClipboardSecurityMonitor: Any = None
+
+try:
+    from named_pipe_monitor import NamedPipeMonitor
+    NAMED_PIPE_MONITOR_AVAILABLE: Any = True
+except ImportError:
+    NAMED_PIPE_MONITOR_AVAILABLE: Any = False
+    NamedPipeMonitor: Any = None
+
+try:
+    from iot_scanner import IoTDeviceScanner
+    IOT_SCANNER_AVAILABLE: Any = True
+except ImportError:
+    IOT_SCANNER_AVAILABLE: Any = False
+    IoTDeviceScanner: Any = None
+
+try:
+    from forensic_report import ForensicReport
+    FORENSIC_REPORT_AVAILABLE: Any = True
+except ImportError:
+    FORENSIC_REPORT_AVAILABLE: Any = False
+    ForensicReport: Any = None
+
+try:
+    from threat_intelligence_updater import ThreatIntelligenceUpdater
+    THREAT_INTEL_UPDATER_AVAILABLE: Any = True
+except ImportError:
+    THREAT_INTEL_UPDATER_AVAILABLE: Any = False
+    ThreatIntelligenceUpdater: Any = None
+
+try:
+    from threat_response_center import ThreatResponseCenter
+    THREAT_RESPONSE_CENTER_AVAILABLE: Any = True
+except ImportError:
+    THREAT_RESPONSE_CENTER_AVAILABLE: Any = False
+    ThreatResponseCenter: Any = None
+
+try:
+    from yara_rules_manager import YaraRulesManager
+    YARA_RULES_MANAGER_AVAILABLE: Any = True
+except ImportError:
+    YARA_RULES_MANAGER_AVAILABLE: Any = False
+    YaraRulesManager: Any = None
+
+try:
+    from yara_x_engine import YaraXScanEngine
+    YARA_X_ENGINE_AVAILABLE: Any = True
+except ImportError:
+    YARA_X_ENGINE_AVAILABLE: Any = False
+    YaraXScanEngine: Any = None
+
+try:
+    from forensic_report import ForensicReport
+    FORENSIC_REPORT_AVAILABLE: Any = True
+except ImportError:
+    FORENSIC_REPORT_AVAILABLE: Any = False
+    ForensicReport: Any = None
+
+try:
+    from threat_intelligence_updater import ThreatIntelligenceUpdater
+    THREAT_INTEL_UPDATER_AVAILABLE: Any = True
+except ImportError:
+    THREAT_INTEL_UPDATER_AVAILABLE: Any = False
+    ThreatIntelligenceUpdater: Any = None
+
+try:
+    from threat_response_center import ThreatResponseCenter
+    THREAT_RESPONSE_CENTER_AVAILABLE: Any = True
+except ImportError:
+    THREAT_RESPONSE_CENTER_AVAILABLE: Any = False
+    ThreatResponseCenter: Any = None
+
 # Enhanced logging imports
 try:
     from enhanced_logging import EnhancedLogger  # type: ignore[import-not-found]
@@ -633,6 +892,14 @@ except ImportError:
         def final(f):         # type: ignore[misc]
             return f
 
+# Memory forensics engine
+try:
+    from memory_forensics import MemoryForensicsAnalyzer
+    MEMORY_FORENSICS_AVAILABLE: Any = True
+except ImportError:
+    MEMORY_FORENSICS_AVAILABLE: Any = False
+    MemoryForensicsAnalyzer: Any = None
+
 # Third-party imports with error handling
 try:
     import numpy as np
@@ -720,6 +987,9 @@ except ImportError:
 # `nvidia_ml_py` module — the package installs itself as `pynvml`
 # (verified locally: only nvidia_ml_py-13.590.48.dist-info exists, and
 # `import pynvml` succeeds). Import pynvml directly.
+import warnings as _w
+_w.filterwarnings('ignore', category=DeprecationWarning, module='pynvml')
+_w.filterwarnings('ignore', message='.*pynvml.*deprecated.*', category=FutureWarning)
 try:
     import pynvml as nvml  # type: ignore[import-not-found]
 except ImportError:
@@ -15975,197 +16245,7 @@ class RansomwareDetector:
 # [ascii art removed]
 #                                    MEMORY FORENSICS ANALYZER
 # [ascii art removed]
-class MemoryForensicsAnalyzer:
-    """Advanced memory analysis and process injection detection from memory_forensics.py"""
-
-    # Windows memory constants
-    MEM_COMMIT: Any = 0x1000
-    MEM_PRIVATE: Any = 0x20000
-    MEM_IMAGE: Any = 0x1000000
-    PAGE_EXECUTE_READWRITE: Any = 0x40
-    PAGE_EXECUTE_WRITECOPY: Any = 0x80
-    PAGE_EXECUTE_READ: Any = 0x20
-    PAGE_READWRITE: Any = 0x04
-
-    PROCESS_QUERY_INFORMATION: Any = 0x0400
-    PROCESS_VM_READ: Any = 0x0010
-
-    # Shellcode patterns
-    SHELLCODE_PATTERNS: Any = [
-        b'\x60',                     # pushad
-        b'\x9C',                     # pushfd
-        b'\xFC\xE8',                 # cld; call
-        b'\xE8\x00\x00\x00\x00',    # call $+5
-        b'\x6A\x00',                 # push 0
-        b'\x6A\x01',                 # push 1
-        b'\x31\xC0',                 # xor eax,eax
-        b'\x31\xC9',                 # xor ecx,ecx
-        b'\x31\xD2',                 # xor edx,edx
-        b'\xB8\x00\x00\x00\x00',    # mov eax,0
-        b'\x55\x8B\xEC',             # push ebp; mov ebp,esp (x86 prologue)
-        b'\x48\x83\xEC',             # sub rsp,x (x64 prologue)
-    ]
-
-    SYSTEM_MODULES: Any = {
-        'kernel32.dll','user32.dll','ntdll.dll','advapi32.dll','gdi32.dll',
-        'shell32.dll','comctl32.dll','ole32.dll','oleaut32.dll','wininet.dll',
-        'ws2_32.dll','msvcrt.dll','kernelbase.dll','ucrtbase.dll','combase.dll',
-        'bcrypt.dll','ncrypt.dll','crypt32.dll','secur32.dll','sspicli.dll',
-        'rpcrt4.dll','clbcatq.dll','msctf.dll','imm32.dll','version.dll',
-    }
-
-    # Suspicious DLLs commonly injected by malware
-    SUSPICIOUS_DLLS: Any = {
-        'metsrv.dll','beacon.dll','payload.dll','inject.dll',
-        'shellcode.dll','implant.dll','loader.dll','dropper.dll',
-        'hook.dll','keylog.dll','stealer.dll','rat.dll',
-    }
-
-    def __init__(self, db: Database):
-        # Memory optimization
-        self._last_gc = time.time()
-        self.db = db
-        self._callbacks: List[Callable] = []
-        self._running = False
-        # Try to load Windows API
-        try:
-            self._k32 = ctypes.windll.kernel32
-            self._ntdll = ctypes.windll.ntdll
-            self._psapi = ctypes.windll.psapi
-            self._api_available = True
-            self._safe_procs_cache = {p.lower() for p in FalsePositiveDB.SAFE_PROCESSES}
-        except Exception:
-            self._api_available = False
-            self._safe_procs_cache = {p.lower() for p in FalsePositiveDB.SAFE_PROCESSES}
-
-    def register_callback(self, fn: Callable):
-        self._callbacks.append(fn)
-
-    def _notify(self, msg: str):
-        for cb in self._callbacks:
-            try: cb(msg)
-            except Exception as _e:
-                _safe_log('MemoryForensics', 'callback failed', _e)
-
-    def _calculate_entropy(self, data: bytes) -> float:
-        if not data:
-            return 0.0
-        freq: Any = defaultdict(int)
-        for b in data:
-            freq[b] += 1
-        n: Any = len(data)
-        if n == 0:
-            return 0.0
-        entropy: Any = 0.0
-        for count in freq.values():
-            p: Any = count / n
-            if p > 0:
-                entropy -= p * math.log2(p)
-        return entropy
-
-    def analyze_process(self, pid: int) -> dict:
-        """Comprehensive memory analysis of a single process"""
-        result: Any = {
-            'pid': pid, 'risk_score': 0, 'classification': 'NORMAL',
-            'severity': 'LOW', 'findings': [], 'entropy_score': 0.0,
-        }
-        if not PSUTIL_AVAILABLE:
-            return result
-
-        try:
-            proc: Any = psutil.Process(pid)
-            name: Any = proc.name()
-
-            # Check for known safe processes (cached set for speed)
-            if name.lower() in self._safe_procs_cache:
-                return result
-
-            # Get memory maps for injection detection
-            try:
-                maps: Any = proc.memory_maps(grouped=True)
-                rwx_count: Any = 0
-                for m in maps:
-                    path: Any = (m.path or '').lower()
-                    perms: Any = m.perms if hasattr(m, 'perms') else ''
-                    # Executable + writable = highly suspicious
-                    if 'x' in perms and 'w' in perms:
-                        rwx_count += 1
-                        if not path or 'anon' in path or path == '':
-                            result['risk_score'] += 30
-                            result['findings'].append(f"RWX anonymous memory region ({m.size // 1024}KB)")
-                    # Module from suspicious location
-                    if path and any(x in path for x in ['\\temp\\','\\tmp\\','appdata\\local\\temp']):
-                        result['risk_score'] += 25
-                        result['findings'].append(f"Suspicious module path: {path}")
-            except (psutil.AccessDenied, AttributeError):
-                pass
-
-            # Check loaded DLLs via cmdline/exe for basic hollowing hint
-            try:
-                exe: Any = proc.exe()
-                if exe:
-                    exe_lower: Any = exe.lower()
-                    # Running from temp/download = suspicious
-                    for suspicious_path in ['\\temp\\', '\\tmp\\', '\\downloads\\', 'appdata\\local\\temp\\']:
-                        if suspicious_path in exe_lower:
-                            result['risk_score'] += 20
-                            result['findings'].append("Process running from temp location")
-                            break
-            except Exception:
-                pass
-
-            # Scan process memory via /proc-style reading for shellcode patterns
-            if self._api_available:
-                shellcode_score: Any = self._scan_process_for_shellcode(pid)
-                if shellcode_score > 0:
-                    result['risk_score'] += shellcode_score
-                    result['findings'].append(f"Shellcode patterns detected (score: {shellcode_score})")
-
-            # Classify result
-            score: Any = min(100, result['risk_score'])
-            result['risk_score'] = score
-            if score >= 80:
-                result['classification'] = 'MALICIOUS'
-                result['severity'] = 'CRITICAL'
-            elif score >= 60:
-                result['classification'] = 'SUSPICIOUS'
-                result['severity'] = 'HIGH'
-            elif score >= 30:
-                result['classification'] = 'UNUSUAL'
-                result['severity'] = 'MEDIUM'
-
-            # Log if suspicious
-            if result['severity'] in ('HIGH', 'CRITICAL'):
-                try:
-                    self.db.execute(
-                        '''INSERT INTO memory_injection_events
-                           (timestamp, pid, process_name, risk_score, classification, evidence)
-                           VALUES (?,?,?,?,?,?)''',
-                        (datetime.now().isoformat(), pid, name, score,
-                         result['classification'], json.dumps(result['findings'][:10])))
-                except Exception:
-                    pass
-                self._notify(f"[AI] Memory anomaly: {name} PID {pid} [{result['classification']}] score={score}")
-
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            pass
-        except Exception as e:
-            error_logger.log('MemoryForensics', f'Analysis failed for PID {pid}', e)
-
-        return result
-
-    def _scan_process_for_shellcode(self, pid: int) -> int:
-        """Try to detect shellcode patterns in process memory"""
-        score: Any = 0
-        try:
-            # Use ctypes to open process and read memory
-            handle: Any = self._k32.OpenProcess(
-                self.PROCESS_QUERY_INFORMATION | self.PROCESS_VM_READ, False, pid)
-            if not handle:
-                return 0
-
-            # Read first few memory regions via VirtualQueryEx
-            class MEMORY_BASIC_INFORMATION(ctypes.Structure):
+class MEMORY_BASIC_INFORMATION(ctypes.Structure):
                 _fields_: Any = [
                     ("BaseAddress", ctypes.c_size_t),
                     ("AllocationBase", ctypes.c_size_t),
@@ -16176,107 +16256,8 @@ class MemoryForensicsAnalyzer:
                     ("Type", ctypes.c_ulong),
                 ]
 
-            mbi: Any = MEMORY_BASIC_INFORMATION()
-            addr: Any = 0
-            scanned: Any = 0
-            MAX_REGIONS: Any = 50  # limit scan
-
-            while scanned < MAX_REGIONS:
-                ret: Any = self._k32.VirtualQueryEx(
-                    handle, ctypes.c_void_p(addr), ctypes.byref(mbi), ctypes.sizeof(mbi))
-                if not ret:
-                    break
-                # Only scan committed, private, executable regions
-                if (mbi.State == self.MEM_COMMIT and
-                        mbi.Type == self.MEM_PRIVATE and
-                        mbi.Protect in (self.PAGE_EXECUTE_READWRITE,
-                                        self.PAGE_EXECUTE_WRITECOPY,
-                                        self.PAGE_EXECUTE_READ)):
-                    region_size: Any = min(mbi.RegionSize, 4096)  # cap at 4KB per region
-                    buffer: Any = (ctypes.c_char * region_size)()
-                    bytes_read: Any = ctypes.c_size_t(0)
-                    if self._k32.ReadProcessMemory(
-                            handle, ctypes.c_void_p(mbi.BaseAddress),
-                            buffer, region_size, ctypes.byref(bytes_read)):
-                        data: Any = bytes(buffer[:bytes_read.value])
-                        # Check entropy
-                        entropy: Any = self._calculate_entropy(data)
-                        if entropy > 7.0:
-                            score += 20
-                        # Check shellcode patterns
-                        for pattern in self.SHELLCODE_PATTERNS:
-                            if pattern in data:
-                                score += 5
-                addr: Any = mbi.BaseAddress + mbi.RegionSize
-                scanned += 1
-
-            self._k32.CloseHandle(handle)
-        except Exception:
-            pass
-        return min(40, score)
-
-    def scan_all_processes(self) -> List[dict]:
-        """Parallel memory anomaly scan across all cores."""
-        if not PSUTIL_AVAILABLE:
-            return []
-        import os as _os
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-        _ncpu: Any = _os.cpu_count() or 4
-        _opid: Any = _os.getpid()
-        procs: Any = [(p.pid, p.name()) for p in psutil.process_iter(['pid','name'])
-                 if p.pid >= 200 and p.pid != _opid]
-        results: Any = []
-        def _check(pid):
-            try:
-                r: Any = self.analyze_process(pid)
-                return r if r['risk_score'] >= 30 else None
-            except Exception:
-                return None
-        # Use hardware profile for worker count
-        _hwp: Any = getattr(self, '_hw_profile', None)
-        if _hwp:
-            _workers: Any = getattr(_hwp, 'workers_cpu', max(1, _ncpu // 2))
-        else:
-            _workers: Any = max(1, _ncpu // 2)  # Conservative fallback
-        with ThreadPoolExecutor(max_workers=_workers,
-                                thread_name_prefix = "memforen") as pool:
-            futures: Any = [pool.submit(_check, pid) for pid, _ in procs]
-            for fut in as_completed(futures):
-                try:
-                    r: Any = fut.result(timeout=8)
-                    if r: results.append(r)
-                except Exception:
-                    pass
-        return results
-
-    def start_monitoring(self, interval: int = 60):
-        """Start background memory monitoring"""
-        self._running = True
-        def loop():
-            while self._running:
-                try:
-                    self.scan_all_processes()
-                    time.sleep(interval)
-                except Exception as e:
-                    error_logger.log('MemoryForensics', 'Monitor loop error', e)
-                    time.sleep(120)
-        t: Any = threading.Thread(target=loop, daemon=True)
-        t.start()
-
-    def stop_monitoring(self):
-        self._running = False
-
-    def get_recent_events(self, limit: int = 50) -> List[dict]:
-        try:
-            rows: Any = self.db.execute(
-                '''SELECT timestamp, pid, process_name, risk_score, classification, evidence
-                   FROM memory_injection_events ORDER BY id DESC LIMIT ?''', (limit,))
-            return [{'ts': r[0], 'pid': r[1], 'name': r[2],
-                     'score': r[3], 'class': r[4], 'evidence': json.loads(r[5] or '[]')}
-                    for r in rows]
-        except Exception:
-            return []
-
+# Removed orphaned MemoryForensicsAnalyzer methods that were left over from duplicate class removal
+# The MemoryForensicsAnalyzer class is now imported from memory_forensics.py module
 
 # [ascii art removed]
 #                                    SYSTEM HARDENING ENGINE
@@ -24714,6 +24695,258 @@ class downpour(tk.Tk):
             self.aegis_ingest = AegisIngestionEngine(self.db, self.intel)
             self.aegis_nlp = AegisNLPPhishingEngine(self.db)
             self.aegis_memory = AegisMemoryShield(self.db)
+
+            # -- Additional Engine Integrations (v29.95) --
+            # Sigma Engine
+            self.sigma_engine = sigma_engine if SIGMA_ENGINE_AVAILABLE else None
+            if self.sigma_engine:
+                logger.info("[OK] Sigma Engine active")
+
+            # YARA Rules Manager
+            self.yara_rules_manager = YaraRulesManager() if YARA_RULES_MANAGER_AVAILABLE else None
+            if self.yara_rules_manager:
+                logger.info("[OK] YARA Rules Manager active")
+
+            # STIX/TAXII Feed
+            self.stix_taxii_feed = None  # TAXII21Client requires server config; lazy init if needed
+            if STIX_TAXII_AVAILABLE:
+                logger.info("[OK] STIX/TAXII Feed available (requires server config)")
+
+            # MISP Feed (function-based module, wrapped)
+            class _MISPFeedWrapper:
+                def __init__(self):
+                    import misp_feed as _mf
+                    self._mf = _mf
+                def sync_once(self, config=None, path=None):
+                    return self._mf.sync_once(config, path)
+                def load_cache(self, path=None):
+                    return self._mf.load_cache(path)
+            
+            self.misp_feed = _MISPFeedWrapper() if MISP_FEED_AVAILABLE else None
+            if self.misp_feed:
+                logger.info("[OK] MISP Feed active")
+
+            # DNS Cache Watcher (function-based module, wrapped)
+            class _DNSCacheWatcherWrapper:
+                def __init__(self):
+                    import dns_cache_watch as _dcw
+                    self._dcw = _dcw
+                def collect_dns_cache(self):
+                    return self._dcw.collect_dns_cache()
+                def score_domain(self, domain):
+                    return self._dcw.score_domain(domain)
+                def run_dns_cache_check(self):
+                    return self._dcw.run_dns_cache_check()
+            
+            self.dns_cache_watcher = _DNSCacheWatcherWrapper() if DNS_CACHE_WATCH_AVAILABLE else None
+            if self.dns_cache_watcher:
+                logger.info("[OK] DNS Cache Watcher active")
+
+            # Child Process Guard
+            self.child_process_guard = ChildProcessGuard() if CHILD_PROCESS_GUARD_AVAILABLE else None
+            if self.child_process_guard:
+                logger.info("[OK] Child Process Guard active")
+
+            # Event Push Monitor
+            self.event_push_monitor = EventPushMonitor() if EVENT_PUSH_MONITOR_AVAILABLE else None
+            if self.event_push_monitor:
+                logger.info("[OK] Event Push Monitor active")
+
+            # AMSI Integration
+            self.amsi_integration = AMSIIntegration() if AMSI_INTEGRATION_AVAILABLE else None
+            if self.amsi_integration:
+                logger.info("[OK] AMSI Integration active")
+
+            # Beacon Detector
+            self.beacon_detector = BeaconDetector() if BEACON_DETECTOR_AVAILABLE else None
+            if self.beacon_detector:
+                logger.info("[OK] Beacon Detector active")
+
+            # LOLBINS Detector (function-based module, wrapped)
+            class _LOLBinsDetectorWrapper:
+                def __init__(self):
+                    import lolbins_detector as _ld
+                    self._ld = _ld
+                def detect_lolbins(self, *args, **kwargs):
+                    return self._ld.detect_lolbins(*args, **kwargs)
+                def detect_lolbins_batch(self, *args, **kwargs):
+                    return self._ld.detect_lolbins_batch(*args, **kwargs)
+            
+            self.lolbins_detector = _LOLBinsDetectorWrapper() if LOLBINS_DETECTOR_AVAILABLE else None
+            if self.lolbins_detector:
+                logger.info("[OK] LOLBINS Detector active")
+
+            # Firmware Posture (function-based module, wrapped)
+            class _FirmwarePostureWrapper:
+                def __init__(self):
+                    import firmware_posture as _fp
+                    self._fp = _fp
+                def collect_posture(self):
+                    return self._fp.collect_posture()
+                def run_all_firmware_checks(self):
+                    return self._fp.run_all_firmware_checks()
+                def get_posture_summary(self):
+                    return self._fp.get_posture_summary()
+            
+            self.firmware_posture = _FirmwarePostureWrapper() if FIRMWARE_POSTURE_AVAILABLE else None
+            if self.firmware_posture:
+                logger.info("[OK] Firmware Posture active")
+
+            # Gaming Protection Monitor
+            self.gaming_protection = GamingProtectionMonitor() if GAMING_PROTECTION_AVAILABLE else None
+            if self.gaming_protection:
+                logger.info("[OK] Gaming Protection Monitor active")
+
+            # Firewall Tamper Detector
+            self.firewall_tamper_detector = FirewallTamperDetector() if FIREWALL_TAMPER_AVAILABLE else None
+            if self.firewall_tamper_detector:
+                logger.info("[OK] Firewall Tamper Detector active")
+
+            # AMSI Bypass Detector
+            self.amsi_bypass_detector = start_amsi_detection() if AMSI_BYPASS_DETECTOR_AVAILABLE else None
+            if self.amsi_bypass_detector:
+                logger.info("[OK] AMSI Bypass Detector active")
+
+            # DLL Hijack Detector
+            self.dll_hijack_detector = DLLHijackDetector() if DLL_HIJACK_DETECTOR_AVAILABLE else None
+            if self.dll_hijack_detector:
+                logger.info("[OK] DLL Hijack Detector active")
+
+            # Scheduled Task Monitor
+            self.scheduled_task_monitor = ScheduledTaskMonitor() if SCHEDULED_TASK_MONITOR_AVAILABLE else None
+            if self.scheduled_task_monitor:
+                logger.info("[OK] Scheduled Task Monitor active")
+
+            # WMI Persistence Detector
+            self.wmi_persistence_detector = WMIPersistenceDetector() if WMI_PERSISTENCE_AVAILABLE else None
+            if self.wmi_persistence_detector:
+                logger.info("[OK] WMI Persistence Detector active")
+
+            # Data Exfiltration Monitor
+            self.data_exfiltration_monitor = DataExfiltrationMonitor() if DATA_EXFILTRATION_AVAILABLE else None
+            if self.data_exfiltration_monitor:
+                logger.info("[OK] Data Exfiltration Monitor active")
+
+            # Anti-Forensics Detector
+            self.anti_forensics_detector = AntiForensicsDetector() if ANTI_FORENSICS_AVAILABLE else None
+            if self.anti_forensics_detector:
+                logger.info("[OK] Anti-Forensics Detector active")
+
+            # Lateral Movement Detector
+            self.lateral_movement_detector = LateralMovementDetector() if LATERAL_MOVEMENT_AVAILABLE else None
+            if self.lateral_movement_detector:
+                logger.info("[OK] Lateral Movement Detector active")
+
+            # Shadow Copy Monitor
+            self.shadow_copy_monitor = ShadowCopyMonitor() if SHADOW_COPY_MONITOR_AVAILABLE else None
+            if self.shadow_copy_monitor:
+                logger.info("[OK] Shadow Copy Monitor active")
+
+            # Network Share Monitor
+            self.network_share_monitor = NetworkShareMonitor() if NETWORK_SHARE_MONITOR_AVAILABLE else None
+            if self.network_share_monitor:
+                logger.info("[OK] Network Share Monitor active")
+
+            # Keystroke Injection Detector
+            self.keystroke_injection_detector = KeystrokeInjectionDetector() if KEYSTROKE_INJECTION_AVAILABLE else None
+            if self.keystroke_injection_detector:
+                logger.info("[OK] Keystroke Injection Detector active")
+
+            # Bluetooth Security Monitor
+            self.bluetooth_security = BluetoothSecurityMonitor() if BLUETOOTH_SECURITY_AVAILABLE else None
+            if self.bluetooth_security:
+                logger.info("[OK] Bluetooth Security Monitor active")
+
+            # WiFi Security Intelligence
+            self.wifi_security = WiFiSecurityIntelligence() if WIFI_SECURITY_INTELLIGENCE_AVAILABLE else None
+            if self.wifi_security:
+                logger.info("[OK] WiFi Security Intelligence active")
+
+            # USB Protection
+            self.usb_protection = USBProtection() if USB_PROTECTION_AVAILABLE else None
+            if self.usb_protection:
+                logger.info("[OK] USB Protection active")
+
+            # TLS Certificate Monitor
+            self.tls_cert_monitor = TLSCertificateMonitor() if TLS_CERT_MONITOR_AVAILABLE else None
+            if self.tls_cert_monitor:
+                logger.info("[OK] TLS Certificate Monitor active")
+
+            # Credential Guard Monitor
+            self.credential_guard_monitor = CredentialGuardMonitor() if CREDENTIAL_GUARD_AVAILABLE else None
+            if self.credential_guard_monitor:
+                logger.info("[OK] Credential Guard Monitor active")
+
+            # DPAPI Monitor
+            self.dpapi_monitor = DPAPIMonitor() if DPAPI_MONITOR_AVAILABLE else None
+            if self.dpapi_monitor:
+                logger.info("[OK] DPAPI Monitor active")
+
+            # Clipboard Monitor
+            self.clipboard_monitor = ClipboardSecurityMonitor() if CLIPBOARD_MONITOR_AVAILABLE else None
+            if self.clipboard_monitor:
+                logger.info("[OK] Clipboard Monitor active")
+
+            # Named Pipe Monitor
+            self.named_pipe_monitor = NamedPipeMonitor() if NAMED_PIPE_MONITOR_AVAILABLE else None
+            if self.named_pipe_monitor:
+                logger.info("[OK] Named Pipe Monitor active")
+
+            # IoT Scanner
+            self.iot_scanner = IoTDeviceScanner() if IOT_SCANNER_AVAILABLE else None
+            if self.iot_scanner:
+                logger.info("[OK] IoT Scanner active")
+
+            # Forensic Report (function-based module, wrapped)
+            class _ForensicReportWrapper:
+                def __init__(self):
+                    import forensic_report as _fr
+                    self._fr = _fr
+                def collect_all_evidence(self):
+                    return self._fr.collect_all_evidence()
+                def generate_html_report(self, evidence=None):
+                    return self._fr.generate_html_report(evidence)
+                def save_report(self, evidence, path=None):
+                    return self._fr.save_report(evidence, path)
+            
+            self.forensic_report = _ForensicReportWrapper() if FORENSIC_REPORT_AVAILABLE else None
+            if self.forensic_report:
+                logger.info("[OK] Forensic Report active")
+
+            # Threat Intelligence Updater
+            self.threat_intel_updater = ThreatIntelligenceUpdater() if THREAT_INTEL_UPDATER_AVAILABLE else None
+            if self.threat_intel_updater:
+                logger.info("[OK] Threat Intelligence Updater active")
+
+            # Threat Response Center
+            self.threat_response_center = ThreatResponseCenter(parent=self) if THREAT_RESPONSE_CENTER_AVAILABLE else None
+            if self.threat_response_center:
+                logger.info("[OK] Threat Response Center active")
+
+            # YARA Rules Manager
+            self.yara_rules_manager = YaraRulesManager() if YARA_RULES_MANAGER_AVAILABLE else None
+            if self.yara_rules_manager:
+                logger.info("[OK] YARA Rules Manager active")
+
+            # YARA-X Engine
+            self.yara_x_engine = YaraXScanEngine() if YARA_X_ENGINE_AVAILABLE else None
+            if self.yara_x_engine:
+                logger.info("[OK] YARA-X Engine active")
+
+            # Forensic Report
+            self.forensic_report = ForensicReport() if FORENSIC_REPORT_AVAILABLE else None
+            if self.forensic_report:
+                logger.info("[OK] Forensic Report active")
+
+            # Threat Intelligence Updater
+            self.threat_intel_updater = ThreatIntelligenceUpdater() if THREAT_INTEL_UPDATER_AVAILABLE else None
+            if self.threat_intel_updater:
+                logger.info("[OK] Threat Intelligence Updater active")
+
+            # Threat Response Center
+            self.threat_response_center = ThreatResponseCenter(parent=self) if THREAT_RESPONSE_CENTER_AVAILABLE else None
+            if self.threat_response_center:
+                logger.info("[OK] Threat Response Center active")
 
             logger.info("All core engines initialized successfully")
 

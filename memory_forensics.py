@@ -54,7 +54,7 @@ from pathlib import Path
 import math
 import struct
 import re
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Callable
 import sqlite3
 import json
 
@@ -153,9 +153,7 @@ class MemoryForensicsAnalyzer:
         self.process_snapshots = {}
         
         # Injection detection cache
-        self.injection_cache = {}
-        
-        # Statistics
+# Statistics
         self.stats = {
             'processes_analyzed': 0,
             'injections_detected': 0,
@@ -163,7 +161,26 @@ class MemoryForensicsAnalyzer:
             'api_hooks_detected': 0,
             'shellcode_detected': 0
         }
+        
+        # Callback system for event notifications
+        self._callbacks: List[Callable] = []
     
+    def register_callback(self, fn: Callable):
+        self._callbacks.append(fn)
+
+    def _notify(self, msg: str):
+        for cb in self._callbacks:
+            try: cb(msg)
+            except Exception as _e:
+                _safe_log('MemoryForensics', 'callback failed', _e)
+
+    def _safe_log(self, component: str, msg: str, exc: Exception):
+        """Safe logging that never raises."""
+        try:
+            log.error(f"[{component}] {msg}: {exc}")
+        except Exception:
+            pass
+
     def init_database(self):
         """Initialize SQLite database for memory forensics."""
         try:
@@ -752,6 +769,9 @@ class MemoryForensicsAnalyzer:
 
                 proc_info = analysis_result.get('process_info', {})
                 risk_score = analysis_result.get('risk_score', {})
+                timestamp = analysis_result.get('timestamp', datetime.now())
+                if isinstance(timestamp, datetime):
+                    timestamp = timestamp.isoformat()
 
                 cursor.execute('''
                     INSERT INTO memory_analysis
@@ -761,9 +781,9 @@ class MemoryForensicsAnalyzer:
                 ''', (
                     proc_info.get('pid', 0),
                     proc_info.get('name', ''),
-                    analysis_result.get('timestamp', datetime.now()),
+                    timestamp,
                     'comprehensive',
-                    json.dumps(analysis_result),
+                    json.dumps(analysis_result, default=str),
                     risk_score.get('score', 0),
                     json.dumps(analysis_result.get('memory_regions', [])),
                     json.dumps(analysis_result.get('modules_count', 0)),
