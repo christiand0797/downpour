@@ -1,5 +1,24 @@
 # Downpour v29 Titanium — Changelog
 
+## v29.106 — CIS UI Integration: Real-time CIS Status Panel
+- **CIS Status Panel** — New "CIS" tab in main notebook with real-time monitoring:
+  - Live detector statistics: total/memory/active responses/signal queue/clonal/somatic/created/retired/contained/autoimmune
+  - Adversarial Red Teamer status with start/stop toggle, last run time, detection count
+  - Threat Evolution Predictor status with start/stop toggle
+  - Semantic Integrity Verifier status with start/stop toggle
+  - Control buttons: Toggle Red Teamer, Toggle Predictor, Toggle Verifier
+  - Refresh button with auto-refresh every 5 seconds
+  - Auto-refresh timer updates all stats every 5 seconds
+- **CIS Tab Integration**: Added to main notebook alongside 34 other tabs
+- **All 23 integration tests passing**
+- Code integrity baseline regenerated (197 files verified)
+- **Full Health Check**: 76/76 PASS
+
+## v29.105 — Threat Intel Feed Expansion to 159 Feeds (+79 new), Documentation Updates
+- Documentation updates for v29.104 changes
+- Code integrity baseline regenerated (195 files verified)
+- Full Health Check: 76/76 PASS
+
 ## v29.104 — Threat Intelligence Feed Expansion to 159 Feeds (+79 new)
 - **Added 79 new threat intelligence feeds** to `ultimate_threat_intel/__init__.py` (total: 159 feeds):
   - **Malware/Sandbox**: VirusTotal popular threats, Hybrid Analysis, ANY.RUN, Joe Sandbox, CAPE Sandbox, MalShare, VirusShare, MalSign, ThreatMiner, MalSynapse, PolySwarm, MalSign recent
