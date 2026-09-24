@@ -18,10 +18,10 @@ class TestThreatFeedExpansion(unittest.TestCase):
         self.assertTrue(hasattr(ThreatFeedRegistry, 'get_enabled_feeds'))
 
     def test_feed_count(self):
-        """Verify we have 80 feeds total"""
+        """Verify we have 159 feeds total"""
         from ultimate_threat_intel import ThreatFeedRegistry
         feeds = ThreatFeedRegistry.FEEDS
-        self.assertEqual(len(feeds), 80, f"Expected 80 feeds, got {len(feeds)}")
+        self.assertEqual(len(feeds), 159, f"Expected 159 feeds, got {len(feeds)}")
 
     def test_new_feeds_present(self):
         """Verify all 22 new feeds are present"""
@@ -65,7 +65,7 @@ class TestThreatFeedExpansion(unittest.TestCase):
         """Test get_enabled_feeds returns all feeds by default"""
         from ultimate_threat_intel import ThreatFeedRegistry
         enabled = ThreatFeedRegistry.get_enabled_feeds()
-        self.assertEqual(len(enabled), 80)
+        self.assertEqual(len(enabled), 159)
         
         # Verify all enabled feeds have required fields
         for feed_id, config in enabled.items():
@@ -97,8 +97,8 @@ class TestThreatFeedAggregator(unittest.TestCase):
         self.assertIn('aggregator', stats)
         self.assertIn('feeds_available', stats)
         self.assertIn('feeds_enabled', stats)
-        self.assertEqual(stats['feeds_available'], 80)
-        self.assertEqual(stats['feeds_enabled'], 80)
+        self.assertEqual(stats['feeds_available'], 159)
+        self.assertEqual(stats['feeds_enabled'], 159)
 
 
 class TestAIEngine(unittest.TestCase):
