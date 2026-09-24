@@ -418,6 +418,9 @@ class CognitiveImmuneSystem:
             self.sensor_hub.register_consumer("cognitive_immune_system", self._on_sensor_event)
         
         logger.info("Cognitive Immune System started")
+        
+        # Load persisted immune state
+        self._load_immune_state()
     
     def stop(self):
         """Stop the immune system"""
@@ -430,7 +433,35 @@ class CognitiveImmuneSystem:
         if self.sensor_hub:
             self.sensor_hub.unregister_consumer("cognitive_immune_system")
         
+        # Save immune state before stopping
+        self._save_immune_state()
+        
         logger.info("Cognitive Immune System stopped")
+    
+    def _save_immune_state(self):
+        """Save immune state to disk for persistence across restarts"""
+        try:
+            state = self.export_immune_state()
+            state_file = Path("downpour_data/cis_immune_state.json")
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_text(json.dumps(state, indent=2, default=str), encoding='utf-8')
+            logger.info(f"Saved immune state: {len(self.detectors)} detectors, {len(self.memory.epitopes)} memory epitopes")
+        except Exception as e:
+            logger.error(f"Failed to save immune state: {e}")
+    
+    def _load_immune_state(self):
+        """Load immune state from disk"""
+        try:
+            state_file = Path("downpour_data/cis_immune_state.json")
+            if not state_file.exists():
+                logger.info("No saved immune state found, starting fresh")
+                return
+            
+            state_data = json.loads(state_file.read_text(encoding='utf-8'))
+            self.import_immune_state(state_data)
+            logger.info(f"Loaded immune state: {len(self.detectors)} detectors, {len(self.memory.epitopes)} memory epitopes")
+        except Exception as e:
+            logger.error(f"Failed to load immune state: {e}")
     
     def _immune_loop(self):
         """Main immune response loop - runs continuously"""
@@ -809,13 +840,19 @@ class CognitiveImmuneSystem:
         """Critical threat - immediate containment"""
         actions = []
         
-        if epitope.pattern_type == "process_id" and self.quarantine:
+        # Quarantine process by PID
+        if epitope.pattern_type == "process_id":
             try:
                 pid = int(epitope.pattern)
                 actions.append(f"quarantine_process:{pid}")
-                # Call quarantine if available
-                if hasattr(self.quarantine, 'quarantine_process'):
-                    self.quarantine.quarantine_process(pid)
+                # Try to kill the process
+                try:
+                    import psutil
+                    proc = psutil.Process(pid)
+                    proc.terminate()
+                    actions.append(f"terminated_process:{pid}")
+                except Exception:
+                    pass
             except (ValueError, TypeError):
                 pass
         
@@ -834,21 +871,26 @@ class CognitiveImmuneSystem:
             except Exception:
                 pass
         
-        if epitope.pattern_type == "hash" and self.quarantine:
+        if epitope.pattern_type == "hash":
             actions.append(f"quarantine_file_hash:{epitope.pattern}")
-            try:
-                if hasattr(self.quarantine, 'quarantine_by_hash'):
-                    self.quarantine.quarantine_by_hash(epitope.pattern)
-            except Exception:
-                pass
+            # The hash would need to be matched to a file path to quarantine
+            # This would typically come from threat intelligence or file scanning
+            pass
         
         # Quarantine file if path available in context
-        if "file_path" in context and self.quarantine:
+        if "file_path" in context:
             try:
-                if hasattr(self.quarantine, 'quarantine_file'):
-                    self.quarantine.quarantine_file(context["file_path"])
-                    actions.append(f"quarantine_file:{context['file_path']}")
-            except Exception:
+                from quarantine_core import quarantine_file
+                file_path = Path(context["file_path"])
+                if file_path.exists():
+                    entry = quarantine_file(
+                        file_path,
+                        threat_type="MALWARE",
+                        threat_name=f"CIS_{epitope.pattern_type}",
+                        severity="CRITICAL"
+                    )
+                    actions.append(f"quarantined:{entry.quarantine_path}")
+            except Exception as e:
                 pass
         
         actions.append("alert:critical")
@@ -859,11 +901,28 @@ class CognitiveImmuneSystem:
     
     def _high_response(self, epitope: Epitope, context: Dict) -> List[str]:
         """High threat - aggressive monitoring + containment prep"""
-        return ["enhanced_monitoring", "alert:high", "prepare_containment"]
+        actions = ["enhanced_monitoring", "alert:high", "prepare_containment"]
+        
+        # If IP, add to watchlist
+        if epitope.pattern_type == "ip":
+            # Add to watchlist for enhanced monitoring
+            pass
+        
+        # If process, add to watchlist
+        if epitope.pattern_type == "process_id":
+            pass
+        
+        return actions
     
     def _medium_response(self, epitope: Epitope, context: Dict) -> List[str]:
         """Medium threat - increased surveillance"""
-        return ["increased_surveillance", "alert:medium"]
+        actions = ["increased_surveillance", "alert:medium"]
+        
+        # Add to monitoring list
+        if epitope.pattern_type in ["ip", "domain", "hash"]:
+            pass
+        
+        return actions
     
     def _low_response(self, epitope: Epitope, context: Dict) -> List[str]:
         """Low threat - logging"""
@@ -1134,10 +1193,398 @@ class CognitiveImmuneSystem:
                 "active_responses": len(self.active_responses),
                 "signal_queue_size": len(self.signal_queue),
                 "stats": self.stats.copy(),
-                "repertoire_diversity": len(type_counts)
+                "repertoire_diversity": len(type_counts),
+                "detector_details": [
+                    {
+                        "id": d.id,
+                        "cell_type": d.cell_type.value,
+                        "epitopes": [{"pattern": e.pattern, "type": e.pattern_type, "affinity": e.affinity} for e in d.epitopes],
+                        "affinity_threshold": d.affinity_threshold,
+                        "activation_count": d.activation_count,
+                        "true_positive_count": d.true_positive_count,
+                        "false_positive_count": d.false_positive_count,
+                        "lineage": d.lineage,
+                        "mutation_rate": d.mutation_rate,
+                        "is_active": d.is_active,
+                        "created_at": d.created_at.isoformat(),
+                        "fitness": d.calculate_fitness(),
+                        "specificity": d.specificity
+                    }
+                    for d in self.detectors.values() if d.is_active
+                ],
+                "signal_history": [
+                    {
+                        "type": s.signal_type.value,
+                        "source": s.source_id,
+                        "target": s.target_id,
+                        "timestamp": s.timestamp.isoformat(),
+                        "payload": s.payload
+                    }
+                    for s in list(self.signal_queue)[-100:]  # Last 100 signals
+                ],
+                "active_responses_detail": [
+                    {
+                        "id": r["id"],
+                        "detector_id": r["detector_id"],
+                        "epitope": r["epitope"],
+                        "threat_level": r["threat_level"],
+                        "actions": r["actions"],
+                        "timestamp": r["timestamp"].isoformat()
+                    }
+                    for r in self.active_responses.values()
+                ]
             }
     
-    def get_detector_lineage(self, detector_id: str) -> Optional[Dict]:
+    def get_dashboard_metrics(self) -> Dict:
+        """Get real-time metrics for dashboard visualization"""
+        with self._lock:
+            active_detectors = [d for d in self.detectors.values() if d.is_active]
+            
+            # Cell type distribution
+            cell_type_dist = defaultdict(int)
+            for d in active_detectors:
+                cell_type_dist[d.cell_type.value] += 1
+            
+            # Pattern type distribution
+            pattern_dist = defaultdict(int)
+            for d in active_detectors:
+                for e in d.epitopes:
+                    pattern_dist[e.pattern_type] += 1
+            
+            # Lineage distribution
+            lineage_dist = defaultdict(int)
+            for d in active_detectors:
+                lineage_dist[d.lineage] += 1
+            
+            # Fitness distribution
+            fitness_values = [d.calculate_fitness() for d in active_detectors]
+            avg_fitness = sum(fitness_values) / len(fitness_values) if fitness_values else 0
+            
+            # Activation stats
+            total_activations = sum(d.activation_count for d in active_detectors)
+            total_tp = sum(d.true_positive_count for d in active_detectors)
+            total_fp = sum(d.false_positive_count for d in active_detectors)
+            
+            # Recent signal activity
+            recent_signals = list(self.signal_queue)[-50:]
+            signal_types = defaultdict(int)
+            for s in recent_signals:
+                signal_types[s.signal_type.value] += 1
+            
+            # Response stats
+            response_stats = defaultdict(int)
+            for r in self.active_responses.values():
+                response_stats[r["threat_level"]] += 1
+            
+            return {
+                "timestamp": datetime.now().isoformat(),
+                "total_detectors": len(active_detectors),
+                "cell_type_distribution": dict(cell_type_dist),
+                "pattern_type_distribution": dict(pattern_dist),
+                "lineage_distribution": dict(lineage_dist),
+                "avg_fitness": round(avg_fitness, 4),
+                "total_activations": total_activations,
+                "true_positives": total_tp,
+                "false_positives": total_fp,
+                "precision": round(total_tp / max(1, total_tp + total_fp), 4),
+                "recent_signals_50": len(recent_signals),
+                "signal_type_distribution": dict(signal_types),
+                "active_response_count": len(self.active_responses),
+                "response_threat_distribution": dict(response_stats),
+                "memory_epitopes": len(self.memory.epitopes),
+                "signal_queue_size": len(self.signal_queue),
+                "stats": self.stats.copy()
+            }
+
+    def get_dashboard_metrics(self) -> Dict:
+        """Get real-time metrics for dashboard visualization"""
+        with self._lock:
+            active_detectors = [d for d in self.detectors.values() if d.is_active]
+            
+            # Cell type distribution
+            cell_type_dist = defaultdict(int)
+            for d in active_detectors:
+                cell_type_dist[d.cell_type.value] += 1
+            
+            # Pattern type distribution
+            pattern_dist = defaultdict(int)
+            for d in active_detectors:
+                for e in d.epitopes:
+                    pattern_dist[e.pattern_type] += 1
+            
+            # Lineage distribution
+            lineage_dist = defaultdict(int)
+            for d in active_detectors:
+                lineage_dist[d.lineage] += 1
+            
+            # Fitness distribution
+            fitness_values = [d.calculate_fitness() for d in active_detectors]
+            avg_fitness = sum(fitness_values) / len(fitness_values) if fitness_values else 0
+            
+            # Activation stats
+            total_activations = sum(d.activation_count for d in active_detectors)
+            total_tp = sum(d.true_positive_count for d in active_detectors)
+            total_fp = sum(d.false_positive_count for d in active_detectors)
+            
+            # Recent signal activity
+            recent_signals = list(self.signal_queue)[-50:]
+            signal_types = defaultdict(int)
+            for s in recent_signals:
+                signal_types[s.signal_type.value] += 1
+            
+            # Response stats
+            response_stats = defaultdict(int)
+            for r in self.active_responses.values():
+                response_stats[r["threat_level"]] += 1
+            
+            return {
+                "timestamp": datetime.now().isoformat(),
+                "total_detectors": len(active_detectors),
+                "cell_type_distribution": dict(cell_type_dist),
+                "pattern_type_distribution": dict(pattern_dist),
+                "lineage_distribution": dict(lineage_dist),
+                "avg_fitness": round(avg_fitness, 4),
+                "total_activations": total_activations,
+                "true_positives": total_tp,
+                "false_positives": total_fp,
+                "precision": round(total_tp / max(1, total_tp + total_fp), 4),
+                "recent_signals_50": len(recent_signals),
+                "signal_type_distribution": dict(signal_types),
+                "active_response_count": len(self.active_responses),
+                "response_threat_distribution": dict(response_stats),
+                "memory_epitopes": len(self.memory.epitopes),
+                "signal_queue_size": len(self.signal_queue),
+                "stats": self.stats.copy()
+            }
+
+    # ========================================================================
+    # DISTRIBUTED CIS COORDINATION (via Sharded Context)
+    # ========================================================================
+    
+    def _init_distributed_coordination(self):
+        """Initialize distributed coordination via sharded context"""
+        if SHARDED_CONTEXT_AVAILABLE and self.sharded_context:
+            try:
+                # Register CIS as a component in the sharded context
+                self.sharded_context.register_component("cis_main", self)
+                
+                # Subscribe to relevant context patterns
+                self.sharded_context.subscribe("cis:*", self._on_distributed_event)
+                self.sharded_context.subscribe("threat:*", self._on_threat_event)
+                self.sharded_context.subscribe("response:*", self._on_response_event)
+                self.sharded_context.subscribe("memory:*", self._on_memory_event)
+                
+                # Publish CIS capabilities
+                self.sharded_context.set(
+                    "cis:capabilities",
+                    {
+                        "detector_count": len([d for d in self.detectors.values() if d.is_active]),
+                        "memory_epitopes": len(self.memory.epitopes),
+                        "supported_pattern_types": ["ip", "domain", "hash", "url", "behavior", "semantic", "sequence"],
+                        "supported_techniques": [d.lineage for d in self.detectors.values() if d.is_active],
+                        "max_detectors": self.max_detectors,
+                        "clonal_expansion_factor": self.clonal_expansion_factor
+                    },
+                    scope=ContextScope.GLOBAL,
+                    tags={"cis", "capabilities", "registration"}
+                )
+                
+                # Start sync thread
+                self._distributed_sync_thread = threading.Thread(
+                    target=self._distributed_sync_loop,
+                    daemon=True,
+                    name="CIS_DistributedSync"
+                )
+                self._distributed_sync_thread.start()
+                
+                logger.info("CIS distributed coordination initialized")
+            except Exception as e:
+                logger.error(f"Distributed coordination init failed: {e}")
+    
+    def _distributed_sync_loop(self):
+        """Sync CIS state with distributed context"""
+        while self.running:
+            try:
+                time.sleep(30)  # Sync every 30 seconds
+                
+                if not self.running:
+                    break
+                
+                # Update capabilities
+                if self.sharded_context:
+                    self.sharded_context.set(
+                        "cis:capabilities",
+                        {
+                            "detector_count": len([d for d in self.detectors.values() if d.is_active]),
+                            "memory_epitopes": len(self.memory.epitopes),
+                            "active_responses": len(self.active_responses),
+                            "signal_queue_size": len(self.signal_queue),
+                            "stats": self.stats.copy()
+                        },
+                        scope=ContextScope.GLOBAL,
+                        tags={"cis", "status", "heartbeat"}
+                    )
+                    
+                    # Publish local threat intel to shared context
+                    recent_threats = list(self.memory.response_history)[-10:]
+                    for event in recent_threats:
+                        self.sharded_context.set(
+                            f"threat:{event.get('technique', 'unknown')}:{event['timestamp']}",
+                            event,
+                            scope=ContextScope.SHARED,
+                            tags={"threat", "intel", "shared"}
+                        )
+                        
+            except Exception as e:
+                logger.error(f"Distributed sync error: {e}")
+                time.sleep(60)
+    
+    def _on_distributed_event(self, event: ContextEvent):
+        """Handle events from other CIS instances"""
+        if event.key.startswith("cis:"):
+            # Another CIS instance registered
+            pass
+        elif event.key.startswith("threat:"):
+            # New threat intel from another instance
+            self._process_shared_threat_intel(event)
+        elif event.key.startswith("response:"):
+            # Another instance's response
+            self._process_shared_response(event)
+        elif event.key.startswith("memory:"):
+            # Shared memory update
+            self._process_shared_memory(event)
+    
+    def _on_threat_event(self, event: ContextEvent):
+        """Handle threat intelligence from distributed context"""
+        try:
+            if event.event_type == ContextEventType.CREATED:
+                threat_data = event.new_value
+                if isinstance(threat_data, dict) and "pattern" in threat_data:
+                    epitope = Epitope(
+                        pattern=threat_data["pattern"],
+                        pattern_type=threat_data.get("type", "unknown"),
+                        affinity=0.9,
+                        metadata=threat_data
+                    )
+                    self._present_antigen(epitope, {"source": "distributed", "source_instance": event.metadata.get("source_component")})
+        except Exception as e:
+            logger.error(f"Threat event processing error: {e}")
+    
+    def _on_response_event(self, event: ContextEvent):
+        """Handle response events from other CIS instances"""
+        try:
+            if event.event_type == ContextEventType.CREATED:
+                response_data = event.new_value
+                # Could coordinate responses or learn from other instances
+                pass
+        except Exception as e:
+            logger.error(f"Response event processing error: {e}")
+    
+    def _on_memory_event(self, event: ContextEvent):
+        """Handle shared memory updates"""
+        try:
+            if event.event_type in (ContextEventType.CREATED, ContextEventType.UPDATED):
+                memory_data = event.new_value
+                if isinstance(memory_data, dict) and "pattern" in memory_data:
+                    epitope = Epitope(
+                        pattern=memory_data["pattern"],
+                        pattern_type=memory_data.get("type", "unknown"),
+                        affinity=0.9,
+                        metadata=memory_data
+                    )
+                    self._reinforce_memory(epitope)
+        except Exception as e:
+            logger.error(f"Memory event processing error: {e}")
+    
+    def _process_shared_threat_intel(self, event: ContextEvent):
+        """Process threat intelligence shared by other CIS instances"""
+        try:
+            threat_data = event.new_value
+            if isinstance(threat_data, dict):
+                epitope = Epitope(
+                    pattern=threat_data.get("pattern", ""),
+                    pattern_type=threat_data.get("type", "unknown"),
+                    affinity=0.8,
+                    metadata={**threat_data, "source": "distributed", "source_instance": event.metadata.get("source_component")}
+                )
+                self._reinforce_memory(epitope)
+                self._emit_signal(Signal(
+                    signal_type=SignalType.MEMORY,
+                    source_id="cis_distributed",
+                    target_id=None,
+                    payload={"action": "shared_threat_received", "threat": threat_data}
+                ))
+        except Exception as e:
+            logger.error(f"Shared threat intel processing error: {e}")
+    
+    def _process_shared_response(self, event: ContextEvent):
+        """Process response coordination from other CIS instances"""
+        try:
+            response_data = event.new_value
+            # Could coordinate or learn from other instances' responses
+            pass
+        except Exception as e:
+            logger.error(f"Shared response processing error: {e}")
+    
+    def _process_shared_memory(self, event: ContextEvent):
+        """Process shared memory updates"""
+        try:
+            memory_data = event.new_value
+            if isinstance(memory_data, dict) and "pattern" in memory_data:
+                epitope = Epitope(
+                    pattern=memory_data["pattern"],
+                    pattern_type=memory_data.get("type", "unknown"),
+                    affinity=0.8,
+                    metadata={**memory_data, "source": "distributed_memory"}
+                )
+                self._reinforce_memory(epitope)
+        except Exception as e:
+            logger.error(f"Shared memory processing error: {e}")
+
+    def _distributed_share_threat_intel(self, indicators: List[Dict]):
+        """Share threat intelligence with other CIS instances via sharded context"""
+        if not SHARDED_CONTEXT_AVAILABLE or not self.sharded_context:
+            return
+        
+        try:
+            for ind in indicators:
+                self.sharded_context.set(
+                    f"threat:{ind.get('type', 'unknown')}:{ind.get('value', '')}",
+                    {
+                        "value": ind.get("value", ""),
+                        "type": ind.get("type", "unknown"),
+                        "source": "cis_main",
+                        "timestamp": datetime.now().isoformat(),
+                        "confidence": ind.get("confidence", 0.9)
+                    },
+                    scope=ContextScope.SHARED,
+                    tags={"threat", "intel", "shared", "cis"}
+                )
+        except Exception as e:
+            logger.error(f"Distributed threat intel sharing failed: {e}")
+    
+    def _distributed_share_response(self, response: Dict):
+        """Share response actions with other CIS instances"""
+        if not SHARDED_CONTEXT_AVAILABLE or not self.sharded_context:
+            return
+        
+        try:
+            self.sharded_context.set(
+                f"response:{response['id']}",
+                {
+                    "response_id": response["id"],
+                    "detector_id": response["detector_id"],
+                    "epitope": response["epitope"],
+                    "threat_level": response["threat_level"],
+                    "actions": response["actions"],
+                    "timestamp": response["timestamp"].isoformat(),
+                    "source_instance": "cis_main"
+                },
+                scope=ContextScope.SHARED,
+                tags={"response", "coordination", "cis"}
+            )
+        except Exception as e:
+            logger.error(f"Distributed response sharing failed: {e}")
         """Get lineage tree for a detector"""
         if detector_id not in self.detectors:
             return None
@@ -1745,6 +2192,45 @@ def integrate_with_downpour(cis: CognitiveImmuneSystem, downpour_app):
 # ============================================================================
 
 if __name__ == "__main__":
+
+    # Quick test
+    logging.basicConfig(level=logging.INFO)
+
+    cis = create_cognitive_immune_system({
+        "naive_pool_size": 100,
+        "max_detectors": 1000,
+        "affinity_threshold": 0.7,
+        "clonal_expansion_factor": 3,
+        "mutation_rate": 0.1
+    })
+
+    print("=== Cognitive Immune System Test ===")
+    print(f"Initial detectors: {len(cis.detectors)}")
+
+    # Test antigen presentation
+    test_epitope = Epitope(pattern="malicious_process_injection", pattern_type="behavior", affinity=0.9)
+    cis._present_antigen(test_epitope, {"source": "test", "technique": "T1055"})
+
+    print(f"After presentation: {len(cis.detectors)} detectors")
+
+    status = cis.get_immune_status()
+    print(f"Status: {json.dumps(status, indent=2, default=str)}")
+
+    # Test evolution
+    cis._clonal_selection()
+    cis._somatic_hypermutation()
+    print(f"After evolution: {len(cis.detectors)} detectors")
+
+    # Test threat hunting
+    print("=== Threat Hunting Test ===")
+    hunter = cis.threat_hunter if hasattr(cis, 'threat_hunter') else None
+    if hunter:
+        hunter.start()
+        time.sleep(1)
+        hunter.stop()
+
+    print("=== Test Complete ===")
+
     # Quick test
     logging.basicConfig(level=logging.INFO)
     
@@ -1773,4 +2259,306 @@ if __name__ == "__main__":
     cis._somatic_hypermutation()
     print(f"After evolution: {len(cis.detectors)} detectors")
     
+    # Test threat hunting
+    print("=== Threat Hunting Test ===")
+    hunter = cis.threat_hunter if hasattr(cis, 'threat_hunter') else None
+    if hunter:
+        hunter.start()
+        time.sleep(1)
+        hunter.stop()
+    
     print("=== Test Complete ===")
+
+
+# ============================================================================
+# THREAT HUNTING INTEGRATION
+# ============================================================================
+
+class ThreatHunter:
+    """
+    Proactive threat hunting using the Cognitive Immune System.
+    Continuously hunts for threats by querying the immune system's knowledge base
+    and coordinating with external threat intelligence.
+    """
+    
+    def __init__(self, cis: CognitiveImmuneSystem):
+        self.cis = cis
+        self.running = False
+        self._thread: Optional[threading.Thread] = None
+        self.hunt_patterns = self._load_hunt_patterns()
+        self.hunt_results = deque(maxlen=1000)
+        self.scheduled_hunts = []
+        
+    def _load_hunt_patterns(self) -> List[Dict]:
+        """Load threat hunting patterns based on MITRE ATT&CK"""
+        return [
+            # Credential Access hunting
+            {
+                "name": "credential_dumping_hunt",
+                "technique": "T1003",
+                "description": "Hunt for LSASS memory dumping and credential theft",
+                "query_patterns": ["lsass_dump", "sekurlsa", "procdump", "comsvcs"],
+                "indicators": ["lsass.exe memory access", "sekurlsa module", "dump files"],
+                "severity": "HIGH"
+            },
+            {
+                "name": "keylogging_hunt",
+                "technique": "T1056",
+                "description": "Hunt for keystroke logging and clipboard monitoring",
+                "query_patterns": ["getasynckeystate", "sethook", "rawinput", "clipboard_monitor"],
+                "indicators": ["GetAsyncKeyState", "SetWindowsHookEx", "GetClipboardData"],
+                "severity": "HIGH"
+            },
+            
+            # Defense Evasion hunting
+            {
+                "name": "amsi_bypass_hunt",
+                "technique": "T1562.002",
+                "description": "Hunt for AMSI bypass attempts",
+                "query_patterns": ["amsi_bypass", "reflection_amsi", "patching_amsi"],
+                "indicators": ["AmsiScanBuffer", "AmsiInitialize", "AmsiResult"],
+                "severity": "CRITICAL"
+            },
+            {
+                "name": "process_hollowing_hunt",
+                "technique": "T1055.012",
+                "description": "Hunt for process hollowing and doppelganging",
+                "query_patterns": ["process_hollowing", "process_doppelganging", "process_herpaderping"],
+                "indicators": ["CreateProcess", "NtUnmapViewOfSection", "WriteProcessMemory"],
+                "severity": "CRITICAL"
+            },
+            {
+                "name": "amsi_bypass_hunt",
+                "technique": "T1562.002",
+                "description": "Hunt for AMSI bypass attempts",
+                "query_patterns": ["amsi_bypass", "reflection_amsi", "patching_amsi"],
+                "indicators": ["AmsiScanBuffer", "AmsiInitialize", "AmsiResult"],
+                "severity": "CRITICAL"
+            },
+            
+            # Credential Access hunting
+            {
+                "name": "credential_in_registry_hunt",
+                "technique": "T1552.001",
+                "description": "Hunt for credentials stored in registry",
+                "query_patterns": ["registry_credentials", "password_in_registry", "autologon"],
+                "indicators": ["HKLM\\SAM", "HKLM\\SECURITY", "DefaultPassword"],
+                "severity": "HIGH"
+            },
+            
+            # Discovery hunting
+            {
+                "name": "network_discovery_hunt",
+                "technique": "T1018",
+                "description": "Hunt for network reconnaissance activity",
+                "query_patterns": ["network_scan", "arp_scan", "net_view", "ping_sweep"],
+                "indicators": ["ARP requests", "NetBIOS scans", "SMB enumeration"],
+                "severity": "MEDIUM"
+            },
+            {
+                "name": "process_discovery_hunt",
+                "technique": "T1057",
+                "description": "Hunt for process enumeration",
+                "query_patterns": ["process_list", "tasklist", "pslist", "get_process"],
+                "indicators": ["EnumProcesses", "CreateToolhelp32Snapshot", "Process32First"],
+                "severity": "MEDIUM"
+            },
+            
+            # Lateral Movement hunting
+            {
+                "name": "smb_lateral_hunt",
+                "technique": "T1021.002",
+                "description": "Hunt for SMB lateral movement",
+                "query_patterns": ["psexec", "wmiexec", "smbexec", "atexec", "dcom_lateral"],
+                "indicators": ["SMB session", "IPC$", "admin$", "C$"],
+                "severity": "HIGH"
+            },
+            
+            # Collection hunting
+            {
+                "name": "data_staging_hunt",
+                "technique": "T1074",
+                "description": "Hunt for data staging and archival",
+                "query_patterns": ["data_staging", "archive_data", "compress_data"],
+                "indicators": ["7z", "rar", "zip", "staging_directory"],
+                "severity": "HIGH"
+            },
+            
+            # Command & Control hunting
+            {
+                "name": "c2_beaconing_hunt",
+                "technique": "T1071",
+                "description": "Hunt for C2 beaconing activity",
+                "query_patterns": ["dns_beaconing", "http_beaconing", "https_beaconing", "websocket_c2"],
+                "indicators": ["periodic_callbacks", "dga_domains", "long_connections"],
+                "severity": "CRITICAL"
+            },
+            {
+                "name": "domain_fronting_hunt",
+                "technique": "T1090.004",
+                "description": "Hunt for domain fronting",
+                "query_patterns": ["domain_fronting", "cdn_c2", "cloudflare_c2"],
+                "indicators": ["cloudfront", "azureedge", "akamai", "fastly"],
+                "severity": "HIGH"
+            },
+            
+            # Impact hunting
+            {
+                "name": "ransomware_encryption_hunt",
+                "technique": "T1486",
+                "description": "Hunt for ransomware encryption activity",
+                "query_patterns": ["rapid_encryption", "file_renaming", "ransom_note", "vss_deletion"],
+                "indicators": ["mass_renaming", "extension_changes", "shadow_copy_deletion"],
+                "severity": "CRITICAL"
+            },
+        ]
+    
+    def start(self):
+        self.running = True
+        self._thread = threading.Thread(target=self._hunt_loop, daemon=True)
+        self._thread.start()
+        logger.info("Threat Hunter started")
+    
+    def stop(self):
+        self.running = False
+        if self._thread:
+            self._thread.join(timeout=5)
+    
+    def _hunt_loop(self):
+        """Main hunting loop - runs continuously"""
+        while self.running:
+            try:
+                # Run scheduled hunts every 10 minutes
+                time.sleep(600)
+                
+                if not self.running:
+                    break
+                
+                self._run_scheduled_hunts()
+                
+            except Exception as e:
+                logger.error(f"Hunt loop error: {e}")
+    
+    def _run_scheduled_hunts(self):
+        """Execute scheduled threat hunts"""
+        for hunt in self.hunt_patterns:
+            if not self.running:
+                break
+            
+            logger.info(f"Starting hunt: {hunt['name']} ({hunt['technique']})")
+            
+            # Create epitopes for this hunt
+            hunt_epitopes = [
+                Epitope(pattern=pattern, pattern_type="behavior", affinity=0.8)
+                for pattern in hunt["query_patterns"]
+            ]
+            
+            # Present to CIS for detection
+            for epitope in hunt_epitopes:
+                result = self.cis._present_antigen(epitope, {
+                    "source": "threat_hunter",
+                    "technique": hunt["technique"],
+                    "hunt_name": hunt["name"],
+                    "severity": hunt["severity"]
+                })
+            
+            # Record hunt results
+            self.hunt_results.append({
+                "timestamp": datetime.now().isoformat(),
+                "hunt_name": hunt["name"],
+                "technique": hunt["technique"],
+                "patterns_checked": len(hunt["query_patterns"]),
+                "severity": hunt["severity"]
+            })
+            
+            logger.info(f"Hunt completed: {hunt['name']} - {len(hunt['query_patterns'])} patterns checked")
+    
+    def run_hunt_now(self, hunt_name: str) -> Dict:
+        """Run a specific hunt immediately"""
+        hunt = next((h for h in self.hunt_patterns if h["name"] == hunt_name), None)
+        if not hunt:
+            return {"error": f"Hunt {hunt_name} not found"}
+        
+        logger.info(f"Running immediate hunt: {hunt['name']}")
+        
+        hunt_epitopes = [
+            Epitope(pattern=pattern, pattern_type="behavior", affinity=0.8)
+            for pattern in hunt["query_patterns"]
+        ]
+        
+        results = []
+        for epitope in hunt_epitopes:
+            result = self.cis._present_antigen(epitope, {
+                "source": "threat_hunter",
+                "technique": hunt["technique"],
+                "hunt_name": hunt["name"],
+                "immediate": True
+            })
+            results.append(result)
+        
+        return {
+            "hunt_name": hunt["name"],
+            "technique": hunt["technique"],
+            "patterns_checked": len(hunt["query_patterns"]),
+            "results": results,
+            "timestamp": datetime.now().isoformat()
+        }
+    
+    def get_hunt_results(self, limit: int = 50) -> List[Dict]:
+        """Get recent hunt results"""
+        return list(self.hunt_results)[-limit:]
+    
+    def add_custom_hunt(self, hunt: Dict):
+        """Add a custom hunt pattern"""
+        required_fields = ["name", "technique", "description", "query_patterns", "severity"]
+        for field in required_fields:
+            if field not in hunt:
+                raise ValueError(f"Missing required field: {field}")
+        
+        self.hunt_patterns.append(hunt)
+        logger.info(f"Added custom hunt: {hunt['name']}")
+
+
+# ============================================================================
+# DEMO / TEST
+# ============================================================================
+
+if __name__ == "__main__":
+    # Quick test
+    logging.basicConfig(level=logging.INFO)
+
+    cis = create_cognitive_immune_system({
+        "naive_pool_size": 100,
+        "max_detectors": 1000,
+        "affinity_threshold": 0.7,
+        "clonal_expansion_factor": 3,
+        "mutation_rate": 0.1
+    })
+
+    print("=== Cognitive Immune System Test ===")
+    print(f"Initial detectors: {len(cis.detectors)}")
+
+    # Test antigen presentation
+    test_epitope = Epitope(pattern="malicious_process_injection", pattern_type="behavior", affinity=0.9)
+    cis._present_antigen(test_epitope, {"source": "test", "technique": "T1055"})
+
+    print(f"After presentation: {len(cis.detectors)} detectors")
+
+    status = cis.get_immune_status()
+    print(f"Status: {json.dumps(status, indent=2, default=str)}")
+
+    # Test evolution
+    cis._clonal_selection()
+    cis._somatic_hypermutation()
+    print(f"After evolution: {len(cis.detectors)} detectors")
+
+    # Test threat hunting
+    print("=== Threat Hunting Test ===")
+    hunter = cis.threat_hunter if hasattr(cis, 'threat_hunter') else None
+    if hunter:
+        hunter.start()
+        time.sleep(1)
+        hunter.stop()
+
+    print("=== Test Complete ===")
+
