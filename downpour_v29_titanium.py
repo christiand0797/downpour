@@ -265,11 +265,14 @@ except ImportError:
     BeaconDetector: Any = None
 
 try:
-    from lolbins_detector import LOLBinFinding
+    import lolbins_detector
+    from lolbins_detector import LOLBinFinding, detect_lolbins, detect_lolbins_batch
     LOLBINS_DETECTOR_AVAILABLE: Any = True
-except ImportError:
+except Exception:
     LOLBINS_DETECTOR_AVAILABLE: Any = False
     LOLBinFinding: Any = None
+    detect_lolbins: Any = None
+    detect_lolbins_batch: Any = None
 
 try:
     from gaming_protection_monitor import GamingProtectionMonitor
@@ -24951,16 +24954,6 @@ class downpour(tk.Tk):
             if self.forensic_report:
                 logger.info("[OK] Forensic Report active")
 
-            # Threat Intelligence Updater
-            self.threat_intel_updater = ThreatIntelligenceUpdater() if THREAT_INTEL_UPDATER_AVAILABLE else None
-            if self.threat_intel_updater:
-                logger.info("[OK] Threat Intelligence Updater active")
-
-            # Threat Response Center
-            self.threat_response_center = ThreatResponseCenter(parent=self) if THREAT_RESPONSE_CENTER_AVAILABLE else None
-            if self.threat_response_center:
-                logger.info("[OK] Threat Response Center active")
-
             # Cognitive Immune System (CIS) - Meta-defense layer
             if COGNITIVE_IMMUNE_SYSTEM_AVAILABLE:
                 try:
@@ -25846,6 +25839,9 @@ class downpour(tk.Tk):
                   background = [('selected', Colors.GLASS_LIGHT), ('active', Colors.GLASS_BORDER)],
                   foreground = [('selected', Colors.ACCENT_PRIMARY), ('active', Colors.TEXT_BRIGHT)])
         style.configure('Dark.TPanedwindow', background=Colors.BG_VOID)
+        # v29.108: Hidden-tab-strip notebook - native tab row replaced by dual-row buttons
+        style.layout('Hidden.TNotebook', [('Notebook.client', {'sticky': 'nswe'})])
+        style.configure('Hidden.TNotebook', background=Colors.BG_VOID, borderwidth=0)
         logger.info("_build_ui: styles configured")
 
         # -- Scrollbars  -  wide, high-contrast, impossible to miss --------------
@@ -25887,34 +25883,27 @@ class downpour(tk.Tk):
                                    ('!active', _sb_trough)])
 
         logger.info("_build_ui: creating notebook widget...")
-        # FIX-v28p18: Tab navigation frame with scroll arrows
+        # v29.108: Dual-row tab bar replaces single-row scroll-arrow navigation.
+        # All 31 tabs are visible without scrolling - split across two rows.
         _nb_frame: Any = tk.Frame(self, bg=Colors.BG_VOID)
         _nb_frame.grid(row=2, column=0, sticky='nsew', padx=0, pady=0)
-        _nb_frame.grid_rowconfigure(0, weight=1)
-        _nb_frame.grid_columnconfigure(1, weight=1)
-        # Left/Right tab navigation buttons
-        _btn_style: Any = dict(font=('Consolas', 12, 'bold'), fg=Colors.GAUGE_TEAL,
-                          bg = Colors.GLASS_DARK, activebackground=Colors.GLASS_LIGHT,
-                          relief = 'flat', width=3, cursor='hand2')
-        self._tab_left_btn = tk.Button(_nb_frame, text='\u25C0', **_btn_style,
-            command = lambda: self._scroll_tabs(-1))
-        self._tab_left_btn.grid(row=0, column=0, sticky='ns', padx=(2,0))
-        self._tooltip(self._tab_left_btn, 'Scroll the tab strip left')
-        self.nb = ttk.Notebook(_nb_frame, style='Dark.TNotebook')
-        self.nb.grid(row=0, column=1, sticky='nsew', padx=0, pady=0)
-        self._tab_right_btn = tk.Button(_nb_frame, text='\u25B6', **_btn_style,
-            command = lambda: self._scroll_tabs(1))
-        self._tab_right_btn.grid(row=0, column=2, sticky='ns', padx=(0,2))
-        self._tooltip(self._tab_right_btn, 'Scroll the tab strip right')
-        # FIX-v29.34b: the tab-position indicator was referenced by
-        # _update_tab_indicator() but never instantiated — the label was
-        # missing, so every update silently threw AttributeError and the
-        # "current/total" readout never appeared. Create it here, before the
-        # <<NotebookTabChanged>> binding below, so the first tab change shows
-        # the indicator.
+        _nb_frame.grid_rowconfigure(2, weight=1)   # notebook content row expands
+        _nb_frame.grid_columnconfigure(0, weight=1)
+
+        # Tab button row frames (buttons populated after tab creation loop)
+        self._tab_row1 = tk.Frame(_nb_frame, bg=Colors.GLASS_DARK)
+        self._tab_row1.grid(row=0, column=0, sticky='ew', padx=0, pady=(1, 0))
+        self._tab_row2 = tk.Frame(_nb_frame, bg=Colors.GLASS_DARK)
+        self._tab_row2.grid(row=1, column=0, sticky='ew', padx=0, pady=(0, 1))
+
+        # Notebook with hidden native tab strip - content area only
+        self.nb = ttk.Notebook(_nb_frame, style='Hidden.TNotebook')
+        self.nb.grid(row=2, column=0, sticky='nsew', padx=0, pady=0)
+
+        # Tab position indicator
         self._tab_indicator = tk.Label(_nb_frame, text='', font=('Consolas', 8),
-                                       fg = Colors.TEXT_DIM, bg=Colors.BG_VOID)
-        self._tab_indicator.grid(row=1, column=0, columnspan=3, sticky='ew', padx=4, pady=(0,2))
+                                       fg=Colors.TEXT_DIM, bg=Colors.BG_VOID)
+        self._tab_indicator.grid(row=3, column=0, sticky='ew', padx=4, pady=(0, 2))
         self._update_tab_indicator()
         # Fix blank tabs: force canvas width update whenever a tab is selected
         self.nb.bind('<<NotebookTabChanged>>', self._on_nb_tab_changed)
@@ -26031,6 +26020,34 @@ class downpour(tk.Tk):
         except Exception:
             pass
         logger.info("_build_ui: repaint done")
+
+        # -- v29.108: Populate dual-row tab button bar -------------------------
+        self._tab_buttons = []
+        _split = (len(_TAB_DEFS) + 1) // 2   # ~16 row 1, ~15 row 2
+        for _bi, (attr, label, _builder) in enumerate(_TAB_DEFS):
+            _row_frame = self._tab_row1 if _bi < _split else self._tab_row2
+            _tbtn = tk.Button(
+                _row_frame, text=label,
+                font=('Consolas', 8, 'bold'),
+                fg=Colors.TEXT_LIGHT, bg=Colors.GLASS_CARD,
+                activeforeground=Colors.ACCENT_PRIMARY,
+                activebackground=Colors.GLASS_LIGHT,
+                relief='flat', bd=1, padx=3, pady=2, cursor='hand2',
+                command=lambda idx=_bi: self._select_tab_by_index(idx),
+            )
+            _tbtn.pack(side='left', fill='x', expand=True, padx=1, pady=1)
+            # Hover effects
+            def _on_enter(e, b=_tbtn):
+                if b.cget('bg') != Colors.GLASS_LIGHT:
+                    b.configure(bg=Colors.GLASS_BORDER)
+            def _on_leave(e, b=_tbtn):
+                if b.cget('bg') != Colors.GLASS_LIGHT:
+                    b.configure(bg=Colors.GLASS_CARD)
+            _tbtn.bind('<Enter>', _on_enter)
+            _tbtn.bind('<Leave>', _on_leave)
+            self._tab_buttons.append(_tbtn)
+        self._highlight_active_tab_button()
+        logger.info(f"_build_ui: dual-row tab bar populated ({len(self._tab_buttons)} buttons)")
         search_bar: Any = tk.Frame(self, bg=Colors.GLASS_PANEL, height=36)
         search_bar.grid(row=4, column=0, sticky='ew', padx=0, pady=0)
         search_bar.grid_columnconfigure(2, weight=1)
@@ -26246,6 +26263,7 @@ class downpour(tk.Tk):
             _safe_log('TabSwitch', 'canvas resize failed', _e)
         # FIX-v28p18: Update tab scroll indicator
         try:
+            self._highlight_active_tab_button()
             self._update_tab_indicator()
         except Exception as _e:
             _safe_log('TabSwitch', '_update_tab_indicator failed', _e)
@@ -26273,6 +26291,29 @@ class downpour(tk.Tk):
             self._tab_indicator.config(text=f'{name}  ({current}/{total})')
         except Exception:
             pass
+
+
+    def _select_tab_by_index(self, idx):
+        """v29.108: Select a notebook tab by its index (used by dual-row tab buttons)."""
+        try:
+            tabs: Any = self.nb.tabs()
+            if 0 <= idx < len(tabs):
+                self.nb.select(tabs[idx])
+        except Exception:
+            pass
+
+    def _highlight_active_tab_button(self):
+        """v29.108: Update dual-row tab button colours to reflect the currently selected tab."""
+        try:
+            current: Any = self.nb.index(self.nb.select())
+            for _hi, _hbtn in enumerate(getattr(self, '_tab_buttons', [])):
+                if _hi == current:
+                    _hbtn.configure(bg=Colors.GLASS_LIGHT, fg=Colors.ACCENT_PRIMARY)
+                else:
+                    _hbtn.configure(bg=Colors.GLASS_CARD, fg=Colors.TEXT_LIGHT)
+        except Exception:
+            pass
+
 
     def _activate_turbo_mode(self):
         """v29.90: Toggle Turbo Mode — maximizes Downpour's resource usage for fastest scanning."""
@@ -32819,7 +32860,7 @@ Verification Status:
             # Update each gauge canvas
             _rate_keys: Any = ('disk_read_rate', 'disk_write_rate',
                                'net_send_rate', 'net_recv_rate')
-            if not hasattr(self, '_perf_last_vals'):
+            if '_perf_last_vals' not in self.__dict__:
                 self._perf_last_vals = {}
             for key, canvas in self._perf_canvases.items():
                 if not canvas.winfo_exists():

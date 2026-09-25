@@ -51,8 +51,8 @@ class Colors:
     WARN = '#ffaa00'
 
 
-class ThreatResponseCenter(tk.Toplevel):
-    """Comprehensive threat investigation and remediation center"""
+class ThreatResponseCenter(tk.Frame):
+    """Comprehensive threat investigation and remediation center - embedded in main GUI"""
     
     # Known safe processes that may trigger false positives
     KNOWN_SAFE_PROCESSES = {
@@ -117,14 +117,11 @@ class ThreatResponseCenter(tk.Toplevel):
         self.threats = threats or []
         self.db = db
         
-        self.title("◈ THREAT RESPONSE CENTER ◈")
-        self.geometry("1100x750")
         self.configure(bg=Colors.BG_DARK)
-        self.transient(parent)
         
         self._create_ui()
         self._scan_current_threats()
-        
+    
     def _create_ui(self):
         """Create the main UI"""
         # Header
@@ -163,15 +160,12 @@ class ThreatResponseCenter(tk.Toplevel):
         notebook.add(self.actions_frame, text=" ⚡ Quick Actions ")
         self._create_actions_tab()
         
-        # Bottom status
+# Bottom status
         status = tk.Frame(self, bg=Colors.BG_DARK, height=30)
         status.pack(fill='x', side='bottom')
         self.status_label = tk.Label(status, text="Ready - Select a threat to investigate",
-                                     font=('Consolas', 9), fg=Colors.TEXT_DIM, bg=Colors.BG_DARK)
+                                      font=('Consolas', 9), fg=Colors.TEXT_DIM, bg=Colors.BG_DARK)
         self.status_label.pack(side='left', padx=10)
-        
-        tk.Button(status, text="Close", command=self.destroy, bg=Colors.BG_CARD,
-                 fg=Colors.TEXT, font=('Consolas', 9)).pack(side='right', padx=10, pady=3)
         
     def _create_ports_tab(self):
         """Create suspicious ports investigation tab"""
@@ -992,6 +986,8 @@ Connections: {item[5]}
 # Entry point for standalone testing
 if __name__ == "__main__":
     root = tk.Tk()
-    root.withdraw()
-    ThreatResponseCenter(root)
+    root.geometry("1100x750")
+    root.configure(bg=Colors.BG_DARK)
+    app = ThreatResponseCenter(root)
+    app.pack(fill='both', expand=True)
     root.mainloop()
