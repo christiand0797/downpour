@@ -541,7 +541,7 @@ class StatusPanel:
                     try:
                         import sklearn  # noqa: F401
                         ai_status = 'active'
-                    except ImportError:
+                    except (ImportError, SystemError):
                         ai_status = 'inactive'
                     
                     # Schedule updates on main thread (FIX-v29.42: thread safety)

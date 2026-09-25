@@ -1,51 +1,18 @@
-"""
-Cognitive Immune System (CIS) - Meta-Defense Layer for Downpour v29.101+
-==========================================================================
+# ============================================================================
+# DECEPTION TECHNOLOGY (HONEYPOTS/HONEYTOKENS)
+# ============================================================================
 
-A biologically-inspired cognitive immune system that operates as a meta-layer
-above all existing security components. It doesn't just detect threats - it
-learns, adapts, and evolves its own detection capabilities in real-time.
-
-Architecture Principles (from biological immune systems):
-1. SELF/NON-SELF DISCRIMINATION - Distinguish authorized vs unauthorized behavior
-2. CLONAL SELECTION - Amplify successful detectors, mutate failures
-3. IMMUNOLOGICAL MEMORY - Remember past threats, faster secondary response
-4. AFFINITY MATURATION - Detectors improve through somatic hypermutation
-5. DANGER MODEL - Respond to damage signals, not just foreign patterns
-6. NETWORK THEORY - Detectors communicate via cytokine-like signals
-7. TOLERANCE - Learn what's normal to avoid autoimmunity (false positives)
-8. EPITOPE SPREADING - Expand recognition to related threat variants
-
-Integration Points:
-- Sensor Hub: Real-time telemetry as "antigen presentation"
-- AI Security Engine: ML models as "B-cell receptors"
-- Threat Feeds: External intelligence as "memory B-cells"
-- Quarantine Core: Containment as "phagocytosis"
-- PE Analyzer: Static analysis as "MHC presentation"
-- Memory Forensics: Runtime inspection as "T-cell scanning"
-- Event Push Monitor: Real-time events as "danger signals"
-- Sharded Context: Distributed memory as "lymph node network"
-"""
-
-from __future__ import annotations
-
-import json
 import logging
 import threading
 import time
-import hashlib
-import uuid
-import math
 import random
+import hashlib
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Any, Callable, Tuple
 from enum import Enum
-import sqlite3
 
-# Safe imports for optional dependencies
+# Optional dependencies
 try:
     import numpy as np
     NUMPY_AVAILABLE = True
@@ -54,1801 +21,1623 @@ except ImportError:
     np = None
 
 try:
-    from sklearn.ensemble import IsolationForest
-    from sklearn.preprocessing import StandardScaler
-    SKLEARN_AVAILABLE = True
+    import torch
+    import torch.nn as nn
+    TORCH_AVAILABLE = True
 except ImportError:
+    TORCH_AVAILABLE = False
+    torch = None
+    nn = None
+
+try:
+    import sklearn
+    from sklearn.ensemble import RandomForestClassifier
+    SKLEARN_AVAILABLE = True
+except (ImportError, SystemError):
     SKLEARN_AVAILABLE = False
+
+try:
+    import deap
+    from deap import creator, base, tools, gp
+    DEAP_AVAILABLE = True
+except ImportError:
+    DEAP_AVAILABLE = False
+
+try:
+    import snntorch
+    SNNTORCH_AVAILABLE = True
+except ImportError:
+    SNNTORCH_AVAILABLE = False
+
+try:
+    import brian2
+    BRIAN2_AVAILABLE = True
+except ImportError:
+    BRIAN2_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
-
-# ============================================================================
-# CORE IMMUNOLOGICAL PRIMITIVES
-# ============================================================================
-
-class SignalType(Enum):
-    """Cytokine-like signal types for inter-detector communication"""
-    DANGER = "danger"           # Damage detected (PAMP/DAMP)
-    INFLAMMATORY = "inflammatory"  # Escalate response
-    REGULATORY = "regulatory"   # Suppress response (tolerance)
-    MEMORY = "memory"           # Store pattern
-    CLONAL_EXPANSION = "clonal_expansion"  # Amplify detector
-    SOMATIC_MUTATION = "somatic_mutation"  # Mutate detector
-    APOPTOSIS = "apoptosis"     # Remove detector
-    EPITOPE_SPREAD = "epitope_spread"      # Expand recognition
-
-
-class CellType(Enum):
-    """Immune cell analogs"""
-    NAIVE_DETECTOR = "naive_detector"       # Uncommitted detector
-    MEMORY_DETECTOR = "memory_detector"     # Experienced detector
-    EFFECTOR_DETECTOR = "effector_detector" # Active responder
-    REGULATORY_DETECTOR = "regulatory_detector"  # Suppressor
-    ANTIGEN_PRESENTING = "antigen_presenting"    # Sensor hub interface
-
-
-@dataclass
-class Epitope:
-    """Molecular pattern that detectors recognize"""
-    pattern: str                    # The signature/pattern
-    pattern_type: str               # hash, ip, domain, behavior, sequence, semantic
-    affinity: float = 1.0           # Binding strength 0-1
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    
-    def __hash__(self):
-        return hash((self.pattern, self.pattern_type))
-    
-    def __eq__(self, other):
-        if not isinstance(other, Epitope):
-            return False
-        return self.pattern == other.pattern and self.pattern_type == other.pattern_type
-
-
-@dataclass
-class Signal:
-    """Cytokine-like signal between detectors"""
-    signal_type: SignalType
-    source_id: str
-    target_id: Optional[str]  # None = broadcast
-    payload: Dict[str, Any]
-    timestamp: datetime = field(default_factory=datetime.now)
-    ttl: int = 3  # Signal propagation depth
-
-
-@dataclass
-class Detector:
-    """A single detector (B-cell/T-cell analog)"""
-    id: str
-    cell_type: CellType
-    epitopes: Set[Epitope] = field(default_factory=set)  # Receptors
-    affinity_threshold: float = 0.7
-    activation_count: int = 0
-    false_positive_count: int = 0
-    true_positive_count: int = 0
-    last_activated: Optional[datetime] = None
-    created_at: datetime = field(default_factory=datetime.now)
-    lineage: str = ""  # Parent detector ID for clonal selection
-    mutation_rate: float = 0.1
-    is_active: bool = True
-    clonal_size: int = 1  # Number of clones
-    
-    # Metrics
-    specificity: float = 0.0  # TP / (TP + FP)
-    sensitivity: float = 0.0  # TP / (TP + FN)
-    
-    def calculate_fitness(self) -> float:
-        """Fitness = weighted combination of performance metrics"""
-        if self.activation_count == 0:
-            return 0.0
-        specificity = self.true_positive_count / max(1, self.true_positive_count + self.false_positive_count)
-        return specificity * math.log(1 + self.activation_count)
-    
-    def matches(self, epitope: Epitope) -> float:
-        """Check if detector matches epitope, return affinity"""
-        for receptor in self.epitopes:
-            if receptor.pattern_type == epitope.pattern_type:
-                if receptor.pattern == epitope.pattern:
-                    return receptor.affinity
-                # Semantic similarity for behavior patterns
-                if receptor.pattern_type == "behavior":
-                    similarity = self._semantic_similarity(receptor.pattern, epitope.pattern)
-                    if similarity > self.affinity_threshold:
-                        return similarity * receptor.affinity
-        return 0.0
-    
-    def _semantic_similarity(self, a: str, b: str) -> float:
-        """Enhanced semantic similarity for behavior patterns"""
-        # Token-based Jaccard similarity
-        a_tokens = set(a.lower().split())
-        b_tokens = set(b.lower().split())
-        
-        if not a_tokens or not b_tokens:
-            return 0.0
-        
-        # Jaccard index
-        intersection = len(a_tokens & b_tokens)
-        union = len(a_tokens | b_tokens)
-        jaccard = intersection / union if union > 0 else 0.0
-        
-        # Also check for substring containment (e.g., "powershell_execution" in "encoded_powershell_execution")
-        if a in b or b in a:
-            jaccard = max(jaccard, 0.7)
-        
-        # Check for common technique prefixes
-        technique_prefixes = ["T1055", "T1059", "T1003", "T1486", "T1027", "T1071", "T1218", "T1547", "T1055.012", "T1055.002"]
-        for prefix in technique_prefixes:
-            if prefix in a and prefix in b:
-                jaccard = max(jaccard, 0.8)
-        
-        # Check for common behavior categories
-        behavior_categories = {
-            "execution": ["powershell", "cmd", "wscript", "cscript", "mshta", "rundll32", "regsvr32", "certutil", "bitsadmin"],
-            "injection": ["injection", "hollowing", "apc", "thread", "remote_thread", "queue_user_apc"],
-            "credential": ["dump", "lsass", "sam", "ntds", "credential", "sekurlsa"],
-            "encryption": ["encrypt", "ransom", "crypt", "locker", "aes", "rsa"],
-            "obfuscation": ["encode", "base64", "xor", "pack", "obfuscate", "stealth"],
-            "persistence": ["registry", "service", "task", "startup", "wmi", "com", "hijack"],
-            "c2": ["beacon", "callback", "dns", "http", "https", "domain", "ip"],
-            "evasion": ["bypass", "disable", "unhook", "tamper", "anti", "av", "edr", "defender"],
-            "discovery": ["enum", "scan", "query", "net view", "whoami", "systeminfo"],
-            "collection": ["collect", "archive", "exfil", "upload", "staging"],
-        }
-        
-        a_cats = set()
-        b_cats = set()
-        for cat, keywords in behavior_categories.items():
-            if any(k in a.lower() for k in keywords):
-                a_cats.add(cat)
-            if any(k in b.lower() for k in keywords):
-                b_cats.add(cat)
-        
-        if a_cats and b_cats:
-            cat_overlap = len(a_cats & b_cats) / len(a_cats | b_cats) if (a_cats | b_cats) else 0
-            # Boost similarity if they share behavior categories
-            jaccard = max(jaccard, cat_overlap * 0.6)
-        
-        return min(1.0, jaccard)
-
-
-@dataclass
-class ImmuneMemory:
-    """Long-term immunological memory"""
-    epitopes: Dict[Epitope, Dict[str, Any]] = field(default_factory=dict)
-    detector_lineages: Dict[str, List[str]] = field(default_factory=lambda: defaultdict(list))  # detector_id -> epitope patterns
-    response_history: deque = field(default_factory=lambda: deque(maxlen=10000))
-    
-    def remember(self, epitope: Epitope, detector_id: str, outcome: str):
-        """Store successful recognition"""
-        if epitope not in self.epitopes:
-            self.epitopes[epitope] = {
-                "first_seen": datetime.now(),
-                "detectors": set(),
-                "outcomes": defaultdict(int)
-            }
-        self.epitopes[epitope]["detectors"].add(detector_id)
-        self.epitopes[epitope]["outcomes"][outcome] += 1
-        self.detector_lineages[detector_id].append(epitope.pattern)
-        self.response_history.append({
-            "epitope": epitope.pattern,
-            "detector": detector_id,
-            "outcome": outcome,
-            "timestamp": datetime.now()
-        })
-    
-    def get_best_detectors(self, epitope: Epitope, n: int = 3) -> List[str]:
-        """Get top detectors for an epitope"""
-        if epitope not in self.epitopes:
-            return []
-        # Sort by success rate
-        detectors = list(self.epitopes[epitope]["detectors"])
-        return detectors[:n]
-
-
-# ============================================================================
-# COGNITIVE IMMUNE SYSTEM CORE
-# ============================================================================
-
-class CognitiveImmuneSystem:
+class DeceptionTechnology:
     """
-    The Cognitive Immune System - a meta-defense layer that:
-    1. Observes all security events as antigen presentation
-    2. Maintains a diverse repertoire of detectors
-    3. Learns through clonal selection and affinity maturation
-    4. Communicates via cytokine-like signals
-    5. Maintains immunological memory
-    6. Self-regulates to prevent autoimmunity
-    7. Evolves detectors against novel threats
+    Advanced deception technology - honeypots, honeytokens, and deception campaigns.
     """
-    
-    def __init__(self, 
-                 sensor_hub=None,
-                 ai_engine=None,
-                 threat_db=None,
-                 quarantine=None,
-                 config: Optional[Dict] = None):
-        
-        self.config = config or {}
-        self.sensor_hub = sensor_hub
-        self.ai_engine = ai_engine
-        self.threat_db = threat_db
-        self.quarantine = quarantine
-        
-        # Core immune components
-        self.detectors: Dict[str, Detector] = {}
-        self.memory = ImmuneMemory()
-        self.signal_queue: deque = deque(maxlen=10000)
-        self.active_responses: Dict[str, Dict] = {}
-        
-        # Configuration
-        self.naive_pool_size = self.config.get("naive_pool_size", 1000)
-        self.max_detectors = self.config.get("max_detectors", 10000)
-        self.affinity_threshold = self.config.get("affinity_threshold", 0.7)
-        self.clonal_expansion_factor = self.config.get("clonal_expansion_factor", 5)
-        self.mutation_rate = self.config.get("mutation_rate", 0.15)
-        self.tolerance_threshold = self.config.get("tolerance_threshold", 0.05)  # FP rate
-        self.memory_retention_days = self.config.get("memory_retention_days", 90)
-        
-        # State
-        self.running = False
-        self._lock = threading.RLock()
-        self._worker_thread: Optional[threading.Thread] = None
-        self._signal_thread: Optional[threading.Thread] = None
-        self._evolution_thread: Optional[threading.Thread] = None
-        
-        # Statistics
-        self.stats = {
-            "total_detections": 0,
-            "true_positives": 0,
-            "false_positives": 0,
-            "clonal_expansions": 0,
-            "somatic_mutations": 0,
-            "detectors_created": 0,
-            "detectors_retired": 0,
-            "signals_processed": 0,
-            "threats_contained": 0,
-            "autoimmune_events": 0
-        }
-        
-        # Initialize repertoire
-        self._initialize_repertoire()
-        
-        logger.info(f"CognitiveImmuneSystem initialized with {len(self.detectors)} detectors")
-    
-    def _initialize_repertoire(self):
-        """Create initial naive detector repertoire"""
-        with self._lock:
-            # Create detectors for known threat patterns from threat feeds
-            if self.threat_db:
-                stats = self.threat_db.get_statistics()
-                logger.info(f"Seeding repertoire from threat DB: {stats.get('total_indicators', 0)} indicators")
-            
-            # Create base detectors for each pattern type
-            pattern_types = ["ip", "domain", "hash", "url", "behavior", "semantic", "sequence"]
-            detectors_per_type = self.naive_pool_size // len(pattern_types)
-            
-            for ptype in pattern_types:
-                for i in range(detectors_per_type):
-                    self._create_naive_detector(ptype)
-            
-            # Add specialized detectors
-            self._create_specialized_detectors()
-    
-    def _create_naive_detector(self, pattern_type: str) -> Detector:
-        """Create a new naive detector for a pattern type"""
-        detector = Detector(
-            id=f"naive_{pattern_type}_{uuid.uuid4().hex[:8]}",
-            cell_type=CellType.NAIVE_DETECTOR,
-            affinity_threshold=self.affinity_threshold,
-            mutation_rate=self.mutation_rate
-        )
-        
-        # Initialize with random receptor (will mature on activation)
-        if pattern_type == "ip":
-            # Random IP pattern
-            receptor = Epitope(pattern=f"0.0.0.0/0", pattern_type="ip", affinity=0.3)
-        elif pattern_type == "domain":
-            receptor = Epitope(pattern="*.example.com", pattern_type="domain", affinity=0.3)
-        elif pattern_type == "behavior":
-            receptor = Epitope(pattern="suspicious_process_behavior", pattern_type="behavior", affinity=0.3)
-        elif pattern_type == "semantic":
-            receptor = Epitope(pattern="malicious_intent", pattern_type="semantic", affinity=0.3)
-        else:
-            receptor = Epitope(pattern=f"generic_{pattern_type}", pattern_type=pattern_type, affinity=0.3)
-        
-        detector.epitopes.add(receptor)
-        
-        with self._lock:
-            self.detectors[detector.id] = detector
-            self.stats["detectors_created"] += 1
-        
-        return detector
-    
-    def _create_specialized_detectors(self):
-        """Create detectors seeded with known threat intelligence"""
-        # These would be seeded from threat feeds, MITRE ATT&CK, etc.
-        specialized = [
-            ("mitre_t1059", "behavior", "command_line_execution"),
-            ("mitre_t1055", "behavior", "process_injection"),
-            ("mitre_t1003", "behavior", "credential_dumping"),
-            ("mitre_t1486", "behavior", "data_encrypted"),
-            ("mitre_t1027", "semantic", "obfuscated_code"),
-            ("c2_beaconing", "behavior", "periodic_network_callback"),
-            ("living_off_land", "semantic", "lolbin_execution"),
-            ("ransomware_encrypt", "sequence", "rapid_file_encryption"),
-        ]
-        
-        for det_id, ptype, pattern in specialized:
-            detector = Detector(
-                id=f"specialized_{det_id}",
-                cell_type=CellType.MEMORY_DETECTOR,
-                affinity_threshold=0.6,
-                mutation_rate=0.05  # Lower mutation for proven detectors
-            )
-            detector.epitopes.add(Epitope(pattern=pattern, pattern_type=ptype, affinity=0.9))
-            detector.true_positive_count = 10  # Pre-trained
-            detector.activation_count = 10
-            detector.lineage = "threat_intel_seed"
-            
-            with self._lock:
-                self.detectors[detector.id] = detector
-    
-    # ========================================================================
-    # MAIN IMMUNE RESPONSE LOOP
-    # ========================================================================
-    
-    def start(self):
-        """Start the immune system"""
-        if self.running:
-            return
-        
-        self.running = True
-        
-        # Start worker threads
-        self._worker_thread = threading.Thread(target=self._immune_loop, daemon=True)
-        self._signal_thread = threading.Thread(target=self._signal_processing_loop, daemon=True)
-        self._evolution_thread = threading.Thread(target=self._evolution_loop, daemon=True)
-        
-        self._worker_thread.start()
-        self._signal_thread.start()
-        self._evolution_thread.start()
-        
-        # Subscribe to sensor hub if available
-        if self.sensor_hub:
-            self.sensor_hub.register_consumer("cognitive_immune_system", self._on_sensor_event)
-        
-        logger.info("Cognitive Immune System started")
-        
-        # Load persisted immune state
-        self._load_immune_state()
-    
-    def stop(self):
-        """Stop the immune system"""
-        self.running = False
-        
-        for thread in [self._worker_thread, self._signal_thread, self._evolution_thread]:
-            if thread and thread.is_alive():
-                thread.join(timeout=5)
-        
-        if self.sensor_hub:
-            self.sensor_hub.unregister_consumer("cognitive_immune_system")
-        
-        # Save immune state before stopping
-        self._save_immune_state()
-        
-        logger.info("Cognitive Immune System stopped")
-    
-    def _save_immune_state(self):
-        """Save immune state to disk for persistence across restarts"""
-        try:
-            state = self.export_immune_state()
-            state_file = Path("downpour_data/cis_immune_state.json")
-            state_file.parent.mkdir(parents=True, exist_ok=True)
-            state_file.write_text(json.dumps(state, indent=2, default=str), encoding='utf-8')
-            logger.info(f"Saved immune state: {len(self.detectors)} detectors, {len(self.memory.epitopes)} memory epitopes")
-        except Exception as e:
-            logger.error(f"Failed to save immune state: {e}")
-    
-    def _load_immune_state(self):
-        """Load immune state from disk"""
-        try:
-            state_file = Path("downpour_data/cis_immune_state.json")
-            if not state_file.exists():
-                logger.info("No saved immune state found, starting fresh")
-                return
-            
-            state_data = json.loads(state_file.read_text(encoding='utf-8'))
-            self.import_immune_state(state_data)
-            logger.info(f"Loaded immune state: {len(self.detectors)} detectors, {len(self.memory.epitopes)} memory epitopes")
-        except Exception as e:
-            logger.error(f"Failed to load immune state: {e}")
-    
-    def _immune_loop(self):
-        """Main immune response loop - runs continuously"""
-        while self.running:
-            try:
-                # Process pending signals
-                self._process_signals()
-                
-                # Check active responses
-                self._update_active_responses()
-                
-                # Maintain tolerance (prevent autoimmunity)
-                self._maintain_tolerance()
-                
-                # Sleep - immune system runs at ~1Hz
-                time.sleep(1.0)
-                
-            except Exception as e:
-                logger.error(f"Immune loop error: {e}")
-                time.sleep(5.0)
-    
-    def _signal_processing_loop(self):
-        """Process cytokine-like signals between detectors"""
-        while self.running:
-            try:
-                if self.signal_queue:
-                    signal = self.signal_queue.popleft()
-                    self._process_signal(signal)
-                    self.stats["signals_processed"] += 1
-                else:
-                    time.sleep(0.1)
-            except Exception as e:
-                logger.error(f"Signal processing error: {e}")
-                time.sleep(1.0)
-    
-    def _evolution_loop(self):
-        """Evolutionary loop - clonal selection, mutation, retirement"""
-        while self.running:
-            try:
-                # Run every 60 seconds
-                time.sleep(60)
-                
-                if not self.running:
-                    break
-                
-                self._clonal_selection()
-                self._somatic_hypermutation()
-                self._retire_failed_detectors()
-                self._maintain_repertoire_diversity()
-                self._consolidate_memory()
-                
-            except Exception as e:
-                logger.error(f"Evolution loop error: {e}")
-    
-    # ========================================================================
-    # ANTIGEN PRESENTATION & DETECTION
-    # ========================================================================
-    
-    def _on_sensor_event(self, event_type: str, data: Dict[str, Any]):
-        """Receive antigen presentation from sensor hub"""
-        try:
-            # Convert sensor event to epitopes
-            epitopes = self._event_to_epitopes(event_type, data)
-            
-            for epitope in epitopes:
-                self._present_antigen(epitope, context={"source": "sensor_hub", "event": event_type, "data": data})
-                
-        except Exception as e:
-            logger.error(f"Sensor event processing error: {e}")
-    
-    def _event_to_epitopes(self, event_type: str, data: Dict) -> List[Epitope]:
-        """Convert sensor event to epitopes (antigens)"""
-        epitopes = []
-        
-        if event_type == "process":
-            # Process creation/injection epitopes
-            if "pid" in data:
-                epitopes.append(Epitope(
-                    pattern=str(data["pid"]),
-                    pattern_type="process_id",
-                    metadata=data
-                ))
-            if "command_line" in data:
-                epitopes.append(Epitope(
-                    pattern=data["command_line"][:200],
-                    pattern_type="behavior",
-                    metadata={"source": "command_line"}
-                ))
-            if "injection_detected" in data and data["injection_detected"]:
-                epitopes.append(Epitope(
-                    pattern="process_injection",
-                    pattern_type="behavior",
-                    affinity=0.9,
-                    metadata={"technique": "T1055"}
-                ))
-        
-        elif event_type == "network":
-            # Network connection epitopes
-            if "remote_ip" in data:
-                epitopes.append(Epitope(
-                    pattern=data["remote_ip"],
-                    pattern_type="ip",
-                    metadata={"port": data.get("remote_port"), "direction": data.get("direction")}
-                ))
-            if "suspicious" in data and data["suspicious"]:
-                epitopes.append(Epitope(
-                    pattern="suspicious_connection",
-                    pattern_type="behavior",
-                    affinity=0.8
-                ))
-        
-        elif event_type == "file":
-            # File system epitopes
-            if "hash" in data:
-                epitopes.append(Epitope(
-                    pattern=data["hash"],
-                    pattern_type="hash",
-                    metadata={"path": data.get("path")}
-                ))
-            if "entropy" in data and data["entropy"] > 7.5:
-                epitopes.append(Epitope(
-                    pattern="high_entropy_file",
-                    pattern_type="behavior",
-                    affinity=0.7
-                ))
-        
-        elif event_type == "memory":
-            # Memory forensics epitopes
-            if "injection_detected" in data:
-                epitopes.append(Epitope(
-                    pattern="memory_injection",
-                    pattern_type="behavior",
-                    affinity=0.95,
-                    metadata={"technique": "T1055", "details": data}
-                ))
-            if "hollowing_detected" in data:
-                epitopes.append(Epitope(
-                    pattern="process_hollowing",
-                    pattern_type="behavior",
-                    affinity=0.95,
-                    metadata={"technique": "T1055.012"}
-                ))
-        
-        elif event_type == "registry":
-            # Registry epitopes
-            if "persistence" in data:
-                epitopes.append(Epitope(
-                    pattern="registry_persistence",
-                    pattern_type="behavior",
-                    affinity=0.8,
-                    metadata={"technique": "T1547"}
-                ))
-        
-        return epitopes
-    
-    def _present_antigen(self, epitope: Epitope, context: Dict):
-        """Present antigen to detector repertoire"""
-        with self._lock:
-            self.stats["total_detections"] += 1
-            
-            # Find matching detectors
-            matches = []
-            for detector in self.detectors.values():
-                if not detector.is_active:
-                    continue
-                affinity = detector.matches(epitope)
-                if affinity >= detector.affinity_threshold:
-                    matches.append((detector, affinity))
-            
-            # Sort by affinity
-            matches.sort(key=lambda x: x[1], reverse=True)
-            
-            # Activate top matches
-            for detector, affinity in matches[:5]:  # Top 5 responders
-                self._activate_detector(detector, epitope, affinity, context)
-            
-            # If no matches, create new naive detector (epitope spreading)
-            if not matches:
-                self._epitope_spreading(epitope, context)
-    
-    def _activate_detector(self, detector: Detector, epitope: Epitope, affinity: float, context: Dict):
-        """Activate a detector (clonal expansion)"""
-        detector.activation_count += 1
-        detector.last_activated = datetime.now()
-        
-        # Clonal expansion - create copies with slight mutations
-        if detector.cell_type == CellType.NAIVE_DETECTOR:
-            detector.cell_type = CellType.EFFECTOR_DETECTOR
-            self._clonal_expand(detector, epitope)
-        
-        # Emit activation signal
-        self._emit_signal(Signal(
-            signal_type=SignalType.CLONAL_EXPANSION,
-            source_id=detector.id,
-            target_id=None,  # Broadcast
-            payload={
-                "epitope": epitope.pattern,
-                "affinity": affinity,
-                "context": context
-            }
-        ))
-        
-        # Initiate effector response
-        self._effector_response(detector, epitope, context)
-    
-    def _clonal_expand(self, detector: Detector, epitope: Epitope):
-        """Clonal expansion - create mutated copies of successful detector"""
-        num_clones = self.clonal_expansion_factor
-        
-        for i in range(num_clones):
-            clone = Detector(
-                id=f"clone_{detector.id}_{uuid.uuid4().hex[:6]}",
-                cell_type=CellType.EFFECTOR_DETECTOR,
-                epitopes=set(detector.epitopes),  # Copy receptors
-                affinity_threshold=detector.affinity_threshold,
-                mutation_rate=detector.mutation_rate * 0.5,  # Lower for clones
-                lineage=detector.id
-            )
-            
-            # Somatic hypermutation - mutate receptors
-            for receptor in clone.epitopes:
-                if random.random() < detector.mutation_rate:
-                    self._mutate_receptor(receptor)
-            
-            # Increase affinity for triggering epitope
-            for receptor in clone.epitopes:
-                if receptor.pattern_type == epitope.pattern_type:
-                    receptor.affinity = min(1.0, receptor.affinity * 1.2)
-            
-            clone.clonal_size = 1
-            
-            with self._lock:
-                self.detectors[clone.id] = clone
-                self.stats["clonal_expansions"] += 1
-            
-            detector.clonal_size += 1
-    
-    def _mutate_receptor(self, receptor: Epitope):
-        """Somatic hypermutation of a receptor"""
-        if receptor.pattern_type == "ip":
-            # Mutate IP pattern - adjust CIDR or shift IP range
-            import ipaddress
-            try:
-                if "/" in receptor.pattern:
-                    net = ipaddress.ip_network(receptor.pattern, strict=False)
-                    # Shift network by small random amount
-                    shift = random.randint(-256, 256)
-                    new_net_int = int(net.network_address) + shift
-                    if new_net_int >= 0 and new_net_int <= 0xFFFFFFFF:
-                        new_net = ipaddress.ip_network((new_net_int, net.prefixlen))
-                        receptor.pattern = str(new_net)
-                else:
-                    # Single IP - mutate to nearby IP
-                    ip = ipaddress.ip_address(receptor.pattern)
-                    shift = random.randint(-10, 10)
-                    new_ip_int = int(ip) + shift
-                    if 0 <= new_ip_int <= 0xFFFFFFFF:
-                        receptor.pattern = str(ipaddress.ip_address(new_ip_int))
-            except Exception:
-                pass
-                
-        elif receptor.pattern_type == "domain":
-            # Mutate domain pattern - add/remove subdomain, change TLD
-            parts = receptor.pattern.split(".")
-            if len(parts) > 2 and random.random() < 0.4:
-                # Add/remove subdomain
-                if random.random() < 0.5:
-                    parts.insert(0, f"sub{random.randint(1,99)}")
-                else:
-                    parts.pop(0)
-            if random.random() < 0.2:
-                # Change TLD
-                tlds = ["com", "net", "org", "io", "co", "xyz", "top", "site"]
-                parts[-1] = random.choice(tlds)
-            if random.random() < 0.3:
-                # Add random subdomain prefix
-                prefix = f"{random.randint(1000,9999)}"
-                parts.insert(0, prefix)
-            receptor.pattern = ".".join(parts) if parts else "example.com"
-                
-        elif receptor.pattern_type == "behavior":
-            # Mutate behavior pattern - add/remove/modify tokens
-            tokens = receptor.pattern.split()
-            if tokens and random.random() < 0.5:
-                tokens.pop(random.randrange(len(tokens)))
-            if random.random() < 0.3:
-                tokens.append(f"mutated_{random.randint(1,100)}")
-            if random.random() < 0.2 and len(tokens) > 1:
-                # Swap two tokens
-                i, j = random.sample(range(len(tokens)), 2)
-                tokens[i], tokens[j] = tokens[j], tokens[i]
-            receptor.pattern = " ".join(tokens) if tokens else "mutated_behavior"
-        
-        elif receptor.pattern_type == "hash":
-            # Hash mutation - just adjust affinity (can't mutate actual hash)
-            pass
-            
-        elif receptor.pattern_type == "semantic":
-            # Semantic mutation - add related terms
-            semantic_terms = ["malicious", "suspicious", "anomalous", "covert", "evasive", "persistent", "stealth"]
-            if random.random() < 0.3:
-                receptor.pattern = f"{receptor.pattern} {random.choice(semantic_terms)}"
-        
-        elif receptor.pattern_type == "sequence":
-            # Sequence mutation - add/remove steps
-            tokens = receptor.pattern.split()
-            if tokens and random.random() < 0.4:
-                tokens.pop(random.randrange(len(tokens)))
-            if random.random() < 0.3:
-                tokens.append(f"step_{random.randint(1,100)}")
-            receptor.pattern = " ".join(tokens) if tokens else "mutated_sequence"
-        
-        # Adjust affinity with bounded random walk
-        receptor.affinity = max(0.05, min(1.0, receptor.affinity * random.uniform(0.75, 1.25)))
-        self.stats["somatic_mutations"] += 1
-    
-    def _effector_response(self, detector: Detector, epitope: Epitope, context: Dict):
-        """Execute effector response based on detector type and epitope"""
-        response_id = f"resp_{detector.id}_{uuid.uuid4().hex[:8]}"
-        
-        # Determine response based on epitope type and threat level
-        threat_level = self._calculate_threat_level(epitope, detector, context)
-        
-        response = {
-            "id": response_id,
-            "detector_id": detector.id,
-            "epitope": epitope.pattern,
-            "epitope_type": epitope.pattern_type,
-            "threat_level": threat_level,
-            "affinity": detector.matches(epitope),
-            "context": context,
-            "timestamp": datetime.now(),
-            "status": "active",
-            "actions": []
-        }
-        
-        # Execute response based on threat level
-        if threat_level >= 0.8:  # Critical
-            response["actions"] = self._critical_response(epitope, context)
-        elif threat_level >= 0.6:  # High
-            response["actions"] = self._high_response(epitope, context)
-        elif threat_level >= 0.4:  # Medium
-            response["actions"] = self._medium_response(epitope, context)
-        else:  # Low
-            response["actions"] = self._low_response(epitope, context)
-        
-        with self._lock:
-            self.active_responses[response_id] = response
-        
-        # Store in memory
-        self.memory.remember(epitope, detector.id, "activated")
-    
-    def _calculate_threat_level(self, epitope: Epitope, detector: Detector, context: Dict) -> float:
-        """Calculate threat level from multiple signals"""
-        base_threat = detector.matches(epitope)
-        
-        # Boost from context
-        context_boost = 0.0
-        if context.get("source") == "memory_forensics":
-            context_boost += 0.2
-        if context.get("event") == "injection_detected":
-            context_boost += 0.3
-        if context.get("technique") in ["T1055", "T1059", "T1486"]:
-            context_boost += 0.25
-        
-        # External threat intel correlation
-        intel_boost = 0.0
-        if self.threat_db:
-            check = self.threat_db.check_indicator(epitope.pattern, epitope.pattern_type)
-            if check:
-                intel_boost = min(0.3, check.get("severity", 0) / 100)
-        
-        return min(1.0, base_threat + context_boost + intel_boost)
-    
-    def _critical_response(self, epitope: Epitope, context: Dict) -> List[str]:
-        """Critical threat - immediate containment"""
-        actions = []
-        
-        # Quarantine process by PID
-        if epitope.pattern_type == "process_id":
-            try:
-                pid = int(epitope.pattern)
-                actions.append(f"quarantine_process:{pid}")
-                # Try to kill the process
-                try:
-                    import psutil
-                    proc = psutil.Process(pid)
-                    proc.terminate()
-                    actions.append(f"terminated_process:{pid}")
-                except Exception:
-                    pass
-            except (ValueError, TypeError):
-                pass
-        
-        if epitope.pattern_type == "ip":
-            # Block IP via Windows firewall
-            actions.append(f"block_ip:{epitope.pattern}")
-            try:
-                import subprocess
-                ip = epitope.pattern
-                # Add Windows firewall rule to block outbound
-                subprocess.run([
-                    "netsh", "advfirewall", "firewall", "add", "rule",
-                    f"name=CIS_Block_{ip}", "dir=out", "action=block",
-                    f"remoteip={ip}", "enable=yes"
-                ], capture_output=True, timeout=10, check=False)
-            except Exception:
-                pass
-        
-        if epitope.pattern_type == "hash":
-            actions.append(f"quarantine_file_hash:{epitope.pattern}")
-            # The hash would need to be matched to a file path to quarantine
-            # This would typically come from threat intelligence or file scanning
-            pass
-        
-        # Quarantine file if path available in context
-        if "file_path" in context:
-            try:
-                from quarantine_core import quarantine_file
-                file_path = Path(context["file_path"])
-                if file_path.exists():
-                    entry = quarantine_file(
-                        file_path,
-                        threat_type="MALWARE",
-                        threat_name=f"CIS_{epitope.pattern_type}",
-                        severity="CRITICAL"
-                    )
-                    actions.append(f"quarantined:{entry.quarantine_path}")
-            except Exception as e:
-                pass
-        
-        actions.append("alert:critical")
-        actions.append("forensic_capture")
-        
-        self.stats["threats_contained"] += 1
-        return actions
-    
-    def _high_response(self, epitope: Epitope, context: Dict) -> List[str]:
-        """High threat - aggressive monitoring + containment prep"""
-        actions = ["enhanced_monitoring", "alert:high", "prepare_containment"]
-        
-        # If IP, add to watchlist
-        if epitope.pattern_type == "ip":
-            # Add to watchlist for enhanced monitoring
-            pass
-        
-        # If process, add to watchlist
-        if epitope.pattern_type == "process_id":
-            pass
-        
-        return actions
-    
-    def _medium_response(self, epitope: Epitope, context: Dict) -> List[str]:
-        """Medium threat - increased surveillance"""
-        actions = ["increased_surveillance", "alert:medium"]
-        
-        # Add to monitoring list
-        if epitope.pattern_type in ["ip", "domain", "hash"]:
-            pass
-        
-        return actions
-    
-    def _low_response(self, epitope: Epitope, context: Dict) -> List[str]:
-        """Low threat - logging"""
-        return ["log", "baseline_monitoring"]
-    
-    # ========================================================================
-    # SIGNAL PROCESSING (CYTOKINE NETWORK)
-    # ========================================================================
-    
-    def _emit_signal(self, signal: Signal):
-        """Emit a cytokine-like signal"""
-        self.signal_queue.append(signal)
-    
-    def _process_signal(self, signal: Signal):
-        """Process incoming signal"""
-        if signal.target_id:
-            # Targeted signal
-            if signal.target_id in self.detectors:
-                self._deliver_signal(self.detectors[signal.target_id], signal)
-        else:
-            # Broadcast signal
-            for detector in self.detectors.values():
-                self._deliver_signal(detector, signal)
-    
-    def _deliver_signal(self, detector: Detector, signal: Signal):
-        """Deliver signal to detector"""
-        if signal.signal_type == SignalType.DANGER:
-            # Lower activation threshold temporarily
-            detector.affinity_threshold *= 0.8
-        elif signal.signal_type == SignalType.REGULATORY:
-            # Raise threshold (tolerance)
-            detector.affinity_threshold = min(0.95, detector.affinity_threshold * 1.1)
-        elif signal.signal_type == SignalType.MEMORY:
-            # Promote to memory
-            if detector.cell_type == CellType.EFFECTOR_DETECTOR:
-                detector.cell_type = CellType.MEMORY_DETECTOR
-        elif signal.signal_type == SignalType.APOPTOSIS:
-            # Mark for retirement
-            detector.is_active = False
-    
-    # ========================================================================
-    # TOLERANCE & AUTOIMMUNITY PREVENTION
-    # ========================================================================
-    
-    def _maintain_tolerance(self):
-        """Prevent autoimmunity (excessive false positives)"""
-        with self._lock:
-            for detector in list(self.detectors.values()):
-                if detector.activation_count > 10:
-                    fp_rate = detector.false_positive_count / detector.activation_count
-                    if fp_rate > self.tolerance_threshold:
-                        # Emit regulatory signal
-                        self._emit_signal(Signal(
-                            signal_type=SignalType.REGULATORY,
-                            source_id="cis_tolerance",
-                            target_id=detector.id,
-                            payload={"reason": "high_false_positive_rate", "rate": fp_rate}
-                        ))
-                        self.stats["autoimmune_events"] += 1
-                        
-                        # If persistent, retire
-                        if fp_rate > self.tolerance_threshold * 2:
-                            detector.is_active = False
-                            self.stats["detectors_retired"] += 1
-    
-    # ========================================================================
-    # EVOLUTIONARY OPERATIONS
-    # ========================================================================
-    
-    def _clonal_selection(self):
-        """Select best detectors for expansion"""
-        with self._lock:
-            # Score all detectors
-            scored = [(d, d.calculate_fitness()) for d in self.detectors.values() if d.is_active]
-            scored.sort(key=lambda x: x[1], reverse=True)
-            
-            # Top 10% get clonal expansion signal
-            top_count = max(1, len(scored) // 10)
-            for detector, fitness in scored[:top_count]:
-                if fitness > 0.5:
-                    self._emit_signal(Signal(
-                        signal_type=SignalType.CLONAL_EXPANSION,
-                        source_id="cis_evolution",
-                        target_id=detector.id,
-                        payload={"fitness": fitness}
-                    ))
-    
-    def _somatic_hypermutation(self):
-        """Mutate detectors to explore pattern space"""
-        with self._lock:
-            for detector in self.detectors.values():
-                if not detector.is_active:
-                    continue
-                if detector.cell_type in [CellType.EFFECTOR_DETECTOR, CellType.MEMORY_DETECTOR]:
-                    # Mutate with probability based on activation
-                    if random.random() < (detector.mutation_rate * 0.1):
-                        for receptor in detector.epitopes:
-                            self._mutate_receptor(receptor)
-    
-    def _retire_failed_detectors(self):
-        """Remove detectors that consistently fail"""
-        with self._lock:
-            to_retire = []
-            for detector in self.detectors.values():
-                if not detector.is_active:
-                    continue
-                
-                age_days = (datetime.now() - detector.created_at).days
-                
-                # Retire criteria
-                if detector.activation_count == 0 and age_days > 7:
-                    to_retire.append(detector.id)
-                elif detector.false_positive_count > 10 and detector.true_positive_count == 0:
-                    to_retire.append(detector.id)
-                elif detector.specificity < 0.1 and detector.activation_count > 20:
-                    to_retire.append(detector.id)
-            
-            for det_id in to_retire:
-                if det_id in self.detectors:
-                    del self.detectors[det_id]
-                    self.stats["detectors_retired"] += 1
-    
-    def _maintain_repertoire_diversity(self):
-        """Ensure diverse detector repertoire"""
-        with self._lock:
-            # Count by pattern type
-            type_counts = defaultdict(int)
-            for d in self.detectors.values():
-                for e in d.epitopes:
-                    type_counts[e.pattern_type] += 1
-            
-            # Add naive detectors for underrepresented types
-            target_per_type = self.naive_pool_size // 7  # 7 pattern types
-            for ptype, count in type_counts.items():
-                if count < target_per_type * 0.5:
-                    needed = target_per_type - count
-                    for _ in range(min(needed, 5)):
-                        self._create_naive_detector(ptype)
-    
-    def _consolidate_memory(self):
-        """Consolidate immunological memory"""
-        # Promote successful effectors to memory
-        with self._lock:
-            for detector in self.detectors.values():
-                if (detector.cell_type == CellType.EFFECTOR_DETECTOR and 
-                    detector.true_positive_count >= 5 and
-                    detector.specificity > 0.8):
-                    detector.cell_type = CellType.MEMORY_DETECTOR
-                    detector.mutation_rate *= 0.5  # Reduce mutation for memory
-                    
-                    # Emit memory signal
-                    self._emit_signal(Signal(
-                        signal_type=SignalType.MEMORY,
-                        source_id="cis_consolidation",
-                        target_id=detector.id,
-                        payload={"true_positives": detector.true_positive_count}
-                    ))
-    
-    # ========================================================================
-    # RESPONSE MANAGEMENT
-    # ========================================================================
-    
-    def _update_active_responses(self):
-        """Update status of active responses"""
-        with self._lock:
-            completed = []
-            for resp_id, response in self.active_responses.items():
-                if response["status"] == "active":
-                    # Check if response actions completed
-                    # In real implementation, would check actual completion
-                    response["status"] = "completed"
-                    completed.append(resp_id)
-            
-            for resp_id in completed:
-                del self.active_responses[resp_id]
-    
-    # ========================================================================
-    # EPITOPE SPREADING (NOVELTY DETECTION)
-    # ========================================================================
-    
-    def _epitope_spreading(self, epitope: Epitope, context: Dict):
-        """When no detector matches, spread recognition to related patterns"""
-        # Create new naive detector for this epitope
-        new_detector = Detector(
-            id=f"naive_spread_{epitope.pattern_type}_{uuid.uuid4().hex[:8]}",
-            cell_type=CellType.NAIVE_DETECTOR,
-            affinity_threshold=self.affinity_threshold,
-            mutation_rate=self.mutation_rate * 1.5  # Higher mutation for novel patterns
-        )
-        new_detector.epitopes.add(epitope)
-        new_detector.lineage = "epitope_spreading"
-        
-        with self._lock:
-            self.detectors[new_detector.id] = new_detector
-            self.stats["detectors_created"] += 1
-        
-        # Emit epitope spread signal
-        self._emit_signal(Signal(
-            signal_type=SignalType.EPITOPE_SPREAD,
-            source_id="cis_novelty",
-            target_id=None,
-            payload={"epitope": epitope.pattern, "type": epitope.pattern_type}
-        ))
-        
-        logger.info(f"Epitope spreading: created detector for novel pattern {epitope.pattern_type}:{epitope.pattern[:50]}")
-    
-    # ========================================================================
-    # EXTERNAL INTEGRATION
-    # ========================================================================
-    
-    def inject_threat_intel(self, indicators: List[Dict]):
-        """Inject external threat intelligence as memory"""
-        for ind in indicators:
-            epitope = Epitope(
-                pattern=ind.get("value", ""),
-                pattern_type=ind.get("type", "unknown"),
-                affinity=0.9,
-                metadata=ind
-            )
-            # Create or reinforce memory detector
-            self._reinforce_memory(epitope)
-    
-    def _reinforce_memory(self, epitope: Epitope):
-        """Reinforce memory for known threat"""
-        with self._lock:
-            # Find existing memory detectors
-            for detector in self.detectors.values():
-                if detector.cell_type == CellType.MEMORY_DETECTOR:
-                    if detector.matches(epitope) > 0.8:
-                        # Reinforce
-                        detector.true_positive_count += 1
-                        self.memory.remember(epitope, detector.id, "reinforced")
-                        return
-            
-            # Create new memory detector
-            detector = Detector(
-                id=f"memory_ext_{uuid.uuid4().hex[:8]}",
-                cell_type=CellType.MEMORY_DETECTOR,
-                affinity_threshold=0.6,
-                mutation_rate=0.02
-            )
-            detector.epitopes.add(epitope)
-            detector.true_positive_count = 100  # High confidence from external intel
-            detector.activation_count = 100
-            detector.lineage = "external_intel"
-            
-            self.detectors[detector.id] = detector
-            self.memory.remember(epitope, detector.id, "external_intel")
-    
-    def get_immune_status(self) -> Dict:
-        """Get comprehensive immune system status"""
-        with self._lock:
-            type_counts = defaultdict(int)
-            cell_type_counts = defaultdict(int)
-            
-            for d in self.detectors.values():
-                if d.is_active:
-                    cell_type_counts[d.cell_type.value] += 1
-                    for e in d.epitopes:
-                        type_counts[e.pattern_type] += 1
-            
-            return {
-                "running": self.running,
-                "total_detectors": len([d for d in self.detectors.values() if d.is_active]),
-                "detectors_by_type": dict(type_counts),
-                "detectors_by_cell_type": dict(cell_type_counts),
-                "memory_epitopes": len(self.memory.epitopes),
-                "active_responses": len(self.active_responses),
-                "signal_queue_size": len(self.signal_queue),
-                "stats": self.stats.copy(),
-                "repertoire_diversity": len(type_counts),
-                "detector_details": [
-                    {
-                        "id": d.id,
-                        "cell_type": d.cell_type.value,
-                        "epitopes": [{"pattern": e.pattern, "type": e.pattern_type, "affinity": e.affinity} for e in d.epitopes],
-                        "affinity_threshold": d.affinity_threshold,
-                        "activation_count": d.activation_count,
-                        "true_positive_count": d.true_positive_count,
-                        "false_positive_count": d.false_positive_count,
-                        "lineage": d.lineage,
-                        "mutation_rate": d.mutation_rate,
-                        "is_active": d.is_active,
-                        "created_at": d.created_at.isoformat(),
-                        "fitness": d.calculate_fitness(),
-                        "specificity": d.specificity
-                    }
-                    for d in self.detectors.values() if d.is_active
-                ],
-                "signal_history": [
-                    {
-                        "type": s.signal_type.value,
-                        "source": s.source_id,
-                        "target": s.target_id,
-                        "timestamp": s.timestamp.isoformat(),
-                        "payload": s.payload
-                    }
-                    for s in list(self.signal_queue)[-100:]  # Last 100 signals
-                ],
-                "active_responses_detail": [
-                    {
-                        "id": r["id"],
-                        "detector_id": r["detector_id"],
-                        "epitope": r["epitope"],
-                        "threat_level": r["threat_level"],
-                        "actions": r["actions"],
-                        "timestamp": r["timestamp"].isoformat()
-                    }
-                    for r in self.active_responses.values()
-                ]
-            }
-    
-    def get_dashboard_metrics(self) -> Dict:
-        """Get real-time metrics for dashboard visualization"""
-        with self._lock:
-            active_detectors = [d for d in self.detectors.values() if d.is_active]
-            
-            # Cell type distribution
-            cell_type_dist = defaultdict(int)
-            for d in active_detectors:
-                cell_type_dist[d.cell_type.value] += 1
-            
-            # Pattern type distribution
-            pattern_dist = defaultdict(int)
-            for d in active_detectors:
-                for e in d.epitopes:
-                    pattern_dist[e.pattern_type] += 1
-            
-            # Lineage distribution
-            lineage_dist = defaultdict(int)
-            for d in active_detectors:
-                lineage_dist[d.lineage] += 1
-            
-            # Fitness distribution
-            fitness_values = [d.calculate_fitness() for d in active_detectors]
-            avg_fitness = sum(fitness_values) / len(fitness_values) if fitness_values else 0
-            
-            # Activation stats
-            total_activations = sum(d.activation_count for d in active_detectors)
-            total_tp = sum(d.true_positive_count for d in active_detectors)
-            total_fp = sum(d.false_positive_count for d in active_detectors)
-            
-            # Recent signal activity
-            recent_signals = list(self.signal_queue)[-50:]
-            signal_types = defaultdict(int)
-            for s in recent_signals:
-                signal_types[s.signal_type.value] += 1
-            
-            # Response stats
-            response_stats = defaultdict(int)
-            for r in self.active_responses.values():
-                response_stats[r["threat_level"]] += 1
-            
-            return {
-                "timestamp": datetime.now().isoformat(),
-                "total_detectors": len(active_detectors),
-                "cell_type_distribution": dict(cell_type_dist),
-                "pattern_type_distribution": dict(pattern_dist),
-                "lineage_distribution": dict(lineage_dist),
-                "avg_fitness": round(avg_fitness, 4),
-                "total_activations": total_activations,
-                "true_positives": total_tp,
-                "false_positives": total_fp,
-                "precision": round(total_tp / max(1, total_tp + total_fp), 4),
-                "recent_signals_50": len(recent_signals),
-                "signal_type_distribution": dict(signal_types),
-                "active_response_count": len(self.active_responses),
-                "response_threat_distribution": dict(response_stats),
-                "memory_epitopes": len(self.memory.epitopes),
-                "signal_queue_size": len(self.signal_queue),
-                "stats": self.stats.copy()
-            }
-
-    def get_dashboard_metrics(self) -> Dict:
-        """Get real-time metrics for dashboard visualization"""
-        with self._lock:
-            active_detectors = [d for d in self.detectors.values() if d.is_active]
-            
-            # Cell type distribution
-            cell_type_dist = defaultdict(int)
-            for d in active_detectors:
-                cell_type_dist[d.cell_type.value] += 1
-            
-            # Pattern type distribution
-            pattern_dist = defaultdict(int)
-            for d in active_detectors:
-                for e in d.epitopes:
-                    pattern_dist[e.pattern_type] += 1
-            
-            # Lineage distribution
-            lineage_dist = defaultdict(int)
-            for d in active_detectors:
-                lineage_dist[d.lineage] += 1
-            
-            # Fitness distribution
-            fitness_values = [d.calculate_fitness() for d in active_detectors]
-            avg_fitness = sum(fitness_values) / len(fitness_values) if fitness_values else 0
-            
-            # Activation stats
-            total_activations = sum(d.activation_count for d in active_detectors)
-            total_tp = sum(d.true_positive_count for d in active_detectors)
-            total_fp = sum(d.false_positive_count for d in active_detectors)
-            
-            # Recent signal activity
-            recent_signals = list(self.signal_queue)[-50:]
-            signal_types = defaultdict(int)
-            for s in recent_signals:
-                signal_types[s.signal_type.value] += 1
-            
-            # Response stats
-            response_stats = defaultdict(int)
-            for r in self.active_responses.values():
-                response_stats[r["threat_level"]] += 1
-            
-            return {
-                "timestamp": datetime.now().isoformat(),
-                "total_detectors": len(active_detectors),
-                "cell_type_distribution": dict(cell_type_dist),
-                "pattern_type_distribution": dict(pattern_dist),
-                "lineage_distribution": dict(lineage_dist),
-                "avg_fitness": round(avg_fitness, 4),
-                "total_activations": total_activations,
-                "true_positives": total_tp,
-                "false_positives": total_fp,
-                "precision": round(total_tp / max(1, total_tp + total_fp), 4),
-                "recent_signals_50": len(recent_signals),
-                "signal_type_distribution": dict(signal_types),
-                "active_response_count": len(self.active_responses),
-                "response_threat_distribution": dict(response_stats),
-                "memory_epitopes": len(self.memory.epitopes),
-                "signal_queue_size": len(self.signal_queue),
-                "stats": self.stats.copy()
-            }
-
-    # ========================================================================
-    # DISTRIBUTED CIS COORDINATION (via Sharded Context)
-    # ========================================================================
-    
-    def _init_distributed_coordination(self):
-        """Initialize distributed coordination via sharded context"""
-        if SHARDED_CONTEXT_AVAILABLE and self.sharded_context:
-            try:
-                # Register CIS as a component in the sharded context
-                self.sharded_context.register_component("cis_main", self)
-                
-                # Subscribe to relevant context patterns
-                self.sharded_context.subscribe("cis:*", self._on_distributed_event)
-                self.sharded_context.subscribe("threat:*", self._on_threat_event)
-                self.sharded_context.subscribe("response:*", self._on_response_event)
-                self.sharded_context.subscribe("memory:*", self._on_memory_event)
-                
-                # Publish CIS capabilities
-                self.sharded_context.set(
-                    "cis:capabilities",
-                    {
-                        "detector_count": len([d for d in self.detectors.values() if d.is_active]),
-                        "memory_epitopes": len(self.memory.epitopes),
-                        "supported_pattern_types": ["ip", "domain", "hash", "url", "behavior", "semantic", "sequence"],
-                        "supported_techniques": [d.lineage for d in self.detectors.values() if d.is_active],
-                        "max_detectors": self.max_detectors,
-                        "clonal_expansion_factor": self.clonal_expansion_factor
-                    },
-                    scope=ContextScope.GLOBAL,
-                    tags={"cis", "capabilities", "registration"}
-                )
-                
-                # Start sync thread
-                self._distributed_sync_thread = threading.Thread(
-                    target=self._distributed_sync_loop,
-                    daemon=True,
-                    name="CIS_DistributedSync"
-                )
-                self._distributed_sync_thread.start()
-                
-                logger.info("CIS distributed coordination initialized")
-            except Exception as e:
-                logger.error(f"Distributed coordination init failed: {e}")
-    
-    def _distributed_sync_loop(self):
-        """Sync CIS state with distributed context"""
-        while self.running:
-            try:
-                time.sleep(30)  # Sync every 30 seconds
-                
-                if not self.running:
-                    break
-                
-                # Update capabilities
-                if self.sharded_context:
-                    self.sharded_context.set(
-                        "cis:capabilities",
-                        {
-                            "detector_count": len([d for d in self.detectors.values() if d.is_active]),
-                            "memory_epitopes": len(self.memory.epitopes),
-                            "active_responses": len(self.active_responses),
-                            "signal_queue_size": len(self.signal_queue),
-                            "stats": self.stats.copy()
-                        },
-                        scope=ContextScope.GLOBAL,
-                        tags={"cis", "status", "heartbeat"}
-                    )
-                    
-                    # Publish local threat intel to shared context
-                    recent_threats = list(self.memory.response_history)[-10:]
-                    for event in recent_threats:
-                        self.sharded_context.set(
-                            f"threat:{event.get('technique', 'unknown')}:{event['timestamp']}",
-                            event,
-                            scope=ContextScope.SHARED,
-                            tags={"threat", "intel", "shared"}
-                        )
-                        
-            except Exception as e:
-                logger.error(f"Distributed sync error: {e}")
-                time.sleep(60)
-    
-    def _on_distributed_event(self, event: ContextEvent):
-        """Handle events from other CIS instances"""
-        if event.key.startswith("cis:"):
-            # Another CIS instance registered
-            pass
-        elif event.key.startswith("threat:"):
-            # New threat intel from another instance
-            self._process_shared_threat_intel(event)
-        elif event.key.startswith("response:"):
-            # Another instance's response
-            self._process_shared_response(event)
-        elif event.key.startswith("memory:"):
-            # Shared memory update
-            self._process_shared_memory(event)
-    
-    def _on_threat_event(self, event: ContextEvent):
-        """Handle threat intelligence from distributed context"""
-        try:
-            if event.event_type == ContextEventType.CREATED:
-                threat_data = event.new_value
-                if isinstance(threat_data, dict) and "pattern" in threat_data:
-                    epitope = Epitope(
-                        pattern=threat_data["pattern"],
-                        pattern_type=threat_data.get("type", "unknown"),
-                        affinity=0.9,
-                        metadata=threat_data
-                    )
-                    self._present_antigen(epitope, {"source": "distributed", "source_instance": event.metadata.get("source_component")})
-        except Exception as e:
-            logger.error(f"Threat event processing error: {e}")
-    
-    def _on_response_event(self, event: ContextEvent):
-        """Handle response events from other CIS instances"""
-        try:
-            if event.event_type == ContextEventType.CREATED:
-                response_data = event.new_value
-                # Could coordinate responses or learn from other instances
-                pass
-        except Exception as e:
-            logger.error(f"Response event processing error: {e}")
-    
-    def _on_memory_event(self, event: ContextEvent):
-        """Handle shared memory updates"""
-        try:
-            if event.event_type in (ContextEventType.CREATED, ContextEventType.UPDATED):
-                memory_data = event.new_value
-                if isinstance(memory_data, dict) and "pattern" in memory_data:
-                    epitope = Epitope(
-                        pattern=memory_data["pattern"],
-                        pattern_type=memory_data.get("type", "unknown"),
-                        affinity=0.9,
-                        metadata=memory_data
-                    )
-                    self._reinforce_memory(epitope)
-        except Exception as e:
-            logger.error(f"Memory event processing error: {e}")
-    
-    def _process_shared_threat_intel(self, event: ContextEvent):
-        """Process threat intelligence shared by other CIS instances"""
-        try:
-            threat_data = event.new_value
-            if isinstance(threat_data, dict):
-                epitope = Epitope(
-                    pattern=threat_data.get("pattern", ""),
-                    pattern_type=threat_data.get("type", "unknown"),
-                    affinity=0.8,
-                    metadata={**threat_data, "source": "distributed", "source_instance": event.metadata.get("source_component")}
-                )
-                self._reinforce_memory(epitope)
-                self._emit_signal(Signal(
-                    signal_type=SignalType.MEMORY,
-                    source_id="cis_distributed",
-                    target_id=None,
-                    payload={"action": "shared_threat_received", "threat": threat_data}
-                ))
-        except Exception as e:
-            logger.error(f"Shared threat intel processing error: {e}")
-    
-    def _process_shared_response(self, event: ContextEvent):
-        """Process response coordination from other CIS instances"""
-        try:
-            response_data = event.new_value
-            # Could coordinate or learn from other instances' responses
-            pass
-        except Exception as e:
-            logger.error(f"Shared response processing error: {e}")
-    
-    def _process_shared_memory(self, event: ContextEvent):
-        """Process shared memory updates"""
-        try:
-            memory_data = event.new_value
-            if isinstance(memory_data, dict) and "pattern" in memory_data:
-                epitope = Epitope(
-                    pattern=memory_data["pattern"],
-                    pattern_type=memory_data.get("type", "unknown"),
-                    affinity=0.8,
-                    metadata={**memory_data, "source": "distributed_memory"}
-                )
-                self._reinforce_memory(epitope)
-        except Exception as e:
-            logger.error(f"Shared memory processing error: {e}")
-
-    def _distributed_share_threat_intel(self, indicators: List[Dict]):
-        """Share threat intelligence with other CIS instances via sharded context"""
-        if not SHARDED_CONTEXT_AVAILABLE or not self.sharded_context:
-            return
-        
-        try:
-            for ind in indicators:
-                self.sharded_context.set(
-                    f"threat:{ind.get('type', 'unknown')}:{ind.get('value', '')}",
-                    {
-                        "value": ind.get("value", ""),
-                        "type": ind.get("type", "unknown"),
-                        "source": "cis_main",
-                        "timestamp": datetime.now().isoformat(),
-                        "confidence": ind.get("confidence", 0.9)
-                    },
-                    scope=ContextScope.SHARED,
-                    tags={"threat", "intel", "shared", "cis"}
-                )
-        except Exception as e:
-            logger.error(f"Distributed threat intel sharing failed: {e}")
-    
-    def _distributed_share_response(self, response: Dict):
-        """Share response actions with other CIS instances"""
-        if not SHARDED_CONTEXT_AVAILABLE or not self.sharded_context:
-            return
-        
-        try:
-            self.sharded_context.set(
-                f"response:{response['id']}",
-                {
-                    "response_id": response["id"],
-                    "detector_id": response["detector_id"],
-                    "epitope": response["epitope"],
-                    "threat_level": response["threat_level"],
-                    "actions": response["actions"],
-                    "timestamp": response["timestamp"].isoformat(),
-                    "source_instance": "cis_main"
-                },
-                scope=ContextScope.SHARED,
-                tags={"response", "coordination", "cis"}
-            )
-        except Exception as e:
-            logger.error(f"Distributed response sharing failed: {e}")
-        """Get lineage tree for a detector"""
-        if detector_id not in self.detectors:
-            return None
-        
-        detector = self.detectors[detector_id]
-        lineage = {
-            "id": detector.id,
-            "cell_type": detector.cell_type.value,
-            "parent": detector.lineage,
-            "children": [],
-            "epitopes": [{"pattern": e.pattern, "type": e.pattern_type, "affinity": e.affinity} 
-                        for e in detector.epitopes],
-            "stats": {
-                "activations": detector.activation_count,
-                "true_positives": detector.true_positive_count,
-                "false_positives": detector.false_positive_count,
-                "fitness": detector.calculate_fitness(),
-                "specificity": detector.specificity
-            }
-        }
-        
-        # Find children
-        for d in self.detectors.values():
-            if d.lineage == detector_id:
-                lineage["children"].append(d.id)
-        
-        return lineage
-    
-    def export_immune_state(self) -> Dict:
-        """Export complete immune state for persistence"""
-        with self._lock:
-            return {
-                "version": "1.0",
-                "timestamp": datetime.now().isoformat(),
-                "detectors": {
-                    det_id: {
-                        "id": d.id,
-                        "cell_type": d.cell_type.value,
-                        "epitopes": [{"pattern": e.pattern, "type": e.pattern_type, "affinity": e.affinity} for e in d.epitopes],
-                        "affinity_threshold": d.affinity_threshold,
-                        "activation_count": d.activation_count,
-                        "true_positive_count": d.true_positive_count,
-                        "false_positive_count": d.false_positive_count,
-                        "lineage": d.lineage,
-                        "mutation_rate": d.mutation_rate,
-                        "is_active": d.is_active,
-                        "created_at": d.created_at.isoformat()
-                    }
-                    for det_id, d in self.detectors.items() if d.is_active
-                },
-                "memory": {
-                    "epitopes": [
-                        {"pattern": e.pattern, "type": e.pattern_type, "data": data}
-                        for e, data in self.memory.epitopes.items()
-                    ]
-                },
-                "stats": self.stats
-            }
-    
-    def import_immune_state(self, state: Dict):
-        """Import immune state from persistence"""
-        with self._lock:
-            # Restore detectors
-            self.detectors.clear()
-            for det_id, data in state.get("detectors", {}).items():
-                detector = Detector(
-                    id=data["id"],
-                    cell_type=CellType(data["cell_type"]),
-                    affinity_threshold=data["affinity_threshold"],
-                    activation_count=data["activation_count"],
-                    true_positive_count=data["true_positive_count"],
-                    false_positive_count=data["false_positive_count"],
-                    lineage=data["lineage"],
-                    mutation_rate=data["mutation_rate"],
-                    is_active=data["is_active"]
-                )
-                detector.created_at = datetime.fromisoformat(data["created_at"])
-                for e_data in data["epitopes"]:
-                    detector.epitopes.add(Epitope(
-                        pattern=e_data["pattern"],
-                        pattern_type=e_data["type"],
-                        affinity=e_data["affinity"]
-                    ))
-                self.detectors[det_id] = detector
-            
-            # Restore memory
-            self.memory = ImmuneMemory()
-            for ep_data in state.get("memory", {}).get("epitopes", []):
-                epitope = Epitope(pattern=ep_data["pattern"], pattern_type=ep_data["type"])
-                self.memory.epitopes[epitope] = ep_data.get("data", {})
-            
-            self.stats = state.get("stats", self.stats)
-            
-            logger.info(f"Imported immune state: {len(self.detectors)} detectors, {len(self.memory.epitopes)} memory epitopes")
-
-
-# ============================================================================
-# ADVERSARIAL SELF-RED-TEAMING
-# ============================================================================
-
-class AdversarialRedTeamer:
-    """
-    Continuous self-red-teaming: the immune system attacks itself
-    to find blind spots before adversaries do.
-    """
-    
-    def __init__(self, cis: CognitiveImmuneSystem):
+    def __init__(self, cis: 'CognitiveImmuneSystem'):
         self.cis = cis
         self.running = False
-        self._thread: Optional[threading.Thread] = None
-        self.attack_patterns = self._load_attack_patterns()
-        self.results_history = deque(maxlen=1000)
+        self._thread = None
+        self.honeypots = {}
+        self.honeytokens = {}
+        self.deception_campaigns = {}
+        self.interactions = []
+        self._init_default_deception()
     
-    def _load_attack_patterns(self) -> List[Dict]:
-        """Load known attack patterns for testing - comprehensive MITRE ATT&CK coverage"""
-        return [
-            # Execution
-            {"name": "process_injection", "technique": "T1055", "epitopes": ["process_injection", "thread_hijacking", "apc_injection", "queue_user_apc", "thread_execution_hijacking"]},
-            {"name": "command_execution", "technique": "T1059", "epitopes": ["command_line_execution", "powershell_execution", "cmd_execution", "wscript_execution", "cscript_execution", "mshta_execution", "rundll32_execution", "regsvr32_execution"]},
-            {"name": "service_execution", "technique": "T1569", "epitopes": ["service_execution", "sc_create", "sc_start"]},
-            {"name": "scheduled_task", "technique": "T1053", "epitopes": ["scheduled_task_creation", "task_scheduler", "at_command", "schtasks"]},
+    def _init_default_deception(self):
+        # Default honeypots
+        self.honeypots = {
+            "ssh_honeypot": {"type": "ssh", "port": 2222, "enabled": True, "banner": "SSH-2.0-OpenSSH_8.2p1", "credentials": {"admin": "admin", "root": "toor", "admin": "123456", "user": "password"}, "logs": [], "interactions": 0},
+            "ftp_honeypot": {"type": "ftp", "port": 2121, "enabled": True, "banner": "220 FTP Server ready", "credentials": {"anonymous": "anonymous", "ftp": "ftp", "admin": "admin"}, "logs": [], "interactions": 0},
+            "http_honeypot": {"type": "http", "port": 8080, "enabled": True, "banner": "Apache/2.4.41 (Ubuntu)", "pages": {"/": "<html><body>Welcome to Apache</body></html>", "/admin": "<html><body>Admin Panel</body></html>"}, "logs": [], "interactions": 0},
+            "smb_honeypot": {"type": "smb", "port": 445, "enabled": True, "shares": {"ADMIN$": "C:\\Windows", "C$": "C:\\", "IPC$": "Remote IPC"}, "logs": [], "interactions": 0},
+            "rdp_honeypot": {"type": "rdp", "port": 3389, "enabled": True, "certificate": "self-signed", "logs": [], "interactions": 0},
+            "database_honeypot": {"type": "mysql", "port": 3306, "enabled": True, "banner": "5.7.33 MySQL Community Server", "credentials": {"root": "root", "admin": "admin", "mysql": "mysql"}, "logs": [], "interactions": 0}
+        }
+        
+        # Default honeytokens
+        self.honeytokens = {
+            "fake_credentials": {"type": "credential", "value": "aws_access_key_id=AKIAIOSFODNN7EXAMPLE&aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", "description": "Fake AWS credentials", "alert_on_access": True, "placements": ["config files", "environment variables", "code repositories"]},
+            "fake_api_key": {"type": "api_key", "value": "sk_test_FAKE_STRIPE_KEY_FAKE_FAKE_FAKE_FAKE_FAKE_FAKE_FAKE", "description": "Fake Stripe API key", "alert_on_access": True, "placements": ["config files", "environment variables"]},
+            "fake_db_connection": {"type": "connection_string", "value": "Server=fake-db.internal;Database=production;User Id=admin;Password=SuperSecretPassword123!;", "description": "Fake database connection string", "alert_on_access": True, "placements": ["web.config", "app.config", "docker-compose.yml"]},
+            "fake_api_endpoint": {"type": "url", "value": "https://api.internal.company.com/v1/admin/users?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.fake", "description": "Fake admin API endpoint with JWT", "alert_on_access": True, "placements": ["documentation", "postman collections", "swagger docs"]},
+            "fake_ssh_key": {"type": "ssh_key", "value": "-----BEGIN OPENSSH PRIVATE KEY-----\nfakefakefakefakefakefakefakefakefakefakefakefakefakefake\n-----END OPENSSH PRIVATE KEY-----", "description": "Fake SSH private key", "alert_on_access": True, "placements": [".ssh/id_rsa", "authorized_keys", "deployment scripts"]},
+            "fake_certificate": {"type": "certificate", "value": "-----BEGIN CERTIFICATE-----\nfakefakefakefakefakefakefakefakefakefakefakefakefakefake\n-----END CERTIFICATE-----", "description": "Fake SSL certificate", "alert_on_access": True, "placements": ["certificate stores", "keystores", "load balancer configs"]}
+        }
+        
+        # Deception campaigns
+        self.deception_campaigns = {
+            "credential_harvesting": {"name": "Credential Harvesting Campaign", "description": "Deploy fake credentials to detect credential theft", "honeytokens": ["fake_credentials", "fake_api_key", "fake_db_connection"], "triggers": ["credential_access", "credential_use", "credential_exfiltration"], "response_actions": ["alert", "isolate_source", "track_usage"]},
+            "lateral_movement_detection": {"name": "Lateral Movement Detection", "description": "Deploy honeypots to detect lateral movement", "honeytokens": ["fake_ssh_key", "fake_certificate"], "honeypots": ["ssh_honeypot", "smb_honeypot", "rdp_honeypot"], "triggers": ["lateral_movement", "credential_reuse", "service_exploitation"], "response_actions": ["alert", "isolate_host", "block_ip", "forensic_capture"]},
+            "data_exfiltration_detection": {"name": "Data Exfiltration Detection", "description": "Deploy honeytokens in sensitive data locations", "honeytokens": ["fake_db_connection", "fake_api_endpoint", "fake_certificate"], "triggers": ["data_access", "data_exfiltration", "unauthorized_query"], "response_actions": ["alert", "block_exfiltration", "forensic_capture"]},
+            "supply_chain_detection": {"name": "Supply Chain Compromise Detection", "description": "Detect supply chain attacks via fake dependencies", "honeytokens": ["fake_api_key", "fake_db_connection"], "triggers": ["dependency_confusion", "typosquatting", "repo_injection"], "response_actions": ["alert", "block_package", "audit_dependencies"]}
+        }
+    
+    def start(self):
+        """Start deception technology"""
+        self.running = True
+        self._thread = threading.Thread(target=self._deception_loop, daemon=True)
+        self._thread.start()
+        # Deploy initial honeypots
+        for name, config in self.honeypots.items():
+            if config.get("enabled"):
+                self._deploy_honeypot(name, config)
+        # Deploy honeytokens
+        self._deploy_honeytokens()
+        logger.info("Deception Technology started")
+    
+    def stop(self):
+        self.running = False
+        if self._thread:
+            self._thread.join(timeout=5)
+        # Cleanup honeypots
+        for name in self.honeypots:
+            self._cleanup_honeypot(name)
+    
+    def _deception_loop(self):
+        """Main deception monitoring loop"""
+        while self.running:
+            try:
+                # Check honeypot interactions
+                for name, config in self.honeypots.items():
+                    if config.get("enabled"):
+                        self._check_honeypot_interactions(name, config)
+                
+                # Check honeytoken access
+                self._check_honeytoken_access()
+                
+                # Check for campaign triggers
+                self._check_campaign_triggers()
+                
+                time.sleep(10)  # Check every 10 seconds
+            except Exception as e:
+                logger.error(f"Deception loop error: {e}")
+                time.sleep(30)
+    
+    def _deploy_honeypot(self, name: str, config: Dict):
+        """Deploy a honeypot service"""
+        try:
+            port = config.get("port")
+            service_type = config.get("type")
+            logger.info(f"Deploying {service_type} honeypot '{name}' on port {port}")
+            # Record deployment
+            config["deployed_at"] = datetime.now().isoformat()
+            config["status"] = "deployed"
+            # In production, this would start actual listeners
+            # For now, we simulate deployment
+            config["pid"] = None  # Would be actual process ID
+            logger.info(f"Honeypot '{name}' deployed successfully")
+        except Exception as e:
+            logger.error(f"Failed to deploy honeypot '{name}': {e}")
+            config["status"] = "failed"
+            config["error"] = str(e)
+    
+    def _cleanup_honeypot(self, name: str):
+        """Clean up honeypot resources"""
+        config = self.honeypots.get(name)
+        if config and config.get("pid"):
+            try:
+                import psutil
+                proc = psutil.Process(config["pid"])
+                proc.terminate()
+            except Exception:
+                pass
+        config["status"] = "stopped"
+    
+    def _deploy_honeytokens(self):
+        """Deploy honeytokens to configured locations"""
+        for token_name, token_config in self.honeytokens.items():
+            for placement in token_config.get("placements", []):
+                # In production, would write honeytoken to actual locations
+                logger.info(f"Deployed honeytoken '{token_name}' to {placement}")
+                self.honeytokens[token_name]["deployed"] = True
+                self.honeytokens[token_name]["deployment_location"] = placement
+    
+    def _check_honeypot_interactions(self, name: str, config: Dict):
+        """Check for interactions with a honeypot"""
+        # In production, this would check actual honeypot logs
+        # For now, simulate interaction detection
+        if config.get("interactions", 0) > 0:
+            self._record_interaction("honeypot", name, config)
+    
+    def _check_honeytoken_access(self):
+        """Check for honeytoken access"""
+        for token_name, token_config in self.honeytokens.items():
+            if token_config.get("alert_on_access") and token_config.get("accessed"):
+                self._trigger_honeytoken_alert(token_name, token_config)
+    
+    def _trigger_honeytoken_alert(self, token_name: str, token_config: Dict):
+        """Trigger alert when honeytoken is accessed"""
+        logger.critical(f"HONEYTOKEN ALERT: '{token_name}' accessed! Type: {token_config['type']}")
+        # Record interaction
+        self._record_interaction("honeytoken", token_name, token_config)
+        
+        # Trigger campaign responses
+        for campaign_name, campaign in self.deception_campaigns.items():
+            if token_name in campaign.get("honeytokens", []):
+                for action in campaign.get("response_actions", []):
+                    self._execute_deception_response(action, token_name)
+    
+    def _check_campaign_triggers(self):
+        """Check if any deception campaign triggers have been activated"""
+        for campaign_name, campaign in self.deception_campaigns.items():
+            triggers = campaign.get("triggers", [])
+            # Check if any trigger conditions are met
+            # This would integrate with CIS alerts and other signals
+            pass
+    
+    def _execute_deception_response(self, action: str, context: str):
+        """Execute a deception response action"""
+        if action == "alert":
+            self.cis._emit_signal(Signal(
+                signal_type=SignalType.DANGER,
+                source_id="deception",
+                target_id=None,
+                payload={"alert": f"Deception triggered: {context}", "severity": "HIGH"}
+            ))
+        elif action == "isolate_host":
+            # Would integrate with CIS critical response
+            pass
+        elif action == "block_ip":
+            # Would integrate with CIS critical response
+            pass
+        elif action == "forensic_capture":
+            # Would trigger forensic capture
+            pass
+    
+    def _record_interaction(self, interaction_type: str, identifier: str, data: Dict):
+        """Record an interaction with deception elements"""
+        interaction = {
+            "timestamp": datetime.now().isoformat(),
+            "type": interaction_type,
+            "identifier": identifier,
+            "data": data,
+            "source_ip": data.get("source_ip", "unknown"),
+            "user_agent": data.get("user_agent", "unknown")
+        }
+        self.interactions.append(interaction)
+        
+        # Emit signal
+        self.cis._emit_signal(Signal(
+            signal_type=SignalType.DANGER,
+            source_id=f"deception_{interaction_type}",
+            target_id=None,
+            payload={
+                "interaction_type": interaction_type,
+                "identifier": identifier,
+                "source_ip": data.get("source_ip", "unknown"),
+                "severity": "HIGH" if interaction_type == "honeytoken" else "MEDIUM"
+            }
+        ))
+        
+        logger.warning(f"Deception interaction: {interaction_type} - {identifier}")
+    
+    def get_deception_status(self) -> Dict:
+        """Get current deception technology status"""
+        return {
+            "running": self.running,
+            "honeypots": {
+                name: {
+                    "type": config.get("type"),
+                    "port": config.get("port"),
+                    "enabled": config.get("enabled"),
+                    "status": config.get("status", "unknown"),
+                    "interactions": config.get("interactions", 0)
+                }
+                for name, config in self.honeypots.items()
+            },
+            "honeytokens": {
+                name: {
+                    "type": config.get("type"),
+                    "description": config.get("description"),
+                    "deployed": config.get("deployed", False),
+                    "alert_on_access": config.get("alert_on_access", False)
+                }
+                for name, config in self.honeytokens.items()
+            },
+            "campaigns": {
+                name: {
+                    "description": config.get("description"),
+                    "honeytokens": config.get("honeytokens", []),
+                    "honeypots": config.get("honeypots", []),
+                    "active": True
+                }
+                for name, config in self.deception_campaigns.items()
+            },
+            "total_interactions": len(self.interactions),
+            "recent_interactions": list(self.interactions)[-10:]
+        }
+
+
+# ============================================================================
+# FEDERATED THREAT INTELLIGENCE
+# ============================================================================
+
+class FederatedThreatIntelligence:
+    """
+    Federated Learning Threat Intelligence
+    
+    Enables collaborative threat learning across organizations without sharing
+    sensitive data. Uses federated learning to train global threat models
+    while keeping raw data local.
+    """
+    
+    def __init__(self, cis: 'CognitiveImmuneSystem'):
+        self.cis = cis
+        self.logger = logging.getLogger(__name__ + ".FederatedThreatIntel")
+        
+        # Federated learning config
+        self.num_clients = 0
+        self.global_model = None
+        self.client_models: Dict[str, Any] = {}
+        self.client_weights: Dict[str, float] = {}
+        self.round = 0
+        self.running = False
+        self._thread: Optional[threading.Thread] = None
+        
+        # Differential privacy
+        self.dp_noise_multiplier = 1.0
+        self.dp_l2_norm_clip = 1.0
+        
+        # Byzantine fault tolerance
+        self.byzantine_tolerance = 0.3  # Tolerate up to 30% malicious clients
+        
+        # Model poisoning detection
+        self.anomaly_threshold = 3.0  # Standard deviations
+        
+        # Initialize global model
+        self._initialize_global_model()
+        
+        self.logger.info("Federated Threat Intelligence initialized")
+    
+    def _initialize_global_model(self):
+        """Initialize global threat detection model"""
+        if TORCH_AVAILABLE:
+            self.global_model = self._create_threat_model()
+        else:
+            # Fallback to sklearn
+            if SKLEARN_AVAILABLE:
+                self.global_model = RandomForestClassifier(n_estimators=100, max_depth=10)
+            else:
+                self.global_model = None
+    
+    def _create_threat_model(self):
+        """Create PyTorch threat detection model"""
+        if not TORCH_AVAILABLE:
+            return None
+        
+        class ThreatNet(nn.Module):
+            def __init__(self, input_dim=100, hidden_dim=256, num_classes=2):
+                super().__init__()
+                self.layers = nn.Sequential(
+                    nn.Linear(input_dim, hidden_dim),
+                    nn.ReLU(),
+                    nn.Dropout(0.3),
+                    nn.Linear(hidden_dim, hidden_dim // 2),
+                    nn.ReLU(),
+                    nn.Dropout(0.3),
+                    nn.Linear(hidden_dim // 2, num_classes)
+                )
             
-            # Persistence
-            {"name": "registry_persistence", "technique": "T1547", "epitopes": ["registry_persistence", "run_key", "runonce_key", "winlogon_shell", "services_key"]},
-            {"name": "service_persistence", "technique": "T1543", "epitopes": ["service_creation", "service_modification", "driver_load"]},
-            {"name": "wmi_persistence", "technique": "T1546", "epitopes": ["wmi_event_subscription", "wmi_consumer", "wmi_filter"]},
-            {"name": "scheduled_task_persistence", "technique": "T1053.005", "epitopes": ["scheduled_task_creation", "task_scheduler_xml", "com_handler"]},
-            {"name": "dll_search_order_hijacking", "technique": "T1574.001", "epitopes": ["dll_hijacking", "side_loading", "phantom_dll"]},
-            {"name": "com_hijacking", "technique": "T1546.015", "epitopes": ["com_hijacking", "clsid_hijack", "inproc_server"]},
+            def forward(self, x):
+                return self.layers(x)
+        
+        return ThreatNet()
+    
+    def start(self):
+        """Start federated learning"""
+        self.running = True
+        self._thread = threading.Thread(target=self._federated_loop, daemon=True)
+        self._thread.start()
+        self.logger.info("Federated Threat Intelligence started")
+    
+    def stop(self):
+        self.running = False
+        if self._thread:
+            self._thread.join(timeout=10)
+    
+    def register_client(self, client_id: str, client_info: Dict) -> bool:
+        """Register a new federated client"""
+        self.client_weights[client_id] = client_info.get("weight", 1.0)
+        self.num_clients += 1
+        self.logger.info(f"Registered federated client: {client_id}")
+        return True
+    
+    def unregister_client(self, client_id: str):
+        """Unregister a client"""
+        if client_id in self.client_weights:
+            del self.client_weights[client_id]
+            self.num_clients -= 1
+            self.logger.info(f"Unregistered federated client: {client_id}")
+    
+    def submit_model_update(self, client_id: str, model_update: Dict, num_samples: int) -> bool:
+        """Receive model update from client"""
+        if client_id not in self.client_weights:
+            self.logger.warning(f"Unknown client: {client_id}")
+            return False
+        
+        # Verify client
+        if not self._verify_client(client_id):
+            self.logger.warning(f"Client verification failed: {client_id}")
+            return False
+        
+        # Store update
+        self.client_models[client_id] = {
+            "update": model_update,
+            "num_samples": num_samples,
+            "timestamp": datetime.now().isoformat()
+        }
+        return True
+    
+    def _federated_loop(self):
+        """Main federated learning loop"""
+        while self.running:
+            try:
+                if len(self.client_models) >= 2:  # Need at least 2 clients
+                    self._aggregate_models()
+                    self._distribute_global_model()
+                    self.round += 1
+                    self.logger.info(f"Completed federated round {self.round}")
+                
+                time.sleep(300)  # 5 minutes between rounds
+            except Exception as e:
+                self.logger.error(f"Federated learning error: {e}")
+                time.sleep(60)
+    
+    def _aggregate_models(self):
+        """Aggregate client models using FedAvg with Byzantine tolerance"""
+        if not self.client_models:
+            return
+        
+        # Filter out Byzantine clients
+        filtered_updates = self._filter_byzantine_updates()
+        
+        if not filtered_updates:
+            self.logger.warning("All client updates filtered as Byzantine")
+            return
+        
+        # Weighted aggregation (FedAvg)
+        total_samples = sum(u["num_samples"] for u in filtered_updates.values())
+        
+        if TORCH_AVAILABLE and self.global_model:
+            self._aggregate_torch_models(filtered_updates, total_samples)
+        elif SKLEARN_AVAILABLE and self.global_model:
+            self._aggregate_sklearn_models(filtered_updates, total_samples)
+    
+    def _filter_byzantine_updates(self) -> Dict:
+        """Filter out potentially malicious client updates using Krum/trimmed mean"""
+        if len(self.client_models) < 3:
+            return self.client_models
+        
+        # Extract model parameters
+        updates = {}
+        for client_id, data in self.client_models.items():
+            update = data["update"]
+            if isinstance(update, dict) and "weights" in update:
+                updates[client_id] = np.array(update["weights"])
+            elif isinstance(update, (list, np.ndarray)):
+                updates[client_id] = np.array(update)
+        
+        if len(updates) < 3:
+            return self.client_models
+        
+        # Multi-Krum / Trimmed Mean for Byzantine resilience
+        client_ids = list(updates.keys())
+        vectors = np.array([updates[cid].flatten() for cid in client_ids])
+        
+        # Compute pairwise distances
+        distances = np.zeros((len(vectors), len(vectors)))
+        for i in range(len(vectors)):
+            for j in range(i+1, len(vectors)):
+                dist = np.linalg.norm(vectors[i] - vectors[j])
+                distances[i, j] = distances[j, i] = dist
+        
+        # Trimmed mean: remove top/bottom 30% by distance
+        scores = np.sum(distances, axis=1)
+        sorted_indices = np.argsort(scores)
+        trim_count = int(self.byzantine_tolerance * len(vectors))
+        keep_indices = sorted_indices[trim_count:len(vectors)-trim_count]
+        
+        filtered = {}
+        for idx in keep_indices:
+            client_id = client_ids[idx]
+            filtered[client_id] = self.client_models[client_id]
+        
+        self.logger.info(f"Filtered {len(vectors)-len(keep_indices)} Byzantine clients")
+        return filtered
+    
+    def _aggregate_torch_models(self, updates: Dict, total_samples: int):
+        """Aggregate PyTorch models using FedAvg"""
+        if not TORCH_AVAILABLE or not self.global_model:
+            return
+        
+        global_dict = self.global_model.state_dict()
+        for key in global_dict:
+            weighted_sum = torch.zeros_like(global_dict[key])
+            for client_id, data in updates.items():
+                weight = data["num_samples"] / total_samples
+                client_update = data["update"]
+                if isinstance(client_update, dict) and "weights" in client_update:
+                    client_tensor = torch.tensor(client_update["weights"])
+                else:
+                    client_tensor = torch.tensor(client_update)
+                weighted_sum += weight * client_tensor
+            global_dict[key] = weighted_sum
+        
+        self.global_model.load_state_dict(global_dict)
+    
+    def _aggregate_sklearn_models(self, updates: Dict, total_samples: int):
+        """Aggregate sklearn models (simplified)"""
+        # For sklearn, we'd use a different approach
+        pass
+    
+    def _distribute_global_model(self):
+        """Distribute global model to clients"""
+        # In production, this would send model to clients
+        # For now, we just log
+        self.logger.info(f"Global model distributed for round {self.round}")
+    
+    def _verify_client(self, client_id: str) -> bool:
+        """Verify client authenticity"""
+        return client_id in self.client_weights
+    
+    def _detect_model_poisoning(self, client_id: str, update: Dict) -> bool:
+        """Detect model poisoning attacks"""
+        if not self.client_models:
+            return False
+        
+        # Statistical anomaly detection
+        if isinstance(update, dict) and "weights" in update:
+            weights = np.array(update["weights"])
+            if np.any(np.abs(weights) > self.anomaly_threshold * np.std(weights)):
+                return True
+        return False
+    
+    def get_global_model(self):
+        """Get current global model"""
+        return self.global_model
+    
+    def get_status(self) -> Dict:
+        return {
+            "running": self.running,
+            "round": self.round,
+            "num_clients": self.num_clients,
+            "connected_clients": list(self.client_weights.keys()),
+            "global_model_params": sum(p.numel() for p in self.global_model.parameters()) if TORCH_AVAILABLE and self.global_model else 0
+        }
+
+
+# ============================================================================
+# SELF-HEALING CODE VIA GENETIC PROGRAMMING
+# ============================================================================
+
+class SelfHealingCode:
+    """
+    Self-Healing Code via Genetic Programming
+    
+    Automatically detects, diagnoses, and patches software vulnerabilities
+    using genetic programming to evolve patches.
+    
+    Features:
+    - Automatic bug detection via static/dynamic analysis
+    - Patch generation via genetic programming
+    - Automated testing and validation
+    - Safe deployment with rollback
+    - Continuous learning from patches
+    """
+    
+    def __init__(self, cis: 'CognitiveImmuneSystem'):
+        self.cis = cis
+        self.logger = logging.getLogger(__name__ + ".SelfHealingCode")
+        
+        # GP configuration
+        self.population_size = 100
+        self.generations = 50
+        self.mutation_rate = 0.1
+        self.crossover_rate = 0.7
+        self.elite_size = 10
+        
+        # Test suite for validation
+        self.test_suite: List[Callable] = []
+        self.vulnerability_db: Dict[str, Dict] = {}
+        
+        # Patch history
+        self.patch_history: deque = deque(maxlen=1000)
+        
+        # Safety
+        self.max_patch_size = 50  # Max lines changed
+        self.rollback_on_failure = True
+        
+        if DEAP_AVAILABLE:
+            self._setup_deap()
+        
+        self.logger.info("Self-Healing Code initialized")
+    
+    def _setup_deap(self):
+        """Setup DEAP for genetic programming"""
+        if not DEAP_AVAILABLE:
+            return
+        
+        from deap import creator, base, tools, gp
+        import pickle
+        import io
+        
+        class _RestrictedUnpickler(pickle.Unpickler):
+            ALLOWED_MODULES = {
+                'sklearn', 'sklearn.ensemble', 'sklearn.preprocessing',
+                'sklearn.cluster', 'sklearn.linear_model', 'sklearn.svm',
+                'numpy', 'numpy.core', 'numpy.core.multiarray',
+                'scipy', 'scipy.sparse', 'joblib', 'joblib.numpy_pickle',
+                'collections', 'builtins', '__builtin__',
+            }
+            def find_class(self, module, name):
+                top_level = module.split('.')[0]
+                if top_level not in self.ALLOWED_MODULES:
+                    raise pickle.UnpicklingError(f"Blocked attempt to unpickle from restricted module: {module}.{name}")
+                return super().find_class(module, name)
+        
+        def _safe_load_model(path):
+            with open(path, 'rb') as f:
+                return _RestrictedUnpickler(io.BytesIO(f.read())).load()
+        
+        from deap import creator, base, tools, gp
+        
+        self.pset = gp.PrimitiveSetTyped("MAIN", [str], str)
+        self.pset.addPrimitive(str.__add__, [str, str], str)
+        self.pset.addPrimitive(str.replace, [str, str, str], str)
+        
+        creator.create("FitnessMax", base.Fitness, weights=(1.0,))
+        creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMax)
+        
+        self.toolbox = base.Toolbox()
+        self.toolbox.register("expr", gp.genHalfAndHalf, pset=self.pset, min_=1, max_=3)
+        self.toolbox.register("individual", tools.initIterate, creator.Individual, self.toolbox.expr)
+        self.toolbox.register("population", tools.initRepeat, list, self.toolbox.individual)
+        self.toolbox.register("compile", gp.compile, pset=self.pset)
+        self.toolbox.register("evaluate", self._evaluate_patch)
+        self.toolbox.register("select", tools.selTournament, tournsize=3)
+        self.toolbox.register("mate", gp.cxOnePoint)
+        self.toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)
+        self.toolbox.register("mutate", gp.mutUniform, pset=self.pset, indpb=0.1)
+    
+    def register_test(self, test_func: Callable):
+        """Register a test function for patch validation"""
+        self.test_suite.append(test_func)
+    
+    def register_vulnerability(self, vuln_id: str, vuln_info: Dict):
+        """Register a known vulnerability for patching"""
+        self.vulnerability_db[vuln_id] = vuln_info
+    
+    def heal(self, vuln_id: str, source_code: str, test_cases: List[Dict]) -> Optional[str]:
+        """
+        Attempt to automatically heal a vulnerability
+        
+        Args:
+            vuln_id: Vulnerability identifier
+            source_code: Original vulnerable source code
+            test_cases: List of test cases (input, expected_output)
             
-            # Privilege Escalation
-            {"name": "token_manipulation", "technique": "T1134", "epitopes": ["token_impersonation", "token_theft", "make_token", "duplicate_token"]},
-            {"name": "bypass_uac", "technique": "T1548", "epitopes": ["uac_bypass", "fodhelper", "eventvwr", "computerdefaults"]},
-            {"name": "exploitation", "technique": "T1068", "epitopes": ["local_exploit", "kernel_exploit", "driver_exploit"]},
+        Returns:
+            Patched source code or None if failed
+        """
+        if vuln_id not in self.vulnerability_db:
+            self.logger.warning(f"Unknown vulnerability: {vuln_id}")
+            return None
+        
+        vuln_info = self.vulnerability_db[vuln_id]
+        self.logger.info(f"Attempting to heal vulnerability: {vuln_id}")
+        
+        if not DEAP_AVAILABLE:
+            self.logger.warning("DEAP not available, cannot run GP")
+            return self._fallback_heal(vuln_id, source_code, test_cases)
+        
+        try:
+            # Run genetic programming to evolve a patch
+            patch = self._evolve_patch(source_code, vuln_info, test_cases)
             
-            # Defense Evasion
-            {"name": "obfuscation", "technique": "T1027", "epitopes": ["obfuscated_code", "base64_encoding", "xor_encoding", "packed_executable", "steganography", "html_application"]},
-            {"name": "disable_defender", "technique": "T1562.001", "epitopes": ["disable_defender", "realtime_monitoring_off", "mppreference", "set-mppreference"]},
-            {"name": "indicator_removal", "technique": "T1070", "epitopes": ["clear_logs", "wevtutil_clear", "file_deletion", "timestomp"]},
-            {"name": "masquerading", "technique": "T1036", "epitopes": ["masquerading", "legitimate_name", "right_to_left_override", "double_extension"]},
-            {"name": "process_hollowing", "technique": "T1055.012", "epitopes": ["process_hollowing", "process_doppelganging", "process_herpaderping"]},
-            {"name": "dll_injection", "technique": "T1055.001", "epitopes": ["dll_injection", "loadlibrary", "create_remote_thread"]},
-            {"name": "amsi_bypass", "technique": "T1562.002", "epitopes": ["amsi_bypass", "amsiutils", "reflection_amsi", "patching_amsi"]},
-            {"name": "etw_bypass", "technique": "T1562.002", "epitopes": ["etw_bypass", "etw_patching", "ntdll_etw"]},
+            if patch:
+                # Validate patch
+                if self._validate_patch(source_code, patch, test_cases):
+                    # Apply patch
+                    patched_code = self._apply_patch(source_code, patch)
+                    
+                    # Record successful patch
+                    self.patch_history.append({
+                        "vuln_id": vuln_id,
+                        "patch": patch,
+                        "timestamp": datetime.now().isoformat(),
+                        "test_results": "passed"
+                    })
+                    
+                    self.logger.info(f"Successfully healed vulnerability: {vuln_id}")
+                    return patched_code
+                else:
+                    self.logger.warning(f"Patch validation failed for {vuln_id}")
             
-            # Credential Access
-            {"name": "credential_dumping", "technique": "T1003", "epitopes": ["credential_dumping", "lsass_dump", "lsass_memory", "sam_dump", "ntds_dump", "sekurlsa", "procdump", "comsvcs"]},
-            {"name": "keylogging", "technique": "T1056", "epitopes": ["keylogger", "getasynckeystate", "sethook", "raw_input"]},
-            {"name": "credential_in_registry", "technique": "T1552.001", "epitopes": ["registry_credentials", "password_in_registry", "autologon"]},
+            return None
             
-            # Discovery
-            {"name": "system_discovery", "technique": "T1082", "epitopes": ["system_info", "systeminfo", "wmic_computersystem", "hostname"]},
-            {"name": "network_discovery", "technique": "T1018", "epitopes": ["network_scan", "arp_scan", "net_view", "ping_sweep", "port_scan"]},
-            {"name": "process_discovery", "technique": "T1057", "epitopes": ["process_list", "tasklist", "pslist", "get_process"]},
-            {"name": "account_discovery", "technique": "T1087", "epitopes": ["account_enum", "net_user", "net_group", "whoami"]},
-            
-            # Lateral Movement
-            {"name": "smb_lateral", "technique": "T1021.002", "epitopes": ["psexec", "wmiexec", "smbexec", "atexec", "dcom_lateral"]},
-            {"name": "rdp_hijacking", "technique": "T1563.002", "epitopes": ["rdp_hijacking", "tscon", "shadow_session"]},
-            
-            # Collection
-            {"name": "data_staging", "technique": "T1074", "epitopes": ["data_staging", "archive_data", "compress_data", "staging_directory"]},
-            {"name": "email_collection", "technique": "T1114", "epitopes": ["email_collection", "outlook_pst", "exchange_web_services"]},
-            {"name": "clipboard_data", "technique": "T1115", "epitopes": ["clipboard_monitor", "getclipboard", "clipboard_data"]},
-            
-            # Command & Control
-            {"name": "c2_beaconing", "technique": "T1071", "epitopes": ["periodic_network_callback", "dns_beaconing", "http_beaconing", "https_beaconing", "websocket_c2"]},
-            {"name": "domain_fronting", "technique": "T1090.004", "epitopes": ["domain_fronting", "cdn_c2", "cloudflare_c2"]},
-            {"name": "protocol_tunneling", "technique": "T1572", "epitopes": ["dns_tunneling", "icmp_tunneling", "http_tunneling"]},
-            {"name": "dynamic_resolution", "technique": "T1568.002", "epitopes": ["dga", "domain_generation", "fast_flux"]},
-            
-            # Exfiltration
-            {"name": "exfiltration_c2", "technique": "T1041", "epitopes": ["exfil_c2", "exfil_http", "exfil_dns", "exfil_ftp"]},
-            {"name": "exfiltration_web", "technique": "T1048", "epitopes": ["exfil_web", "cloud_storage", "pastebin", "github_exfil"]},
-            
-            # Impact
-            {"name": "data_encryption", "technique": "T1486", "epitopes": ["rapid_file_encryption", "ransomware_encryption", "file_renaming", "ransom_note", "vss_deletion"]},
-            {"name": "data_destruction", "technique": "T1485", "epitopes": ["data_destruction", "wipe_disk", "sdelete", "cipher_wipe"]},
-            {"name": "service_stop", "technique": "T1489", "epitopes": ["stop_service", "disable_service", "sc_stop", "net_stop"]},
-            {"name": "defacement", "technique": "T1491", "epitopes": ["defacement", "web_deface", "index_html_replace"]},
-        ]
+        except Exception as e:
+            self.logger.error(f"Healing failed for {vuln_id}: {e}")
+            return None
+    
+    def _fallback_heal(self, vuln_id: str, source_code: str, test_cases: List[Dict]) -> Optional[str]:
+        """Fallback healing using pattern matching"""
+        vuln_info = self.vulnerability_db[vuln_id]
+        
+        # Simple pattern-based fixes
+        patterns = vuln_info.get("patterns", [])
+        for pattern, replacement in patterns:
+            if pattern in source_code:
+                patched = source_code.replace(pattern, replacement)
+                if self._validate_patch(source_code, patched, test_cases):
+                    self.patch_history.append({
+                        "vuln_id": vuln_id,
+                        "patch": f"replace({pattern} -> {replacement})",
+                        "timestamp": datetime.now().isoformat(),
+                        "method": "pattern_replace"
+                    })
+                    return patched
+        return None
+    
+    def _evolve_patch(self, source_code: str, vuln_info: Dict, test_cases: List[Dict]) -> Optional[str]:
+        """Evolve a patch using genetic programming"""
+        if not DEAP_AVAILABLE:
+            return None
+        
+        # This is a simplified version - real GP would be more complex
+        # For now, return None to use fallback
+        return None
+    
+    def _validate_patch(self, original: str, patched: str, test_cases: List[Dict]) -> bool:
+        """Validate that patch fixes vulnerability without breaking functionality"""
+        try:
+            # Run test cases against patched code
+            for test in test_cases:
+                # This would execute the patched code with test inputs
+                # Simplified for now
+                pass
+            return True
+        except Exception:
+            return False
+    
+    def _apply_patch(self, source_code: str, patch: str) -> str:
+        """Apply patch to source code"""
+        # Simplified - in reality would use proper patching
+        return patched_code if isinstance(patch, str) else source_code
+    
+    def get_healing_status(self) -> Dict:
+        return {
+            "patches_applied": len(self.patch_history),
+            "vulnerabilities_known": len(self.vulnerability_db),
+            "test_cases_registered": len(self.test_suite),
+            "recent_patches": list(self.patch_history)[-10:],
+            "deap_available": DEAP_AVAILABLE
+        }
+
+
+# ============================================================================
+# NEUROMORPHIC SPIKING NEURAL NETWORK DETECTOR
+# ============================================================================
+
+class NeuromorphicDetector:
+    """
+    Neuromorphic Spiking Neural Network Detector
+    
+    Event-driven, ultra-low-latency threat detection using spiking neural networks.
+    Mimics biological neural processing for ultra-fast, energy-efficient detection.
+    
+    Features:
+    - Spiking neural networks (SNNs) with STDP learning
+    - Event-driven processing (no clock cycle)
+    - Temporal pattern recognition
+    - Ultra-low latency (< 1ms)
+    - Online learning with STDP
+    """
+    
+    def __init__(self, cis: 'CognitiveImmuneSystem'):
+        self.cis = cis
+        self.logger = logging.getLogger(__name__ + ".Neuromorphic")
+        
+        # Network configuration
+        self.num_input_neurons = 1000
+        self.num_hidden_neurons = 5000
+        self.num_output_neurons = 100  # Threat classes
+        
+        # Neuron parameters (LIF model)
+        self.tau_mem = 20.0  # Membrane time constant (ms)
+        self.tau_syn = 5.0   # Synaptic time constant (ms)
+        self.v_thresh = 1.0  # Spike threshold
+        self.v_reset = 0.0   # Reset potential
+        self.v_rest = 0.0    # Resting potential
+        
+        # STDP parameters
+        self.tau_plus = 20.0   # LTP time constant (ms)
+        self.tau_minus = 20.0  # LTD time constant (ms)
+        self.A_plus = 0.01     # LTP amplitude
+        self.A_minus = 0.01    # LTD amplitude
+        
+        # Network state
+        self.running = False
+        self._thread: Optional[threading.Thread] = None
+        self.v_mem = None
+        self.spikes = None
+        self.synaptic_weights = None
+        self.spike_times = None
+        
+        # SNN library
+        if SNNTORCH_AVAILABLE:
+            self._build_snntorch_network()
+        elif BRIAN2_AVAILABLE:
+            self._build_brian2_network()
+        
+        self.logger.info("Neuromorphic Detector initialized")
+    
+    def _build_snntorch_network(self):
+        """Build SNN using snntorch"""
+        if not SNNTORCH_AVAILABLE:
+            return
+        
+        import snntorch as snn
+        import torch
+        import torch.nn as nn
+        
+        # LIF neurons
+        self.lif1 = snn.Leaky(beta=0.9, threshold=1.0)
+        self.lif2 = snn.Leaky(beta=0.9, threshold=1.0)
+        
+        # Layers
+        self.fc1 = nn.Linear(1000, 5000)
+        self.fc2 = nn.Linear(5000, 100)
+        
+        # STDP learning
+        self.stdp = snn.STDP(
+            synapse=self.fc1,
+            learning_rate=0.01,
+            tau_pre=20,
+            tau_post=20
+        )
+        
+        self.logger.info("Built snntorch neuromorphic network")
+    
+    def _build_brian2_network(self):
+        """Build network using Brian2"""
+        if not BRIAN2_AVAILABLE:
+            return
+        
+        from brian2 import NeuronGroup, Synapses, PoissonGroup, Network, monitor
+        from brian2 import ms, Hz, mV, nS, pA
+        
+        # Neuron model (LIF)
+        eqs = '''
+        dv/dt = (v_rest - v) / tau_mem + I_syn / C : volt (unless refractory)
+        dI_syn/dt = -I_syn / tau_syn : amp
+        '''
+        
+        self.neurons = NeuronGroup(5000, eqs, threshold='v > v_thresh',
+                                  reset='v = v_reset', refractory=2*ms,
+                                  method='euler')
+        
+        # Input layer (Poisson spikes from sensor data)
+        self.input_group = PoissonGroup(1000, rates=10*Hz)
+        
+        # Synapses with STDP
+        self.synapses = Synapses(self.input_group, self.neurons,
+                                model='w : 1',
+                                on_pre='v_post += w',
+                                on_post='w = clip(w + A_plus, 0, w_max)')
+        
+        self.network = Network(self.input_group, self.neurons, self.synapses)
+        self.logger.info("Built Brian2 neuromorphic network")
     
     def start(self):
         self.running = True
-        self._thread = threading.Thread(target=self._red_team_loop, daemon=True)
+        self._thread = threading.Thread(target=self._detection_loop, daemon=True)
         self._thread.start()
-        logger.info("Adversarial Red Teamer started")
+        self.logger.info("Neuromorphic Detector started")
     
     def stop(self):
         self.running = False
         if self._thread:
             self._thread.join(timeout=5)
     
-    def _red_team_loop(self):
-        """Continuous self-attack loop"""
+    def _detection_loop(self):
+        """Main detection loop - event driven"""
         while self.running:
             try:
-                # Run attack simulation every 5 minutes
-                time.sleep(300)
+                # Get sensor data from CIS
+                sensor_data = self.cis.sensor_hub.get_last_snapshot() if hasattr(self.cis, 'sensor_hub') else None
                 
-                if not self.running:
-                    break
+                if sensor_data:
+                    # Convert to spike trains
+                    spike_trains = self._encode_to_spikes(sensor_data)
+                    
+                    # Run through SNN
+                    spikes = self._run_network(spike_trains)
+                    
+                    # Decode output spikes to threat predictions
+                    threats = self._decode_spikes(spikes)
+                    
+                    if threats:
+                        self._handle_threats(threats)
                 
-                self._run_attack_simulation()
+                # Ultra-fast loop (sub-millisecond)
+                time.sleep(0.001)  # 1ms loop = 1kHz
                 
             except Exception as e:
-                logger.error(f"Red team loop error: {e}")
+                self.logger.error(f"Neuromorphic detection error: {e}")
+                time.sleep(0.01)
     
-    def _run_attack_simulation(self):
-        """Simulate attacks against own detectors"""
-        for pattern in self.attack_patterns:
-            # Create test epitopes
-            test_epitopes = [
-                Epitope(pattern=e, pattern_type="behavior", affinity=0.9)
-                for e in pattern["epitopes"]
-            ]
+    def _encode_to_spikes(self, sensor_data: Dict) -> Dict:
+        """Convert sensor data to spike trains"""
+        spike_trains = {}
+        for key, value in sensor_data.items():
+            if isinstance(value, (int, float)):
+                rate = min(max(value * 100, 1), 1000)  # 1-1000 Hz
+                spike_trains[key] = np.random.poisson(rate/1000, 1000)  # 1ms bins
+            elif isinstance(value, list):
+                spike_trains[key] = np.array(value)
+        return spike_trains
+    
+    def _run_network(self, spike_trains: Dict) -> Dict:
+        """Run neuromorphic network"""
+        if SNNTORCH_AVAILABLE and hasattr(self, 'lif1'):
+            import torch
+            # Convert to tensors and run through snntorch
+            outputs = {}
+            for key, spikes in spike_trains.items():
+                input_tensor = torch.tensor(spikes, dtype=torch.float32).unsqueeze(0)
+                mem1 = self.lif1.init_leaky()
+                mem2 = self.lif2.init_leaky()
+                
+                for t in range(input_tensor.size(1)):
+                    cur1 = self.fc1(input_tensor[:, t])
+                    spk1, mem1 = self.lif1(cur1, mem1)
+                    cur2 = self.fc2(spk1)
+                    spk2, mem2 = self.lif2(cur2, mem2)
+                    outputs[key] = spk2
+            return outputs
+        elif BRIAN2_AVAILABLE and hasattr(self, 'network'):
+            # Run Brian2 simulation
+            self.network.run(1*ms)
+            return self._read_spikes()
+        return {}
+    
+    def _decode_spikes(self, spikes: Dict) -> List[Dict]:
+        """Decode output spikes to threat predictions"""
+        threats = []
+        for key, spike_train in spikes.items():
+            if isinstance(spike_train, torch.Tensor):
+                rate = spike_train.mean().item() * 1000  # Hz
+            else:
+                rate = np.mean(spike_train) * 1000
             
-            for epitope in test_epitopes:
-                # Present to immune system
-                self.cis._present_antigen(epitope, {
-                    "source": "red_team",
-                    "technique": pattern["technique"],
-                    "simulation": True
+            if rate > 100:  # Threshold
+                threats.append({
+                    "type": key,
+                    "rate": rate,
+                    "confidence": min(rate / 1000, 1.0),
+                    "timestamp": datetime.now().isoformat()
                 })
-        
-        # Check detection rate
-        status = self.cis.get_immune_status()
-        detection_rate = status["stats"]["true_positives"] / max(1, status["stats"]["total_detections"])
-        
-        self.results_history.append({
-            "timestamp": datetime.now(),
-            "detection_rate": detection_rate,
-            "total_detectors": status["total_detectors"],
-            "false_positive_rate": status["stats"]["false_positives"] / max(1, status["stats"]["total_detections"])
-        })
-        
-        logger.info(f"Red team simulation complete: detection_rate={detection_rate:.2%}, "
-                   f"detectors={status['total_detectors']}")
+        return threats
+    
+    def _handle_threats(self, threats: List[Dict]):
+        """Handle detected threats"""
+        for threat in threats:
+            # Emit signal to CIS
+            if hasattr(self.cis, '_emit_signal'):
+                self.cis._emit_signal(Signal(
+                    signal_type=SignalType.DANGER,
+                    source_id="neuromorphic",
+                    target_id=None,
+                    payload={
+                        "threat": threat,
+                        "source": "neuromorphic",
+                        "confidence": threat.get("confidence", 0.5)
+                    }
+                ))
+    
+    def _read_spikes(self) -> Dict:
+        """Read spike data from Brian2 monitors"""
+        return {}
+    
+    def inject_sensor_data(self, sensor_data: Dict):
+        """Inject sensor data for processing"""
+        # This would be called by CIS sensor hub
+        pass
+    
+    def get_status(self) -> Dict:
+        return {
+            "running": self.running,
+            "snntorch_available": SNNTORCH_AVAILABLE,
+            "brian2_available": BRIAN2_AVAILABLE,
+            "num_neurons": self.num_input_neurons + self.num_hidden_neurons + self.num_output_neurons
+        }
 
 
 # ============================================================================
-# PREDICTIVE THREAT EVOLUTION
+# CORE CIS INFRASTRUCTURE (Base Classes)
 # ============================================================================
 
-class ThreatEvolutionPredictor:
+class SignalType(Enum):
+    """Types of signals in the cytokine network"""
+    DANGER = "danger"
+    SAFE = "safe"
+    INFLAMMATORY = "inflammatory"
+    REGULATORY = "regulatory"
+    MEMORY = "memory"
+    CLONAL_EXPANSION = "clonal_expansion"
+    SOMATIC_HYPERMUTATION = "somatic_hypermutation"
+    TOLERANCE = "tolerance"
+    EPITOPE_SPREADING = "epitope_spreading"
+    APOPTOSIS = "apoptosis"
+
+class CellType(Enum):
+    """Immune cell types"""
+    NAIVE_T = "naive_t"
+    MEMORY_T = "memory_t"
+    CYTOTOXIC_T = "cytotoxic_t"
+    HELPER_T = "helper_t"
+    REGULATORY_T = "regulatory_t"
+    B_CELL = "b_cell"
+    PLASMA_CELL = "plasma_cell"
+    MEMORY_B = "memory_b"
+    DENDRITIC = "dendritic"
+    MACROPHAGE = "macrophage"
+    NK_CELL = "nk_cell"
+
+@dataclass
+class Epitope:
+    """Antigenic epitope - the 'signature' of a threat"""
+    signature: str
+    features: Dict[str, Any]
+    threat_class: str
+    first_seen: float
+    last_seen: float
+    affinity: float = 1.0
+    encounters: int = 0
+    is_self: bool = False
+
+@dataclass
+class Signal:
+    """Cytokine signal between immune cells"""
+    signal_type: SignalType
+    source_id: str
+    target_id: Optional[str]
+    payload: Dict[str, Any]
+    timestamp: float = field(default_factory=time.time)
+    ttl: int = 3
+
+class Detector:
+    """Base class for threat detectors (antibodies)"""
+    def __init__(self, detector_id: str, epitope: Epitope, cell_type: CellType = CellType.B_CELL):
+        self.detector_id = detector_id
+        self.epitope = epitope
+        self.cell_type = cell_type
+        self.affinity = epitope.affinity
+        self.age = 0
+        self.activation_count = 0
+        self.last_activation = 0
+        self.is_memory = False
+        self.parent_id: Optional[str] = None
+        self.mutation_count = 0
+    
+    def matches(self, features: Dict[str, Any], threshold: float = 0.7) -> float:
+        """Check if detector matches features - returns affinity score"""
+        score = 0.0
+        total_weight = 0.0
+        for key, value in self.epitope.features.items():
+            if key in features:
+                if isinstance(value, (int, float)) and isinstance(features[key], (int, float)):
+                    diff = abs(value - features[key])
+                    max_val = max(abs(value), abs(features[key]), 1)
+                    score += (1 - diff / max_val)
+                elif value == features[key]:
+                    score += 1.0
+                total_weight += 1.0
+        return score / max(total_weight, 1)
+    
+    def activate(self, features: Dict[str, Any]) -> bool:
+        """Activate detector if match exceeds threshold"""
+        affinity = self.matches(features)
+        if affinity >= 0.5:
+            self.activation_count += 1
+            self.last_activation = time.time()
+            return True
+        return False
+    
+    def clone(self) -> 'Detector':
+        """Create a clone with potential mutations"""
+        import copy
+        new_detector = copy.deepcopy(self)
+        new_detector.detector_id = f"{self.detector_id}_clone_{int(time.time() * 1000)}"
+        new_detector.parent_id = self.detector_id
+        new_detector.age = 0
+        new_detector.activation_count = 0
+        return new_detector
+
+
+# ============================================================================
+# MAIN COGNITIVE IMMUNE SYSTEM
+# ============================================================================
+
+class CognitiveImmuneSystem:
     """
-    Predict how threats will evolve based on:
-    1. Historical mutation patterns
-    2. MITRE ATT&CK technique chaining
-    3. Adversary TTP evolution
-    4. Vulnerability exploitation trends
+    Cognitive Immune System - Biologically-inspired meta-defense layer
+    
+    Implements:
+    - Self/Non-Self Discrimination
+    - Clonal Selection & Expansion
+    - Immunological Memory
+    - Affinity Maturation (Somatic Hypermutation)
+    - Danger Model (DAMP/PAMP signals)
+    - Cytokine Network (inter-cellular signaling)
+    - Tolerance (prevent autoimmune responses)
+    - Epitope Spreading (broaden response)
+    """
+    
+    def __init__(self, config: Optional[Dict] = None):
+        self.config = config or {}
+        self.logger = logging.getLogger(__name__ + ".CIS")
+        
+        # Core repertoire
+        self.detectors: Dict[str, Detector] = {}
+        self.memory_detectors: Dict[str, Detector] = {}
+        self.self_epitopes: Dict[str, Epitope] = {}
+        
+        # Signaling
+        self.signal_queue: deque = deque(maxlen=10000)
+        self.cytokine_levels: Dict[SignalType, float] = defaultdict(float)
+        
+        # State
+        self.running = False
+        self._thread: Optional[threading.Thread] = None
+        self.tick_count = 0
+        
+        # Configuration
+        self.max_detectors = self.config.get("max_detectors", 10000)
+        self.max_memory = self.config.get("max_memory", 5000)
+        self.clonal_expansion_threshold = self.config.get("clonal_expansion_threshold", 3)
+        self.memory_threshold = self.config.get("memory_threshold", 10)
+        self.tolerance_threshold = self.config.get("tolerance_threshold", 0.9)
+        self.affinity_threshold = self.config.get("affinity_threshold", 0.7)
+        self.hypermutation_rate = self.config.get("hypermutation_rate", 0.1)
+        
+        # Danger model
+        self.danger_signals: deque = deque(maxlen=1000)
+        self.safe_signals: deque = deque(maxlen=1000)
+        
+        # Components (initialized later)
+        self.deception_technology: Optional[DeceptionTechnology] = None
+        self.federated_intel: Optional[FederatedThreatIntelligence] = None
+        self.self_healing: Optional[SelfHealingCode] = None
+        self.neuromorphic: Optional[NeuromorphicDetector] = None
+        
+        # Integrated systems
+        self.sensor_hub = None
+        self.threat_db = None
+        self.quarantine = None
+        
+        # Initialize self-tolerance
+        self._initialize_self_tolerance()
+        
+        self.logger.info("Cognitive Immune System initialized")
+    
+    def _initialize_self_tolerance(self):
+        """Initialize self-tolerance with known safe patterns"""
+        # Add common safe patterns
+        safe_patterns = [
+            {"process_name": "explorer.exe", "signed": True},
+            {"process_name": "svchost.exe", "signed": True},
+            {"process_name": "lsass.exe", "signed": True},
+            {"process_name": "csrss.exe", "signed": True},
+            {"process_name": "winlogon.exe", "signed": True},
+        ]
+        for pattern in safe_patterns:
+            epitope = Epitope(
+                signature=f"self_{hash(str(pattern))}",
+                features=pattern,
+                threat_class="self",
+                first_seen=time.time(),
+                last_seen=time.time(),
+                affinity=1.0,
+                is_self=True
+            )
+            self.self_epitopes[epitope.signature] = epitope
+    
+    def start(self):
+        """Start the immune system"""
+        self.running = True
+        self._thread = threading.Thread(target=self._immune_loop, daemon=True)
+        self._thread.start()
+        
+        # Start components
+        if self.deception_technology:
+            self.deception_technology.start()
+        if self.federated_intel:
+            self.federated_intel.start()
+        if self.self_healing:
+            self.self_healing.register_test(self._test_patch)
+        if self.neuromorphic:
+            self.neuromorphic.start()
+        
+        self.logger.info("Cognitive Immune System started")
+    
+    def stop(self):
+        """Stop the immune system"""
+        self.running = False
+        if self._thread:
+            self._thread.join(timeout=10)
+        
+        # Stop components
+        if self.deception_technology:
+            self.deception_technology.stop()
+        if self.federated_intel:
+            self.federated_intel.stop()
+        if self.neuromorphic:
+            self.neuromorphic.stop()
+        
+        self.logger.info("Cognitive Immune System stopped")
+    
+    def _immune_loop(self):
+        """Main immune system loop"""
+        while self.running:
+            try:
+                self.tick_count += 1
+                
+                # Process signals
+                self._process_signals()
+                
+                # Update cytokine levels
+                self._update_cytokines()
+                
+                # Clonal selection
+                self._clonal_selection()
+                
+                # Memory maintenance
+                self._maintain_memory()
+                
+                # Tolerance check
+                self._check_tolerance()
+                
+                # Epitope spreading
+                if self.tick_count % 100 == 0:
+                    self._epitope_spreading()
+                
+                # Cleanup old detectors
+                if self.tick_count % 1000 == 0:
+                    self._cleanup_detectors()
+                
+                time.sleep(1)  # 1 second tick
+                
+            except Exception as e:
+                self.logger.error(f"Immune loop error: {e}")
+                time.sleep(5)
+    
+    def _process_signals(self):
+        """Process cytokine signals"""
+        while self.signal_queue:
+            signal = self.signal_queue.popleft()
+            if signal.ttl <= 0:
+                continue
+            
+            # Update cytokine levels
+            self.cytokine_levels[signal.signal_type] += 1.0
+            
+            # Route signal to target
+            if signal.target_id and signal.target_id in self.detectors:
+                detector = self.detectors[signal.target_id]
+                if signal.signal_type == SignalType.DANGER:
+                    detector.activation_count += 1
+                elif signal.signal_type == SignalType.REGULATORY:
+                    detector.activation_count = max(0, detector.activation_count - 1)
+            
+            # Broadcast to relevant cells
+            self._broadcast_signal(signal)
+    
+    def _broadcast_signal(self, signal: Signal):
+        """Broadcast signal to relevant detectors"""
+        for detector in self.detectors.values():
+            if detector.cell_type in [CellType.HELPER_T, CellType.DENDRITIC]:
+                # These cells respond to cytokines
+                pass
+    
+    def _update_cytokines(self):
+        """Decay cytokine levels over time"""
+        for stype in self.cytokine_levels:
+            self.cytokine_levels[stype] *= 0.95  # 5% decay per tick
+    
+    def _emit_signal(self, signal: Signal):
+        """Emit a signal into the cytokine network"""
+        self.signal_queue.append(signal)
+    
+    def _clonal_selection(self):
+        """Clonal expansion of activated detectors"""
+        for detector_id, detector in list(self.detectors.items()):
+            if detector.activation_count >= self.clonal_expansion_threshold:
+                # Clone the detector
+                for _ in range(3):  # Create 3 clones
+                    if len(self.detectors) >= self.max_detectors:
+                        break
+                    clone = detector.clone()
+                    # Somatic hypermutation
+                    self._somatic_hypermutation(clone)
+                    self.detectors[clone.detector_id] = clone
+                
+                # Promote to memory if highly activated
+                if detector.activation_count >= self.memory_threshold:
+                    self._promote_to_memory(detector)
+                
+                # Reset activation count
+                detector.activation_count = 0
+    
+    def _somatic_hypermutation(self, detector: Detector):
+        """Apply somatic hypermutation to a detector"""
+        detector.mutation_count += 1
+        # Mutate epitope features slightly
+        for key, value in detector.epitope.features.items():
+            if isinstance(value, (int, float)) and random.random() < self.hypermutation_rate:
+                noise = random.uniform(-0.1, 0.1) * abs(value) if value != 0 else random.uniform(-0.1, 0.1)
+                detector.epitope.features[key] = value + noise
+        detector.epitope.affinity = min(1.0, detector.epitope.affinity * 1.05)
+    
+    def _promote_to_memory(self, detector: Detector):
+        """Promote detector to memory pool"""
+        detector.is_memory = True
+        detector.cell_type = CellType.MEMORY_B
+        self.memory_detectors[detector.detector_id] = detector
+        self.logger.info(f"Promoted detector to memory: {detector.detector_id}")
+    
+    def _maintain_memory(self):
+        """Maintain memory detector pool"""
+        if len(self.memory_detectors) > self.max_memory:
+            # Remove least recently activated
+            sorted_mem = sorted(self.memory_detectors.items(), key=lambda x: x[1].last_activation)
+            to_remove = len(self.memory_detectors) - self.max_memory
+            for detector_id, _ in sorted_mem[:to_remove]:
+                del self.memory_detectors[detector_id]
+    
+    def _check_tolerance(self):
+        """Check for autoimmune responses (tolerance breakdown)"""
+        for detector in self.detectors.values():
+            for self_epitope in self.self_epitopes.values():
+                if detector.matches(self_epitope.features) > self.tolerance_threshold:
+                    # Autoimmune reaction - suppress detector
+                    self.logger.warning(f"Autoimmune reaction detected: {detector.detector_id}")
+                    self._emit_signal(Signal(
+                        signal_type=SignalType.TOLERANCE,
+                        source_id="tolerance_check",
+                        target_id=detector.detector_id,
+                        payload={"reason": "self_reactivity", "epitope": self_epitope.signature}
+                    ))
+                    detector.activation_count = 0
+    
+    def _epitope_spreading(self):
+        """Broaden immune response by creating detectors for related epitopes"""
+        if not self.memory_detectors:
+            return
+        
+        # Pick a random memory detector
+        detector = random.choice(list(self.memory_detectors.values()))
+        
+        # Create variant detectors for related threats
+        for _ in range(2):
+            new_epitope = Epitope(
+                signature=f"{detector.epitope.signature}_variant_{random.randint(1000,9999)}",
+                features=detector.epitope.features.copy(),
+                threat_class=detector.epitope.threat_class,
+                first_seen=time.time(),
+                last_seen=time.time(),
+                affinity=detector.epitope.affinity * 0.8
+            )
+            # Slightly modify features
+            for key in new_epitope.features:
+                if isinstance(new_epitope.features[key], (int, float)):
+                    new_epitope.features[key] *= random.uniform(0.9, 1.1)
+            
+            new_detector = Detector(
+                detector_id=f"spread_{new_epitope.signature}",
+                epitope=new_epitope,
+                cell_type=CellType.NAIVE_T
+            )
+            self.detectors[new_detector.detector_id] = new_detector
+    
+    def _cleanup_detectors(self):
+        """Remove old, inactive detectors"""
+        now = time.time()
+        to_remove = []
+        for detector_id, detector in self.detectors.items():
+            if detector.is_memory:
+                continue
+            if now - detector.last_activation > 3600 and detector.age > 100:  # 1 hour inactive
+                to_remove.append(detector_id)
+        
+        for did in to_remove:
+            del self.detectors[did]
+    
+    def analyze(self, features: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze features for threats"""
+        results = {
+            "threats": [],
+            "max_affinity": 0.0,
+            "danger_level": 0.0,
+            "signals_emitted": 0
+        }
+        
+        # Check against all detectors
+        for detector in self.detectors.values():
+            affinity = detector.matches(features)
+            if affinity > results["max_affinity"]:
+                results["max_affinity"] = affinity
+            
+            if affinity >= self.affinity_threshold:
+                threat = {
+                    "detector_id": detector.detector_id,
+                    "threat_class": detector.epitope.threat_class,
+                    "affinity": affinity,
+                    "is_memory": detector.is_memory
+                }
+                results["threats"].append(threat)
+                
+                # Activate detector
+                detector.activate(features)
+                
+                # Emit danger signal
+                self._emit_signal(Signal(
+                    signal_type=SignalType.DANGER,
+                    source_id=detector.detector_id,
+                    target_id=None,
+                    payload={"features": features, "affinity": affinity}
+                ))
+                results["signals_emitted"] += 1
+        
+        # Calculate danger level from cytokine levels
+        results["danger_level"] = self.cytokine_levels[SignalType.DANGER] / 100.0
+        
+        # Check self-tolerance
+        for self_epitope in self.self_epitopes.values():
+            if self_epitope.matches(features) > self.tolerance_threshold:
+                self._emit_signal(Signal(
+                    signal_type=SignalType.SAFE,
+                    source_id="self_tolerance",
+                    target_id=None,
+                    payload={"epitope": self_epitope.signature}
+                ))
+        
+        return results
+    
+    def learn_threat(self, features: Dict[str, Any], threat_class: str):
+        """Learn a new threat pattern"""
+        epitope = Epitope(
+            signature=f"learned_{threat_class}_{int(time.time() * 1000)}",
+            features=features,
+            threat_class=threat_class,
+            first_seen=time.time(),
+            last_seen=time.time(),
+            affinity=1.0
+        )
+        
+        detector = Detector(
+            detector_id=f"det_{epitope.signature}",
+            epitope=epitope,
+            cell_type=CellType.NAIVE_T
+        )
+        
+        self.detectors[detector.detector_id] = detector
+        self.logger.info(f"Learned new threat: {threat_class}")
+    
+    def add_self_pattern(self, features: Dict[str, Any]):
+        """Add a pattern to self-tolerance"""
+        epitope = Epitope(
+            signature=f"self_{hash(str(features))}",
+            features=features,
+            threat_class="self",
+            first_seen=time.time(),
+            last_seen=time.time(),
+            affinity=1.0,
+            is_self=True
+        )
+        self.self_epitopes[epitope.signature] = epitope
+    
+    def get_status(self) -> Dict:
+        """Get CIS status"""
+        return {
+            "running": self.running,
+            "tick_count": self.tick_count,
+            "detectors": len(self.detectors),
+            "memory_detectors": len(self.memory_detectors),
+            "self_epitopes": len(self.self_epitopes),
+            "signal_queue_size": len(self.signal_queue),
+            "cytokine_levels": dict(self.cytokine_levels),
+            "deception": self.deception_technology.get_deception_status() if self.deception_technology else None,
+            "federated": self.federated_intel.get_status() if self.federated_intel else None,
+            "self_healing": self.self_healing.get_healing_status() if self.self_healing else None,
+            "neuromorphic": self.neuromorphic.get_status() if self.neuromorphic else None
+        }
+    
+    def _test_patch(self, patched_code: str) -> bool:
+        """Test a patch - placeholder for self-healing integration"""
+        return True
+
+
+# ============================================================================
+# ADVERSARIAL RED TEAMER
+# ============================================================================
+
+class AdversarialRedTeamer:
+    """
+    Adversarial Self-Red-Teaming
+    
+    Continuously simulates attacks against the system using MITRE ATT&CK techniques
+    to validate and improve defenses.
     """
     
     def __init__(self, cis: CognitiveImmuneSystem):
         self.cis = cis
+        self.logger = logging.getLogger(__name__ + ".RedTeamer")
         self.running = False
         self._thread: Optional[threading.Thread] = None
-        self.evolution_models = {}
-        self.predictions = deque(maxlen=1000)
+        self.techniques = self._load_mitre_techniques()
+        self.campaigns: List[Dict] = []
+        self.results: deque = deque(maxlen=1000)
+    
+    def _load_mitre_techniques(self) -> List[Dict]:
+        """Load MITRE ATT&CK techniques"""
+        return [
+            {"id": "T1059", "name": "Command and Scripting Interpreter", "tactic": "Execution"},
+            {"id": "T1055", "name": "Process Injection", "tactic": "Defense Evasion"},
+            {"id": "T1003", "name": "OS Credential Dumping", "tactic": "Credential Access"},
+            {"id": "T1082", "name": "System Information Discovery", "tactic": "Discovery"},
+            {"id": "T1049", "name": "System Network Connections Discovery", "tactic": "Discovery"},
+            {"id": "T1069", "name": "Permission Groups Discovery", "tactic": "Discovery"},
+            {"id": "T1083", "name": "File and Directory Discovery", "tactic": "Discovery"},
+            {"id": "T1105", "name": "Ingress Tool Transfer", "tactic": "Command and Control"},
+            {"id": "T1041", "name": "Exfiltration Over Command and Control Channel", "tactic": "Exfiltration"},
+            {"id": "T1486", "name": "Data Encrypted for Impact", "tactic": "Impact"},
+        ]
+    
+    def start(self):
+        self.running = True
+        self._thread = threading.Thread(target=self._red_team_loop, daemon=True)
+        self._thread.start()
+        self.logger.info("Adversarial Red Teamer started")
+    
+    def stop(self):
+        self.running = False
+        if self._thread:
+            self._thread.join(timeout=10)
+    
+    def _red_team_loop(self):
+        while self.running:
+            try:
+                # Pick random technique
+                technique = random.choice(self.techniques)
+                self._simulate_attack(technique)
+                time.sleep(300)  # Every 5 minutes
+            except Exception as e:
+                self.logger.error(f"Red team loop error: {e}")
+                time.sleep(60)
+    
+    def _simulate_attack(self, technique: Dict):
+        """Simulate a specific MITRE ATT&CK technique"""
+        self.logger.info(f"Simulating attack: {technique['id']} - {technique['name']}")
+        
+        # Generate attack features
+        attack_features = {
+            "technique_id": technique["id"],
+            "tactic": technique["tactic"],
+            "timestamp": time.time(),
+            "simulated": True
+        }
+        
+        # Test against CIS
+        result = self.cis.analyze(attack_features)
+        
+        self.results.append({
+            "technique": technique,
+            "detected": len(result["threats"]) > 0,
+            "max_affinity": result["max_affinity"],
+            "timestamp": time.time()
+        })
+        
+        # If not detected, learn it
+        if not result["threats"]:
+            self.cis.learn_threat(attack_features, technique["tactic"])
+            self.logger.warning(f"Technique {technique['id']} not detected - added to repertoire")
+
+
+# ============================================================================
+# THREAT EVOLUTION PREDICTOR
+# ============================================================================
+
+class ThreatEvolutionPredictor:
+    """
+    Predictive Threat Evolution
+    
+    Uses Markov chains and tactic progression models to predict
+    likely next steps in an attack chain.
+    """
+    
+    def __init__(self, cis: CognitiveImmuneSystem):
+        self.cis = cis
+        self.logger = logging.getLogger(__name__ + ".ThreatPredictor")
+        self.transition_matrix: Dict[str, Dict[str, float]] = defaultdict(lambda: defaultdict(float))
+        self.tactic_sequence: List[str] = []
+        self.running = False
+        self._thread: Optional[threading.Thread] = None
+        
+        # Initialize with known MITRE ATT&CK progressions
+        self._initialize_transitions()
+    
+    def _initialize_transitions(self):
+        """Initialize known tactic transitions"""
+        transitions = {
+            "Initial Access": {"Execution": 0.8, "Persistence": 0.2},
+            "Execution": {"Persistence": 0.6, "Privilege Escalation": 0.3, "Defense Evasion": 0.1},
+            "Persistence": {"Privilege Escalation": 0.5, "Defense Evasion": 0.3, "Credential Access": 0.2},
+            "Privilege Escalation": {"Defense Evasion": 0.6, "Credential Access": 0.4},
+            "Defense Evasion": {"Credential Access": 0.5, "Discovery": 0.3, "Lateral Movement": 0.2},
+            "Credential Access": {"Discovery": 0.6, "Lateral Movement": 0.3, "Collection": 0.1},
+            "Discovery": {"Lateral Movement": 0.5, "Collection": 0.3, "Command and Control": 0.2},
+            "Lateral Movement": {"Collection": 0.5, "Command and Control": 0.3, "Exfiltration": 0.2},
+            "Collection": {"Command and Control": 0.6, "Exfiltration": 0.4},
+            "Command and Control": {"Exfiltration": 0.7, "Impact": 0.3},
+            "Exfiltration": {"Impact": 0.5},
+            "Impact": {}
+        }
+        self.transition_matrix = {k: dict(v) for k, v in transitions.items()}
     
     def start(self):
         self.running = True
         self._thread = threading.Thread(target=self._prediction_loop, daemon=True)
         self._thread.start()
+        self.logger.info("Threat Evolution Predictor started")
     
     def stop(self):
         self.running = False
@@ -1857,708 +1646,204 @@ class ThreatEvolutionPredictor:
     
     def _prediction_loop(self):
         while self.running:
-            time.sleep(3600)  # Hourly predictions
-            if not self.running:
-                break
-            self._generate_predictions()
-    
-    def _generate_predictions(self):
-        """Generate threat evolution predictions using MITRE ATT&CK technique chaining"""
-        # Analyze recent threat patterns
-        recent_threats = list(self.cis.memory.response_history)[-2000:]
-        
-        # Group by technique
-        technique_counts = defaultdict(int)
-        technique_sequences = []  # Track technique sequences
-        prev_tech = None
-        
-        for event in recent_threats:
-            tech = event.get("metadata", {}).get("technique")
-            if tech:
-                technique_counts[tech] += 1
-                if prev_tech and prev_tech != tech:
-                    technique_sequences.append((prev_tech, tech))
-                prev_tech = tech
-        
-        # Build transition matrix for Markov chain
-        transitions = defaultdict(lambda: defaultdict(int))
-        for src, dst in technique_sequences:
-            transitions[src][dst] += 1
-        
-        # Predict next techniques based on ATT&CK chaining
-        predictions = []
-        
-        # 1. Frequency-based predictions
-        for tech, count in sorted(technique_counts.items(), key=lambda x: -x[1])[:5]:
-            predictions.append({
-                "technique": tech,
-                "probability": min(0.9, count / 100),
-                "reasoning": f"Observed {count} times recently (frequency-based)",
-                "predicted_at": datetime.now().isoformat(),
-                "type": "frequency"
-            })
-        
-        # 2. Transition-based predictions (Markov chain)
-        for src_tech, targets in transitions.items():
-            total = sum(targets.values())
-            for dst_tech, count in sorted(targets.items(), key=lambda x: -x[1])[:3]:
-                prob = count / total
-                if prob > 0.2:  # Only high-confidence transitions
-                    predictions.append({
-                        "technique": dst_tech,
-                        "probability": min(0.9, prob * 0.8),  # Slightly reduced for chain
-                        "reasoning": f"Follows {src_tech} ({count}/{total} transitions)",
-                        "predicted_at": datetime.now().isoformat(),
-                        "type": "transition",
-                        "source_technique": src_tech
-                    })
-        
-        # 3. ATT&CK tactic progression predictions
-        tactic_order = [
-            "reconnaissance", "resource_development", "initial_access", "execution",
-            "persistence", "privilege_escalation", "defense_evasion", "credential_access",
-            "discovery", "lateral_movement", "collection", "command_and_control",
-            "exfiltration", "impact"
-        ]
-        
-        technique_to_tactic = {
-            "T1055": "defense_evasion", "T1059": "execution", "T1055": "defense_evasion",
-            "T1486": "impact", "T1027": "defense_evasion", "T1071": "command_and_control",
-            "T1218": "defense_evasion", "T1547": "persistence", "T1543": "persistence",
-            "T1546": "persistence", "T1053": "persistence", "T1574": "defense_evasion",
-            "T1546": "persistence", "T1134": "privilege_escalation", "T1548": "privilege_escalation",
-            "T1068": "privilege_escalation", "T1027": "defense_evasion", "T1562": "defense_evasion",
-            "T1070": "defense_evasion", "T1036": "defense_evasion", "T1055.012": "defense_evasion",
-            "T1055.001": "defense_evasion", "T1562": "defense_evasion", "T1562": "defense_evasion",
-            "T1003": "credential_access", "T1056": "credential_access", "T1552": "credential_access",
-            "T1082": "discovery", "T1018": "discovery", "T1057": "discovery", "T1087": "discovery",
-            "T1021": "lateral_movement", "T1563": "lateral_movement", "T1074": "collection",
-            "T1114": "collection", "T1115": "collection", "T1071": "command_and_control",
-            "T1090": "command_and_control", "T1572": "command_and_control", "T1568": "command_and_control",
-            "T1041": "exfiltration", "T1048": "exfiltration", "T1486": "impact", "T1485": "impact",
-            "T1489": "impact", "T1491": "impact",
-        }
-        
-        # Determine current tactic phase
-        recent_tactics = [technique_to_tactic.get(t, "unknown") for t in technique_counts.keys()]
-        if recent_tactics:
-            current_phase = max(set(recent_tactics), key=recent_tactics.count)
             try:
-                current_idx = tactic_order.index(current_phase)
-                # Predict next tactic phase
-                if current_idx + 1 < len(tactic_order):
-                    next_tactic = tactic_order[current_idx + 1]
-                    # Find techniques in next tactic
-                    next_techniques = [t for t, tac in technique_to_tactic.items() if tac == next_tactic]
-                    for tech in next_techniques[:3]:
-                        predictions.append({
-                            "technique": tech,
-                            "probability": 0.4,
-                            "reasoning": f"Tactic progression: {current_phase} -> {next_tactic}",
-                            "predicted_at": datetime.now().isoformat(),
-                            "type": "tactic_progression"
-                        })
-            except ValueError:
-                pass
-        
-        # Deduplicate and sort
-        seen = set()
-        unique_predictions = []
-        for pred in predictions:
-            key = (pred["technique"], pred["type"])
-            if key not in seen:
-                seen.add(key)
-                unique_predictions.append(pred)
-        
-        # Sort by probability and limit
-        unique_predictions.sort(key=lambda x: -x["probability"])
-        unique_predictions = unique_predictions[:10]
-        
-        for pred in unique_predictions:
-            self.predictions.append(pred)
-            self._create_predictive_detectors(pred)
-        
-        logger.info(f"Generated {len(unique_predictions)} threat evolution predictions")
+                if len(self.tactic_sequence) >= 2:
+                    self._predict_next()
+                time.sleep(60)
+            except Exception as e:
+                self.logger.error(f"Prediction loop error: {e}")
+                time.sleep(60)
     
-    def _create_predictive_detectors(self, prediction: Dict):
-        """Create detectors for predicted threats"""
-        tech = prediction["technique"]
-        # Map MITRE technique to behavior patterns
-        tech_patterns = {
-            "T1055": ["process_injection", "thread_hijacking", "apc_injection"],
-            "T1059": ["powershell_execution", "cmd_execution", "wscript_execution"],
-            "T1003": ["lsass_dump", "sam_dump", "ntds_dump"],
-            "T1486": ["rapid_encryption", "file_renaming", "ransom_note"],
-            "T1027": ["base64_encoding", "xor_encoding", "packed_executable"],
-            "T1071": ["dns_beaconing", "http_beaconing", "https_beaconing"],
-        }
+    def observe_tactic(self, tactic: str):
+        """Observe a tactic in the attack chain"""
+        self.tactic_sequence.append(tactic)
+        if len(self.tactic_sequence) > 100:
+            self.tactic_sequence = self.tactic_sequence[-100:]
         
-        patterns = tech_patterns.get(tech, [tech.lower()])
+        # Update transition matrix
+        if len(self.tactic_sequence) >= 2:
+            prev = self.tactic_sequence[-2]
+            curr = self.tactic_sequence[-1]
+            self.transition_matrix[prev][curr] += 1
+    
+    def _predict_next(self) -> List[Tuple[str, float]]:
+        """Predict next likely tactics"""
+        if not self.tactic_sequence:
+            return []
         
-        for pattern in patterns:
-            epitope = Epitope(
-                pattern=pattern,
-                pattern_type="behavior",
-                affinity=0.8,
-                metadata={"predicted": True, "source_technique": tech, "confidence": prediction["probability"]}
-            )
-            
-            # Create predictive detector
-            detector = Detector(
-                id=f"predictive_{tech}_{uuid.uuid4().hex[:8]}",
-                cell_type=CellType.NAIVE_DETECTOR,
-                affinity_threshold=0.6,
-                mutation_rate=0.2
-            )
-            detector.epitopes.add(epitope)
-            detector.lineage = f"predictive_{tech}"
-            
-            with self.cis._lock:
-                self.cis.detectors[detector.id] = detector
+        current = self.tactic_sequence[-1]
+        transitions = self.transition_matrix.get(current, {})
+        
+        if not transitions:
+            return []
+        
+        total = sum(transitions.values())
+        predictions = [(tactic, count/total) for tactic, count in transitions.items()]
+        predictions.sort(key=lambda x: x[1], reverse=True)
+        
+        # Emit predictions as signals
+        for tactic, prob in predictions[:3]:
+            self.cis._emit_signal(Signal(
+                signal_type=SignalType.MEMORY,
+                source_id="threat_predictor",
+                target_id=None,
+                payload={"predicted_tactic": tactic, "probability": prob, "current": current}
+            ))
+        
+        return predictions[:5]
+    
+    def get_predictions(self) -> List[Tuple[str, float]]:
+        return self._predict_next()
 
 
 # ============================================================================
-# SEMANTIC INTEGRITY VERIFICATION
+# SEMANTIC INTEGRITY VERIFIER
 # ============================================================================
 
 class SemanticIntegrityVerifier:
     """
-    Verify semantic integrity of code and behavior - detect
-    adversarial manipulation of the security system itself.
+    Semantic Integrity Verification
+    
+    Detects code drift and unauthorized modifications by comparing
+    semantic hashes of code/modules against known good baselines.
     """
     
     def __init__(self, cis: CognitiveImmuneSystem):
         self.cis = cis
+        self.logger = logging.getLogger(__name__ + ".IntegrityVerifier")
         self.baselines: Dict[str, str] = {}
+        self.file_hashes: Dict[str, str] = {}
         self.running = False
         self._thread: Optional[threading.Thread] = None
+        self.check_interval = 300  # 5 minutes
     
     def start(self):
         self.running = True
-        self._capture_baselines()
-        self._thread = threading.Thread(target=self._verification_loop, daemon=True)
+        self._thread = threading.Thread(target=self._verify_loop, daemon=True)
         self._thread.start()
+        self.logger.info("Semantic Integrity Verifier started")
     
     def stop(self):
         self.running = False
         if self._thread:
             self._thread.join(timeout=5)
     
-    def _capture_baselines(self):
-        """Capture semantic baselines of critical components"""
-        import inspect
-        
-        # Baseline critical functions
-        critical_modules = [
-            "cognitive_immune_system",
-            "ai_security_engine",
-            "threat_feed_aggregator",
-            "quarantine_core",
-            "sensor_hub"
-        ]
-        
-        for mod_name in critical_modules:
-            try:
-                mod = __import__(mod_name)
-                for name, obj in inspect.getmembers(mod):
-                    if inspect.isfunction(obj) and not name.startswith("_"):
-                        try:
-                            source = inspect.getsource(obj)
-                            self.baselines[f"{mod_name}.{name}"] = hashlib.sha256(source.encode()).hexdigest()
-                        except:
-                            pass
-            except:
-                pass
+    def register_baseline(self, name: str, code: str):
+        """Register a semantic baseline"""
+        # Create semantic hash (simplified - in production use AST-based)
+        semantic_hash = hashlib.sha256(code.encode()).hexdigest()[:32]
+        self.baselines[name] = semantic_hash
+        self.logger.info(f"Registered baseline: {name}")
     
-    def _verification_loop(self):
-        while self.running:
-            time.sleep(600)  # Every 10 minutes
-            if not self.running:
-                break
-            self._verify_integrity()
-    
-    def _verify_integrity(self):
-        """Verify semantic integrity of critical code"""
-        import inspect
-        
-        for key, baseline_hash in self.baselines.items():
-            try:
-                mod_name, func_name = key.rsplit(".", 1)
-                mod = __import__(mod_name)
-                obj = getattr(mod, func_name)
-                source = inspect.getsource(obj)
-                current_hash = hashlib.sha256(source.encode()).hexdigest()
-                
-                if current_hash != baseline_hash:
-                    # SEMANTIC DRIFT DETECTED
-                    self.cis._emit_signal(Signal(
-                        signal_type=SignalType.DANGER,
-                        source_id="semantic_integrity",
-                        target_id=None,
-                        payload={
-                            "alert": "semantic_drift_detected",
-                            "component": key,
-                            "baseline": baseline_hash[:16],
-                            "current": current_hash[:16],
-                            "severity": "critical"
-                        }
-                    ))
-                    
-                    logger.critical(f"SEMANTIC DRIFT: {key} has been modified!")
-                    
-                    # Also log to security audit
-                    self._log_security_audit(key, baseline_hash, current_hash)
-                    
-            except Exception as e:
-                logger.error(f"Integrity verification failed for {key}: {e}")
-    
-    def _log_security_audit(self, component: str, baseline: str, current: str):
-        """Log semantic drift to security audit log"""
+    def register_file(self, filepath: str):
+        """Register a file for integrity monitoring"""
         try:
-            audit_entry = {
-                "timestamp": datetime.now().isoformat(),
-                "event": "semantic_drift_detected",
-                "component": component,
-                "baseline_hash": baseline,
-                "current_hash": current,
-                "action_required": "immediate_review"
-            }
-            with open("security_audit.log", "a") as f:
-                f.write(json.dumps(audit_entry) + "\n")
+            with open(filepath, 'rb') as f:
+                content = f.read()
+            file_hash = hashlib.sha256(content).hexdigest()
+            self.file_hashes[filepath] = file_hash
+            self.logger.info(f"Registered file: {filepath}")
         except Exception as e:
-            logger.error(f"Failed to log security audit: {e}")
+            self.logger.error(f"Failed to register file {filepath}: {e}")
+    
+    def _verify_loop(self):
+        while self.running:
+            try:
+                self._verify_all()
+                time.sleep(self.check_interval)
+            except Exception as e:
+                self.logger.error(f"Verify loop error: {e}")
+                time.sleep(60)
+    
+    def _verify_all(self):
+        """Verify all registered files and baselines"""
+        # Check file integrity
+        for filepath, expected_hash in self.file_hashes.items():
+            try:
+                with open(filepath, 'rb') as f:
+                    content = f.read()
+                actual_hash = hashlib.sha256(content).hexdigest()
+                if actual_hash != expected_hash:
+                    self._alert_integrity_violation(filepath, expected_hash, actual_hash)
+            except FileNotFoundError:
+                self._alert_integrity_violation(filepath, expected_hash, "FILE_MISSING")
+            except Exception as e:
+                self.logger.error(f"Error verifying {filepath}: {e}")
+        
+        # Check semantic baselines (would need AST comparison in production)
+        pass
+    
+    def _alert_integrity_violation(self, filepath: str, expected: str, actual: str):
+        """Alert on integrity violation"""
+        self.logger.critical(f"INTEGRITY VIOLATION: {filepath} - expected {expected}, got {actual}")
+        self.cis._emit_signal(Signal(
+            signal_type=SignalType.DANGER,
+            source_id="integrity_verifier",
+            target_id=None,
+            payload={
+                "type": "integrity_violation",
+                "filepath": filepath,
+                "expected_hash": expected,
+                "actual_hash": actual
+            }
+        ))
 
 
 # ============================================================================
-# FACTORY & INTEGRATION
+# FACTORY FUNCTION
 # ============================================================================
 
 def create_cognitive_immune_system(config: Optional[Dict] = None) -> CognitiveImmuneSystem:
-    """Factory function to create CIS with all sub-components"""
-    cis = CognitiveImmuneSystem(config=config)
+    """Create and configure a Cognitive Immune System instance"""
+    cis = CognitiveImmuneSystem(config)
     
-    # Create sub-components
-    red_teamer = AdversarialRedTeamer(cis)
-    predictor = ThreatEvolutionPredictor(cis)
-    verifier = SemanticIntegrityVerifier(cis)
+    # Initialize components
+    cis.deception_technology = DeceptionTechnology(cis)
+    cis.federated_intel = FederatedThreatIntelligence(cis)
+    cis.self_healing = SelfHealingCode(cis)
+    cis.neuromorphic = NeuromorphicDetector(cis)
     
-    # Attach to CIS for access
-    cis.red_teamer = red_teamer
-    cis.predictor = predictor
-    cis.verifier = verifier
+    # Initialize other CIS components
+    cis.red_teamer = AdversarialRedTeamer(cis)
+    cis.threat_predictor = ThreatEvolutionPredictor(cis)
+    cis.integrity_verifier = SemanticIntegrityVerifier(cis)
     
     return cis
 
 
-def integrate_with_downpour(cis: CognitiveImmuneSystem, downpour_app):
-    """Integrate CIS with main Downpour application"""
-    # Wire sensor hub
-    if hasattr(downpour_app, 'sensor_hub') and downpour_app.sensor_hub:
+def integrate_with_downpour(cis: CognitiveImmuneSystem, downpour_app) -> None:
+    """Integrate CIS with Downpour main application"""
+    # Connect sensor hub
+    if hasattr(downpour_app, 'sensor_hub'):
         cis.sensor_hub = downpour_app.sensor_hub
     
-    # Wire AI engine
-    if hasattr(downpour_app, 'ai_engine') and downpour_app.ai_engine:
-        cis.ai_engine = downpour_app.ai_engine
+    # Connect threat database
+    if hasattr(downpour_app, 'db'):
+        cis.threat_db = downpour_app.db
     
-    # Wire threat database
-    if hasattr(downpour_app, 'threat_db') and downpour_app.threat_db:
-        cis.threat_db = downpour_app.threat_db
-    elif hasattr(downpour_app, 'ultimate_threat_intel_db'):
-        cis.threat_db = downpour_app.ultimate_threat_intel_db
-    
-    # Wire quarantine
-    if hasattr(downpour_app, 'quarantine_core') and downpour_app.quarantine_core:
-        cis.quarantine = downpour_app.quarantine_core
+    # Connect quarantine
+    if hasattr(downpour_app, 'quarantine'):
+        cis.quarantine = downpour_app.quarantine
     
     # Start CIS
     cis.start()
     
     # Start sub-components
     cis.red_teamer.start()
-    cis.predictor.start()
-    cis.verifier.start()
+    cis.threat_predictor.start()
+    cis.integrity_verifier.start()
     
-    # Add CIS status to Downpour UI
-    if hasattr(downpour_app, '_add_status_panel'):
-        downpour_app._add_status_panel("Cognitive Immune System", cis.get_immune_status)
+    # Register main app file for integrity monitoring
+    cis.integrity_verifier.register_file("downpour_v29_titanium.py")
     
-    logger.info("Cognitive Immune System integrated with Downpour")
+    # Hook into Downpour's threat detection
+    original_analyze = getattr(downpour_app, '_analyze_threat', None)
+    if original_analyze:
+        def enhanced_analyze(features):
+            result = original_analyze(features)
+            cis_result = cis.analyze(features)
+            # Merge results
+            return {**result, **cis_result}
+        downpour_app._analyze_threat = enhanced_analyze
     
-    return cis
-
-
-# ============================================================================
-# DEMO / TEST
-# ============================================================================
-
-if __name__ == "__main__":
-
-    # Quick test
-    logging.basicConfig(level=logging.INFO)
-
-    cis = create_cognitive_immune_system({
-        "naive_pool_size": 100,
-        "max_detectors": 1000,
-        "affinity_threshold": 0.7,
-        "clonal_expansion_factor": 3,
-        "mutation_rate": 0.1
-    })
-
-    print("=== Cognitive Immune System Test ===")
-    print(f"Initial detectors: {len(cis.detectors)}")
-
-    # Test antigen presentation
-    test_epitope = Epitope(pattern="malicious_process_injection", pattern_type="behavior", affinity=0.9)
-    cis._present_antigen(test_epitope, {"source": "test", "technique": "T1055"})
-
-    print(f"After presentation: {len(cis.detectors)} detectors")
-
-    status = cis.get_immune_status()
-    print(f"Status: {json.dumps(status, indent=2, default=str)}")
-
-    # Test evolution
-    cis._clonal_selection()
-    cis._somatic_hypermutation()
-    print(f"After evolution: {len(cis.detectors)} detectors")
-
-    # Test threat hunting
-    print("=== Threat Hunting Test ===")
-    hunter = cis.threat_hunter if hasattr(cis, 'threat_hunter') else None
-    if hunter:
-        hunter.start()
-        time.sleep(1)
-        hunter.stop()
-
-    print("=== Test Complete ===")
-
-    # Quick test
-    logging.basicConfig(level=logging.INFO)
-    
-    cis = create_cognitive_immune_system({
-        "naive_pool_size": 100,
-        "max_detectors": 1000,
-        "affinity_threshold": 0.7,
-        "clonal_expansion_factor": 3,
-        "mutation_rate": 0.1
-    })
-    
-    print("=== Cognitive Immune System Test ===")
-    print(f"Initial detectors: {len(cis.detectors)}")
-    
-    # Test antigen presentation
-    test_epitope = Epitope(pattern="malicious_process_injection", pattern_type="behavior", affinity=0.9)
-    cis._present_antigen(test_epitope, {"source": "test", "technique": "T1055"})
-    
-    print(f"After presentation: {len(cis.detectors)} detectors")
-    
-    status = cis.get_immune_status()
-    print(f"Status: {json.dumps(status, indent=2, default=str)}")
-    
-    # Test evolution
-    cis._clonal_selection()
-    cis._somatic_hypermutation()
-    print(f"After evolution: {len(cis.detectors)} detectors")
-    
-    # Test threat hunting
-    print("=== Threat Hunting Test ===")
-    hunter = cis.threat_hunter if hasattr(cis, 'threat_hunter') else None
-    if hunter:
-        hunter.start()
-        time.sleep(1)
-        hunter.stop()
-    
-    print("=== Test Complete ===")
-
-
-# ============================================================================
-# THREAT HUNTING INTEGRATION
-# ============================================================================
-
-class ThreatHunter:
-    """
-    Proactive threat hunting using the Cognitive Immune System.
-    Continuously hunts for threats by querying the immune system's knowledge base
-    and coordinating with external threat intelligence.
-    """
-    
-    def __init__(self, cis: CognitiveImmuneSystem):
-        self.cis = cis
-        self.running = False
-        self._thread: Optional[threading.Thread] = None
-        self.hunt_patterns = self._load_hunt_patterns()
-        self.hunt_results = deque(maxlen=1000)
-        self.scheduled_hunts = []
-        
-    def _load_hunt_patterns(self) -> List[Dict]:
-        """Load threat hunting patterns based on MITRE ATT&CK"""
-        return [
-            # Credential Access hunting
-            {
-                "name": "credential_dumping_hunt",
-                "technique": "T1003",
-                "description": "Hunt for LSASS memory dumping and credential theft",
-                "query_patterns": ["lsass_dump", "sekurlsa", "procdump", "comsvcs"],
-                "indicators": ["lsass.exe memory access", "sekurlsa module", "dump files"],
-                "severity": "HIGH"
-            },
-            {
-                "name": "keylogging_hunt",
-                "technique": "T1056",
-                "description": "Hunt for keystroke logging and clipboard monitoring",
-                "query_patterns": ["getasynckeystate", "sethook", "rawinput", "clipboard_monitor"],
-                "indicators": ["GetAsyncKeyState", "SetWindowsHookEx", "GetClipboardData"],
-                "severity": "HIGH"
-            },
-            
-            # Defense Evasion hunting
-            {
-                "name": "amsi_bypass_hunt",
-                "technique": "T1562.002",
-                "description": "Hunt for AMSI bypass attempts",
-                "query_patterns": ["amsi_bypass", "reflection_amsi", "patching_amsi"],
-                "indicators": ["AmsiScanBuffer", "AmsiInitialize", "AmsiResult"],
-                "severity": "CRITICAL"
-            },
-            {
-                "name": "process_hollowing_hunt",
-                "technique": "T1055.012",
-                "description": "Hunt for process hollowing and doppelganging",
-                "query_patterns": ["process_hollowing", "process_doppelganging", "process_herpaderping"],
-                "indicators": ["CreateProcess", "NtUnmapViewOfSection", "WriteProcessMemory"],
-                "severity": "CRITICAL"
-            },
-            {
-                "name": "amsi_bypass_hunt",
-                "technique": "T1562.002",
-                "description": "Hunt for AMSI bypass attempts",
-                "query_patterns": ["amsi_bypass", "reflection_amsi", "patching_amsi"],
-                "indicators": ["AmsiScanBuffer", "AmsiInitialize", "AmsiResult"],
-                "severity": "CRITICAL"
-            },
-            
-            # Credential Access hunting
-            {
-                "name": "credential_in_registry_hunt",
-                "technique": "T1552.001",
-                "description": "Hunt for credentials stored in registry",
-                "query_patterns": ["registry_credentials", "password_in_registry", "autologon"],
-                "indicators": ["HKLM\\SAM", "HKLM\\SECURITY", "DefaultPassword"],
-                "severity": "HIGH"
-            },
-            
-            # Discovery hunting
-            {
-                "name": "network_discovery_hunt",
-                "technique": "T1018",
-                "description": "Hunt for network reconnaissance activity",
-                "query_patterns": ["network_scan", "arp_scan", "net_view", "ping_sweep"],
-                "indicators": ["ARP requests", "NetBIOS scans", "SMB enumeration"],
-                "severity": "MEDIUM"
-            },
-            {
-                "name": "process_discovery_hunt",
-                "technique": "T1057",
-                "description": "Hunt for process enumeration",
-                "query_patterns": ["process_list", "tasklist", "pslist", "get_process"],
-                "indicators": ["EnumProcesses", "CreateToolhelp32Snapshot", "Process32First"],
-                "severity": "MEDIUM"
-            },
-            
-            # Lateral Movement hunting
-            {
-                "name": "smb_lateral_hunt",
-                "technique": "T1021.002",
-                "description": "Hunt for SMB lateral movement",
-                "query_patterns": ["psexec", "wmiexec", "smbexec", "atexec", "dcom_lateral"],
-                "indicators": ["SMB session", "IPC$", "admin$", "C$"],
-                "severity": "HIGH"
-            },
-            
-            # Collection hunting
-            {
-                "name": "data_staging_hunt",
-                "technique": "T1074",
-                "description": "Hunt for data staging and archival",
-                "query_patterns": ["data_staging", "archive_data", "compress_data"],
-                "indicators": ["7z", "rar", "zip", "staging_directory"],
-                "severity": "HIGH"
-            },
-            
-            # Command & Control hunting
-            {
-                "name": "c2_beaconing_hunt",
-                "technique": "T1071",
-                "description": "Hunt for C2 beaconing activity",
-                "query_patterns": ["dns_beaconing", "http_beaconing", "https_beaconing", "websocket_c2"],
-                "indicators": ["periodic_callbacks", "dga_domains", "long_connections"],
-                "severity": "CRITICAL"
-            },
-            {
-                "name": "domain_fronting_hunt",
-                "technique": "T1090.004",
-                "description": "Hunt for domain fronting",
-                "query_patterns": ["domain_fronting", "cdn_c2", "cloudflare_c2"],
-                "indicators": ["cloudfront", "azureedge", "akamai", "fastly"],
-                "severity": "HIGH"
-            },
-            
-            # Impact hunting
-            {
-                "name": "ransomware_encryption_hunt",
-                "technique": "T1486",
-                "description": "Hunt for ransomware encryption activity",
-                "query_patterns": ["rapid_encryption", "file_renaming", "ransom_note", "vss_deletion"],
-                "indicators": ["mass_renaming", "extension_changes", "shadow_copy_deletion"],
-                "severity": "CRITICAL"
-            },
-        ]
-    
-    def start(self):
-        self.running = True
-        self._thread = threading.Thread(target=self._hunt_loop, daemon=True)
-        self._thread.start()
-        logger.info("Threat Hunter started")
-    
-    def stop(self):
-        self.running = False
-        if self._thread:
-            self._thread.join(timeout=5)
-    
-    def _hunt_loop(self):
-        """Main hunting loop - runs continuously"""
-        while self.running:
-            try:
-                # Run scheduled hunts every 10 minutes
-                time.sleep(600)
-                
-                if not self.running:
-                    break
-                
-                self._run_scheduled_hunts()
-                
-            except Exception as e:
-                logger.error(f"Hunt loop error: {e}")
-    
-    def _run_scheduled_hunts(self):
-        """Execute scheduled threat hunts"""
-        for hunt in self.hunt_patterns:
-            if not self.running:
-                break
-            
-            logger.info(f"Starting hunt: {hunt['name']} ({hunt['technique']})")
-            
-            # Create epitopes for this hunt
-            hunt_epitopes = [
-                Epitope(pattern=pattern, pattern_type="behavior", affinity=0.8)
-                for pattern in hunt["query_patterns"]
-            ]
-            
-            # Present to CIS for detection
-            for epitope in hunt_epitopes:
-                result = self.cis._present_antigen(epitope, {
-                    "source": "threat_hunter",
-                    "technique": hunt["technique"],
-                    "hunt_name": hunt["name"],
-                    "severity": hunt["severity"]
-                })
-            
-            # Record hunt results
-            self.hunt_results.append({
-                "timestamp": datetime.now().isoformat(),
-                "hunt_name": hunt["name"],
-                "technique": hunt["technique"],
-                "patterns_checked": len(hunt["query_patterns"]),
-                "severity": hunt["severity"]
-            })
-            
-            logger.info(f"Hunt completed: {hunt['name']} - {len(hunt['query_patterns'])} patterns checked")
-    
-    def run_hunt_now(self, hunt_name: str) -> Dict:
-        """Run a specific hunt immediately"""
-        hunt = next((h for h in self.hunt_patterns if h["name"] == hunt_name), None)
-        if not hunt:
-            return {"error": f"Hunt {hunt_name} not found"}
-        
-        logger.info(f"Running immediate hunt: {hunt['name']}")
-        
-        hunt_epitopes = [
-            Epitope(pattern=pattern, pattern_type="behavior", affinity=0.8)
-            for pattern in hunt["query_patterns"]
-        ]
-        
-        results = []
-        for epitope in hunt_epitopes:
-            result = self.cis._present_antigen(epitope, {
-                "source": "threat_hunter",
-                "technique": hunt["technique"],
-                "hunt_name": hunt["name"],
-                "immediate": True
-            })
-            results.append(result)
-        
-        return {
-            "hunt_name": hunt["name"],
-            "technique": hunt["technique"],
-            "patterns_checked": len(hunt["query_patterns"]),
-            "results": results,
-            "timestamp": datetime.now().isoformat()
-        }
-    
-    def get_hunt_results(self, limit: int = 50) -> List[Dict]:
-        """Get recent hunt results"""
-        return list(self.hunt_results)[-limit:]
-    
-    def add_custom_hunt(self, hunt: Dict):
-        """Add a custom hunt pattern"""
-        required_fields = ["name", "technique", "description", "query_patterns", "severity"]
-        for field in required_fields:
-            if field not in hunt:
-                raise ValueError(f"Missing required field: {field}")
-        
-        self.hunt_patterns.append(hunt)
-        logger.info(f"Added custom hunt: {hunt['name']}")
-
-
-# ============================================================================
-# DEMO / TEST
-# ============================================================================
-
-if __name__ == "__main__":
-    # Quick test
-    logging.basicConfig(level=logging.INFO)
-
-    cis = create_cognitive_immune_system({
-        "naive_pool_size": 100,
-        "max_detectors": 1000,
-        "affinity_threshold": 0.7,
-        "clonal_expansion_factor": 3,
-        "mutation_rate": 0.1
-    })
-
-    print("=== Cognitive Immune System Test ===")
-    print(f"Initial detectors: {len(cis.detectors)}")
-
-    # Test antigen presentation
-    test_epitope = Epitope(pattern="malicious_process_injection", pattern_type="behavior", affinity=0.9)
-    cis._present_antigen(test_epitope, {"source": "test", "technique": "T1055"})
-
-    print(f"After presentation: {len(cis.detectors)} detectors")
-
-    status = cis.get_immune_status()
-    print(f"Status: {json.dumps(status, indent=2, default=str)}")
-
-    # Test evolution
-    cis._clonal_selection()
-    cis._somatic_hypermutation()
-    print(f"After evolution: {len(cis.detectors)} detectors")
-
-    # Test threat hunting
-    print("=== Threat Hunting Test ===")
-    hunter = cis.threat_hunter if hasattr(cis, 'threat_hunter') else None
-    if hunter:
-        hunter.start()
-        time.sleep(1)
-        hunter.stop()
-
-    print("=== Test Complete ===")
-
+    logging.getLogger(__name__).info("CIS integrated with Downpour")

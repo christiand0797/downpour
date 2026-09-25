@@ -175,7 +175,7 @@ for pkg, required in PACKAGES:
     try:
         __import__(pkg)
         check(f"Package '{pkg}'", True)
-    except ImportError:
+    except (ImportError, SystemError):
         if required:
             check(f"Package '{pkg}' (required)", False, "pip install " + pkg)
         else:

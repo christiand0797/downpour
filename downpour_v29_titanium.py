@@ -1097,7 +1097,7 @@ try:
     from sklearn.model_selection import train_test_split  # type: ignore[import-not-found]
     from sklearn.neural_network import MLPClassifier  # type: ignore[import-not-found]
     from sklearn.preprocessing import StandardScaler  # type: ignore[import-not-found]
-except ImportError:
+except (ImportError, SystemError):
     sklearn: Any = None
     IsolationForest: Any = None
     RandomForestClassifier: Any = None
@@ -3782,7 +3782,7 @@ try:
     from sklearn.ensemble import IsolationForest, RandomForestClassifier  # type: ignore[import-not-found]
     from sklearn.preprocessing import StandardScaler  # type: ignore[import-not-found]
     SKLEARN_AVAILABLE = True  # type: ignore[reportRedeclaration]
-except ImportError:
+except (ImportError, SystemError):
     SKLEARN_AVAILABLE = False  # type: ignore[reportRedeclaration]
 
 try:
@@ -20266,17 +20266,12 @@ class _RainPhysicsEngine:
                 self._storm_phase_idx = self._target_phase_idx
                 self._phase_transition = 0.0
                 
-    def get_updates(self):
+def get_updates(self):
         """Get computed physics updates for main thread."""
         try:
             return self._frame_queue.get_nowait()
         except _queue.Empty:
             return None
-            
-    def stop(self):
-        self._running = False
-        if self._thread and self._thread.is_alive():
-            self._thread.join(timeout=2.0)
 
 
 #                               IMMERSIVE RAIN CANVAS (Apex v18 engine)

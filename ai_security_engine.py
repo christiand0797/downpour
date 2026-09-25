@@ -46,7 +46,7 @@ try:
     from sklearn.cluster import DBSCAN
     from sklearn.metrics import classification_report, confusion_matrix
     SKLEARN_AVAILABLE = True
-except ImportError:
+except (ImportError, SystemError):
     SKLEARN_AVAILABLE = False
 
 try:

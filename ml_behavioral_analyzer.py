@@ -43,7 +43,7 @@ try:
     from sklearn.cluster import DBSCAN
     from sklearn.feature_extraction.text import TfidfVectorizer
     _SKLEARN_AVAILABLE = True
-except ImportError:
+except (ImportError, SystemError):
     _SKLEARN_AVAILABLE = False
 import hashlib
 import json

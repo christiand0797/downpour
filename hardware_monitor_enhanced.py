@@ -37,10 +37,6 @@ try:
     import warnings as _w
     _w.filterwarnings('ignore', category=DeprecationWarning, module='pynvml')
     _w.filterwarnings('ignore', message='.*pynvml.*deprecated.*', category=FutureWarning)
-try:
-    import warnings as _w
-    _w.filterwarnings('ignore', category=DeprecationWarning, module='pynvml')
-    _w.filterwarnings('ignore', message='.*pynvml.*deprecated.*', category=FutureWarning)
     import pynvml
     pynvml.nvmlInit()
     PYNVML_AVAILABLE = True
