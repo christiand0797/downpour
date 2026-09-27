@@ -1,14 +1,19 @@
 @echo off
 setlocal EnableDelayedExpansion
-title Downpour v29 Titanium - Complete Setup & Dependency Installer
+title Downpour v29 Titanium - Complete Setup and Dependency Installer
 color 0A
 chcp 65001 >nul 2>&1
 
 echo ================================================================
 echo                  DOWNPOUR v29 TITANIUM
-echo              Complete Setup & Dependency Installer
+echo              Complete Setup and Dependency Installer
 echo ================================================================
 echo.
+
+REM ================================================================
+REM Capture the script directory BEFORE any elevation
+REM ================================================================
+set "SCRIPT_DIR=%~dp0"
 
 REM ================================================================
 REM Check for Administrator privileges
@@ -16,14 +21,14 @@ REM ================================================================
 net session >nul 2>&1
 if %errorlevel% neq 0 (
     echo [..] Requesting Administrator privileges...
-    powershell -Command "Start-Process cmd.exe -ArgumentList '/c \"%~f0\"' -Verb RunAs"
+    powershell -Command "Start-Process cmd.exe -ArgumentList '/c \"%~f0\"' -Verb RunAs -WorkingDirectory '%~dp0'"
     exit /b
 )
 
 REM ================================================================
-REM Configuration
+REM Configuration - use captured script directory
 REM ================================================================
-set "APPDIR=%~dp0"
+set "APPDIR=%SCRIPT_DIR%"
 set "VENV_DIR=%APPDIR%.venv"
 set "PYTHON_VERSION=3.12.10"
 set "PYTHON_INSTALLER=python-%PYTHON_VERSION%-amd64.exe"
@@ -154,7 +159,7 @@ goto :EOF
 
 :INSTALL_ADDITIONAL_PACKAGES
 call :LOG_INFO "Installing additional packages..."
-"%VENV_PIP%" install --quiet tenacity prometheus-client psycopg2-binary python-telegram-bot discord.py slack-sdk pycryptodome paramiko python-nmap shodan censys greyNoise pyotp qrcode weasyprint pdfkit schedule elasticsearch redis pyjwt pycryptodome paramiko python-nmap shodan censys greyNoise pyotp qrcode weasyprint pdfkit 2>&1 | findstr /V "Requirement already satisfied" | findstr /V "Successfully installed" | findstr /V "already satisfied"
+"%VENV_PIP%" install --quiet tenacity prometheus-client psycopg2-binary python-telegram-bot discord.py slack-sdk pycryptodome paramiko python-nmap shodan censys greyNoise pyotp qrcode weasyprint pdfkit schedule elasticsearch redis pyjwt 2>&1 | findstr /V "Requirement already satisfied" | findstr /V "Successfully installed" | findstr /V "already satisfied"
 if %errorlevel% neq 0 (
     call :LOG_WARN "Some additional packages failed (may be optional)"
 ) else (
@@ -339,7 +344,7 @@ with open(r'%APPDIR%downpour_v29_titanium.py', 'r') as f:
     content = f.read()
 idx = content.find('_TAB_DEFS: Any = [')
 end_idx = content.find(']', idx)
-labels = re.findall(r\"'\\\\U[0-9a-f]+ ([^']+)'\", content[idx:end_idx])
+labels = re.findall(r\"'\\U[0-9a-f]+ ([^']+)'\", content[idx:end_idx])
 print('Tab count:', len(labels))
 " 2>&1
 if %errorlevel% neq 0 (
