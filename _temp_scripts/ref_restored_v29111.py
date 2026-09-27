@@ -24144,13 +24144,13 @@ class FileSandbox:
 # -- 1a. tab-board skin -----------------------------------------------------
 _TAB_BAR_SPEC: Any = {
     'rows': 2,                      # DOWNPOUR_TAB_ROWS env var overrides this
-    'font': ('Consolas', 8, 'bold'),
+    'font': ('Consolas', 9, 'bold'),
     'bar_bg': '#010205',
     'header': True,
     'header_bg': '#060c15',
     'header_fg': '#00ffdd',
     'header_dim': '#6f8fa8',
-    'header_font': ('Consolas', 7, 'bold'),
+    'header_font': ('Consolas', 8, 'bold'),
     'corner': '#00ffdd',            # HUD corner brackets on the header strip
     'idle_bg': '#0b0f18',
     'idle_fg': '#b9c6d8',
@@ -24168,12 +24168,12 @@ _TAB_BAR_SPEC: Any = {
     'active_border': '#00ffdd',
     'active_accent': '#00ffdd',
     'active_top': '#00ffff',
-    'card_padx': 2,
-    'card_pady': 2,
-    'text_padx': 5,
-    'text_pady': 3,
-    'accent_w': 3,
-    'accent_w_active': 5,
+    'card_padx': 3,
+    'card_pady': 3,
+    'text_padx': 7,
+    'text_pady': 5,
+    'accent_w': 4,
+    'accent_w_active': 7,
     'pulse': True,                  # breathing glow on the active tab
     'pulse_ms': 1100,
     'pulse_a': '#00ffdd',
@@ -26340,20 +26340,6 @@ class downpour(tk.Tk):
         # Notebook with hidden native tab strip - content area only
         self.nb = ttk.Notebook(_nb_frame, style='Hidden.TNotebook')
         self.nb.grid(row=_nb_row, column=0, sticky='nsew', padx=0, pady=(3, 0))
-        # Force-hide native tab strip on all platforms
-        try:
-            self.nb.configure(tabposition='none')
-        except Exception:
-            pass
-        try:
-            self.nb.enable_traversal()
-        except Exception:
-            pass
-        # Additional aggressive hide for stubborn platforms
-        try:
-            self.nb.tk.call(self.nb._w, 'configure', '-show', 'none')
-        except Exception:
-            pass
 
         # Tab position indicator
         self._tab_indicator = tk.Label(_nb_frame, text='', font=('Consolas', 8),
@@ -26388,7 +26374,7 @@ class downpour(tk.Tk):
             ('_tab_dns',        '\U0001f310 DNS',         self._build_dns_tab),
             ('_tab_aegis',      '\u2694 Aegis',           self._build_aegis_tab),
             ('_tab_memory',     '\U0001f9e0 Memory',      self._build_memory_tab),
-            ('_tab_forensics',  '\U0001f50e Forensics',   self._build_forensics_tab),
+            ('_tab_forensic',   '\U0001f50e Forensics',   self._build_forensic_tab),
             ('_tab_hunt',       '\U0001f3af Hunt',        self._build_hunt_tab),
             ('_tab_sandbox',    '\U0001f4e6 Sandbox',     self._build_sandbox_tab),
             ('_tab_services',   '\U0001f527 Services',    self._build_services_tab),
@@ -26400,8 +26386,6 @@ class downpour(tk.Tk):
             ('_tab_vpn',        '\U0001f510 VPN',         self._build_vpn_tab),
             ('_tab_parental',   '\U0001f46a Parental',    self._build_parental_tab),
             ('_tab_emergency',  '\U0001f6a8 Emergency',   self._build_emergency_tab),
-            ('_tab_defense',    '\u2694 Defense',         self._build_defense_tab),
-            ('_tab_tools',      '\U0001f527 Tools',       self._build_tools_tab),
             ('_tab_settings',   '\u2699 Settings',        self._build_settings_tab),
             ('_tab_cis',        '\U0001f9e0 CIS',         self._build_cis_tab),
         ]
@@ -34454,12 +34438,6 @@ Verification Status:
                 values = (entry['time'], sev, entry['category'],
                         mitre, desc, status),
                 tags = (tag,))
-
-
-    def _threats_filter_changed(self):
-        """Callback when threat filter changes - re-applies filter."""
-        self._threats_apply_filter()
-
 
     def _threats_sort(self, col: str):
         rev: Any = self._thr_sort_dirs.get(col, False)
@@ -60381,327 +60359,3 @@ Verification Status:
     # ==========================================================================
 
     
-
-
-# ==========================================================================
-#  RESTORED v29.111 - module entry point
-# --------------------------------------------------------------------------
-# These were missing from the working tree, so `python downpour_v29_titanium.py`
-# only defined the class and exited: no window, no error.  Bodies below are
-# the verified v29.107 originals.
-# ==========================================================================
-
-def main() -> None:
-    """
-    Main entry point with optimized initialization and error handling.
-
-    This function handles:
-    - Administrative privilege detection and elevation request
-    - Application initialization with performance monitoring
-    - Graceful error handling and recovery
-    - Clean shutdown procedures
-    """
-    import ctypes
-    import signal
-
-    # Performance tracking
-    start_time: Any = time.time()
-
-    # Initialize enhanced logging if available
-    if ENHANCED_LOGGING_AVAILABLE:
-        try:
-            from enhanced_logging import EnhancedLogger
-            enhanced_logger: Any = EnhancedLogger()
-            enhanced_logger._log_event('APPLICATION_START', {
-                'python_version': sys.version,
-                'platform': sys.platform,
-                'start_time': datetime.fromtimestamp(start_time).isoformat()
-            })
-        except Exception as e:
-            print(f"Enhanced logging initialization failed: {e}")
-
-    def cleanup_on_exit(signum: int, frame) -> None:
-        """Clean shutdown handler for signals."""
-        logger.info("Received shutdown signal, cleaning up...")
-        try:
-            # Force garbage collection
-            gc.collect()
-            logger.info("Cleanup completed successfully")
-        except Exception as e:
-            logger.error(f"Cleanup failed: {e}")
-        finally:
-            sys.exit(0)
-
-    # Register signal handlers for graceful shutdown
-    signal.signal(signal.SIGINT, cleanup_on_exit)
-    signal.signal(signal.SIGTERM, cleanup_on_exit)
-
-    try:
-        # Check administrative privileges on Windows
-        if platform.system() == 'Windows':
-            try:
-                is_admin: Any = ctypes.windll.shell32.IsUserAnAdmin()
-            except Exception as e:
-                logger.warning(f"Failed to check admin status: {e}")
-                is_admin: Any = False
-
-            if not is_admin:
-                print("[!] TIP: Run as Administrator for full features (network isolation, web filtering)")
-                logger.info("Running without administrative privileges")
-            else:
-                logger.info("Running with administrative privileges")
-
-        # Log startup
-        logger.info("Starting Downpour v29 Titanium...")
-        logger.info(f"Python version: {sys.version}")
-        logger.info(f"Platform: {platform.platform()}")
-
-        # Initialize application with error handling
-        try:
-            app: Any = downpour()
-            init_time: Any = time.time() - start_time
-            logger.info(f"Application initialized in {init_time:.2f} seconds")
-
-            # Start main event loop - force window visible
-            try:
-                app.deiconify()
-                app.lift()
-                app.focus_force()
-                app.attributes('-topmost', True)
-                app.after(500, lambda: app.attributes('-topmost', False))
-            except Exception:
-                pass
-            import atexit as _ax, traceback as _axtb, datetime as _axdt
-            def _exit_trace():
-                with open("exit_trace.txt","w",encoding="utf-8") as _xf:
-                    _xf.write("EXIT at " + str(_axdt.datetime.now()) + "\n")
-                    _axtb.print_stack(file=_xf)
-            _ax.register(_exit_trace)
-            logger.info("Entering mainloop...")
-            app.mainloop()
-            logger.info("mainloop() returned - checking if window still alive...")
-            _restart_count: Any = 0
-            while _restart_count < 50:
-                try:
-                    if not app.winfo_exists():
-                        logger.info("Window destroyed - exiting normally")
-                        break
-                    _restart_count += 1
-                    logger.warning(f"mainloop() returned unexpectedly (restart #{_restart_count}) — restarting")
-                    import time as _t; _t.sleep(0.05)
-                    # Process any pending events before re-entering mainloop
-                    try:
-                        app.update_idletasks()
-                    except Exception:
-                        pass
-                    app.mainloop()
-                    logger.info(f"mainloop() returned again (restart #{_restart_count})")
-                except tk.TclError as _tcl_e:
-                    logger.info(f"TclError during restart — window likely destroyed: {_tcl_e}")
-                    break
-                except Exception as _e2:
-                    logger.info(f"mainloop restart error: {_e2}")
-                    break
-
-        except Exception as e:
-            logger.critical(f"Application initialization failed: {e}")
-            error_logger.critical("MAIN_INIT", f"Failed to initialize application: {e}", e)
-
-            # Attempt recovery
-            print(f"[CRITICAL] Application failed to start: {e}")
-            print("Attempting recovery...")
-
-            # Force cleanup
-            try:
-                gc.collect()
-                time.sleep(1)
-            except Exception:
-                pass
-
-            # Retry once
-            try:
-                app: Any = downpour()
-                try:
-                    app.deiconify()
-                    app.lift()
-                    app.focus_force()
-                except Exception:
-                    pass
-                app.mainloop()
-            except Exception as retry_e:
-                logger.critical(f"Recovery failed: {retry_e}")
-                print(f"[FATAL] Recovery failed: {retry_e}")
-                print("Please check system requirements and dependencies.")
-                sys.exit(1)
-
-    except KeyboardInterrupt:
-        logger.info("Application interrupted by user")
-        print("\n[INFO] Application interrupted by user")
-
-    except Exception as e:
-        logger.critical(f"Unexpected error in main: {e}")
-        error_logger.critical("MAIN_UNEXPECTED", f"Unexpected error: {e}", e)
-        print(f"[FATAL] Unexpected error: {e}")
-        sys.exit(1)
-
-    finally:
-        # Final cleanup
-        try:
-            total_time: Any = time.time() - start_time
-            logger.info(f"Application shutdown completed. Total runtime: {total_time:.2f} seconds")
-            gc.collect()
-        except Exception:
-            pass
-
-
-def check_admin_privileges():
-    """Check if running as administrator and restart with elevated privileges if not."""
-    if platform.system() != 'Windows':
-        return True  # Only enforce admin on Windows
-
-    try:
-        import ctypes
-        from ctypes import wintypes
-
-        # Check if running as admin
-        return ctypes.windll.shell32.IsUserAnAdmin() != 0
-    except Exception:
-        return False
-
-
-def restart_as_admin():
-    """Restart the application with administrator privileges."""
-    if platform.system() != 'Windows':
-        return
-
-    try:
-        import ctypes
-        from ctypes import wintypes
-
-        # Get current executable path
-        executable: Any = sys.executable
-        script_path: Any = os.path.abspath(__file__)
-
-        # Build command line
-        cmd: Any = f'"{executable}" "{script_path}"'
-        if len(sys.argv) > 1:
-            cmd += ' ' + ' '.join(f'"{arg}"' for arg in sys.argv[1:])
-
-        # Run as administrator
-        ctypes.windll.shell32.ShellExecuteW(
-            None,
-            "runas",  # Verb for admin
-            executable,
-            f'"{script_path}" ' + ' '.join(f'"{arg}"' for arg in sys.argv[1:]),
-            None,
-            1  # SW_SHOWNORMAL
-        )
-
-        sys.exit(0)
-    except Exception as e:
-        print(f"Failed to restart as admin: {e}")
-        print("Please run this application as administrator manually.")
-        sys.exit(1)
-
-
-if __name__ == '__main__':
-    from multiprocessing import freeze_support
-    freeze_support()  # FIX-v28p25: Required for Windows multiprocessing
-
-    # ── CFA / Defender self-fix via registry (safe, no PowerShell) ─────
-    # Use reg.exe to add exclusions - avoids triggering Defender's
-    # PowerShell behavior monitoring (Trojan:Win32/PowExcEnv etc.)
-    try:
-        import ctypes as _ctypes
-        if _ctypes.windll.shell32.IsUserAnAdmin():
-            import subprocess as _dsp
-            _NO_WIN: Any = getattr(_dsp, 'CREATE_NO_WINDOW', 0x08000000)
-            _py_exe: Any = sys.executable.replace('/', '\\')
-            _py_dir: Any = os.path.dirname(_py_exe)
-            _dp_dir: Any = os.path.dirname(os.path.abspath(__file__))
-            _pyw: Any = os.path.join(_py_dir, 'pythonw.exe')
-            _tmp: Any = os.environ.get('TEMP', r'C:\Windows\Temp')
-            # Path exclusions via reg (same as Windows Security UI - not flagged)
-            _excl_paths: Any = [_dp_dir, _py_dir, _tmp]
-            for _p in _excl_paths:
-                _dsp.run(['reg', 'add',
-                    r'HKLM\SOFTWARE\Microsoft\Windows Defender\Exclusions\Paths',
-                    '/v', _p, '/t', 'REG_DWORD', '/d', '0', '/f'],
-                    capture_output = True, creationflags=_NO_WIN, timeout=5)
-            # Process exclusions - specific executables only
-            for _exe in [_py_exe, _pyw, 'python.exe', 'pythonw.exe']:
-                _dsp.run(['reg', 'add',
-                    r'HKLM\SOFTWARE\Microsoft\Windows Defender\Exclusions\Processes',
-                    '/v', _exe, '/t', 'REG_DWORD', '/d', '0', '/f'],
-                    capture_output = True, creationflags=_NO_WIN, timeout=5)
-            # CFA allowed apps
-            _cfa: Any = (r'HKLM\SOFTWARE\Microsoft\Windows Defender'
-                    r'\Windows Defender Exploit Guard'
-                    r'\Controlled Folder Access\AllowedApplications')
-            for _exe in [_py_exe, _pyw]:
-                if os.path.exists(_exe):
-                    _dsp.run(['reg', 'add', _cfa, '/v', _exe,
-                              '/t', 'REG_DWORD', '/d', '0', '/f'],
-                             capture_output = True, creationflags=_NO_WIN, timeout=5)
-    except Exception:
-        pass
-
-    # Force administrator privileges with Windows UAC popup (REQUIRED)
-    if not check_admin_privileges():
-        # Show Windows UAC elevation prompt
-        print("Requesting administrator privileges...")
-        restart_as_admin()
-    else:
-        print("Running with administrator privileges [OK]")
-
-    # Check dependencies and install if needed
-    if '--no-install' not in sys.argv:
-        _missing: Any = check_deps()
-        if _missing:
-            import subprocess as _sp
-            _W: Any = 60
-            print()
-            print('=' * _W)
-            print('  downpour v26   -   Dependency Installer')
-            print('  Packages needed:', len(_missing))
-            print('=' * _W)
-            _installed_ok: Any = []
-            _installed_fail: Any = []
-            for _i, _pkg in enumerate(_missing, 1):
-                _bar: Any = '#' * int((_i / len(_missing)) * 20)
-                print(f'  [{_bar:<20}] {_i}/{len(_missing)}  Installing {_pkg}...', end='', flush=True)
-                _done: Any = False
-                _NO_WIN: Any = getattr(_sp, 'CREATE_NO_WINDOW', 0x08000000)
-                for _flags in (
-                    # Prefer pre-built wheels (--only-binary) so pip never spawns
-                    # a build sanity-check EXE in %TEMP% (that triggers ASR).
-                    ['--only-binary', ':all:', '--quiet', '--break-system-packages'],
-                    ['--only-binary', ':all:', '--quiet'],
-                    ['--quiet', '--break-system-packages'],
-                    ['--quiet'],
-                    ['--user', '--quiet'],
-                ):
-                    try:
-                        _sp.check_call(
-                            [sys.executable, '-m', 'pip', 'install', _pkg] + _flags,
-                            timeout = 180, stdout=_sp.DEVNULL, stderr=_sp.DEVNULL,
-                            creationflags = _NO_WIN)
-                        _done: Any = True
-                        break
-                    except Exception:
-                        continue
-                if _done:
-                    print(' OK')
-                    _installed_ok.append(_pkg)
-                else:
-                    print(' SKIPPED (optional feature)')
-                    _installed_fail.append(_pkg)
-            print('-' * _W)
-            print(f'  Installed : {len(_installed_ok)}   Skipped : {len(_installed_fail)}')
-            if _installed_fail:
-                print(f'  Skipped   : {", ".join(_installed_fail)}')
-                print('  Note: skipped packages enable optional features only.')
-            print('=' * _W)
-            print()
-
-    main()

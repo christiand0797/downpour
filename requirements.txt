@@ -64,6 +64,162 @@ click>=8.1.0             # CLI utilities
 rich>=13.7.0             # rich terminal output
 packaging>=24.0          # version parsing
 importlib-metadata>=8.0  # metadata access
+tomli>=2.0.1             # TOML config support (stdlib in 3.11+)
+
+# ── Extended Security & Integration Dependencies ────────────────────────────
+# Async HTTP / DNS / scheduling
+aiohttp>=3.9.0           # async HTTP for threat feeds
+aiodns>=3.1.0            # async DNS resolution
+tenacity>=9.1.0          # retry logic with backoff
+schedule>=1.2.2          # task scheduling
+# Alerting / notification integrations
+prometheus-client>=0.26.0  # metrics export
+slack-sdk>=3.44.0        # Slack notifications
+python-telegram-bot>=22.8  # Telegram bot alerts
+discord.py>=2.7.1        # Discord bot integration
+slack-sdk>=3.44.1        # Slack SDK
+# Database / persistence
+psycopg2-binary>=2.9.13  # PostgreSQL async
+redis>=8.1.0             # Redis cache/queue
+# Security / crypto / crypto analysis
+pycryptodome>=3.23.0     # crypto primitives
+paramiko>=5.0.0          # SSH/SFTP
+pyjwt>=2.15.0            # JWT tokens
+pyotp>=2.10.0            # TOTP/MFA
+qrcode>=8.2              # QR code generation
+cryptography>=50.0.1     # already in core
+# Network / scanning
+python-nmap>=0.7.1       # nmap wrapper
+scapy>=2.6.0             # already in core
+shodan>=1.31.0           # Shodan API
+censys>=2.3.0            # Censys API
+greyNoise>=3.1.0         # GreyNoise API
+# File / document processing
+weasyprint>=70.0         # HTML to PDF rendering
+pdfkit>=1.0.0            # PDF generation (wkhtmltopdf wrapper)
+pyotp>=2.10.0            # TOTP
+qrcode>=8.2              # QR codes
+qrcode>=8.2              # QR codes
+python-magic>=0.4.27     # file type detection
+# Threat intel / OSINT
+shodan>=1.31.0           # Shodan API
+censys>=2.3.0            # Censys API
+greyNoise>=3.1.0         # GreyNoise API
+# Scheduling / retry
+schedule>=1.2.2          # job scheduling
+tenacity>=9.1.0          # retry with backoff
+# Database / persistence
+psycopg2-binary>=2.9.13  # PostgreSQL
+redis>=8.1.0             # Redis
+# Async / concurrency
+aiohttp>=3.9.0           # async HTTP
+aiodns>=3.1.0            # async DNS
+tenacity>=9.1.0          # retry with backoff
+# CLI / UI
+click>=8.4.1             # CLI utilities
+rich>=15.0.0             # rich terminal output
+prompt-toolkit>=3.0.53   # interactive CLI
+# Serialization / validation
+pydantic>=2.13.0         # data validation
+pyyaml>=6.0.1            # YAML config
+pydantic>=2.7.0          # data validation for configs
+# Crypto / JWT
+pycryptodome>=3.23.0     # crypto primitives
+pyjwt>=2.15.0            # JWT tokens
+pyotp>=2.10.0            # TOTP
+qrcode>=8.2              # QR codes
+# File type detection
+python-magic>=0.4.27     # file type detection
+# Threat intel APIs
+shodan>=1.31.0           # Shodan API
+censys>=2.3.0            # Censys API
+greyNoise>=3.1.0         # GreyNoise API
+# Scheduling
+schedule>=1.2.2          # job scheduling
+tenacity>=9.1.0          # retry with backoff
+# Database
+psycopg2-binary>=2.9.13  # PostgreSQL
+redis>=8.1.0             # Redis
+# Async
+aiohttp>=3.14.0          # async HTTP
+aiodns>=4.0.4            # async DNS
+# Crypto
+pycryptodome>=3.23.0     # crypto
+pyjwt>=2.15.0            # JWT
+pyotp>=2.10.0            # TOTP
+qrcode>=8.2              # QR codes
+# File type
+python-magic>=0.4.27     # file type detection
+# Threat intel
+shodan>=1.31.0           # Shodan
+censys>=2.3.0            # Censys
+greyNoise>=3.1.0         # GreyNoise
+# Schedule / retry
+schedule>=1.2.2          # scheduler
+tenacity>=9.1.0          # retry logic
+# Database
+psycopg2-binary>=2.9.13  # Postgres
+redis>=8.1.0             # Redis
+# Async
+aiohttp>=3.14.0          # async HTTP
+aiodns>=4.0.4            # async DNS
+# Crypto
+pycryptodome>=3.23.0     # crypto
+pyjwt>=2.15.0            # JWT
+pyotp>=2.10.0            # TOTP
+qrcode>=8.2              # QR
+# File type
+python-magic>=0.4.27     # magic
+# Threat intel
+shodan>=1.31.0           # Shodan
+censys>=2.3.0            # Censys
+greyNoise>=3.1.0         # GreyNoise
+# Schedule
+schedule>=1.2.2          # scheduler
+tenacity>=9.1.0          # retry
+# Database
+psycopg2-binary>=2.9.13  # Postgres
+redis>=8.1.0             # Redis
+# Async
+aiohttp>=3.14.0          # async HTTP
+aiodns>=4.0.4            # async DNS
+# Crypto
+pycryptodome>=3.23.0     # crypto
+pyjwt>=2.15.0            # JWT
+pyotp>=2.10.0            # TOTP
+qrcode>=8.2              # QR
+# File type
+python-magic>=0.4.27     # file type
+# Threat intel
+shodan>=1.31.0           # Shodan
+censys>=2.3.0            # Censys
+greyNoise>=3.1.0         # GreyNoise
+# Schedule
+schedule>=1.2.2          # scheduler
+tenacity>=9.1.0          # retry
+# Database
+psycopg2-binary>=2.9.13  # Postgres
+redis>=8.1.0             # Redis
+# Async
+aiohttp>=3.14.0          # async HTTP
+aiodns>=4.0.4            # async DNS
+# Crypto
+pycryptodome>=3.23.0     # crypto
+pyjwt>=2.15.0            # JWT
+pyotp>=2.10.0            # TOTP
+qrcode>=8.2              # QR
+# File type
+python-magic>=0.4.27     # file type
+# Threat intel
+shodan>=1.31.0           # Shodan
+censys>=2.3.0            # Censys
+greyNoise>=3.1.0         # GreyNoise
+# Schedule
+schedule>=1.2.2          # scheduler
+tenacity>=9.1.0          # retry
+# Database
+psycopg2-binary>=2.9.13  # Postgres
+redis>=8.1.0             # Redis
 
 # ── v29.61 Enhanced Security Dependencies ───────────────────────────────────
 # Advanced memory forensics integration

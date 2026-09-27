@@ -1,0 +1,652 @@
+2026-09-26 02:15:59,874 - downpour_v29_titanium - INFO - Using current Python 3.12.10
+[smoketest] module imported, creating app...
+2026-09-26 02:15:59,959 - revolutionary_enhancements - INFO - Revolutionary v2 — quantum=16 neural_layers=3 cache=50000
+🚀 Revolutionary enhancements applied successfully
+⚛️ Quantum systems initialized
+🧠 Neural security activated
+♾️ Infinite scalability enabled
+[HIGH] Hyper-optimization active
+2026-09-26 02:16:00,416 - downpour_v29_titanium - INFO - [HW_PROFILE] Detected: HIGH - High-end (12 cores, 32GB RAM, 1536x864)
+[smoketest] app object created, entering mainloop
+2026-09-26 02:16:03,700 - downpour_v29_titanium - INFO - Secure environment initialized: C:\Users\purpl\Desktop\downpour_consolidated\downpour_tmp\downpour_secure_wv_5lqb8
+2026-09-26 02:16:03,711 - downpour_v29_titanium - INFO - Security baseline initialized
+2026-09-26 02:16:06,462 - root - INFO - [OK] Memory forensics database initialized
+2026-09-26 02:16:06,464 - root - INFO - [OK] Vulnerability scanner database initialized
+2026-09-26 02:16:06,464 - root - INFO - Vulnerability scanner monitoring started
+2026-09-26 02:16:06,464 - root - INFO - [OK] Vulnerability Scanner active
+2026-09-26 02:16:06,464 - root - INFO - Updating software inventory...
+2026-09-26 02:16:07,663 - downpour_v29_titanium - INFO - [OK] Sigma Engine active
+2026-09-26 02:16:07,665 - downpour_v29_titanium - INFO - [OK] YARA Rules Manager active
+2026-09-26 02:16:07,666 - downpour_v29_titanium - INFO - [OK] STIX/TAXII Feed available (requires server config)
+2026-09-26 02:16:07,666 - downpour_v29_titanium - INFO - [OK] MISP Feed active
+2026-09-26 02:16:07,667 - downpour_v29_titanium - INFO - [OK] DNS Cache Watcher active
+2026-09-26 02:16:07,667 - downpour_v29_titanium - INFO - [OK] Child Process Guard active
+2026-09-26 02:16:07,668 - downpour_v29_titanium - INFO - [OK] Event Push Monitor active
+2026-09-26 02:16:07,671 - amsi_integration - WARNING - Could not initialize AMSI: [WinError -2147024637] No more data is available
+2026-09-26 02:16:07,672 - downpour_v29_titanium - INFO - [OK] AMSI Integration active
+2026-09-26 02:16:07,672 - downpour_v29_titanium - INFO - [OK] Beacon Detector active
+2026-09-26 02:16:07,672 - downpour_v29_titanium - INFO - [OK] LOLBINS Detector active
+2026-09-26 02:16:07,673 - downpour_v29_titanium - INFO - [OK] Firmware Posture active
+2026-09-26 02:16:07,675 - downpour_v29_titanium - INFO - [OK] Gaming Protection Monitor active
+2026-09-26 02:16:07,675 - downpour_v29_titanium - INFO - [OK] Firewall Tamper Detector active
+2026-09-26 02:16:07,794 - downpour.amsibypass - INFO - AMSI bypass detector started (0 providers)
+2026-09-26 02:16:07,796 - downpour_v29_titanium - INFO - [OK] AMSI Bypass Detector active
+2026-09-26 02:16:07,797 - downpour_v29_titanium - INFO - [OK] DLL Hijack Detector active
+2026-09-26 02:16:07,797 - downpour_v29_titanium - INFO - [OK] Scheduled Task Monitor active
+2026-09-26 02:16:07,797 - downpour_v29_titanium - INFO - [OK] WMI Persistence Detector active
+2026-09-26 02:16:07,799 - downpour_v29_titanium - INFO - [OK] Data Exfiltration Monitor active
+2026-09-26 02:16:07,800 - downpour_v29_titanium - INFO - [OK] Anti-Forensics Detector active
+2026-09-26 02:16:07,801 - downpour_v29_titanium - INFO - [OK] Lateral Movement Detector active
+2026-09-26 02:16:07,804 - downpour_v29_titanium - INFO - [OK] Shadow Copy Monitor active
+2026-09-26 02:16:07,807 - downpour_v29_titanium - INFO - [OK] Network Share Monitor active
+2026-09-26 02:16:07,809 - downpour_v29_titanium - INFO - [OK] Keystroke Injection Detector active
+2026-09-26 02:16:07,810 - downpour_v29_titanium - INFO - [OK] Bluetooth Security Monitor active
+2026-09-26 02:16:07,811 - downpour_v29_titanium - INFO - [OK] WiFi Security Intelligence active
+2026-09-26 02:16:07,833 - USBProtection - INFO - USB Protection initialized
+2026-09-26 02:16:07,833 - downpour_v29_titanium - INFO - [OK] USB Protection active
+2026-09-26 02:16:07,833 - downpour_v29_titanium - INFO - [OK] TLS Certificate Monitor active
+2026-09-26 02:16:07,833 - downpour_v29_titanium - INFO - [OK] Credential Guard Monitor active
+2026-09-26 02:16:07,835 - downpour_v29_titanium - INFO - [OK] DPAPI Monitor active
+2026-09-26 02:16:07,837 - downpour_v29_titanium - INFO - [OK] Clipboard Monitor active
+2026-09-26 02:16:07,837 - downpour_v29_titanium - INFO - [OK] Named Pipe Monitor active
+2026-09-26 02:16:07,837 - downpour_v29_titanium - INFO - [OK] IoT Scanner active
+2026-09-26 02:16:07,843 - root - INFO - Threat intelligence database initialized with KEV support
+2026-09-26 02:16:07,845 - downpour_v29_titanium - INFO - [OK] Threat Intelligence Updater active
+2026-09-26 02:16:07,878 - downpour.amsibypass - WARNING - AMSIBypass: defender_stopped — Windows Defender service is STOPPED
+2026-09-26 02:16:08,393 - downpour_v29_titanium - INFO - [OK] Threat Response Center active
+2026-09-26 02:16:08,395 - downpour_v29_titanium - INFO - [OK] YARA Rules Manager active
+2026-09-26 02:16:08,395 - downpour_v29_titanium - INFO - [OK] YARA-X Engine active
+2026-09-26 02:16:08,395 - cognitive_immune_system.CIS - INFO - Cognitive Immune System initialized
+2026-09-26 02:16:08,395 - cognitive_immune_system.FederatedThreatIntel - INFO - Federated Threat Intelligence initialized
+2026-09-26 02:16:08,395 - cognitive_immune_system.SelfHealingCode - INFO - Self-Healing Code initialized
+2026-09-26 02:16:08,395 - cognitive_immune_system.Neuromorphic - INFO - Neuromorphic Detector initialized
+2026-09-26 02:16:08,395 - cognitive_immune_system - INFO - Deploying ssh honeypot 'ssh_honeypot' on port 2222
+2026-09-26 02:16:08,395 - cognitive_immune_system - INFO - Honeypot 'ssh_honeypot' deployed successfully
+2026-09-26 02:16:08,395 - cognitive_immune_system - INFO - Deploying ftp honeypot 'ftp_honeypot' on port 2121
+2026-09-26 02:16:08,395 - cognitive_immune_system - INFO - Honeypot 'ftp_honeypot' deployed successfully
+2026-09-26 02:16:08,395 - cognitive_immune_system - INFO - Deploying http honeypot 'http_honeypot' on port 8080
+2026-09-26 02:16:08,410 - cognitive_immune_system - INFO - Honeypot 'http_honeypot' deployed successfully
+2026-09-26 02:16:08,410 - cognitive_immune_system - INFO - Deploying smb honeypot 'smb_honeypot' on port 445
+2026-09-26 02:16:08,410 - cognitive_immune_system - INFO - Honeypot 'smb_honeypot' deployed successfully
+2026-09-26 02:16:08,411 - cognitive_immune_system - INFO - Deploying rdp honeypot 'rdp_honeypot' on port 3389
+2026-09-26 02:16:08,411 - cognitive_immune_system - INFO - Honeypot 'rdp_honeypot' deployed successfully
+2026-09-26 02:16:08,411 - cognitive_immune_system - INFO - Deploying mysql honeypot 'database_honeypot' on port 3306
+2026-09-26 02:16:08,411 - cognitive_immune_system - INFO - Honeypot 'database_honeypot' deployed successfully
+2026-09-26 02:16:08,411 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_credentials' to config files
+2026-09-26 02:16:08,414 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_credentials' to environment variables
+2026-09-26 02:16:08,414 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_credentials' to code repositories
+2026-09-26 02:16:08,414 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_api_key' to config files
+2026-09-26 02:16:08,414 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_api_key' to environment variables
+2026-09-26 02:16:08,414 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_db_connection' to web.config
+2026-09-26 02:16:08,414 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_db_connection' to app.config
+2026-09-26 02:16:08,414 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_db_connection' to docker-compose.yml
+2026-09-26 02:16:08,414 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_api_endpoint' to documentation
+2026-09-26 02:16:08,414 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_api_endpoint' to postman collections
+2026-09-26 02:16:08,414 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_api_endpoint' to swagger docs
+2026-09-26 02:16:08,414 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_ssh_key' to .ssh/id_rsa
+2026-09-26 02:16:08,423 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_ssh_key' to authorized_keys
+2026-09-26 02:16:08,423 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_ssh_key' to deployment scripts
+2026-09-26 02:16:08,425 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_certificate' to certificate stores
+2026-09-26 02:16:08,425 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_certificate' to keystores
+2026-09-26 02:16:08,425 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_certificate' to load balancer configs
+2026-09-26 02:16:08,425 - cognitive_immune_system - INFO - Deception Technology started
+2026-09-26 02:16:08,425 - cognitive_immune_system.FederatedThreatIntel - INFO - Federated Threat Intelligence started
+2026-09-26 02:16:08,430 - cognitive_immune_system.Neuromorphic - INFO - Neuromorphic Detector started
+2026-09-26 02:16:08,430 - cognitive_immune_system.CIS - INFO - Cognitive Immune System started
+2026-09-26 02:16:08,431 - cognitive_immune_system.RedTeamer - INFO - Simulating attack: T1082 - System Information Discovery
+2026-09-26 02:16:08,431 - cognitive_immune_system.RedTeamer - INFO - Adversarial Red Teamer started
+2026-09-26 02:16:08,431 - cognitive_immune_system.CIS - INFO - Learned new threat: Discovery
+2026-09-26 02:16:08,432 - cognitive_immune_system.RedTeamer - WARNING - Technique T1082 not detected - added to repertoire
+2026-09-26 02:16:08,432 - cognitive_immune_system.ThreatPredictor - INFO - Threat Evolution Predictor started
+2026-09-26 02:16:08,434 - cognitive_immune_system.IntegrityVerifier - INFO - Semantic Integrity Verifier started
+2026-09-26 02:16:08,437 - cognitive_immune_system.IntegrityVerifier - INFO - Registered file: downpour_v29_titanium.py
+2026-09-26 02:16:08,438 - cognitive_immune_system - INFO - CIS integrated with Downpour
+2026-09-26 02:16:08,439 - downpour_v29_titanium - INFO - [OK] Cognitive Immune System active
+2026-09-26 02:16:08,439 - downpour_v29_titanium - INFO - All core engines initialized successfully
+2026-09-26 02:16:08,441 - process_mitigation - INFO - process_mitigation: 1/3 policies enabled
+2026-09-26 02:16:08,443 - process_mitigation - INFO - process_mitigation: 1/3 policies enabled
+2026-09-26 02:16:08,444 - downpour_v29_titanium - INFO - process_mitigation: 1/3 policies enabled
+2026-09-26 02:16:08,448 - Downpour.20260926 - INFO - SESSION_START {"session_id": "20260926_021608_f0d9cc", "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]", "pid": 18224}
+2026-09-26 02:16:08,450 - Downpour.20260926 - INFO - PERF_METRIC {"metric": "app_initialization", "value": 0, "unit": "ms"}
+2026-09-26 02:16:08,451 - Downpour.20260926 - INFO - UI_RESPONSE {"action": "auto_start_setup", "response_ms": 50}
+2026-09-26 02:16:08,451 - downpour_v29_titanium - INFO - Application state initialized successfully
+2026-09-26 02:16:08,452 - downpour_v29_titanium - INFO - System optimizations applied successfully
+2026-09-26 02:16:08,452 - downpour_v29_titanium - INFO - Event handlers set up successfully
+2026-09-26 02:16:08,456 - downpour_v29_titanium - INFO - Async operations initialized with 4 workers
+2026-09-26 02:16:08,456 - downpour_v29_titanium - INFO - Smart rendering system initialized
+2026-09-26 02:16:08,457 - downpour_v29_titanium - INFO - UI performance monitoring initialized
+2026-09-26 02:16:08,588 - downpour_v29_titanium - INFO - _finish_init: START
+2026-09-26 02:16:08,588 - downpour_v29_titanium - INFO - _finish_init: loading cleared
+2026-09-26 02:16:08,593 - downpour_v29_titanium - INFO - _finish_init: calling _build_ui_safe...
+2026-09-26 02:16:08,594 - downpour_v29_titanium - INFO - _build_ui_safe: calling _build_ui...
+2026-09-26 02:16:08,694 - downpour_v29_titanium - INFO - _build_ui: creating rain canvas...
+2026-09-26 02:16:08,706 - downpour_v29_titanium - INFO - _build_ui: rain done
+2026-09-26 02:16:08,820 - downpour_v29_titanium - INFO - _build_ui: building hw bar...
+2026-09-26 02:16:08,826 - downpour_v29_titanium - INFO - _build_ui: hw bar done, creating notebook...
+2026-09-26 02:16:08,828 - downpour_v29_titanium - INFO - _build_ui: styles configured
+2026-09-26 02:16:08,829 - downpour_v29_titanium - INFO - _build_ui: HUD theme applied {'ok': 66, 'failed': 0}
+2026-09-26 02:16:08,829 - downpour_v29_titanium - INFO - _build_ui: creating notebook widget...
+2026-09-26 02:16:08,832 - downpour_v29_titanium - INFO - _build_ui: notebook bound, building tabs...
+2026-09-26 02:16:08,835 - downpour_v29_titanium - INFO - _build_ui: building tab [🗲 Dashboard]...
+2026-09-26 02:16:08,931 - downpour_v29_titanium - INFO - _build_ui: tab [🗲 Dashboard] OK
+2026-09-26 02:16:09,263 - downpour_v29_titanium - INFO - _build_ui: building tab [🚨 Threats]...
+2026-09-26 02:16:09,341 - downpour_v29_titanium - INFO - _build_ui: tab [🚨 Threats] OK
+2026-09-26 02:16:09,437 - downpour_v29_titanium - INFO - _build_ui: building tab [🧾 Remediation]...
+2026-09-26 02:16:09,451 - downpour_v29_titanium - INFO - _build_ui: tab [🧾 Remediation] OK
+2026-09-26 02:16:09,503 - downpour_v29_titanium - INFO - _build_ui: building tab [🔎 Possible]...
+2026-09-26 02:16:09,515 - downpour_v29_titanium - INFO - _build_ui: tab [🔎 Possible] OK
+2026-09-26 02:16:09,551 - downpour_v29_titanium - INFO - _build_ui: building tab [⚙ Processes]...
+2026-09-26 02:16:09,565 - downpour_v29_titanium - INFO - _build_ui: tab [⚙ Processes] OK
+2026-09-26 02:16:09,606 - downpour_v29_titanium - INFO - _build_ui: building tab [🌐 Network]...
+2026-09-26 02:16:09,714 - downpour_v29_titanium - INFO - _build_ui: tab [🌐 Network] OK
+2026-09-26 02:16:09,815 - downpour_v29_titanium - INFO - _build_ui: building tab [🔍 Scanner]...
+2026-09-26 02:16:09,827 - downpour_v29_titanium - INFO - _build_ui: tab [🔍 Scanner] OK
+2026-09-26 02:16:09,871 - downpour_v29_titanium - INFO - _build_ui: building tab [☢ Intel]...
+2026-09-26 02:16:09,919 - downpour_v29_titanium - INFO - _build_ui: tab [☢ Intel] OK
+2026-09-26 02:16:10,019 - downpour_v29_titanium - INFO - _build_ui: building tab [🛠 CVE]...
+2026-09-26 02:16:10,033 - downpour_v29_titanium - INFO - _build_ui: tab [🛠 CVE] OK
+2026-09-26 02:16:10,119 - downpour_v29_titanium - INFO - _build_ui: building tab [🛡 Hardening]...
+2026-09-26 02:16:10,158 - downpour_v29_titanium - INFO - _build_ui: tab [🛡 Hardening] OK
+2026-09-26 02:16:10,228 - downpour_v29_titanium - INFO - _build_ui: building tab [📊 Performance]...
+2026-09-26 02:16:10,300 - downpour_v29_titanium - INFO - _build_ui: tab [📊 Performance] OK
+2026-09-26 02:16:11,725 - downpour_v29_titanium - INFO - _build_ui: building tab [☠ Ransomware]...
+2026-09-26 02:16:11,895 - threat_feed_aggregator - INFO - Threat Feed Aggregator loaded (v29)
+2026-09-26 02:16:11,902 - threat_feed_aggregator - INFO - Threat actor database initialized
+2026-09-26 02:16:11,920 - downpour_v29_titanium - INFO - _build_ui: tab [☠ Ransomware] OK
+2026-09-26 02:16:12,437 - downpour_v29_titanium - INFO - _build_ui: building tab [🔥 Firewall]...
+2026-09-26 02:16:12,700 - downpour_v29_titanium - INFO - _build_ui: tab [🔥 Firewall] OK
+2026-09-26 02:16:12,700 - root - INFO - [OK] Threat intelligence database initialized
+2026-09-26 02:16:13,225 - downpour_v29_titanium - INFO - _build_ui: building tab [📶 WiFi]...
+2026-09-26 02:16:13,612 - downpour_v29_titanium - INFO - _build_ui: tab [📶 WiFi] OK
+2026-09-26 02:16:14,191 - downpour_v29_titanium - INFO - _build_ui: building tab [🌐 DNS]...
+2026-09-26 02:16:14,221 - config - INFO - ConfigManager: unsigned config adopted (config.json)
+2026-09-26 02:16:14,229 - downpour_v29_titanium - INFO - _build_dns_tab: building [overview]...
+2026-09-26 02:16:14,230 - root - INFO - [OK] Vulnerability scanner database initialized
+[MegaThreatDB v2.1] Loaded 442 signatures
+2026-09-26 02:16:14,246 - downpour_v29_titanium - INFO - _build_dns_tab: [overview] OK
+2026-09-26 02:16:14,247 - downpour_v29_titanium - INFO - _build_dns_tab: building [servers]...
+2026-09-26 02:16:14,261 - downpour_v29_titanium - INFO - _build_dns_tab: [servers] OK
+2026-09-26 02:16:14,262 - downpour_v29_titanium - INFO - _build_dns_tab: building [monitor]...
+2026-09-26 02:16:14,267 - downpour_v29_titanium - INFO - _build_dns_tab: [monitor] OK
+2026-09-26 02:16:14,267 - downpour_v29_titanium - INFO - _build_dns_tab: building [poison]...
+2026-09-26 02:16:14,286 - downpour_v29_titanium - INFO - _build_dns_tab: [poison] OK
+2026-09-26 02:16:14,288 - downpour_v29_titanium - INFO - _build_dns_tab: building [hosts]...
+2026-09-26 02:16:14,295 - downpour_v29_titanium - INFO - _build_dns_tab: [hosts] OK
+2026-09-26 02:16:14,295 - downpour_v29_titanium - INFO - _build_dns_tab: building [dnssec]...
+2026-09-26 02:16:14,300 - downpour_v29_titanium - INFO - _build_dns_tab: [dnssec] OK
+2026-09-26 02:16:14,300 - downpour_v29_titanium - INFO - _build_dns_tab: building [cache]...
+2026-09-26 02:16:14,329 - downpour_v29_titanium - INFO - _build_dns_tab: [cache] OK
+2026-09-26 02:16:14,329 - downpour_v29_titanium - INFO - _build_dns_tab: building [blocklist]...
+2026-09-26 02:16:14,360 - downpour_v29_titanium - INFO - _build_dns_tab: [blocklist] OK
+2026-09-26 02:16:14,360 - downpour_v29_titanium - INFO - _build_dns_tab: building [encrypt]...
+2026-09-26 02:16:14,363 - downpour_v29_titanium - INFO - _build_dns_tab: [encrypt] OK
+2026-09-26 02:16:14,365 - downpour_v29_titanium - INFO - _build_dns_tab: building [advanced]...
+2026-09-26 02:16:14,378 - downpour_v29_titanium - INFO - _build_dns_tab: [advanced] OK
+2026-09-26 02:16:14,379 - downpour_v29_titanium - INFO - _build_ui: tab [🌐 DNS] OK
+2026-09-26 02:16:14,792 - downpour_v29_titanium - INFO - _build_ui: building tab [⚔ Aegis]...
+2026-09-26 02:16:16,210 - downpour_v29_titanium - INFO - _build_ui: tab [⚔ Aegis] OK
+2026-09-26 02:16:16,467 - downpour_v29_titanium - INFO - _build_ui: building tab [🧠 Memory]...
+2026-09-26 02:16:16,484 - downpour_v29_titanium - INFO - _build_ui: tab [🧠 Memory] OK
+2026-09-26 02:16:16,515 - downpour_v29_titanium - INFO - _build_ui: building tab [🔎 Forensics]...
+2026-09-26 02:16:16,517 - downpour_v29_titanium - INFO - _build_ui: tab [🔎 Forensics] OK
+2026-09-26 02:16:16,538 - downpour_v29_titanium - INFO - _build_ui: building tab [🎯 Hunt]...
+2026-09-26 02:16:16,546 - downpour_v29_titanium - INFO - _build_ui: tab [🎯 Hunt] OK
+2026-09-26 02:16:16,602 - downpour_v29_titanium - INFO - _build_ui: building tab [📦 Sandbox]...
+2026-09-26 02:16:16,610 - downpour_v29_titanium - INFO - _build_ui: tab [📦 Sandbox] OK
+2026-09-26 02:16:16,649 - downpour_v29_titanium - INFO - _build_ui: building tab [🔧 Services]...
+2026-09-26 02:16:16,659 - downpour_v29_titanium - INFO - _build_ui: tab [🔧 Services] OK
+2026-09-26 02:16:16,691 - downpour_v29_titanium - INFO - _build_ui: building tab [🔌 USB]...
+2026-09-26 02:16:16,711 - downpour_v29_titanium - INFO - _build_ui: tab [🔌 USB] OK
+2026-09-26 02:16:16,748 - downpour_v29_titanium - INFO - _build_ui: building tab [📡 IoT]...
+2026-09-26 02:16:16,778 - downpour_v29_titanium - INFO - _build_ui: tab [📡 IoT] OK
+2026-09-26 02:16:16,829 - downpour_v29_titanium - INFO - _build_ui: building tab [📅 Timeline]...
+2026-09-26 02:16:16,841 - downpour_v29_titanium - INFO - _build_ui: tab [📅 Timeline] OK
+2026-09-26 02:16:16,890 - downpour_v29_titanium - INFO - _build_ui: building tab [💻 Remote]...
+2026-09-26 02:16:16,909 - downpour_v29_titanium - INFO - _build_ui: tab [💻 Remote] OK
+2026-09-26 02:16:16,944 - downpour_v29_titanium - INFO - _build_ui: building tab [🧹 Cleanup]...
+2026-09-26 02:16:16,999 - downpour_v29_titanium - INFO - _build_ui: tab [🧹 Cleanup] OK
+2026-09-26 02:16:17,364 - downpour_v29_titanium - INFO - _build_ui: building tab [🔐 VPN]...
+2026-09-26 02:16:17,375 - downpour_v29_titanium - INFO - _build_ui: tab [🔐 VPN] OK
+2026-09-26 02:16:17,467 - downpour_v29_titanium - INFO - _build_ui: building tab [👪 Parental]...
+2026-09-26 02:16:17,513 - downpour_v29_titanium - INFO - _build_ui: tab [👪 Parental] OK
+2026-09-26 02:16:17,595 - downpour_v29_titanium - INFO - _build_ui: building tab [🚨 Emergency]...
+2026-09-26 02:16:17,600 - downpour_v29_titanium - INFO - _build_ui: tab [🚨 Emergency] OK
+2026-09-26 02:16:17,650 - downpour_v29_titanium - INFO - _build_ui: building tab [⚙ Settings]...
+2026-09-26 02:16:17,684 - downpour_v29_titanium - INFO - _build_ui: tab [⚙ Settings] OK
+2026-09-26 02:16:17,835 - downpour_v29_titanium - INFO - _build_ui: building tab [🧠 CIS]...
+2026-09-26 02:16:17,841 - downpour_v29_titanium - INFO - _build_ui: tab [🧠 CIS] OK
+2026-09-26 02:16:17,925 - downpour_v29_titanium - INFO - _build_ui: repaint done
+2026-09-26 02:16:17,945 - downpour_v29_titanium - INFO - _build_ui: TAB BOARD populated (31 tabs, 2 rows, 16/row)
+2026-09-26 02:16:17,995 - downpour_v29_titanium - INFO - _build_ui: HUD widget skin applied {'buttons': 395, 'inputs': 79, 'lists': 2, 'skipped': 0}
+2026-09-26 02:16:18,001 - downpour_v29_titanium - INFO - Keyboard shortcuts initialized (F1-F9, Ctrl+F/R/P/Q, Ctrl+Tab)
+2026-09-26 02:16:18,001 - downpour_v29_titanium - INFO - _build_ui_safe: _build_ui OK
+2026-09-26 02:16:18,002 - downpour_v29_titanium - INFO - _build_ui_safe: scheduling auto_start...
+2026-09-26 02:16:18,002 - downpour_v29_titanium - INFO - Full UI built successfully
+2026-09-26 02:16:18,012 - downpour_v29_titanium - INFO - _finish_init: COMPLETE
+2026-09-26 02:16:19,508 - downpour_v29_titanium - INFO - DefenseSuite: ntdll clean
+2026-09-26 02:16:21,253 - downpour_v29_titanium - INFO - [ALIVE] CPU=65% MEM=52% alerts=7 pending_after=0 sensors_alive=0
+2026-09-26 02:16:21,256 - downpour_v29_titanium - INFO - [AutoStart] Background monitoring loops started
+2026-09-26 02:16:24,629 - downpour_v29_titanium - INFO - DefenseSuite: CIS score 42.1% (8/19)
+2026-09-26 02:16:24,865 - downpour_v29_titanium - INFO - DefenseSuite: 23 root CAs
+2026-09-26 02:16:25,040 - downpour_v29_titanium - INFO - DefenseSuite: 2 registry honey persistence tripwires
+2026-09-26 02:16:27,003 - downpour_v29_titanium - INFO - Using current Python 3.12.10
+2026-09-26 02:16:28,017 - downpour_v29_titanium - INFO - [ALIVE] Downpour running - mainloop active
+[smoketest] module imported, creating app...
+2026-09-26 02:16:28,710 - revolutionary_enhancements - INFO - Revolutionary v2 — quantum=16 neural_layers=3 cache=50000
+🚀 Revolutionary enhancements applied successfully
+⚛️ Quantum systems initialized
+🧠 Neural security activated
+♾️ Infinite scalability enabled
+[HIGH] Hyper-optimization active
+2026-09-26 02:16:29,044 - downpour_v29_titanium - INFO - [HW_PROFILE] Detected: HIGH - High-end (12 cores, 32GB RAM, 1536x864)
+[smoketest] app object created, entering mainloop
+2026-09-26 02:16:29,677 - root - INFO - [OK] Threat intelligence database initialized
+2026-09-26 02:16:30,484 - downpour_v29_titanium - INFO - DefenseSuite: 179 kernel drivers loaded (findings=1, unauditable=179)
+2026-09-26 02:16:30,513 - downpour_v29_titanium - INFO - DefenseSuite: 4 browser extensions audited (findings=0)
+2026-09-26 02:16:30,519 - downpour_v29_titanium - INFO - DefenseSuite: IFEO baseline built (findings=0)
+2026-09-26 02:16:30,635 - downpour_v29_titanium - INFO - DefenseSuite: hosts baseline built (findings=0)
+2026-09-26 02:16:30,899 - downpour_v29_titanium - INFO - DefenseSuite: COM baseline built (findings=0)
+2026-09-26 02:16:32,094 - downpour_v29_titanium - INFO - DefenseSuite: firewall-rule baseline built (findings=0)
+2026-09-26 02:16:33,220 - downpour_v29_titanium - INFO - DefenseSuite: service-binary baseline built (findings=50)
+2026-09-26 02:16:33,247 - downpour_v29_titanium - INFO - DefenseSuite: wmi-subscription baseline built (findings=0)
+2026-09-26 02:16:33,350 - downpour_v29_titanium - INFO - DefenseSuite: defender-exclusion baseline built (findings=0)
+2026-09-26 02:16:33,352 - downpour_v29_titanium - INFO - DefenseSuite: startup-folder baseline built (findings=0)
+2026-09-26 02:16:33,454 - downpour_v29_titanium - INFO - DefenseSuite: network-config baseline built (findings=0)
+2026-09-26 02:16:33,455 - downpour_v29_titanium - INFO - DefenseSuite: WU-origin baseline built (findings=0)
+2026-09-26 02:16:33,456 - downpour_v29_titanium - INFO - DefenseSuite: lsa-policy baseline built (findings=0)
+2026-09-26 02:16:33,458 - downpour_v29_titanium - INFO - DefenseSuite: smb-shares baseline built (findings=0)
+2026-09-26 02:16:33,592 - downpour_v29_titanium - INFO - DefenseSuite: asr-rules baseline built (findings=0)
+2026-09-26 02:16:33,593 - downpour_v29_titanium - INFO - DefenseSuite: shell-config baseline built (findings=0)
+2026-09-26 02:16:33,827 - downpour_v29_titanium - INFO - DefenseSuite: security-services baseline built (findings=0)
+2026-09-26 02:16:33,829 - downpour_v29_titanium - INFO - DefenseSuite: remote-access baseline built (findings=0)
+2026-09-26 02:16:33,829 - downpour_v29_titanium - INFO - DefenseSuite: applocker-policy baseline built (findings=0)
+2026-09-26 02:16:34,886 - downpour_v29_titanium - INFO - DefenseSuite: local-groups baseline built (findings=0)
+2026-09-26 02:16:36,228 - downpour_v29_titanium - INFO - Secure environment initialized: C:\Users\purpl\Desktop\downpour_consolidated\downpour_tmp\downpour_secure_1virfrpg
+2026-09-26 02:16:36,295 - downpour_v29_titanium - INFO - Security baseline initialized
+2026-09-26 02:16:38,021 - downpour_v29_titanium - INFO - [ALIVE] Downpour running - mainloop active
+2026-09-26 02:16:38,930 - root - INFO - [OK] Memory forensics database initialized
+2026-09-26 02:16:38,945 - root - INFO - [OK] Vulnerability scanner database initialized
+2026-09-26 02:16:38,947 - root - INFO - Vulnerability scanner monitoring started
+2026-09-26 02:16:38,947 - root - INFO - [OK] Vulnerability Scanner active
+2026-09-26 02:16:38,948 - root - INFO - Updating software inventory...
+2026-09-26 02:16:39,940 - downpour_v29_titanium - INFO - [OK] Sigma Engine active
+2026-09-26 02:16:39,943 - downpour_v29_titanium - INFO - [OK] YARA Rules Manager active
+2026-09-26 02:16:39,944 - downpour_v29_titanium - INFO - [OK] STIX/TAXII Feed available (requires server config)
+2026-09-26 02:16:39,944 - downpour_v29_titanium - INFO - [OK] MISP Feed active
+2026-09-26 02:16:39,946 - downpour_v29_titanium - INFO - [OK] DNS Cache Watcher active
+2026-09-26 02:16:39,946 - downpour_v29_titanium - INFO - [OK] Child Process Guard active
+2026-09-26 02:16:39,948 - downpour_v29_titanium - INFO - [OK] Event Push Monitor active
+2026-09-26 02:16:39,988 - amsi_integration - WARNING - Could not initialize AMSI: [WinError -2147024637] No more data is available
+2026-09-26 02:16:39,990 - downpour_v29_titanium - INFO - [OK] AMSI Integration active
+2026-09-26 02:16:39,992 - downpour_v29_titanium - INFO - [OK] Beacon Detector active
+2026-09-26 02:16:39,992 - downpour_v29_titanium - INFO - [OK] LOLBINS Detector active
+2026-09-26 02:16:39,994 - downpour_v29_titanium - INFO - [OK] Firmware Posture active
+2026-09-26 02:16:39,995 - downpour_v29_titanium - INFO - [OK] Gaming Protection Monitor active
+2026-09-26 02:16:39,995 - downpour_v29_titanium - INFO - [OK] Firewall Tamper Detector active
+2026-09-26 02:16:40,015 - downpour.amsibypass - INFO - AMSI bypass detector started (0 providers)
+2026-09-26 02:16:40,017 - downpour_v29_titanium - INFO - [OK] AMSI Bypass Detector active
+2026-09-26 02:16:40,017 - downpour_v29_titanium - INFO - [OK] DLL Hijack Detector active
+2026-09-26 02:16:40,017 - downpour_v29_titanium - INFO - [OK] Scheduled Task Monitor active
+2026-09-26 02:16:40,023 - downpour_v29_titanium - INFO - [OK] WMI Persistence Detector active
+2026-09-26 02:16:40,024 - downpour_v29_titanium - INFO - [OK] Data Exfiltration Monitor active
+2026-09-26 02:16:40,026 - downpour_v29_titanium - INFO - [OK] Anti-Forensics Detector active
+2026-09-26 02:16:40,028 - downpour_v29_titanium - INFO - [OK] Lateral Movement Detector active
+2026-09-26 02:16:40,028 - downpour_v29_titanium - INFO - [OK] Shadow Copy Monitor active
+2026-09-26 02:16:40,030 - downpour_v29_titanium - INFO - [OK] Network Share Monitor active
+2026-09-26 02:16:40,030 - downpour_v29_titanium - INFO - [OK] Keystroke Injection Detector active
+2026-09-26 02:16:40,030 - downpour_v29_titanium - INFO - [OK] Bluetooth Security Monitor active
+2026-09-26 02:16:40,030 - downpour_v29_titanium - INFO - [OK] WiFi Security Intelligence active
+2026-09-26 02:16:40,037 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=feodo_ip sha256=ed47be907faee9488c1045282a225b39c1d9ec815532e646610bc61c077c9ca1 bytes=940 scheme=https host=feodotracker.abuse.ch
+2026-09-26 02:16:40,057 - USBProtection - INFO - USB Protection initialized
+2026-09-26 02:16:40,058 - downpour_v29_titanium - INFO - [OK] USB Protection active
+2026-09-26 02:16:40,058 - downpour.amsibypass - WARNING - AMSIBypass: defender_stopped — Windows Defender service is STOPPED
+2026-09-26 02:16:40,058 - downpour_v29_titanium - INFO - [OK] TLS Certificate Monitor active
+2026-09-26 02:16:40,058 - downpour_v29_titanium - INFO - [OK] Credential Guard Monitor active
+2026-09-26 02:16:40,058 - downpour_v29_titanium - INFO - [OK] DPAPI Monitor active
+2026-09-26 02:16:40,058 - downpour_v29_titanium - INFO - [OK] Clipboard Monitor active
+2026-09-26 02:16:40,058 - downpour_v29_titanium - INFO - [OK] Named Pipe Monitor active
+2026-09-26 02:16:40,058 - downpour_v29_titanium - INFO - [OK] IoT Scanner active
+2026-09-26 02:16:40,075 - root - INFO - Threat intelligence database initialized with KEV support
+2026-09-26 02:16:40,077 - downpour_v29_titanium - INFO - [OK] Threat Intelligence Updater active
+2026-09-26 02:16:40,174 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=threatfox sha256=b138a93bc9a1dc254a5693f5e98813739e1c1c3d16c6e2eefe5526084270114d bytes=1730810 scheme=https host=threatfox.abuse.ch
+2026-09-26 02:16:40,360 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=urlhaus sha256=7183e2041ced0cedafac1029ba37ef88ca1398184b3694bec30aa8547a4c0a3f bytes=2727872 scheme=https host=urlhaus.abuse.ch
+2026-09-26 02:16:40,390 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=malware_bazaar sha256=7312dd2bff500046c7b293bc1bf3393da3a9c6e1a35a9cb0479727b21370eedb bytes=734749 scheme=https host=bazaar.abuse.ch
+2026-09-26 02:16:40,715 - downpour_v29_titanium - INFO - [OK] Threat Response Center active
+2026-09-26 02:16:40,716 - downpour_v29_titanium - INFO - [OK] YARA Rules Manager active
+2026-09-26 02:16:40,716 - downpour_v29_titanium - INFO - [OK] YARA-X Engine active
+2026-09-26 02:16:40,724 - cognitive_immune_system.CIS - INFO - Cognitive Immune System initialized
+2026-09-26 02:16:40,727 - cognitive_immune_system.FederatedThreatIntel - INFO - Federated Threat Intelligence initialized
+2026-09-26 02:16:40,727 - cognitive_immune_system.SelfHealingCode - INFO - Self-Healing Code initialized
+2026-09-26 02:16:40,727 - cognitive_immune_system.Neuromorphic - INFO - Neuromorphic Detector initialized
+2026-09-26 02:16:40,727 - cognitive_immune_system - INFO - Deploying ssh honeypot 'ssh_honeypot' on port 2222
+2026-09-26 02:16:40,727 - cognitive_immune_system - INFO - Honeypot 'ssh_honeypot' deployed successfully
+2026-09-26 02:16:40,727 - cognitive_immune_system - INFO - Deploying ftp honeypot 'ftp_honeypot' on port 2121
+2026-09-26 02:16:40,740 - cognitive_immune_system - INFO - Honeypot 'ftp_honeypot' deployed successfully
+2026-09-26 02:16:40,741 - cognitive_immune_system - INFO - Deploying http honeypot 'http_honeypot' on port 8080
+2026-09-26 02:16:40,741 - cognitive_immune_system - INFO - Honeypot 'http_honeypot' deployed successfully
+2026-09-26 02:16:40,741 - cognitive_immune_system - INFO - Deploying smb honeypot 'smb_honeypot' on port 445
+2026-09-26 02:16:40,741 - cognitive_immune_system - INFO - Honeypot 'smb_honeypot' deployed successfully
+2026-09-26 02:16:40,741 - cognitive_immune_system - INFO - Deploying rdp honeypot 'rdp_honeypot' on port 3389
+2026-09-26 02:16:40,741 - cognitive_immune_system - INFO - Honeypot 'rdp_honeypot' deployed successfully
+2026-09-26 02:16:40,741 - cognitive_immune_system - INFO - Deploying mysql honeypot 'database_honeypot' on port 3306
+2026-09-26 02:16:40,741 - cognitive_immune_system - INFO - Honeypot 'database_honeypot' deployed successfully
+2026-09-26 02:16:40,750 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_credentials' to config files
+2026-09-26 02:16:40,750 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_credentials' to environment variables
+2026-09-26 02:16:40,750 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_credentials' to code repositories
+2026-09-26 02:16:40,750 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_api_key' to config files
+2026-09-26 02:16:40,750 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_api_key' to environment variables
+2026-09-26 02:16:40,750 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_db_connection' to web.config
+2026-09-26 02:16:40,758 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_db_connection' to app.config
+2026-09-26 02:16:40,758 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_db_connection' to docker-compose.yml
+2026-09-26 02:16:40,758 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_api_endpoint' to documentation
+2026-09-26 02:16:40,758 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_api_endpoint' to postman collections
+2026-09-26 02:16:40,758 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_api_endpoint' to swagger docs
+2026-09-26 02:16:40,758 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_ssh_key' to .ssh/id_rsa
+2026-09-26 02:16:40,758 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_ssh_key' to authorized_keys
+2026-09-26 02:16:40,758 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_ssh_key' to deployment scripts
+2026-09-26 02:16:40,758 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_certificate' to certificate stores
+2026-09-26 02:16:40,758 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_certificate' to keystores
+2026-09-26 02:16:40,758 - cognitive_immune_system - INFO - Deployed honeytoken 'fake_certificate' to load balancer configs
+2026-09-26 02:16:40,758 - cognitive_immune_system - INFO - Deception Technology started
+2026-09-26 02:16:40,773 - cognitive_immune_system.FederatedThreatIntel - INFO - Federated Threat Intelligence started
+2026-09-26 02:16:40,776 - cognitive_immune_system.Neuromorphic - INFO - Neuromorphic Detector started
+2026-09-26 02:16:40,777 - cognitive_immune_system.CIS - INFO - Cognitive Immune System started
+2026-09-26 02:16:40,779 - cognitive_immune_system.RedTeamer - INFO - Simulating attack: T1055 - Process Injection
+2026-09-26 02:16:40,779 - cognitive_immune_system.RedTeamer - INFO - Adversarial Red Teamer started
+2026-09-26 02:16:40,781 - cognitive_immune_system.CIS - INFO - Learned new threat: Defense Evasion
+2026-09-26 02:16:40,783 - cognitive_immune_system.RedTeamer - WARNING - Technique T1055 not detected - added to repertoire
+2026-09-26 02:16:40,784 - cognitive_immune_system.ThreatPredictor - INFO - Threat Evolution Predictor started
+2026-09-26 02:16:40,786 - cognitive_immune_system.IntegrityVerifier - INFO - Semantic Integrity Verifier started
+2026-09-26 02:16:40,793 - cognitive_immune_system.IntegrityVerifier - INFO - Registered file: downpour_v29_titanium.py
+2026-09-26 02:16:40,795 - cognitive_immune_system - INFO - CIS integrated with Downpour
+2026-09-26 02:16:40,796 - downpour_v29_titanium - INFO - [OK] Cognitive Immune System active
+2026-09-26 02:16:40,798 - downpour_v29_titanium - INFO - All core engines initialized successfully
+2026-09-26 02:16:40,805 - process_mitigation - INFO - process_mitigation: 1/3 policies enabled
+2026-09-26 02:16:40,808 - process_mitigation - INFO - process_mitigation: 1/3 policies enabled
+2026-09-26 02:16:40,809 - downpour_v29_titanium - INFO - process_mitigation: 1/3 policies enabled
+2026-09-26 02:16:40,816 - Downpour.20260926 - INFO - SESSION_START {"session_id": "20260926_021640_b658e4", "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]", "pid": 17532}
+2026-09-26 02:16:40,827 - Downpour.20260926 - INFO - PERF_METRIC {"metric": "app_initialization", "value": 0, "unit": "ms"}
+2026-09-26 02:16:40,831 - Downpour.20260926 - INFO - UI_RESPONSE {"action": "auto_start_setup", "response_ms": 50}
+2026-09-26 02:16:40,834 - downpour_v29_titanium - INFO - Application state initialized successfully
+2026-09-26 02:16:40,837 - downpour_v29_titanium - INFO - System optimizations applied successfully
+2026-09-26 02:16:40,838 - downpour_v29_titanium - INFO - Event handlers set up successfully
+2026-09-26 02:16:40,844 - downpour_v29_titanium - INFO - Async operations initialized with 4 workers
+2026-09-26 02:16:40,845 - downpour_v29_titanium - INFO - Smart rendering system initialized
+2026-09-26 02:16:40,846 - downpour_v29_titanium - INFO - UI performance monitoring initialized
+2026-09-26 02:16:41,381 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=blocklist_de_all sha256=7abc44ac0788837cd332f8333bad1c31552ca3c6e71a65349883af4d9bcf0daa bytes=349356 scheme=https host=lists.blocklist.de
+2026-09-26 02:16:41,608 - downpour_v29_titanium - INFO - _finish_init: START
+2026-09-26 02:16:41,610 - downpour_v29_titanium - INFO - _finish_init: loading cleared
+2026-09-26 02:16:41,613 - downpour_v29_titanium - INFO - _finish_init: calling _build_ui_safe...
+2026-09-26 02:16:41,614 - downpour_v29_titanium - INFO - _build_ui_safe: calling _build_ui...
+2026-09-26 02:16:41,685 - downpour_v29_titanium - INFO - _build_ui: creating rain canvas...
+2026-09-26 02:16:41,774 - downpour_v29_titanium - INFO - _build_ui: rain done
+2026-09-26 02:16:41,869 - downpour_v29_titanium - INFO - _build_ui: building hw bar...
+2026-09-26 02:16:41,905 - downpour_v29_titanium - INFO - _build_ui: hw bar done, creating notebook...
+2026-09-26 02:16:41,912 - downpour_v29_titanium - INFO - _build_ui: styles configured
+2026-09-26 02:16:41,957 - downpour_v29_titanium - INFO - _build_ui: HUD theme applied {'ok': 66, 'failed': 0}
+2026-09-26 02:16:41,958 - downpour_v29_titanium - INFO - _build_ui: creating notebook widget...
+2026-09-26 02:16:41,967 - downpour_v29_titanium - INFO - _build_ui: notebook bound, building tabs...
+2026-09-26 02:16:41,978 - downpour_v29_titanium - INFO - _build_ui: building tab [🗲 Dashboard]...
+2026-09-26 02:16:42,288 - downpour_v29_titanium - INFO - _build_ui: tab [🗲 Dashboard] OK
+2026-09-26 02:16:43,105 - downpour_v29_titanium - INFO - _build_ui: building tab [🚨 Threats]...
+2026-09-26 02:16:43,317 - downpour_v29_titanium - INFO - _build_ui: tab [🚨 Threats] OK
+2026-09-26 02:16:43,506 - downpour_v29_titanium - INFO - _build_ui: building tab [🧾 Remediation]...
+2026-09-26 02:16:43,560 - downpour_v29_titanium - INFO - _build_ui: tab [🧾 Remediation] OK
+2026-09-26 02:16:43,663 - downpour_v29_titanium - INFO - _build_ui: building tab [🔎 Possible]...
+2026-09-26 02:16:43,712 - downpour_v29_titanium - INFO - _build_ui: tab [🔎 Possible] OK
+2026-09-26 02:16:43,805 - downpour_v29_titanium - INFO - _build_ui: building tab [⚙ Processes]...
+2026-09-26 02:16:43,884 - downpour_v29_titanium - INFO - _build_ui: tab [⚙ Processes] OK
+2026-09-26 02:16:43,975 - downpour_v29_titanium - INFO - _build_ui: building tab [🌐 Network]...
+2026-09-26 02:16:44,226 - downpour_v29_titanium - INFO - _build_ui: tab [🌐 Network] OK
+2026-09-26 02:16:44,432 - downpour_v29_titanium - INFO - _build_ui: building tab [🔍 Scanner]...
+2026-09-26 02:16:44,498 - downpour_v29_titanium - INFO - _build_ui: tab [🔍 Scanner] OK
+2026-09-26 02:16:44,515 - downpour_v29_titanium - WARNING - FEED-INTEGRITY feed=greensnow permissive TLS (cert-exempt host: blocklist.greensnow.co) — transport NOT authenticated; content integrity-logged only
+2026-09-26 02:16:44,590 - downpour_v29_titanium - INFO - _build_ui: building tab [☢ Intel]...
+2026-09-26 02:16:44,895 - downpour_v29_titanium - INFO - _build_ui: tab [☢ Intel] OK
+2026-09-26 02:16:45,088 - downpour_v29_titanium - INFO - _build_ui: building tab [🛠 CVE]...
+2026-09-26 02:16:45,178 - downpour_v29_titanium - INFO - _build_ui: tab [🛠 CVE] OK
+2026-09-26 02:16:45,358 - downpour_v29_titanium - INFO - _build_ui: building tab [🛡 Hardening]...
+2026-09-26 02:16:45,544 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=greensnow sha256=805357ebab5d7186ffde8a569c68b6f9aa1c6d0433621ad82be0c9a48a72d169 bytes=82052 scheme=https host=blocklist.greensnow.co
+2026-09-26 02:16:45,767 - downpour_v29_titanium - INFO - _build_ui: tab [🛡 Hardening] OK
+2026-09-26 02:16:46,069 - downpour_v29_titanium - INFO - _build_ui: building tab [📊 Performance]...
+2026-09-26 02:16:46,977 - downpour_v29_titanium - INFO - _build_ui: tab [📊 Performance] OK
+2026-09-26 02:16:48,193 - downpour_v29_titanium - INFO - [ALIVE] Downpour running - mainloop active
+2026-09-26 02:16:48,802 - threat_feed_aggregator - INFO - Threat Feed Aggregator loaded (v29)
+2026-09-26 02:16:48,902 - threat_feed_aggregator - INFO - Threat actor database initialized
+2026-09-26 02:16:49,007 - downpour_v29_titanium - INFO - _build_ui: building tab [☠ Ransomware]...
+2026-09-26 02:16:49,770 - downpour_v29_titanium - WARNING - FEED-INTEGRITY feed=cinsscore permissive TLS (cert-exempt host: cinsscore.com) — transport NOT authenticated; content integrity-logged only
+2026-09-26 02:16:49,854 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=spamhaus_drop sha256=8fd3bef779601542f3e189f020aea38ed6366c91e7b2713da1b7c9bc565978cb bytes=47594 scheme=https host=www.spamhaus.org
+2026-09-26 02:16:50,008 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=cinsscore sha256=f321127a28f2955f5f3d72b1b0b361e3941969642bf9551f904ded1ec458835b bytes=212326 scheme=https host=cinsscore.com
+2026-09-26 02:16:50,211 - root - INFO - [OK] Threat intelligence database initialized
+2026-09-26 02:16:50,282 - downpour_v29_titanium - INFO - _build_ui: tab [☠ Ransomware] OK
+2026-09-26 02:16:51,859 - downpour_v29_titanium - INFO - _build_ui: building tab [🔥 Firewall]...
+2026-09-26 02:16:52,261 - config - INFO - ConfigManager: unsigned config adopted (config.json)
+2026-09-26 02:16:52,420 - downpour_v29_titanium - INFO - _build_ui: tab [🔥 Firewall] OK
+2026-09-26 02:16:52,421 - root - INFO - [OK] Vulnerability scanner database initialized
+[MegaThreatDB v2.1] Loaded 442 signatures
+2026-09-26 02:16:52,965 - downpour_v29_titanium - INFO - _build_ui: building tab [📶 WiFi]...
+2026-09-26 02:16:53,110 - downpour_v29_titanium - INFO - _build_ui: tab [📶 WiFi] OK
+2026-09-26 02:16:53,217 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=feodo_botnet_cc sha256=ed47be907faee9488c1045282a225b39c1d9ec815532e646610bc61c077c9ca1 bytes=940 scheme=https host=feodotracker.abuse.ch
+2026-09-26 02:16:53,330 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=ssl_blacklist sha256=44899e1b4db3a48e577a89ce0dedf9f949eb9a37366adeb3bdadb5a7b47b96b2 bytes=545 scheme=https host=sslbl.abuse.ch
+2026-09-26 02:16:53,332 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=ssl_blacklist_ag sha256=e4367dd9f8bb7fe5891ff7d0a80a03fd8e08c5cb7ae1a98a66834a3d46caa0c7 bytes=545 scheme=https host=sslbl.abuse.ch
+2026-09-26 02:16:53,453 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=blocklist_de_ssh sha256=279502d0f7db4b8e75bd50eff4d5372c1968d13a712501f6bf1d534c27c9dc4e bytes=72306 scheme=https host=lists.blocklist.de
+2026-09-26 02:16:53,593 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=phishing_army sha256=6f7dde8e10f5edc884f07dae4d5acaf9b4ae5341e0b40f5ebe87f3cb2f2c5953 bytes=3065621 scheme=https host=phishing.army
+2026-09-26 02:16:54,023 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=blocklist_de_mail sha256=520bbc5d920408843428882bfcbad036e8c394102d053b40204d249155f7cd06 bytes=191161 scheme=https host=lists.blocklist.de
+2026-09-26 02:16:54,088 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=phishing_army_ex sha256=5b040898c519f402e70ddfbd90c2692bd1289e51bcc695e91c242b89f6e9a542 bytes=3099867 scheme=https host=phishing.army
+2026-09-26 02:16:54,088 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=blocklist_de_bots sha256=12a0b0b77cd56c0adbea1964bb8c6603060eec0526a9e74c0e57eaf2f9fcf89f bytes=54691 scheme=https host=lists.blocklist.de
+2026-09-26 02:16:54,424 - downpour_v29_titanium - INFO - _build_ui: building tab [🌐 DNS]...
+2026-09-26 02:16:55,005 - downpour_v29_titanium - INFO - _build_dns_tab: building [overview]...
+2026-09-26 02:16:59,006 - downpour_v29_titanium - INFO - [ALIVE] Downpour running - mainloop active
+2026-09-26 02:17:01,549 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=blocklist_de_brute sha256=f41db48f7e183ab2bbebb408ce0074e95bf3c984043f46eaac272258b55063c1 bytes=20359 scheme=https host=lists.blocklist.de
+2026-09-26 02:17:01,694 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=alienvault sha256=9ad42af4756357bd9482b8ba26596c231d51db0cbf73f60ab166f8c48947357a bytes=40171 scheme=https host=reputation.alienvault.com
+2026-09-26 02:17:01,730 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=emerging sha256=38b026ca08cb87958d5da79780661510dfda4470dbd248a3c6aa87efaf48886d bytes=9492 scheme=https host=rules.emergingthreats.net
+2026-09-26 02:17:01,736 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=emerging_fwrule sha256=1549b534d7cf4f678a1ff58a9ee0a141edfb7a726bf3ec3e9c437d130317dd5e bytes=29419 scheme=https host=rules.emergingthreats.net
+2026-09-26 02:17:01,855 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=ipsum_7 sha256=b6892a747ecf919fa4de4efd8538228e068d5ad7ff5a397740ecb786e8b19341 bytes=9571 scheme=https host=raw.githubusercontent.com
+2026-09-26 02:17:02,140 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=ipsum_6 sha256=a6b5a833e4e2308a3e769b1da1422353b36f0fea49ac01f96382ed7054576a88 bytes=29168 scheme=https host=raw.githubusercontent.com
+2026-09-26 02:17:02,216 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=binary_defense sha256=46801ef78ca61e1f36f5cb892f029aa91818df16d0b89e6057813518d7bac893 bytes=88327 scheme=https host=www.binarydefense.com
+2026-09-26 02:17:02,374 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=ipsum_5 sha256=a3a905b96a59124e72e990478a5347583971f500c55ee48cff9b0e199b6cb5bf bytes=69547 scheme=https host=raw.githubusercontent.com
+2026-09-26 02:17:04,488 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=spamhaus_edrop sha256=6a2d6e588c862811a2a8bfd133b4e3f07c737d95e40946d26cdfb00d4803ad9c bytes=277 scheme=https host=www.spamhaus.org
+2026-09-26 02:17:04,713 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=steven_black_fak sha256=0693f8568b8361ac9204430c0f8c9517170662019350beb3cea62a4a6cdf5d43 bytes=4465347 scheme=https host=raw.githubusercontent.com
+2026-09-26 02:17:04,790 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=botvrij_ip sha256=359a4afc2ebcdc068ad3bd034a245f35b567e50ac5b2045364b5a4fb2373ee02 bytes=480 scheme=https host=www.botvrij.eu
+2026-09-26 02:17:04,823 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=botvrij_domain sha256=fe06ed7ede1a819cc8440e9a4f327d25df65665272885456043626ebaed83a04 bytes=91 scheme=https host=www.botvrij.eu
+2026-09-26 02:17:05,139 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=tor_exit sha256=539cc9675354e3dd7e2a630566572e32b51466e0ad16258c17fc5f58a247ddfc bytes=19456 scheme=https host=check.torproject.org
+2026-09-26 02:17:06,973 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=firehol_l2 sha256=b633aaa11ab094e9556d5543de4c542a53b8a53b8a9d02b54f13153bfe2d1553 bytes=356854 scheme=https host=raw.githubusercontent.com
+2026-09-26 02:17:07,058 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=firehol_l1 sha256=b9a54cb809db08fa3dd37b66b2d9a0ebbc04459c2e29901ed7285134f2ffcb97 bytes=74607 scheme=https host=raw.githubusercontent.com
+2026-09-26 02:17:09,038 - downpour_v29_titanium - INFO - [ALIVE] Downpour running - mainloop active
+2026-09-26 02:17:12,564 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=firehol_l3 sha256=7af600b9542f77ae3f321066034e306a73c51ee6358e3ede09648b1c22861a3f bytes=182306 scheme=https host=raw.githubusercontent.com
+2026-09-26 02:17:12,865 - code_integrity - WARNING - code_integrity: 8 modified, 16 missing, 39 extra
+2026-09-26 02:17:12,890 - quarantine_core - INFO - Quarantine reconciliation: {'orphaned_files': 0, 'missing_db': 0, 'hash_mismatch': 0, 'restored_ok': 0}
+2026-09-26 02:17:12,890 - downpour_v29_titanium - INFO - QuarantineBoot: migrated=0 reconciled={'orphaned_files': 0, 'missing_db': 0, 'hash_mismatch': 0, 'restored_ok': 0}
+2026-09-26 02:17:14,170 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=urlhaus_host sha256=4dff751f3ebc5cbd1e4657b4027511940e4c5ab190cef491e8552f912a19a38a bytes=11536 scheme=https host=urlhaus.abuse.ch
+2026-09-26 02:17:14,305 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=exploitdb_rss sha256=b0fab10035f1220c05f5136bcf555259daa3c0b79ba8cd039d131b1aa8e65665 bytes=21096 scheme=https host=www.exploit-db.com
+2026-09-26 02:17:14,337 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=firehol_webclient sha256=3597e2f86cffc911db0c62023304d0eae6ffbb674d68390722e1ce8ae193f334 bytes=7505 scheme=https host=raw.githubusercontent.com
+2026-09-26 02:17:14,355 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=tech_scam sha256=0e8a05e0a2698b79f446abfe6299360d1af3be1fcd70c752d3f6952a26462359 bytes=36808 scheme=https host=raw.githubusercontent.com
+2026-09-26 02:17:15,179 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=urlhaus_text sha256=6a093d80aba25284a8289ce8112b3b1ef8243ac10d1fbd6db374de3c80cc4563 bytes=527827 scheme=https host=urlhaus.abuse.ch
+2026-09-26 02:17:15,339 - downpour_v29_titanium - WARNING - FEED-INTEGRITY feed=blocklist_net_ua permissive TLS (cert-exempt host: blocklist.net.ua) — transport NOT authenticated; content integrity-logged only
+2026-09-26 02:17:16,146 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=phishtank_valid sha256=7549db9c6923385489154534edcc0ccc0a9536ba0582eb303a2cadd62820914a bytes=14779369 scheme=https host=data.phishtank.com
+2026-09-26 02:17:17,103 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=turris_greylist sha256=1a74aa2de4a8f4254f100e7df677829c48a19ce7ec55accb7a51808157dd979b bytes=262956 scheme=https host=view.sentinel.turris.cz
+2026-09-26 02:17:19,151 - downpour_v29_titanium - INFO - [ALIVE] Downpour running - mainloop active
+2026-09-26 02:17:22,322 - downpour_v29_titanium - WARNING - [FREEZE] GUI blocked 1.9s, main-thread stack:
+  File "<string>", line 1, in <module>
+
+  File "C:\Users\purpl\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+
+  File "C:\Users\purpl\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+
+  File "C:\Users\purpl\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+
+  File "C:\Users\purpl\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+
+  File "<frozen runpy>", line 287, in run_path
+
+  File "<frozen runpy>", line 98, in _run_module_code
+
+  File "<frozen runpy>", line 88, in _run_code
+
+  File "C:\Users\purpl\Desktop\downpour_consolidated\_temp_scripts\ui_smoketest.py", line 26, in <module>
+    app.mainloop()
+
+  File "C:\Users\purpl\AppData\Local\Programs\Python\Python312\Lib\tkinter\__init__.py", line 1505, in mainloop
+    self.tk.mainloop(n)
+
+  File "C:\Users\purpl\AppData\Local\Programs\Python\Python312\Lib\tkinter\__init__.py", line 1968, in __call__
+    return self.func(*args)
+
+  File "C:\Users\purpl\AppData\Local\Programs\Python\Python312\Lib\tkinter\__init__.py", line 865, in callit
+    self.deletecommand(name)
+
+<dominant 3s loc:
+  File "<string>", line 1, in <module>
+
+  File "C:\Users\purpl\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+
+  File "C:\Users\purpl\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+
+  File "C:\Users\purpl\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+
+  File "C:\Users\purpl\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+
+  File "<frozen runpy>", line 287, in run_path
+
+  File "<frozen runpy>", line 98, in _run_module_code
+
+  File "<frozen runpy>", line 88, in _run_code
+>
+<other threads during block:
+  _worker@thread.py:90
+  _worker@thread.py:90
+  _worker@thread.py:90
+  _worker@thread.py:90
+  _worker@thread.py:90
+  _worker@thread.py:90
+  _worker@thread.py:90
+  _worker@thread.py:90
+  _worker@thread.py:90
+  _worker@thread.py:90
+  executemany@downpour_v29_titanium.py:6687
+  executemany@downpour_v29_titanium.py:6691
+  read@ssl.py:1103
+  wait@threading.py:359
+  _mainloop@_win32.py:147
+  _worker@thread.py:90>
+2026-09-26 02:17:22,758 - downpour_v29_titanium - INFO - [ALIVE] CPU=44% MEM=40% alerts=55 pending_after=3 sensors_alive=0
+2026-09-26 02:17:25,530 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=blocklist_net_ua sha256=63c4ad17750ff9d27889919f8ee64f35e37a05404090397e915d94c5db0d9921 bytes=27607066 scheme=https host=blocklist.net.ua
+2026-09-26 02:17:28,704 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=firehol_dshield sha256=07bb80ecb7af1a8b4e7cde50724c2fee961803b28d2e0cfeedf38d501f613d8a bytes=1104 scheme=https host=raw.githubusercontent.com
+2026-09-26 02:17:28,776 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=dshield_top10 sha256=1c1b14e63443cbbf81c6dfca958c69a1f4714db8a6216ccda3ae70e0b25d9e9d bytes=518 scheme=https host=www.dshield.org
+2026-09-26 02:17:28,945 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=socks5_list sha256=edcacc6a28477aa1ba66cacb1df371851d2c8c3485dc15b72b94919804626915 bytes=67243 scheme=https host=raw.githubusercontent.com
+2026-09-26 02:17:28,954 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=proxylist_good sha256=956f6abf1d94ae0e4db2fe95d11b4cbb9ac8a12873a02c639dba3cfb8c5d9b53 bytes=65247 scheme=https host=raw.githubusercontent.com
+2026-09-26 02:17:29,204 - downpour_v29_titanium - INFO - [ALIVE] Downpour running - mainloop active
+2026-09-26 02:17:29,383 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=vpn_ips sha256=20d86e389ecea8ea0f859d15d1bf0ac71a80937d7ae6be1313b1b381408b1924 bytes=180338 scheme=https host=raw.githubusercontent.com
+2026-09-26 02:17:31,158 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=mobile_adware sha256=4b5fd9c1a31bedf693226b6151bb539065f5fb9b88fd1298cf065f9f28a4e744 bytes=23875 scheme=https host=raw.githubusercontent.com
+2026-09-26 02:17:31,442 - downpour_v29_titanium - WARNING - [FREEZE] GUI blocked 2.4s, main-thread stack:
+  File "<string>", line 1, in <module>
+
+  File "C:\Users\purpl\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+
+  File "C:\Users\purpl\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+
+  File "C:\Users\purpl\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+
+  File "C:\Users\purpl\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+
+  File "<frozen runpy>", line 287, in run_path
+
+  File "<frozen runpy>", line 98, in _run_module_code
+
+  File "<frozen runpy>", line 88, in _run_code
+
+  File "C:\Users\purpl\Desktop\downpour_consolidated\_temp_scripts\ui_smoketest.py", line 26, in <module>
+    app.mainloop()
+
+  File "C:\Users\purpl\AppData\Local\Programs\Python\Python312\Lib\tkinter\__init__.py", line 1505, in mainloop
+    self.tk.mainloop(n)
+
+  File "C:\Users\purpl\AppData\Local\Programs\Python\Python312\Lib\tkinter\__init__.py", line 1968, in __call__
+    return self.func(*args)
+
+  File "C:\Users\purpl\AppData\Local\Programs\Python\Python312\Lib\tkinter\__init__.py", line 862, in callit
+    func(*args)
+
+<dominant 3s loc:
+  File "<string>", line 1, in <module>
+
+  File "C:\Users\purpl\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+
+  File "C:\Users\purpl\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\spawn.py", line 131, in _main
+    prepare(preparation_data)
+
+  File "C:\Users\purpl\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+
+  File "C:\Users\purpl\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+
+  File "<frozen runpy>", line 287, in run_path
+
+  File "<frozen runpy>", line 98, in _run_module_code
+
+  File "<frozen runpy>", line 88, in _run_code
+>
+<other threads during block:
+  _worker@thread.py:90
+  _worker@thread.py:90
+  _worker@thread.py:90
+  _worker@thread.py:90
+  _worker@thread.py:90
+  _worker@thread.py:90
+  _worker@thread.py:90
+  _worker@thread.py:90
+  _worker@thread.py:90
+  flush@__init__.py:1144
+  do_handshake@ssl.py:1319
+  create_connection@socket.py:850
+  acquire@__init__.py:973
+  wait@threading.py:359
+  _mainloop@_win32.py:147
+  _worker@thread.py:90>
+2026-09-26 02:17:32,133 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=nixspam sha256=f52c3e7610ee24d31d06ece425575725b7d4bbf1d4374539efb1316913f3d563 bytes=2630769 scheme=https host=www.nixspam.net
+2026-09-26 02:17:39,355 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=openphish sha256=ba0682d165fff6b8a3c1acdaf5de8233c834cc04c15e3bb9ae9c6b0cc88793ee bytes=14650 scheme=https host=openphish.com
+2026-09-26 02:17:39,969 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=oisd_big sha256=b1f0c2e62528e104e527616386e2a9b27669ba67b43861aafc1af354d0220a47 bytes=5397032 scheme=https host=big.oisd.nl
+2026-09-26 02:17:40,739 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=ransomwatch sha256=5eb6c1313bf6ace8ab3702e3e8be688cd747821335ec384ad5c5182c8434542e bytes=2287524 scheme=https host=raw.githubusercontent.com
+2026-09-26 02:17:40,790 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=oisd_nsfw sha256=a6754fd912c561323fdcce18cb1cb79971976ffe1946e502f9221704e1ebfb63 bytes=9431598 scheme=https host=nsfw.oisd.nl
+2026-09-26 02:17:41,212 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=c2intelfeeds_ip sha256=e43a6a7c6e5c13eecea508a4b7e842ad6a773e575b4a83cde45b4f1b71959331 bytes=11678 scheme=https host=raw.githubusercontent.com
+2026-09-26 02:17:41,471 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=c2intelfeeds_dom sha256=d1a4d612d99c20a6a78b0b160cc02d3f519fc15c951608beef0aad3a8ca5f5c1 bytes=5309 scheme=https host=raw.githubusercontent.com
+2026-09-26 02:17:41,487 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=tweetfeed sha256=2c7169fffaab7f7b01462f4a76ad2dfe58cd78674239b1f0d23888dfdbb5d415 bytes=3748 scheme=https host=raw.githubusercontent.com
+2026-09-26 02:17:45,675 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=digitalside_dom sha256=f6d35ad5179414402e5715bc782100a12188ce485fd29e254c6d8383e595fa55 bytes=3220 scheme=https host=raw.githubusercontent.com
+2026-09-26 02:17:46,207 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=digitalside_ip sha256=4545c2d43be3a3136e9bd40435eb3c28e432676a98910a268d53f83fad88e93e bytes=311875 scheme=https host=raw.githubusercontent.com
+2026-09-26 02:17:46,707 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=threatview_c2 sha256=2c59b94275d44976f9c4f168a4b7bfacc15e86e3febe400db814ddeb24d116af bytes=252231 scheme=https host=threatview.io
+2026-09-26 02:17:46,881 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=digitalside_url sha256=5d8de04acc2b05bfccc113269d0235eeb56d28c907b25a913b6c027ea02c11d9 bytes=1237690 scheme=https host=raw.githubusercontent.com
+2026-09-26 02:17:47,614 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=blackbook_c2 sha256=03a7386cec7590352eef72a0cc64c2c87339a5ab1701b4f419e33684e6d40b74 bytes=312402 scheme=https host=raw.githubusercontent.com
+[smoketest] mainloop exited
+2026-09-26 02:17:47,728 - Downpour.CrashCatcher - CRITICAL - MAIN CRASH: PermissionError: [WinError 5] Access is denied
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "C:\Users\purpl\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\purpl\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\spawn.py", line 132, in _main
+    self = reduction.pickle.load(from_parent)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\purpl\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\connection.py", line 1167, in rebuild_pipe_connection
+    handle = dh.detach()
+             ^^^^^^^^^^^
+  File "C:\Users\purpl\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\reduction.py", line 131, in detach
+    return _winapi.DuplicateHandle(
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [WinError 5] Access is denied
+
+2026-09-26 02:17:48,590 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=darklist_de sha256=911e1112426305692b06eb5f4ce41c63b0f8a659adc6072644dece06adf1bb08 bytes=68 scheme=https host=www.darklist.de
+2026-09-26 02:17:50,359 - downpour_v29_titanium - INFO - FEED-INTEGRITY feed=threatview_dom sha256=522cb66adb97b48fe73f8e8e4df1cb47c00ba95e258529b30edbe99d7cca6235 bytes=10300916 scheme=https host=threatview.io

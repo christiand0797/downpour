@@ -7,6 +7,7 @@ import threading
 import time
 import random
 import hashlib
+from datetime import datetime
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any, Callable, Tuple
@@ -1043,6 +1044,21 @@ class Epitope:
     affinity: float = 1.0
     encounters: int = 0
     is_self: bool = False
+
+    def matches(self, features: Dict[str, Any], threshold: float = 0.7) -> float:
+        """Check if epitope matches features - returns affinity score"""
+        score = 0.0
+        total_weight = 0.0
+        for key, value in self.features.items():
+            if key in features:
+                if isinstance(value, (int, float)) and isinstance(features[key], (int, float)):
+                    diff = abs(value - features[key])
+                    max_val = max(abs(value), abs(features[key]), 1)
+                    score += (1 - diff / max_val)
+                elif value == features[key]:
+                    score += 1.0
+                total_weight += 1.0
+        return score / max(total_weight, 1)
 
 @dataclass
 class Signal:

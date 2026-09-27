@@ -1,0 +1,3 @@
+EXIT at 2026-09-24 22:17:41.220064
+  File "C:\Users\purpl\Desktop\downpour_consolidated\downpour_v29_titanium.py", line 60131, in _exit_trace
+    _axtb.print_stack(file=_xf)

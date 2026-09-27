@@ -8241,7 +8241,7 @@ class ConfigManager:
         'parental':  {'enabled': 'false', 'child_user': '', 'weekday_mins': '120',
                       'weekend_mins': '240', 'bedtime_start': '21:00', 'bedtime_end': '07:00',
                       'block_adult': 'true', 'block_gambling': 'true', 'block_violence': 'true'},
-        'intel':     {'auto_update': 'true', 'update_interval_hours': '1'},
+        'intel':     {'auto_update': 'true', 'update_interval_hours': '6'},
         'security':  {'bypass_tpm_bitlocker': 'false'},
         'osint':     {'abuseipdb_key': '', 'talos_reputation': 'true',
                       'shodan_key': '', 'censys_enabled': 'true',
@@ -20528,22 +20528,36 @@ class ImmersiveRainCanvas(tk.Canvas):
 
     # ── Background gradient (deeper, more bands) ─────────────────────────
     def _init_bg(self):
-        """Simple 2-tone background - no multi-band gradient."""
-        self._bg_top = self.create_rectangle(0, 0, self.w, self.h // 2,
-                                             fill='#080c18', outline='')
-        self._bg_bottom = self.create_rectangle(0, self.h // 2, self.w, self.h,
-                                                fill='#0a1020', outline='')
-        self._bg_items = [self._bg_top, self._bg_bottom]
-        for item in self._bg_items:
+        bands: Any = 8
+        self._bg_items = []
+        for i in range(bands):
+            t: Any = i / (bands - 1)
+            r: Any = int(4 + 6 * t)
+            g: Any = int(6 + 8 * t)
+            b: Any = int(14 + 22 * t)
+            y0: Any = int(i * self.h / bands)
+            y1: Any = int((i + 1) * self.h / bands) + 1
+            item: Any = self.create_rectangle(0, y0, self.w, y1,
+                                          fill = f'#{r:02x}{g:02x}{b:02x}',
+                                          outline = '')
+            self._bg_items.append(item)
             self.tag_lower(item)
 
     def _refresh_bg(self):
-        """Simple background refresh - just 2 items."""
-        mid = self.h // 2
-        self.coords(self._bg_top, 0, 0, self.w, self.h // 2)
-        self.coords(self._bg_bottom, 0, self.h // 2, self.w, self.h)
+        bands: Any = len(self._bg_items)
+        if bands == 0:
+            return
+        for i, item in enumerate(self._bg_items):
+            t: Any = i / max(bands - 1, 1)
+            r: Any = int(4 + 6 * t)
+            g: Any = int(6 + 8 * t)
+            b: Any = int(14 + 22 * t)
+            y0: Any = int(i * self.h / bands)
+            y1: Any = int((i + 1) * self.h / bands) + 1
+            self.coords(item, 0, y0, self.w, y1)
+            self.itemconfig(item, fill=f'#{r:02x}{g:02x}{b:02x}')
 
-    # ── Cloud silhouettes REMOVED for performance ─────────────────────────
+    # ── Cloud silhouettes (atmospheric depth) ────────────────────────────
     def _init_clouds(self):
         rng: Any = random.Random(77)
         # Generate 4-6 overlapping cloud blobs across the top
@@ -24127,424 +24141,6 @@ class FileSandbox:
 
 #                                    MAIN APPLICATION WINDOW
 # [ascii art removed]
-# ===========================================================================
-# v29.109 GUI ENHANCEMENT LAYER - "neon HUD" skin
-# ---------------------------------------------------------------------------
-# Purely ADDITIVE: nothing is removed, renamed or rebound.
-#   1. TAB BOARD - the main tab strip is a multi-row "message board" of neon
-#      cards (row count configurable) so every one of the 31 tab labels stays
-#      readable. The notebook API (self.nb.select / .tabs / .index) is
-#      unchanged, so every feature that drives tabs keeps working.
-#   2. HUD THEME - one place that skins the ttk widgets (tables, sub-tabs,
-#      progress bars, combos) and gives flat tk widgets (buttons/entries)
-#      neon hover + focus rings.
-# Both are applied from _build_ui(), so startup order is unchanged.
-# ===========================================================================
-
-# -- 1a. tab-board skin -----------------------------------------------------
-_TAB_BAR_SPEC: Any = {
-    'rows': 2,                      # DOWNPOUR_TAB_ROWS env var overrides this
-    'font': ('Consolas', 8, 'bold'),
-    'bar_bg': '#010205',
-    'header': True,
-    'header_bg': '#060c15',
-    'header_fg': '#00ffdd',
-    'header_dim': '#6f8fa8',
-    'header_font': ('Consolas', 7, 'bold'),
-    'corner': '#00ffdd',            # HUD corner brackets on the header strip
-    'idle_bg': '#0b0f18',
-    'idle_fg': '#b9c6d8',
-    'idle_border': '#243044',
-    'idle_accent': '#243044',
-    'idle_top': '#2b3850',
-    'hover_bg': '#151f31',
-    'hover_fg': '#ffffff',
-    'hover_border': '#00c4ff',
-    'hover_accent': '#00c4ff',
-    'hover_top': '#00c4ff',
-    'press_bg': '#1b2b45',
-    'active_bg': '#062b36',
-    'active_fg': '#00ffdd',
-    'active_border': '#00ffdd',
-    'active_accent': '#00ffdd',
-    'active_top': '#00ffff',
-    'card_padx': 2,
-    'card_pady': 2,
-    'text_padx': 5,
-    'text_pady': 3,
-    'accent_w': 3,
-    'accent_w_active': 5,
-    'pulse': True,                  # breathing glow on the active tab
-    'pulse_ms': 1100,
-    'pulse_a': '#00ffdd',
-    'pulse_b': '#0d7f96',
-}
-
-# -- 1b. hud-theme skin -----------------------------------------------------
-_HUD_THEME: Any = {
-    'bg': '#010205',
-    'panel': '#0d1119',
-    'card': '#131722',
-    'border': '#243044',
-    'text': '#d0d4dc',
-    'text_dim': '#9094a0',
-    'hover_fg': '#ffffff',
-    'teal': '#00ffdd',
-    'cyan': '#00ffff',
-    'blue': '#00c4ff',
-    'sel_bg': '#0d4a4a',
-    'sel_fg': '#ffffff',
-    'row_h': 26,
-    'font': ('Consolas', 9),
-    'font_bold': ('Consolas', 9, 'bold'),
-    'hover_lift': 1.60,             # hover brightness factor for dark buttons
-    'hover_dark': 0.72,             # hover darkening factor for bright buttons
-}
-
-
-def _tab_bar_rows() -> int:
-    """v29.109: how many rows the tab board uses (always 1-8).
-
-    Honours the DOWNPOUR_TAB_ROWS environment variable so the layout can be
-    changed without editing code, e.g. `set DOWNPOUR_TAB_ROWS=3`.
-    """
-    _rows: Any = _TAB_BAR_SPEC.get('rows', 4)
-    try:
-        _rows = int(os.environ.get('DOWNPOUR_TAB_ROWS', _rows))
-    except Exception:
-        pass
-    try:
-        _rows = int(_rows)
-    except Exception:
-        _rows = 4
-    return max(1, min(8, _rows))
-
-
-def _hud_shade(color, factor):
-    """v29.109: lighten (>1) or darken (<1) a '#rrggbb' colour.
-
-    Returns None for named/system colours so callers can skip them safely.
-    """
-    try:
-        _c: Any = str(color).strip()
-        if not _c.startswith('#') or len(_c) not in (4, 7):
-            return None
-        if len(_c) == 4:
-            _c = '#' + ''.join(_ch * 2 for _ch in _c[1:])
-        _r: Any = int(_c[1:3], 16)
-        _g: Any = int(_c[3:5], 16)
-        _b: Any = int(_c[5:7], 16)
-        _r = max(0, min(255, int(_r * factor)))
-        _g = max(0, min(255, int(_g * factor)))
-        _b = max(0, min(255, int(_b * factor)))
-        return f'#{_r:02x}{_g:02x}{_b:02x}'
-    except Exception:
-        return None
-
-
-def _tab_card_paint(card, state):
-    """v29.109: paint one tab-board card. state: idle|hover|press|active."""
-    _s: Any = _TAB_BAR_SPEC
-    try:
-        _txt: Any = getattr(card, '_dp_label', None)
-        if _txt is None:
-            return
-        _acc: Any = getattr(card, '_dp_accent', None)
-        _top: Any = getattr(card, '_dp_top', None)
-        _inn: Any = getattr(card, '_dp_inner', None)
-        if state == 'active':
-            _bg, _fg = _s['active_bg'], _s['active_fg']
-            _bd, _ac, _tp = _s['active_border'], _s['active_accent'], _s['active_top']
-            _aw: Any = _s['accent_w_active']
-        elif state == 'hover':
-            _bg, _fg = _s['hover_bg'], _s['hover_fg']
-            _bd, _ac, _tp = _s['hover_border'], _s['hover_accent'], _s['hover_top']
-            _aw = _s['accent_w']
-        elif state == 'press':
-            _bg, _fg = _s['press_bg'], _s['hover_fg']
-            _bd, _ac, _tp = _s['active_border'], _s['active_accent'], _s['active_top']
-            _aw = _s['accent_w_active']
-        else:
-            _bg, _fg = _s['idle_bg'], _s['idle_fg']
-            _bd, _ac, _tp = _s['idle_border'], _s['idle_accent'], _s['idle_top']
-            _aw = _s['accent_w']
-        card.configure(bg=_bg, highlightbackground=_bd, highlightcolor=_bd)
-        if _inn is not None:
-            _inn.configure(bg=_bg)
-        _txt.configure(bg=_bg, fg=_fg)
-        if _acc is not None:
-            _acc.configure(bg=_ac, width=_aw)
-        if _top is not None:
-            _top.configure(bg=_tp)
-        card._dp_state = state
-    except Exception:
-        pass
-
-
-def _tab_card_make(parent, label, idx, on_click):
-    """v29.109: build one tab-board card (accent bar + bevel + neon border).
-
-    Layout: [accent bar][ bevel line over the tab label ]. Hover, press and
-    click are bound on every child so the whole card acts as one big button.
-    """
-    _s: Any = _TAB_BAR_SPEC
-    _card: Any = tk.Frame(parent, bg=_s['idle_bg'], bd=0, highlightthickness=2,
-                          highlightbackground=_s['idle_border'],
-                          highlightcolor=_s['idle_border'],
-                          cursor='hand2', takefocus=0)
-    _accent: Any = tk.Frame(_card, bg=_s['idle_accent'], width=_s['accent_w'])
-    _accent.pack(side='left', fill='y')
-    _inner: Any = tk.Frame(_card, bg=_s['idle_bg'])
-    _inner.pack(side='left', fill='both', expand=True)
-    _top: Any = tk.Frame(_inner, bg=_s['idle_top'], height=1)
-    _top.pack(side='top', fill='x')
-    _txt: Any = tk.Label(_inner, text=label, font=_s['font'], bg=_s['idle_bg'],
-                         fg=_s['idle_fg'], anchor='center', cursor='hand2')
-    _txt.pack(side='top', fill='both', expand=True,
-              padx=_s['text_padx'], pady=_s['text_pady'])
-    _card._dp_label = _txt
-    _card._dp_accent = _accent
-    _card._dp_top = _top
-    _card._dp_inner = _inner
-    _card._dp_idx = idx
-    _card._dp_state = 'idle'
-
-    def _enter(_e, c=_card):
-        if getattr(c, '_dp_state', 'idle') != 'active':
-            _tab_card_paint(c, 'hover')
-
-    def _leave(_e, c=_card):
-        # NotifyInferior = pointer moved onto one of our own children: ignore
-        if getattr(_e, 'detail', '') == 'NotifyInferior':
-            return
-        if getattr(c, '_dp_state', 'idle') != 'active':
-            _tab_card_paint(c, 'idle')
-
-    def _press(_e, c=_card):
-        if getattr(c, '_dp_state', 'idle') != 'active':
-            _tab_card_paint(c, 'press')
-
-    def _release(_e, c=_card):
-        if getattr(c, '_dp_state', 'idle') != 'active':
-            _tab_card_paint(c, 'hover')
-
-    def _click(_e, i=idx, cb=on_click):
-        try:
-            cb(i)
-        except Exception:
-            pass
-        return 'break'
-
-    for _w in (_card, _accent, _inner, _txt, _top):
-        _w.bind('<Enter>', _enter)
-        _w.bind('<Leave>', _leave)
-        _w.bind('<ButtonPress-1>', _press)
-        _w.bind('<ButtonRelease-1>', _release)
-        _w.bind('<Button-1>', _click)
-    return _card
-
-
-def _apply_hud_theme(root=None, style=None):
-    """v29.109: neon-HUD skin for every ttk widget in the app.
-
-    Only *configures* style names - no widget is created or destroyed and no
-    binding is touched, so every existing feature keeps working. Safe to call
-    more than once. Returns {'ok': n, 'failed': n} for logging.
-    """
-    _t: Any = _HUD_THEME
-    _stat: Any = {'ok': 0, 'failed': 0}
-    try:
-        _st: Any = style if style is not None else ttk.Style(root)
-    except Exception:
-        return _stat
-
-    def _c(name, **kw):
-        try:
-            _st.configure(name, **kw)
-            _stat['ok'] += 1
-        except Exception:
-            _stat['failed'] += 1
-
-    def _m(name, **kw):
-        try:
-            _st.map(name, **kw)
-            _stat['ok'] += 1
-        except Exception:
-            _stat['failed'] += 1
-
-    # -- tables (38 Treeviews in the app all read from these names) --------
-    for _name in ('Treeview', 'Titan.Treeview', 'Threat.Treeview',
-                  'Perf.Treeview', 'PerfNet.Treeview', 'PerfDisk.Treeview'):
-        _c(_name,
-           background = _t['panel'], foreground = _t['text'],
-           fieldbackground = _t['panel'], rowheight = _t['row_h'],
-           borderwidth = 0, relief = 'flat', font = _t['font'])
-        _c(_name + '.Heading',
-           background = _t['card'], foreground = _t['teal'],
-           font = _t['font_bold'], relief = 'flat', borderwidth = 1,
-           padding = (6, 4))
-        _m(_name,
-           background = [('selected', _t['sel_bg'])],
-           foreground = [('selected', _t['sel_fg'])])
-        _m(_name + '.Heading',
-           background = [('active', _t['border'])],
-           foreground = [('active', _t['cyan'])])
-    # -- notebook + the sub-notebooks inside tabs --------------------------
-    for _nb in ('TNotebook', 'Titan.TNotebook', 'Dark.TNotebook',
-                'Cleanup.TNotebook'):
-        _c(_nb, background = _t['bg'], borderwidth = 0,
-           tabmargins = (2, 2, 2, 0))
-    for _tb in ('TNotebook.Tab', 'Titan.TNotebook.Tab', 'Dark.TNotebook.Tab',
-                'Cleanup.TNotebook.Tab'):
-        _c(_tb, background = _t['card'], foreground = _t['text'],
-           font = _t['font_bold'], padding = (12, 5), borderwidth = 0,
-           lightcolor = _t['border'], darkcolor = _t['border'])
-        _m(_tb,
-           background = [('selected', _t['sel_bg']), ('active', _t['border'])],
-           foreground = [('selected', _t['teal']), ('active', _t['hover_fg'])],
-           expand = [('selected', (2, 2, 2, 0))])
-    # -- progress bars -----------------------------------------------------
-    for _pb in ('Horizontal.TProgressbar', 'Downpour.Horizontal.TProgressbar',
-                'Neon.TProgressbar'):
-        _c(_pb, background = _t['teal'], troughcolor = '#05080f',
-           bordercolor = _t['border'], lightcolor = _t['cyan'],
-           darkcolor = _t['teal'])
-        _m(_pb, background = [('disabled', _t['border'])])
-    # PRE-EXISTING BUG FIXED HERE: the Cleanup tab builds a progressbar with
-    # style='Neon.TProgressbar' but never registered a layout for it, so ttk
-    # raised "Layout Horizontal.Neon.TProgressbar not found" while creating the
-    # widget. That exception aborted the rest of that tab's build (the whole
-    # cleanup main pane never appeared). Copying the stock progressbar layout
-    # makes the style usable again.
-    try:
-        _st.layout('Neon.TProgressbar', _st.layout('Horizontal.TProgressbar'))
-        _stat['ok'] += 1
-    except Exception:
-        _stat['failed'] += 1
-    # -- inputs ------------------------------------------------------------
-    _c('TEntry', fieldbackground = _t['panel'], foreground = _t['text'],
-       insertcolor = _t['teal'], bordercolor = _t['border'],
-       lightcolor = _t['border'], darkcolor = _t['border'], padding = 3)
-    _m('TEntry', bordercolor = [('focus', _t['teal'])])
-    _c('TSpinbox', fieldbackground = _t['panel'], foreground = _t['text'],
-       arrowcolor = _t['teal'], bordercolor = _t['border'], padding = 3)
-    _c('TCombobox', fieldbackground = _t['panel'], background = _t['card'],
-       foreground = _t['text'], arrowcolor = _t['teal'],
-       bordercolor = _t['border'], lightcolor = _t['border'],
-       darkcolor = _t['border'], padding = 3)
-    _m('TCombobox',
-       fieldbackground = [('readonly', _t['panel']), ('focus', _t['card'])],
-       bordercolor = [('focus', _t['teal'])],
-       arrowcolor = [('active', _t['cyan'])])
-    # -- check / radio / scale --------------------------------------------
-    for _cb in ('TCheckbutton', 'TRadiobutton'):
-        _c(_cb, background = _t['bg'], foreground = _t['text'],
-           font = _t['font'], focuscolor = _t['bg'],
-           indicatorcolor = _t['panel'])
-        _m(_cb, background = [('active', _t['bg'])],
-           foreground = [('selected', _t['teal']),
-                         ('active', _t['hover_fg'])])
-    _c('TScale', background = _t['bg'], troughcolor = '#05080f',
-       bordercolor = _t['border'], lightcolor = _t['cyan'],
-       darkcolor = _t['border'])
-    # -- containers --------------------------------------------------------
-    _c('TFrame', background = _t['bg'])
-    _c('TLabel', background = _t['bg'], foreground = _t['text'],
-       font = _t['font'])
-    _c('TLabelframe', background = _t['bg'], bordercolor = _t['border'],
-       lightcolor = _t['border'], darkcolor = _t['border'], relief = 'solid')
-    _c('TLabelframe.Label', background = _t['bg'], foreground = _t['teal'],
-       font = _t['font_bold'])
-    _c('TSeparator', background = _t['border'])
-    _c('TPanedwindow', background = _t['bg'])
-    # -- combobox dropdown list (a plain tk Listbox created by ttk) --------
-    if root is not None:
-        for _opt, _val in (
-            ('*TCombobox*Listbox.background', _t['panel']),
-            ('*TCombobox*Listbox.foreground', _t['text']),
-            ('*TCombobox*Listbox.selectBackground', _t['sel_bg']),
-            ('*TCombobox*Listbox.selectForeground', _t['sel_fg']),
-            ('*TCombobox*Listbox.borderWidth', 0),
-            ('*TCombobox*Listbox.highlightThickness', 1),
-            ('*TCombobox*Listbox.highlightColor', _t['teal']),
-        ):
-            try:
-                root.option_add(_opt, _val)
-                _stat['ok'] += 1
-            except Exception:
-                _stat['failed'] += 1
-    return _stat
-
-
-def _hud_skin_widgets(widget, depth=0):
-    """v29.109: give flat tk widgets a neon HUD feel (purely additive).
-
-    * tk.Button -> hover ('active') colours derived from the button's OWN
-      colour, so red/danger buttons stay red - they just brighten on hover.
-      Buttons that already define a deliberate hover colour are left alone.
-    * tk.Entry / tk.Text / tk.Spinbox / tk.Listbox -> neon caret, teal focus
-      ring and teal selection; the background the screen code chose is kept.
-    Widgets are marked once, so a second pass is a no-op. Returns a counter
-    dict for logging. Existing bindings are never touched.
-    """
-    _t: Any = _HUD_THEME
-    _stat: Any = {'buttons': 0, 'inputs': 0, 'lists': 0, 'skipped': 0}
-    _stack: Any = [widget]
-    while _stack:
-        _w: Any = _stack.pop()
-        try:
-            _stack.extend(_w.winfo_children())
-        except Exception:
-            pass
-        try:
-            if getattr(_w, '_hud_skinned', False):
-                continue
-            _cls: Any = _w.winfo_class()
-        except Exception:
-            continue
-        try:
-            if _cls == 'Button':
-                _bg: Any = str(_w.cget('bg'))
-                _abg: Any = str(_w.cget('activebackground'))
-                _fg: Any = str(_w.cget('fg'))
-                _base: Any = _hud_shade(_bg, 1.0)
-                if _base is None:      # named/system colour - leave untouched
-                    _stat['skipped'] += 1
-                    continue
-                _lum: Any = (int(_base[1:3], 16) + int(_base[3:5], 16)
-                             + int(_base[5:7], 16))
-                _hover: Any = (_hud_shade(_base, _t['hover_dark']) if _lum > 360
-                               else _hud_shade(_base, _t['hover_lift']))
-                if _hover and _abg in ('', _bg, 'SystemButtonFace'):
-                    _w.configure(activebackground=_hover,
-                                 activeforeground=(_t['hover_fg']
-                                                   if _lum < 360 else _fg))
-                if not str(_w.cget('cursor')):
-                    _w.configure(cursor='hand2')
-                _stat['buttons'] += 1
-            elif _cls in ('Entry', 'Text', 'Spinbox'):
-                _w.configure(insertbackground=_t['teal'],
-                             selectbackground=_t['sel_bg'],
-                             selectforeground=_t['sel_fg'],
-                             highlightthickness=1,
-                             highlightbackground=_t['border'],
-                             highlightcolor=_t['teal'])
-                _stat['inputs'] += 1
-            elif _cls == 'Listbox':
-                _w.configure(selectbackground=_t['sel_bg'],
-                             selectforeground=_t['sel_fg'],
-                             highlightthickness=1,
-                             highlightbackground=_t['border'],
-                             highlightcolor=_t['teal'])
-                _stat['lists'] += 1
-            else:
-                continue
-            _w._hud_skinned = True
-        except Exception:
-            continue
-    return _stat
-
-
 class downpour(tk.Tk):
     """Next-generation downpour v29 Titanium with async operations,
     smart rendering, and intelligent resource management."""
@@ -24749,7 +24345,7 @@ class downpour(tk.Tk):
             _pb_style.configure('Downpour.Horizontal.TProgressbar',
                 troughcolor = '#050810', background='#00ffcc',
                 darkcolor = '#00ccaa', lightcolor='#00ffdd',
-                bordercolor = '#00ffdd', thickness=14)
+                bordercolor = '#0a0a1a', thickness=12)
             self._load_progress = _ttk2.Progressbar(_center,
                 style = 'Downpour.Horizontal.TProgressbar',
                 orient = 'horizontal', length=360, mode='determinate',
@@ -24934,12 +24530,6 @@ class downpour(tk.Tk):
             logger.info(f'_lazy_build_tab: building [{label}]...')
             builder()
             logger.info(f'_lazy_build_tab: [{label}] OK')
-            # v29.109: skin the widgets that were just built so a lazily
-            # loaded tab looks exactly like an eagerly built one.
-            try:
-                logger.info(f'_lazy_build_tab: HUD skin {_hud_skin_widgets(inner)}')
-            except Exception:
-                pass
         except Exception as e:
             logger.error(f'_lazy_build_tab: [{label}] FAILED: {e}')
             import tkinter as _tk_lazy
@@ -24965,8 +24555,6 @@ class downpour(tk.Tk):
             self._build_ui()
             logger.info("_build_ui_safe: _build_ui OK")
             self.protocol("WM_DELETE_WINDOW", self._on_close)
-            # Bind minimize event to go to system tray
-            self.bind('<Unmap>', self._on_minimize)
             # Wire up lazy tab builder on NotebookTabChanged
             self.nb.bind('<<NotebookTabChanged>>', self._on_tab_changed_lazy)
             # FIX: _start_loops moved to _auto_start — starting loops here caused
@@ -26047,10 +25635,6 @@ class downpour(tk.Tk):
         # replace the native tab strip with a custom scrollable canvas —
         # left as a real remaining TODO, not attempted here since it can't
         # be visually verified without live-rendering the GUI.
-        # v29.109: SOLVED - the native strip is now HIDDEN (Hidden.TNotebook)
-        # and all 31 tabs live on a multi-row tab board, so no label is ever
-        # squashed. Row count comes from _TAB_BAR_SPEC / DOWNPOUR_TAB_ROWS.
-        # This minsize is kept only as a sane floor for the content area.
         self.minsize(1280, 700)
         self.resizable(True, True)
 
@@ -26088,8 +25672,7 @@ class downpour(tk.Tk):
         logger.info("_build_ui: rain done")
 
         # -- Title / control bar -----------------------------------------------
-        title_frame: Any = tk.Frame(self, bg=Colors.GLASS_DARK, highlightbackground=Colors.ACCENT_PRIMARY,
-                                   highlightcolor=Colors.ACCENT_PRIMARY, highlightthickness=1)
+        title_frame: Any = tk.Frame(self, bg=Colors.GLASS_DARK)
         title_frame.grid(row=1, column=0, sticky='ew')
         title_frame.grid_columnconfigure(1, weight=1)
 
@@ -26134,11 +25717,10 @@ class downpour(tk.Tk):
                 pass
         self._donate_btn = tk.Button(ctrl, text="\U0001f49a Donate — $ChristianDecker0797",
                  font = self.get_adaptive_font(8, bold=True),
-                 fg = "#ffffff", bg = "#00c244", activebackground = "#00ff66",
-                 activeforeground = "#ffffff", relief='flat', bd=2,
+                 fg = "#ffffff", bg = "#00c244", activebackground = "#00a83a",
+                 activeforeground = "#ffffff", relief='flat', bd=0,
                  padx=8, pady=3, cursor='hand2',
-                 highlightbackground = "#00ff88", highlightcolor = "#00ff88",
-                 highlightthickness = 2, command = _open_cashapp)
+                 command = _open_cashapp)
         self._donate_btn.pack(side='left', padx=(0, 8))
         self._tooltip(self._donate_btn,
             "Support continued development of Downpour\nCash App: $ChristianDecker0797")
@@ -26150,10 +25732,9 @@ class downpour(tk.Tk):
         self._rain_btn = tk.Button(
             ctrl, text='\u2602 Rain ON', font=('Consolas', 8, 'bold'),
             fg = Colors.GAUGE_BLUE, bg=Colors.GLASS_CARD,
-            activebackground = Colors.GAUGE_BLUE, activeforeground=Colors.BG_VOID,
+            activebackground = Colors.GLASS_LIGHT, activeforeground=Colors.GAUGE_BLUE,
             relief = 'flat', padx=8, pady=2, cursor='hand2',
-            highlightbackground = Colors.GAUGE_CYAN, highlightcolor = Colors.GAUGE_CYAN,
-            highlightthickness = 2, command = self._toggle_rain_btn)
+            command = self._toggle_rain_btn)
         self._rain_btn.pack(side='left', padx=3)
         self._tooltip(self._rain_btn,
             "Toggle the animated rain effect on/off.\n"
@@ -26163,10 +25744,9 @@ class downpour(tk.Tk):
         self._storm_btn = tk.Button(
             ctrl, text='\u26c8 Storm', font=('Consolas', 8, 'bold'),
             fg = Colors.GAUGE_PURPLE, bg=Colors.GLASS_CARD,
-            activebackground = Colors.GAUGE_PURPLE, activeforeground=Colors.BG_VOID,
+            activebackground = Colors.GLASS_LIGHT, activeforeground=Colors.GAUGE_PURPLE,
             relief = 'flat', padx=8, pady=2, cursor='hand2',
-            highlightbackground = Colors.LED_PURPLE, highlightcolor = Colors.LED_PURPLE,
-            highlightthickness = 2, command = self._cycle_storm_phase)
+            command = self._cycle_storm_phase)
         self._storm_btn.pack(side='left', padx=3)
         self._tooltip(self._storm_btn,
             "Cycle the storm overlay phase.\n"
@@ -26176,10 +25756,9 @@ class downpour(tk.Tk):
         self._settings_btn = tk.Button(
             ctrl, text='\u2699 Settings', font=('Consolas', 8),
             fg = Colors.TEXT_LIGHT, bg=Colors.GLASS_CARD,
-            activebackground = Colors.TEXT_LIGHT, activeforeground=Colors.BG_VOID,
+            activebackground = Colors.GLASS_LIGHT, activeforeground=Colors.TEXT_BRIGHT,
             relief = 'flat', padx=8, pady=2, cursor='hand2',
-            highlightbackground = Colors.ACCENT_PRIMARY, highlightcolor = Colors.ACCENT_PRIMARY,
-            highlightthickness = 2, command = lambda: self._select_tab('_tab_settings'))
+            command = lambda: self._select_tab('_tab_settings'))
         self._settings_btn.pack(side='left', padx=3)
         self._tooltip(self._settings_btn,
             "Open the Settings tab (appearance, behavior, and feature toggles).")
@@ -26190,10 +25769,9 @@ class downpour(tk.Tk):
         self._widget_btn = tk.Button(
             ctrl, text='🖥️ Widget', font=('Consolas', 8),
             fg = Colors.GAUGE_ORANGE, bg=Colors.GLASS_CARD,
-            activebackground = Colors.GAUGE_ORANGE, activeforeground=Colors.BG_VOID,
+            activebackground = Colors.GLASS_LIGHT, activeforeground=Colors.GAUGE_ORANGE,
             relief = 'flat', padx=8, pady=2, cursor='hand2',
-            highlightbackground = Colors.ACCENT_TERTIARY, highlightcolor = Colors.ACCENT_TERTIARY,
-            highlightthickness = 2, command = self._toggle_widget)
+            command = self._toggle_widget)
         self._widget_btn.pack(side='left', padx=3)
         self._tooltip(self._widget_btn,
             "Toggle the floating desktop widget.\n"
@@ -26202,10 +25780,9 @@ class downpour(tk.Tk):
         # -- PANIC button ----------------------------------------------------
         self._panic_btn: Any = tk.Button(ctrl, text='\u2620 PANIC', font=('Consolas', 10, 'bold'),
                   fg = '#ff2222', bg='#180000',
-                  activebackground = '#ff4444', activeforeground='#000000',
+                  activebackground = '#330000', activeforeground='#ff4444',
                   relief = 'flat', padx=10, pady=2, cursor='hand2',
-                  highlightbackground = '#ff6666', highlightcolor = '#ff6666',
-                  highlightthickness = 3, command = self._panic_button)
+                  command = self._panic_button)
         self._panic_btn.pack(side='left', padx=4)
         self._tooltip(self._panic_btn,
             "EMERGENCY PANIC — kill all suspicious processes, block all\n"
@@ -26305,71 +25882,35 @@ class downpour(tk.Tk):
                       troughcolor = [('active',  '#0a0f1a'),
                                    ('!active', _sb_trough)])
 
-        # -- v29.109: HUD theme skin (tables, sub-tabs, inputs, buttons) ------
-        try:
-            _hud_stat: Any = _apply_hud_theme(self, style)
-            logger.info(f"_build_ui: HUD theme applied {_hud_stat}")
-        except Exception as _hud_e:
-            logger.info(f"_build_ui: HUD theme skipped ({_hud_e})")
-
         logger.info("_build_ui: creating notebook widget...")
-        # v29.109: TAB BOARD - every tab lives on a multi-row board so the
-        # labels are never squashed into one unreadable strip. The row count
-        # comes from _tab_bar_rows() (DOWNPOUR_TAB_ROWS env var / spec dict).
-        _tb: Any = _TAB_BAR_SPEC
-        _row0: Any = 1 if _tb.get('header', True) else 0   # HUD header strip row
-        self._tab_row_count = _tab_bar_rows()
-        self._tab_row0 = _row0
-        _nb_row: Any = _row0 + self._tab_row_count          # notebook content row
-        _ind_row: Any = _nb_row + 1                         # position readout row
+        # v29.108: Dual-row tab bar replaces single-row scroll-arrow navigation.
+        # All 31 tabs are visible without scrolling - split across two rows.
         _nb_frame: Any = tk.Frame(self, bg=Colors.BG_VOID)
-        _nb_frame.configure(highlightbackground=Colors.GAUGE_CYAN,
-                            highlightcolor=Colors.GAUGE_CYAN, highlightthickness=1)
         _nb_frame.grid(row=2, column=0, sticky='nsew', padx=0, pady=0)
-        _nb_frame.grid_rowconfigure(_nb_row, weight=1)   # notebook content row expands
+        _nb_frame.grid_rowconfigure(2, weight=1)   # notebook content row expands
         _nb_frame.grid_columnconfigure(0, weight=1)
 
-        # Tab board rows - one frame per row of tab cards
-        self._tab_rows = []
-        for _ri in range(self._tab_row_count):
-            _trf = tk.Frame(_nb_frame, bg=_tb['bar_bg'])
-            _trf.grid(row=_row0 + _ri, column=0, sticky='ew', padx=6,
-                      pady=(4 if _ri == 0 else 1, 1))
-            self._tab_rows.append(_trf)
+        # Tab button row frames (buttons populated after tab creation loop)
+        self._tab_row1 = tk.Frame(_nb_frame, bg=Colors.GLASS_DARK)
+        self._tab_row1.grid(row=0, column=0, sticky='ew', padx=0, pady=(1, 0))
+        self._tab_row2 = tk.Frame(_nb_frame, bg=Colors.GLASS_DARK)
+        self._tab_row2.grid(row=1, column=0, sticky='ew', padx=0, pady=(0, 1))
 
         # Notebook with hidden native tab strip - content area only
         self.nb = ttk.Notebook(_nb_frame, style='Hidden.TNotebook')
-        self.nb.grid(row=_nb_row, column=0, sticky='nsew', padx=0, pady=(3, 0))
-        # Force-hide native tab strip on all platforms
-        try:
-            self.nb.configure(tabposition='none')
-        except Exception:
-            pass
-        try:
-            self.nb.enable_traversal()
-        except Exception:
-            pass
-        # Additional aggressive hide for stubborn platforms
-        try:
-            self.nb.tk.call(self.nb._w, 'configure', '-show', 'none')
-        except Exception:
-            pass
+        self.nb.grid(row=2, column=0, sticky='nsew', padx=0, pady=0)
 
         # Tab position indicator
         self._tab_indicator = tk.Label(_nb_frame, text='', font=('Consolas', 8),
                                        fg=Colors.TEXT_DIM, bg=Colors.BG_VOID)
-        self._tab_indicator.grid(row=_ind_row, column=0, sticky='ew', padx=6, pady=(0, 2))
+        self._tab_indicator.grid(row=3, column=0, sticky='ew', padx=4, pady=(0, 2))
         self._update_tab_indicator()
         # Fix blank tabs: force canvas width update whenever a tab is selected
         self.nb.bind('<<NotebookTabChanged>>', self._on_nb_tab_changed)
         logger.info("_build_ui: notebook bound, building tabs...")
 
 # -- Create all tab frames and register with notebook ------------------
-        # v29.110: CONSOLIDATED tabs - grouped by function, sub-tabs for detail
-        # v29.111: 31-tab board restored.  The v29.110 tab merge left
-        # stub builders behind (7/10 tabs failed to build, 48 real
-        # helpers deleted) - the verified v29.86 tab set is back and the
-        # v29.109 HUD board / theme work on top of it unchanged.
+        # v29.86: ALL tabs restored \u2014 use scroll arrows for navigation
         _TAB_DEFS: Any = [
             ('_tab_dashboard',  '\U0001f5f2 Dashboard',  self._build_dashboard),
             ('_tab_threats',    '\U0001f6a8 Threats',     self._build_threats_tab),
@@ -26388,7 +25929,7 @@ class downpour(tk.Tk):
             ('_tab_dns',        '\U0001f310 DNS',         self._build_dns_tab),
             ('_tab_aegis',      '\u2694 Aegis',           self._build_aegis_tab),
             ('_tab_memory',     '\U0001f9e0 Memory',      self._build_memory_tab),
-            ('_tab_forensics',  '\U0001f50e Forensics',   self._build_forensics_tab),
+            ('_tab_forensic',   '\U0001f50e Forensics',   self._build_forensic_tab),
             ('_tab_hunt',       '\U0001f3af Hunt',        self._build_hunt_tab),
             ('_tab_sandbox',    '\U0001f4e6 Sandbox',     self._build_sandbox_tab),
             ('_tab_services',   '\U0001f527 Services',    self._build_services_tab),
@@ -26400,8 +25941,6 @@ class downpour(tk.Tk):
             ('_tab_vpn',        '\U0001f510 VPN',         self._build_vpn_tab),
             ('_tab_parental',   '\U0001f46a Parental',    self._build_parental_tab),
             ('_tab_emergency',  '\U0001f6a8 Emergency',   self._build_emergency_tab),
-            ('_tab_defense',    '\u2694 Defense',         self._build_defense_tab),
-            ('_tab_tools',      '\U0001f527 Tools',       self._build_tools_tab),
             ('_tab_settings',   '\u2699 Settings',        self._build_settings_tab),
             ('_tab_cis',        '\U0001f9e0 CIS',         self._build_cis_tab),
         ]
@@ -26482,59 +26021,34 @@ class downpour(tk.Tk):
             pass
         logger.info("_build_ui: repaint done")
 
-        # -- v29.109: populate the TAB BOARD (multi-row neon tab cards) --------
+        # -- v29.108: Populate dual-row tab button bar -------------------------
         self._tab_buttons = []
-        _n_rows = len(self._tab_rows) or 1
-        _per_row = max(1, -(-len(_TAB_DEFS) // _n_rows))    # ceil division
-
+        _split = (len(_TAB_DEFS) + 1) // 2   # ~16 row 1, ~15 row 2
         for _bi, (attr, label, _builder) in enumerate(_TAB_DEFS):
-            _row_frame = self._tab_rows[min(_bi // _per_row, _n_rows - 1)]
-            _card = _tab_card_make(_row_frame, label, _bi, self._select_tab_by_index)
-            _card.pack(side='left', fill='x', expand=True,
-                       padx=_TAB_BAR_SPEC['card_padx'],
-                       pady=_TAB_BAR_SPEC['card_pady'])
-            self._tab_buttons.append(_card)
-
-        # -- HUD header strip: corner brackets + board stats ------------------
-        if _TAB_BAR_SPEC.get('header', True):
-            try:
-                _hs: Any = _TAB_BAR_SPEC
-                _hdr: Any = tk.Frame(_nb_frame, bg=_hs['header_bg'])
-                _hdr.grid(row=_row0 - 1, column=0, sticky='ew', padx=0, pady=0)
-                _bl: Any = tk.Canvas(_hdr, bg=_hs['header_bg'], width=18, height=18,
-                                     highlightthickness=0, bd=0)
-                _bl.grid(row=0, column=0, padx=(6, 4), pady=2)
-                _bl.create_line(1, 16, 1, 3, 15, 3, fill=_hs['corner'], width=2)
-                _bl.create_line(4, 7, 12, 7, fill=_hs['corner'], width=1)
-                _br: Any = tk.Canvas(_hdr, bg=_hs['header_bg'], width=18, height=18,
-                                     highlightthickness=0, bd=0)
-                _br.grid(row=0, column=3, padx=(4, 6), pady=2)
-                _br.create_line(2, 3, 16, 3, 16, 16, fill=_hs['corner'], width=2)
-                _br.create_line(5, 7, 13, 7, fill=_hs['corner'], width=1)
-                tk.Label(_hdr, text='TAB BOARD', font=_hs['header_font'],
-                         fg=_hs['header_fg'], bg=_hs['header_bg']
-                         ).grid(row=0, column=1, padx=(2, 10), pady=2, sticky='w')
-                _hdr.grid_columnconfigure(2, weight=1)
-                tk.Label(_hdr,
-                         text=(f"{len(_TAB_DEFS)} modules  |  {_n_rows} rows  |  "
-                               f"{_per_row} per row  |  Ctrl+Tab cycles"),
-                         font=_hs['header_font'], fg=_hs['header_dim'],
-                         bg=_hs['header_bg']
-                         ).grid(row=0, column=2, padx=8, pady=2, sticky='e')
-            except Exception as _hdr_e:
-                logger.info(f"_build_ui: tab board header skipped ({_hdr_e})")
-
+            _row_frame = self._tab_row1 if _bi < _split else self._tab_row2
+            _tbtn = tk.Button(
+                _row_frame, text=label,
+                font=('Consolas', 8, 'bold'),
+                fg=Colors.TEXT_LIGHT, bg=Colors.GLASS_CARD,
+                activeforeground=Colors.ACCENT_PRIMARY,
+                activebackground=Colors.GLASS_LIGHT,
+                relief='flat', bd=1, padx=3, pady=2, cursor='hand2',
+                command=lambda idx=_bi: self._select_tab_by_index(idx),
+            )
+            _tbtn.pack(side='left', fill='x', expand=True, padx=1, pady=1)
+            # Hover effects
+            def _on_enter(e, b=_tbtn):
+                if b.cget('bg') != Colors.GLASS_LIGHT:
+                    b.configure(bg=Colors.GLASS_BORDER)
+            def _on_leave(e, b=_tbtn):
+                if b.cget('bg') != Colors.GLASS_LIGHT:
+                    b.configure(bg=Colors.GLASS_CARD)
+            _tbtn.bind('<Enter>', _on_enter)
+            _tbtn.bind('<Leave>', _on_leave)
+            self._tab_buttons.append(_tbtn)
         self._highlight_active_tab_button()
-        self._start_tab_pulse()
-        logger.info(f"_build_ui: TAB BOARD populated ({len(self._tab_buttons)} tabs, "
-                    f"{_n_rows} rows, {_per_row}/row)")
-        try:
-            _skin_stat: Any = _hud_skin_widgets(self)
-            logger.info(f"_build_ui: HUD widget skin applied {_skin_stat}")
-        except Exception as _skin_e:
-            logger.info(f"_build_ui: HUD widget skin skipped ({_skin_e})")
-        search_bar: Any = tk.Frame(self, bg=Colors.GLASS_PANEL, height=36, highlightbackground=Colors.GAUGE_TEAL,
-                                  highlightcolor=Colors.GAUGE_TEAL, highlightthickness=1)
+        logger.info(f"_build_ui: dual-row tab bar populated ({len(self._tab_buttons)} buttons)")
+        search_bar: Any = tk.Frame(self, bg=Colors.GLASS_PANEL, height=36)
         search_bar.grid(row=4, column=0, sticky='ew', padx=0, pady=0)
         search_bar.grid_columnconfigure(2, weight=1)
         tk.Label(search_bar, text="🔍 THREAT HUNT:", font=('Consolas', 9, 'bold'),
@@ -26560,64 +26074,51 @@ class downpour(tk.Tk):
                  ).grid(row=0, column=3, padx=10, sticky='w')
 
         # -- Status bar --------------------------------------------------------
-        status_bar: Any = tk.Frame(self, bg=Colors.GLASS_DARK, height=26, highlightbackground=Colors.TEXT_DIM,
-                                   highlightcolor=Colors.TEXT_DIM, highlightthickness=1)
+        status_bar: Any = tk.Frame(self, bg=Colors.GLASS_DARK, height=26)
         status_bar.grid(row=5, column=0, sticky='ew')
-        status_bar.grid_columnconfigure(1, weight=1)  # Status text expands
-        
-        # Add geometric decorative element to status bar
-        deco_canvas: Any = tk.Canvas(status_bar, bg=Colors.GLASS_DARK, height=26, width=100,
-                                     highlightthickness=0)
-        deco_canvas.grid(row=0, column=0, sticky='w')
-        # Draw angular geometric pattern
-        deco_canvas.create_line(10, 13, 25, 5, fill=Colors.ACCENT_PRIMARY, width=2)
-        deco_canvas.create_line(25, 5, 40, 13, fill=Colors.ACCENT_PRIMARY, width=2)
-        deco_canvas.create_line(40, 13, 55, 21, fill=Colors.ACCENT_PRIMARY, width=2)
-        deco_canvas.create_line(55, 21, 70, 13, fill=Colors.ACCENT_PRIMARY, width=2)
-        deco_canvas.create_line(70, 13, 85, 5, fill=Colors.ACCENT_PRIMARY, width=2)
-        
+        status_bar.grid_columnconfigure(0, weight=1)
         self._status_var = tk.StringVar(value="\u26c8 Downpour v29 Titanium  \u2502  Systems Online  \u2502  All Clear")
         tk.Label(status_bar, textvariable=self._status_var, font=('Consolas', 8),
                  fg = Colors.TEXT_DIM, bg=Colors.GLASS_DARK, anchor='w'
-                 ).grid(row=0, column=1, padx=8, sticky='w')
+                 ).grid(row=0, column=0, padx=8, sticky='w')
         self._ctrl_label = tk.Label(status_bar, text="Controller: --",
                                      font = ('Consolas', 8), fg=Colors.TEXT_INACTIVE,
                                      bg = Colors.GLASS_DARK)
-        self._ctrl_label.grid(row=0, column=3, padx=8, sticky='e')
+        self._ctrl_label.grid(row=0, column=1, padx=8, sticky='e')
         # -- Security indicator pills ------------------------------------------
         _av_color: Any = Colors.GAUGE_TEAL if _DEFENDER_EXCLUSION_ADDED else Colors.GAUGE_ORANGE
         _av_text: Any = "AV-Safe [OK]" if _DEFENDER_EXCLUSION_ADDED else "No AV Excl [!]"
         self._sb_defender = tk.Label(status_bar, text=_av_text,
                                       font = ('Consolas', 8), fg=_av_color,
                                       bg = Colors.GLASS_DARK)
-        self._sb_defender.grid(row=0, column=4, padx=6, sticky='e')
+        self._sb_defender.grid(row=0, column=2, padx=6, sticky='e')
         self._sb_threats = tk.Label(status_bar, text="Threats: 0",
                                      font = ('Consolas', 8), fg=Colors.GAUGE_TEAL,
                                      bg = Colors.GLASS_DARK)
-        self._sb_threats.grid(row=0, column=5, padx=6, sticky='e')
+        self._sb_threats.grid(row=0, column=3, padx=6, sticky='e')
         # Config tamper indicator (TASK-014 surface)
         self._sb_tamper = tk.Label(status_bar, text="Config: OK",
                                       font=('Consolas', 8), fg=Colors.GAUGE_TEAL,
                                       bg=Colors.GLASS_DARK)
-        self._sb_tamper.grid(row=0, column=6, padx=6, sticky='e')
+        self._sb_tamper.grid(row=0, column=4, padx=6, sticky='e')
         # v29.28: live system telemetry ticker (CPU / RAM / DISK / NET) —
         # updates every monitor tick via _hw_loop, visible from every tab.
         self._sb_sysinfo = tk.Label(status_bar, text="CPU -- | RAM -- | DISK -- | NET --",
                                      font = ('Consolas', 8), fg=Colors.GAUGE_GREEN,
                                      bg = Colors.GLASS_DARK)
-        self._sb_sysinfo.grid(row=0, column=7, padx=6, sticky='e')
+        self._sb_sysinfo.grid(row=0, column=5, padx=6, sticky='e')
         # Uptime counter
         self._uptime_start = time.time()
         self._sb_uptime = tk.Label(status_bar, text="\u23f1 00:00:00",
                                      font=('Consolas', 8), fg=Colors.TEXT_DIM,
                                      bg=Colors.GLASS_DARK)
-        self._sb_uptime.grid(row=0, column=8, padx=6, sticky='e')
+        self._sb_uptime.grid(row=0, column=6, padx=6, sticky='e')
         # Heartbeat label for freeze detection
         self._sb_heartbeat = tk.Label(status_bar, text='♥', font=('Consolas', 8), fg=Colors.TEXT_DIM, bg=Colors.GLASS_DARK)
-        self._sb_heartbeat.grid(row=0, column=9, padx=4, sticky='e')
+        self._sb_heartbeat.grid(row=0, column=7, padx=4, sticky='e')
         # Alerts‑per‑minute meter
         self._sb_alert_rate = tk.Label(status_bar, text='⚡ 0/min', font=('Consolas', 8), fg=Colors.TEXT_DIM, bg=Colors.GLASS_DARK)
-        self._sb_alert_rate.grid(row=0, column=10, padx=4, sticky='e')
+        self._sb_alert_rate.grid(row=0, column=8, padx=4, sticky='e')
         # Start heartbeat updater
         self.after(500, self._heartbeat_tick)
         # Start alert‑rate updater
@@ -26627,8 +26128,8 @@ class downpour(tk.Tk):
         self._ticker_label = tk.Label(status_bar, textvariable=self._last_alert_var,
                   font = ('Consolas', 8), fg=Colors.GAUGE_ORANGE,
                   bg = Colors.GLASS_DARK, anchor='e')
-        self._ticker_label.grid(row=0, column=11, padx=8, sticky='e')
-        status_bar.grid_columnconfigure(1, weight=1)  # Status text expands
+        self._ticker_label.grid(row=0, column=7, padx=(0, 8), sticky='e')
+        status_bar.grid_columnconfigure(7, weight=1)
         # Start uptime ticker
         self.after(1000, self._update_uptime_ticker)
         # FIX: _refresh_status_pills moved to _auto_start
@@ -26802,63 +26303,14 @@ class downpour(tk.Tk):
             pass
 
     def _highlight_active_tab_button(self):
-        """v29.109: repaint every tab card so the current tab is unmissable."""
+        """v29.108: Update dual-row tab button colours to reflect the currently selected tab."""
         try:
-            _cards: Any = getattr(self, '_tab_buttons', None)
-            if not _cards:
-                return
             current: Any = self.nb.index(self.nb.select())
-            for _hi, _card in enumerate(_cards):
-                _tab_card_paint(_card, 'active' if _hi == current else 'idle')
-            # phase 1 => the next pulse frame paints the bright glow colour
-            self._tab_pulse_phase = 1
-        except Exception:
-            pass
-
-    def _start_tab_pulse(self):
-        """v29.109: start the gentle 'breathing' glow on the active tab card."""
-        try:
-            if not _TAB_BAR_SPEC.get('pulse', True):
-                return
-            _old: Any = getattr(self, '_tab_pulse_after', None)
-            if _old:
-                try:
-                    self.after_cancel(_old)
-                except Exception:
-                    pass
-            self._tab_pulse_after = None
-            self._tab_pulse_phase = 0
-            self._tab_pulse_after = self.after(
-                int(_TAB_BAR_SPEC.get('pulse_ms', 1100)), self._tab_pulse_step)
-        except Exception:
-            pass
-
-    def _tab_pulse_step(self):
-        """v29.109: one animation frame - glow the active tab's border.
-
-        One widget and one timer, ~1s apart: negligible cost, and it never
-        touches any card other than the active one. Never raises.
-        """
-        try:
-            self._tab_pulse_after = None
-            _cards: Any = getattr(self, '_tab_buttons', None)
-            if _cards and self.winfo_exists() and self.nb.tabs():
-                self._tab_pulse_phase = 1 - int(getattr(self, '_tab_pulse_phase', 0))
-                _cur: Any = self.nb.index(self.nb.select())
-                if 0 <= _cur < len(_cards):
-                    _card: Any = _cards[_cur]
-                    _col: Any = (_TAB_BAR_SPEC['pulse_a']
-                                 if self._tab_pulse_phase == 0
-                                 else _TAB_BAR_SPEC['pulse_b'])
-                    _card.configure(highlightbackground=_col, highlightcolor=_col)
-                    if getattr(_card, '_dp_state', 'idle') != 'active':
-                        _tab_card_paint(_card, 'active')
-        except Exception:
-            pass
-        try:
-            if self.winfo_exists():
-                self._tab_pulse_after = self.after(
-                    int(_TAB_BAR_SPEC.get('pulse_ms', 1100)), self._tab_pulse_step)
+            for _hi, _hbtn in enumerate(getattr(self, '_tab_buttons', [])):
+                if _hi == current:
+                    _hbtn.configure(bg=Colors.GLASS_LIGHT, fg=Colors.ACCENT_PRIMARY)
+                else:
+                    _hbtn.configure(bg=Colors.GLASS_CARD, fg=Colors.TEXT_LIGHT)
         except Exception:
             pass
 
@@ -27224,8 +26676,7 @@ class downpour(tk.Tk):
 
 
     def _build_hw_bar(self):
-        hw_bar: Any = tk.Frame(self, bg=Colors.GLASS_PANEL, highlightbackground=Colors.GAUGE_ORANGE,
-                               highlightcolor=Colors.GAUGE_ORANGE, highlightthickness=1)
+        hw_bar: Any = tk.Frame(self, bg=Colors.GLASS_PANEL)
         hw_bar.grid(row=3, column=0, sticky='ew')
         hw_bar.grid_columnconfigure(99, weight=1)   # spacer column
 
@@ -27239,32 +26690,12 @@ class downpour(tk.Tk):
             ('PROCS', '_prc_lbl',  Colors.GAUGE_CYAN),
         ]
         for col, (name, attr, color) in enumerate(gauges):
-            f: Any = tk.Frame(hw_bar, bg=Colors.GLASS_CARD, relief='flat', padx=8, pady=3,
-                             highlightbackground=color, highlightcolor=color, highlightthickness=2)
+            f: Any = tk.Frame(hw_bar, bg=Colors.GLASS_CARD, relief='flat', padx=8, pady=3)
             f.grid(row=0, column=col, padx=4, pady=3, sticky='w')
-            
-            # Create a more gauge-like appearance with a border frame
-            gauge_frame: Any = tk.Frame(f, bg=Colors.GLASS_DARK, highlightbackground=color,
-                                       highlightcolor=color, highlightthickness=1, width=70, height=48)
-            gauge_frame.pack(pady=2)
-            gauge_frame.pack_propagate(False)  # Maintain fixed size
-            
-            # Add circular gauge canvas for futuristic dial effect
-            gauge_canvas: Any = tk.Canvas(gauge_frame, bg=Colors.GLASS_DARK, width=60, height=18,
-                                         highlightthickness=0)
-            gauge_canvas.pack(pady=(1,0))
-            
-            # Draw arc representing gauge (240 degrees arc, starting at 150 degrees)
-            gauge_canvas.create_arc(2, 2, 58, 16, start=150, extent=240, style='arc',
-                outline=color, width=2)
-            # Draw inner arc for depth effect
-            gauge_canvas.create_arc(6, 4, 54, 14, start=150, extent=240, style='arc',
-                outline=Colors.TEXT_DIM, width=1)
-            
-            tk.Label(gauge_frame, text=name, font=('Consolas', 5, 'bold'),
-                     fg = Colors.TEXT_DIM, bg=Colors.GLASS_DARK).pack()
-            lbl: Any = tk.Label(gauge_frame, text="--", font=('Courier New', 10, 'bold'),
-                           fg = color, bg=Colors.GLASS_DARK)
+            tk.Label(f, text=name, font=('Consolas', 7, 'bold'),
+                     fg = Colors.TEXT_DIM, bg=Colors.GLASS_CARD).pack()
+            lbl: Any = tk.Label(f, text="--", font=('Courier New', 10, 'bold'),
+                           fg = color, bg=Colors.GLASS_CARD, width=9)
             lbl.pack()
             setattr(self, attr, lbl)
 
@@ -27285,8 +26716,7 @@ class downpour(tk.Tk):
         p.grid_columnconfigure(1, weight=1)
 
         # -- Top quick-actions -------------------------------------------------
-        btn_row: Any = tk.Frame(p, bg=Colors.BG_VOID, highlightbackground=Colors.ACCENT_PRIMARY,
-                               highlightcolor=Colors.ACCENT_PRIMARY, highlightthickness=1)
+        btn_row: Any = tk.Frame(p, bg=Colors.BG_VOID)
         btn_row.grid(row=0, column=0, columnspan=2, sticky='ew', padx=8, pady=4)
         buttons: Any = [
             ("[ZAP] TURBO",       self._activate_turbo_mode,   Colors.GAUGE_RED,
@@ -27311,9 +26741,8 @@ class downpour(tk.Tk):
         for i, (txt, cmd, col, tip) in enumerate(buttons):
             _qb: Any = tk.Button(btn_row, text=txt, font=('Consolas', 9, 'bold'),
                       fg = col, bg=Colors.GLASS_CARD, relief='flat',
-                      activebackground = col, activeforeground=Colors.BG_VOID, padx=8,
+                      activebackground = Colors.GLASS_LIGHT, padx=8,
                       cursor = 'hand2',
-                      highlightbackground=col, highlightcolor=col, highlightthickness=2,
                       command = cmd)
             _qb.pack(side='left', padx=3, pady=3)
             self._tooltip(_qb, tip)
@@ -27339,32 +26768,19 @@ class downpour(tk.Tk):
         ]:
             b: Any = tk.Button(btn_row, text=txt, font=('Consolas', 9, 'bold'),
                           fg = col, bg='#1a0a0a' if col == Colors.GAUGE_RED else Colors.GLASS_CARD,
-                          relief = 'flat', activebackground=col, activeforeground=Colors.BG_VOID,
-                          padx = 8, command=cmd, cursor='hand2',
-                          highlightbackground=col, highlightcolor=col, highlightthickness=2)
+                          relief = 'flat', activebackground=Colors.GLASS_LIGHT,
+                          padx = 8, command=cmd, cursor='hand2')
             b.pack(side='left', padx=3, pady=3)
             self._tooltip(b, tip)
 
         # -- Live threat feed (main) -------------------------------------------
-        feed_frame: Any = tk.Frame(p, bg=Colors.GLASS_DARK, highlightbackground=Colors.GAUGE_TEAL,
-                                  highlightcolor=Colors.GAUGE_TEAL, highlightthickness=1)
+        feed_frame: Any = tk.Frame(p, bg=Colors.GLASS_DARK)
         feed_frame.grid(row=1, column=0, sticky='nsew', padx=(8,2), pady=4)
         feed_frame.grid_rowconfigure(1, weight=1)
         feed_frame.grid_columnconfigure(0, weight=1)
 
         hdr: Any = tk.Frame(feed_frame, bg=Colors.GLASS_DARK)
         hdr.grid(row=0, column=0, columnspan=2, sticky='ew', padx=4, pady=(4,0))
-        
-        # Add geometric pattern to header
-        header_canvas: Any = tk.Canvas(hdr, bg=Colors.GLASS_DARK, width=40, height=20,
-                                     highlightthickness=0)
-        header_canvas.pack(side='left', padx=(0, 8))
-        # Draw angular pattern
-        header_canvas.create_line(5, 10, 15, 5, fill=Colors.GAUGE_TEAL, width=2)
-        header_canvas.create_line(15, 5, 25, 10, fill=Colors.GAUGE_TEAL, width=2)
-        header_canvas.create_line(25, 10, 35, 15, fill=Colors.GAUGE_TEAL, width=2)
-        header_canvas.create_line(35, 15, 40, 10, fill=Colors.GAUGE_TEAL, width=2)
-        
         tk.Label(hdr, text="[HIGH] LIVE THREAT FEED",
                  font = ('Consolas', 10, 'bold'), fg=Colors.GAUGE_TEAL,
                  bg = Colors.GLASS_DARK).pack(side='left')
@@ -27380,8 +26796,7 @@ class downpour(tk.Tk):
             font = ('Consolas', 10), selectbackground=Colors.GLASS_LIGHT,
             relief = 'flat', yscrollcommand=sb.set, activestyle='none',
             selectforeground = Colors.GAUGE_TEAL, exportselection=False,
-            borderwidth = 1, highlightbackground=Colors.GAUGE_TEAL,
-            highlightcolor=Colors.GAUGE_TEAL, highlightthickness=1)
+            borderwidth = 0, highlightthickness=0)
         self._alert_list.grid(row=1, column=0, sticky='nsew', padx=(6, 0), pady=3)
         sb.config(command=self._alert_list.yview)
         # Threat action context menu
@@ -28153,6 +27568,205 @@ class downpour(tk.Tk):
         if proc:
             self._queue_alert(f"Watching: {proc.name} (PID {proc.pid})  -  added to watchlist", Colors.GAUGE_YELLOW)
 
+    # --------------------------------------------------------------------------
+    #  NETWORK TAB
+    # --------------------------------------------------------------------------
+
+    def _build_network_tab(self):
+        p: Any = self._tab_network
+        p.grid_rowconfigure(1, weight=1)
+        p.grid_columnconfigure(0, weight=1)
+
+        top: Any = tk.Frame(p, bg=Colors.BG_VOID)
+        top.grid(row=0, column=0, sticky='ew', padx=6, pady=4)
+
+        net_actions: Any = [
+            ("Refresh",        self._refresh_network,     Colors.GAUGE_BLUE,
+             "Refresh the live network connection list"),
+            ("Block Selected", self._block_selected_ip,   Colors.GAUGE_RED,
+             "Add a Windows Firewall block rule for the selected remote IP"),
+            ("Lookup IP",      self._lookup_selected_ip,  Colors.GAUGE_TEAL,
+             "Query threat-intelligence feeds for reputation data on the selected IP"),
+            ("OSINT Stack",    self._osint_lookup_selected, Colors.GAUGE_PURPLE,
+             "Open selected IP across VirusTotal/AbuseIPDB/Talos/GreyNoise/Shodan/Censys/OTX (OSINT4ALL stack)"),
+            ("AbuseIPDB",      lambda: self._osint_abuseipdb_lookup(self._get_net_selected_ip()),
+             Colors.GAUGE_ORANGE,
+             "Live AbuseIPDB reputation check (uses your free API key if configured)"),
+            ("Shodan",         lambda: self._osint_shodan_lookup(self._get_net_selected_ip()),
+             Colors.GAUGE_CYAN,
+             "Shodan host lookup — inline with API key, else opens the web page"),
+            ("Pulsedive",      lambda: self._osint_pulsedive_lookup(self._get_net_selected_ip()),
+             Colors.GAUGE_PURPLE,
+             "Pulsedive indicator enrichment — inline with API key, else opens the page"),
+            ("GreyNoise",      lambda: self._osint_greynoise_lookup(self._get_net_selected_ip()),
+             Colors.GAUGE_YELLOW,
+             "GreyNoise background-noise vs targeted-host triage — inline with key, else opens viz"),
+            ("ONYPHE",         lambda: self._osint_onyphe_lookup(self._get_net_selected_ip()),
+             Colors.GAUGE_ORANGE,
+             "ONYPHE passive attack-surface lookup — inline with API key, else opens the page"),
+            ("IPinfo",          lambda: self._osint_ipinfo_lookup(self._get_net_selected_ip()),
+             Colors.GAUGE_CYAN,
+             "IPinfo.io ASN/GeoIP lookup — keyless, shows ASN org, hostname, anycast, bogon"),
+            ("BGPView",         lambda: self._osint_bgpview_lookup(self._get_net_selected_ip()),
+             Colors.GAUGE_TEAL,
+             "BGPView.io BGP routing lookup — keyless, shows upstream ASNs, announced prefixes"),
+            ("Copy IP",        self._copy_selected_ip,    Colors.TEXT_DIM,
+             "Copy the selected remote IP address to the clipboard"),
+            ("Geo-Locate",     self._geolocate_ip,        Colors.GAUGE_PURPLE,
+             "Resolve the selected IP to its geographic country/city"),
+            ("Port Scan",      self._portscan_selected,   Colors.GAUGE_ORANGE,
+             "Scan common ports on the selected remote IP for open services"),
+        ]
+        for txt, cmd, col, tip in net_actions:
+            self._make_button(top, txt, cmd, col, tip=tip, font_size=8)
+
+        # v29 — power action separator
+        tk.Frame(top, bg=Colors.TEXT_DIM, width=1, height=22).pack(side='left', padx=6, pady=4)
+        for txt, cmd, col, tip in [
+            ("[CRITICAL] Block ALL C2",      self._net_block_all_c2,
+             Colors.GAUGE_RED,    "Block every IP flagged as C2/malicious in firewall"),
+            ("Kill C2 Procs",     self._net_kill_c2_procs,
+             Colors.GAUGE_ORANGE, "Kill all processes with active C2 connections"),
+            ("[OK] Whitelist IP",       self._net_whitelist_selected,
+             Colors.GAUGE_GREEN,  "Add selected IP to local whitelist (suppress future alerts)"),
+            ("[CHART] Export Conns",       self._net_export_csv,
+             Colors.GAUGE_TEAL,   "Export all connections to CSV"),
+            ("[LOCK] Isolate Host",       self._threats_isolate_host,
+             Colors.GAUGE_RED,    "Emergency: block ALL network traffic"),
+            ("🚫 DDoS Blocks",       self._net_view_ddos_blocks,
+             Colors.GAUGE_RED,    "View/unblock IPs auto-blocked by DDoS/port-scan protection"),
+            ("🛡 DDoS Shield",       self._ddos_shield,
+             Colors.GAUGE_TEAL,    "v30: scan for connection/SYN/UDP/ICMP floods and auto-block"),
+            ("📊 Rate Monitor",      self._ddos_rate_monitor_ui,
+             Colors.GAUGE_BLUE,    "v30: live per-IP flood rate tracker (current window)"),
+            ("🚫 Block Flooders",    self._ddos_block_all_flooders,
+             Colors.GAUGE_ORANGE,  "v30: manually block every currently-flagged flooder IP"),
+            ("📄 Export DDoS Report", self._ddos_export_report,
+             Colors.GAUGE_PURPLE,  "v30: export blocklist + rate tracker to CSV"),
+            ("🧹 Purge DDoS Blocks", self._ddos_purge_blocklist,
+             Colors.GAUGE_RED,     "v30: unblock + forget all persisted DDoS blocks"),
+            ("🔥 Firewall Mgr",    self._fw_rule_manager,
+             Colors.GAUGE_TEAL,    "v29.90: View/selectively unblock ANY Downpour firewall rule — "
+                                   "search, filter, pick which rules to remove"),
+            ("✅ Unblock Trusted", self._unblock_trusted_apps,
+             Colors.GAUGE_GREEN,   "v29.90: Auto-remove blocks on Spotify, Claude, Discord, "
+                                   "Steam, browsers, and other known-safe apps"),
+            ("🔓 Unblock ALL",      self._port_unblock_all,
+             Colors.GAUGE_TEAL,    "v29.50: remove ALL Downpour firewall rules "
+                                   "(DDoS/C2/emergency/kill-switch/hunt/etc) — "
+                                   "dry-run preview first, audited to "
+                                   "downpour_data/port_unblock_audit.json"),
+            ("🍯 Start HoneyPot",    self._honeypot_start,
+             Colors.GAUGE_TEAL,    "Listen decoy services on 7 common attack ports "
+                                   "(SSH/Telnet/HTTP/HTTPS/RDP/VNC/Redis, loopback-only) — "
+                                   "any probe is logged and auto-blocked as a real attacker"),
+            ("🍯 Stop HoneyPot",     self._honeypot_stop,
+             Colors.GAUGE_ORANGE,  "Stop all decoy listeners"),
+            ("🍯 Clear Probe Log",   self._honeypot_clear_hits,
+             Colors.TEXT_DIM,      "Clear recorded honeypot probe history"),
+            ("🍯 Toggle Auto-Block", self._honeypot_toggle_autoblock,
+             Colors.GAUGE_YELLOW,  "Toggle whether public IPs that probe a decoy get "
+                                   "auto-blocked via the DDoS firewall system"),
+        ]:
+            self._make_button(top, txt, cmd, col, tip=tip, font_size=8)
+
+        # PanedWindow: connections | alert panel
+        pane: Any = ttk.PanedWindow(p, orient='horizontal')
+        pane.grid(row=1, column=0, sticky='nsew', padx=4, pady=2)
+
+        tree_f: Any = tk.Frame(pane, bg=Colors.BG_VOID)
+        tree_f.grid_rowconfigure(0, weight=1)
+        tree_f.grid_columnconfigure(0, weight=1)
+
+        cols: Any = ('PID','Process','Proto','Local Addr','Remote IP','Port','Status','Duration','Threat','Country')
+        self._net_tree = ttk.Treeview(tree_f, style='Titan.Treeview', columns=cols, show='headings', selectmode='browse')
+        widths: Any = {'PID':50,'Process':120,'Proto':50,'Local Addr':130,'Remote IP':130,
+                  'Port':55,'Status':85,'Duration':75,'Threat':130,'Country':80}
+        for col in cols:
+            self._net_tree.heading(col, text=col,
+                command = lambda c=col: self._sort_tree(self._net_tree, c))
+            self._net_tree.column(col, width=widths.get(col, 80), minwidth=40, stretch=(col=='Threat'))
+        vsb: Any = ttk.Scrollbar(tree_f, orient='vertical', command=self._net_tree.yview, style='Vertical.TScrollbar')
+        hsb: Any = ttk.Scrollbar(tree_f, orient='horizontal', command=self._net_tree.xview, style='Horizontal.TScrollbar')
+        self._net_tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        self._net_tree.grid(row=0, column=0, sticky='nsew')
+        vsb.grid(row=0, column=1, sticky='ns')
+        hsb.grid(row=1, column=0, sticky='ew')
+        # Right-click menu on connections
+        self._net_menu = tk.Menu(self, tearoff=0, bg=Colors.GLASS_CARD,
+                                  fg = Colors.TEXT_LIGHT, activebackground=Colors.GLASS_LIGHT,
+                                  font = ('Consolas', 9))
+        self._net_menu.add_command(label="🚫 Block This IP",   command=self._block_selected_ip)
+        self._net_menu.add_command(label="🔍 Lookup in Intel", command=self._lookup_selected_ip)
+        self._net_menu.add_command(label="🌐 OSINT Stack Lookup", command=self._osint_lookup_selected)
+        self._net_menu.add_command(label="🛡 AbuseIPDB Check", command=lambda: self._osint_abuseipdb_lookup(self._get_net_selected_ip()))
+        self._net_menu.add_command(label="🔎 Pulsedive Check", command=lambda: self._osint_pulsedive_lookup(self._get_net_selected_ip()))
+        self._net_menu.add_command(label="🔔 GreyNoise Check", command=lambda: self._osint_greynoise_lookup(self._get_net_selected_ip()))
+        self._net_menu.add_command(label="🛰 ONYPHE Check", command=lambda: self._osint_onyphe_lookup(self._get_net_selected_ip()))
+        self._net_menu.add_command(label="🌐 Geo-Locate IP",   command=self._geolocate_ip)
+        self._net_menu.add_command(label="📡 Port Scan Host",  command=self._portscan_selected)
+        self._net_menu.add_command(label="☠️ Kill Connection Process", command=self._kill_conn_proc)
+        self._net_tree.bind('<Button-3>', lambda e: (
+            self._net_tree.selection_set(self._net_tree.identify_row(e.y)),
+            self._net_menu.tk_popup(e.x_root, e.y_root)))
+        pane.add(tree_f, weight=3)
+
+        right_f: Any = tk.Frame(pane, bg=Colors.GLASS_CARD)
+        right_f.grid_rowconfigure(1, weight=1)
+        right_f.grid_columnconfigure(0, weight=1)
+        tk.Label(right_f, text="[WARN] NETWORK ALERTS", font=('Consolas', 9, 'bold'),
+                 fg = Colors.GAUGE_RED, bg=Colors.GLASS_CARD).grid(row=0, column=0, pady=4)
+        # Network alerts with scrollbar
+        net_alert_frame: Any = tk.Frame(right_f, bg=Colors.GLASS_DARK)
+        net_alert_frame.grid(row=1, column=0, sticky='nsew', padx=4, pady=4)
+        net_alert_frame.grid_rowconfigure(0, weight=1)
+        net_alert_frame.grid_columnconfigure(0, weight=1)
+
+        net_alert_scrollbar: Any = tk.Scrollbar(net_alert_frame, orient='vertical')
+        net_alert_scrollbar.grid(row=0, column=1, sticky='ns')
+
+        self._net_alert_box = tk.Text(net_alert_frame, bg=Colors.GLASS_DARK, fg=Colors.GAUGE_RED,
+                                       font = ('Consolas', 8), wrap='word', state='disabled',
+                                       relief = 'flat', yscrollcommand=net_alert_scrollbar.set)
+        self._net_alert_box.grid(row=0, column=0, sticky='nsew')
+        net_alert_scrollbar.config(command=self._net_alert_box.yview)
+        pane.add(right_f, weight=1)
+
+        # -- Packet Capture controls (bottom strip) -------------------------
+        pcap_bar: Any = tk.Frame(p, bg=Colors.GLASS_DARK)
+        pcap_bar.grid(row=2, column=0, sticky='ew', padx=8, pady=(0,4))
+        tk.Label(pcap_bar, text="📡 Packet Capture (Admin):",
+                 font = ('Consolas', 8, 'bold'), fg=Colors.GAUGE_PURPLE,
+                 bg = Colors.GLASS_DARK).pack(side='left', padx=8, pady=4)
+        self._pcap_status = tk.Label(pcap_bar, text="Idle", font=('Consolas', 8),
+                                      fg = Colors.TEXT_DIM, bg=Colors.GLASS_DARK)
+        self._pcap_status.pack(side='left', padx=8)
+        _pc_start: Any = tk.Button(pcap_bar, text="> Start Capture", font=('Consolas', 8),
+                  bg = Colors.GAUGE_PURPLE, fg='white', relief='flat', padx=8,
+                  command = self._ui_start_pcap)
+        _pc_start.pack(side='left', padx=4, pady=3)
+        self._tooltip(_pc_start, "Start packet capture + live connection monitoring (needs admin)")
+        _pc_stop: Any = tk.Button(pcap_bar, text="Stop", font=('Consolas', 8),
+                  bg = Colors.CHROME_MID, fg=Colors.TEXT_DIM, relief='flat', padx=6,
+                  command = self._stop_packet_capture)
+        _pc_stop.pack(side='left', padx=2, pady=3)
+        self._tooltip(_pc_stop, "Stop the active packet capture")
+        _dhcp_btn: Any = tk.Button(pcap_bar, text="Check Rogue DHCP", font=('Consolas', 8),
+                  bg = Colors.GAUGE_ORANGE, fg='white', relief='flat', padx=8,
+                  command = self._run_rogue_dhcp_check)
+        _dhcp_btn.pack(side='right', padx=8, pady=3)
+        self._tooltip(_dhcp_btn, "Detect rogue/evil-twin DHCP servers handing out bad configs")
+        # Bandwidth monitor bar
+        bw_bar: Any = tk.Frame(p, bg=Colors.GLASS_PANEL)
+        bw_bar.grid(row=3, column=0, sticky='ew', padx=8, pady=(0,4))
+        tk.Label(bw_bar, text="[CHART] Bandwidth:", font=('Consolas', 8, 'bold'),
+                 fg = Colors.GAUGE_BLUE, bg=Colors.GLASS_PANEL).pack(side='left', padx=8, pady=3)
+        self._net_bw_lbl = tk.Label(bw_bar, text="⬆ 0 B/s  ⬇ 0 B/s",
+                                     font = ('Consolas', 9, 'bold'), fg=Colors.GAUGE_GREEN,
+                                     bg = Colors.GLASS_PANEL)
+        self._net_bw_lbl.pack(side='left', padx=4)
+        self._net_start_bandwidth_monitor()
+    # --------------------------------------------------------------------------
 
     def _build_scanner_tab(self):
         p: Any = self._tab_scanner
@@ -28265,7 +27879,871 @@ class downpour(tk.Tk):
     #  THREAT INTEL TAB
     # --------------------------------------------------------------------------
 
-    
+    def _build_intel_tab(self):
+        p: Any = self._tab_intel
+        top: Any = tk.Frame(p, bg=Colors.BG_VOID)
+        top.pack(fill='x', padx=8, pady=6)
+        self._make_button(top, "Update All Feeds Now", self._update_intel_now,
+                          Colors.GAUGE_TEAL,
+                          tip="Download and refresh every threat-intelligence feed (KEV, C2 blocklists, etc.)")
+
+        self._intel_progress_var = tk.StringVar(value="Not updated yet")
+        tk.Label(top, textvariable=self._intel_progress_var, font=('Consolas', 8),
+                 fg = Colors.TEXT_DIM, bg=Colors.BG_VOID).pack(side='left', padx=12)
+
+        # Feed status list with enhanced scrollability
+        feed_container: Any = tk.Frame(p, bg=Colors.BG_VOID)
+        feed_container.pack(fill='both', expand=True, padx=8, pady=4)
+
+        cols: Any = ('Feed', 'Type', 'Source', 'Status')
+        self._intel_tree = ttk.Treeview(feed_container, style='Titan.Treeview', columns=cols, show='headings', height=20)
+        intel_scroll_v: Any = ttk.Scrollbar(feed_container, orient='vertical', command=self._intel_tree.yview, style='Tab.Vertical.TScrollbar')
+        intel_scroll_h: Any = ttk.Scrollbar(feed_container, orient='horizontal', command=self._intel_tree.xview, style='Tab.Horizontal.TScrollbar')
+
+        self._intel_tree.configure(yscrollcommand=intel_scroll_v.set, xscrollcommand=intel_scroll_h.set)
+
+        for col, w in [('Feed', 180), ('Type', 70), ('Source', 100), ('Status', 240)]:
+            self._intel_tree.heading(col, text=col)
+            self._intel_tree.column(col, width=w, stretch=(col=='Status'))
+        self._intel_tree.tag_configure('darkweb',   foreground='#cc33ff')
+        self._intel_tree.tag_configure('clearnet',  foreground=Colors.GAUGE_TEAL)
+        self._intel_tree.tag_configure('gov',       foreground=Colors.GAUGE_BLUE)
+        self._intel_tree.tag_configure('community', foreground=Colors.GAUGE_ORANGE)
+        # Feed-health over-ride tags (applied on top of the category tag)
+        self._intel_tree.tag_configure('feed_err',   foreground=Colors.GAUGE_RED)
+        self._intel_tree.tag_configure('feed_stale', foreground=Colors.GAUGE_YELLOW)
+        self._intel_feed_stale_days: Any = 3
+
+        # Grid layout for proper scrolling
+        self._intel_tree.grid(row=0, column=0, sticky='nsew')
+        intel_scroll_v.grid(row=0, column=1, sticky='ns')
+        intel_scroll_h.grid(row=1, column=0, sticky='ew')
+
+        feed_container.grid_rowconfigure(0, weight=1)
+        feed_container.grid_columnconfigure(0, weight=1)
+
+        # Dark-web / clearnet / gov classification map
+        DARKWEB_FEEDS: Any = {'darklist', 'tor_exit_dans', 'tor_exit_tbb', 'dan_tor',
+                          'ipsum_7', 'ipsum_6', 'ipsum_5'}
+        GOV_FEEDS: Any = {'cisa_kev', 'us_cert', 'fbi_flash', 'nist_nvd', 'dhs_ais'}
+        for name in self.intel.FEEDS:
+            feed_type: Any = self.intel.FEEDS[name][1] if len(self.intel.FEEDS[name]) > 1 else 'mixed'
+            if name in DARKWEB_FEEDS:
+                source, tag = 'Dark-Web', 'darkweb'
+            elif name in GOV_FEEDS:
+                source, tag = 'Gov/CISA', 'gov'
+            else:
+                source, tag = '[WEB] Clearnet', 'clearnet'
+            self._intel_tree.insert('', 'end', iid=name,
+                                    values = (name, feed_type, source, 'Pending'),
+                                    tags = (tag,))
+
+        tk.Label(p, text="Check IP / Hash / URL", font=('Consolas', 9, 'bold'),
+                 fg = Colors.GAUGE_TEAL, bg=Colors.BG_VOID).pack(anchor='w', padx=10, pady=(8,2))
+        check_row: Any = tk.Frame(p, bg=Colors.BG_VOID)
+        check_row.pack(fill='x', padx=8, pady=2)
+        self._intel_check_var = tk.StringVar()
+        tk.Entry(check_row, textvariable=self._intel_check_var, font=('Consolas', 9),
+                 bg = Colors.GLASS_LIGHT, fg=Colors.TEXT_BRIGHT, insertbackground='white',
+                 width = 40, relief='flat').pack(side='left', padx=4)
+        _chk_item: Any = tk.Button(check_row, text="Check", font=('Consolas', 9),
+                      fg = Colors.GAUGE_BLUE, bg=Colors.GLASS_CARD, relief='flat',
+                      command = self._check_intel_item)
+        _chk_item.pack(side='left', padx=4)
+        self._tooltip(_chk_item, "Look up the current IOC value against all loaded intel feeds + local cache")
+        self._intel_result = tk.Label(p, text="", font=('Consolas', 9),
+                                       fg = Colors.GAUGE_GREEN, bg=Colors.BG_VOID)
+        self._intel_result.pack(anchor='w', padx=12)
+
+        # -- Threat Response Actions -------------------------------------------
+        tk.Label(p, text="Threat Response", font=('Consolas', 9, 'bold'),
+                 fg = Colors.GAUGE_RED, bg=Colors.BG_VOID).pack(anchor='w', padx=10, pady=(10,2))
+        resp_row: Any = tk.Frame(p, bg=Colors.BG_VOID)
+        resp_row.pack(fill='x', padx=8, pady=2)
+        _resp_tips: Any = {
+            "🚫 Block IP Now":    "Add the current IOC IP to the Windows Firewall block list",
+            "📋 Copy IOC":        "Copy the current IOC to the clipboard",
+            "🔍 Whois Lookup":    "WHOIS registration lookup for the current domain/IP",
+            "📡 Reverse DNS":     "PTR reverse-DNS lookup for the current IP",
+            "GeoIP Lookup":      "Geographic / ASN attribution for the current IP",
+            "OSINT Stack":       "Open the curated OSINT stack deep-links for this IOC",
+            "Pulsedive":         "Pulsedive risk-scored IOC search (key or page fallback)",
+            "ONYPHE":            "ONYPHE internet-exposure & threat search (key or page fallback)",
+            "Censys":            "Censys Search v2 host view (API ID + secret)",
+            "Netlas":            "Netlas host / ASN / services lookup (Bearer key)",
+            "EmailRep":          "EmailRep.io email reputation (key or page fallback)",
+            "Wayback Check":     "Wayback Machine availability (no-key; no history = phishing flag)",
+            "urlscan Submit":    "Submit the URL to urlscan.io for analysis (key)",
+            "urlscan Search":    "Search urlscan.io public scans for this IOC (no key)",
+            "MalwareBazaar":     "MalwareBazaar hash lookup (free Auth-Key)",
+            "URLhaus":           "URLhaus malicious-URL / payload search (free Auth-Key)",
+            "ThreatFox":         "ThreatFox IOC search (malware family / confidence)",
+            "AlienVault OTX":    "AlienVault OTX pulses for IP/domain/hash (keyless)",
+            "AbuseIPDB":         "AbuseIPDB reputation & abuse reports (key or page)",
+            "Shodan":            "Shodan host / search lookup (key or page)",
+            "GreyNoise":         "GreyNoise Community noise-vs-targeted triage (key)",
+            "Hudson Rock":       "Hudson Rock infostealer breach context (keyless)",
+            "IPinfo":            "IPinfo.io ASN / geo / anycast attribution (keyless)",
+            "BGPView":           "BGPView BGP routing graph for IP/ASN (keyless)",
+            "HackerTarget":      "HackerTarget reverse-IP / GeoIP / DNS / ASN recon (keyless)",
+            "Threat Web Stack":  "Browser deep-links: Talos / Hybrid Analysis / PhishTank / ANY.RUN / Joe Sandbox",
+            "CyberChef Decode":  "GCHQ CyberChef with the current IOC pre-loaded",
+            "Export Report":     "Export the current intel assessment to a report",
+            "[MISP] Import IOCs": "Import a MISP event / STIX bundle / IOC text file",
+            "[MISP] Export Event": "Export the IOC database as a MISP-format JSON event",
+            "[HIGH] Submit to VirusTotal": "Submit the current file/hash/URL to VirusTotal",
+        }
+        for btn_txt, btn_cmd in [
+            ("🚫 Block IP Now",         lambda: self._intel_block_ip()),
+            ("📋 Copy IOC",             lambda: self._intel_copy_ioc()),
+            ("🔍 Whois Lookup",         lambda: self._intel_whois()),
+            ("📡 Reverse DNS",          lambda: self._intel_rdns()),
+            ("GeoIP Lookup",         lambda: self._intel_geoip()),
+            ("OSINT Stack",          lambda: self._osint_lookup_intel_entry()),
+            ("Pulsedive",            lambda: self._osint_pulsedive_lookup(self._get_intel_entry_value())),
+            ("ONYPHE",               lambda: self._osint_onyphe_lookup(self._get_intel_entry_value())),
+            ("Censys",               lambda: self._osint_censys_lookup(self._get_intel_entry_value())),
+            ("Netlas",               lambda: self._osint_netlas_lookup(self._get_intel_entry_value())),
+            ("EmailRep",             lambda: self._osint_emailrep_lookup(self._get_intel_entry_value())),
+            ("Wayback Check",        lambda: self._osint_wayback_check(self._get_intel_entry_value())),
+            ("urlscan Submit",       lambda: self._osint_urlscan_submit(self._get_intel_entry_value())),
+            ("urlscan Search",       lambda: self._osint_urlscan_search(self._get_intel_entry_value())),
+            ("MalwareBazaar",        lambda: self._osint_malwarebazaar_lookup(self._get_intel_entry_value())),
+            ("URLhaus",              lambda: self._osint_urlhaus_lookup(self._get_intel_entry_value())),
+            ("ThreatFox",            lambda: self._osint_threatfox_lookup(self._get_intel_entry_value())),
+            ("AlienVault OTX",        lambda: self._osint_otx_lookup(self._get_intel_entry_value())),
+            ("AbuseIPDB",            lambda: self._osint_abuseipdb_lookup(self._get_intel_entry_value())),
+            ("Shodan",               lambda: self._osint_shodan_lookup(self._get_intel_entry_value())),
+            ("GreyNoise",            lambda: self._osint_greynoise_lookup(self._get_intel_entry_value())),
+            ("Hudson Rock",          lambda: self._osint_hudsonrock_lookup(self._get_intel_entry_value())),
+            ("IPinfo",               lambda: self._osint_ipinfo_lookup(self._get_intel_entry_value())),
+            ("BGPView",              lambda: self._osint_bgpview_lookup(self._get_intel_entry_value())),
+            ("HackerTarget",         lambda: self._osint_hacktarget_lookup(self._get_intel_entry_value())),
+            ("Threat Web Stack",     lambda: self._intel_threat_web_stack()),
+            ("CyberChef Decode",     lambda: self._intel_cyberchef()),
+            ("Export Report",        lambda: self._intel_export_report()),
+            ("[MISP] Import IOCs",   lambda: self._intel_import_misp()),
+            ("[MISP] Export Event",  lambda: self._intel_export_misp()),
+            ("[HIGH] Submit to VirusTotal", lambda: self._intel_submit_vt()),
+        ]:
+            _btn = tk.Button(resp_row, text=btn_txt, font=('Consolas', 8),
+                      fg = Colors.GAUGE_ORANGE, bg=Colors.GLASS_CARD, relief='flat',
+                      cursor = 'hand2',
+                      activebackground = Colors.GLASS_LIGHT,
+                      activeforeground = Colors.GAUGE_ORANGE,
+                      command = btn_cmd)
+            _btn.pack(side='left', padx=3, pady=2)
+            tip: Any = _resp_tips.get(btn_txt)
+            if tip:
+                self._tooltip(_btn, tip)
+
+        # -- Custom Database Manager -------------------------------------------
+        db_frame: Any = tk.LabelFrame(p, text="  📦 Custom Feed / Database Manager  ",
+                                  font = ('Consolas', 9, 'bold'), fg=Colors.GAUGE_TEAL,
+                                  bg = Colors.BG_VOID, labelanchor='nw')
+        db_frame.pack(fill='x', padx=8, pady=(8,4))
+
+        db_top: Any = tk.Frame(db_frame, bg=Colors.BG_VOID)
+        db_top.pack(fill='x', padx=6, pady=4)
+
+        tk.Label(db_top, text="Feed Name:", font=('Consolas', 8), fg=Colors.TEXT_DIM,
+                 bg = Colors.BG_VOID).grid(row=0, column=0, sticky='w', padx=2)
+        self._custom_db_name = tk.StringVar()
+        tk.Entry(db_top, textvariable=self._custom_db_name, font=('Consolas', 8),
+                 bg = Colors.GLASS_LIGHT, fg=Colors.TEXT_BRIGHT, insertbackground='white',
+                 width = 18, relief='flat').grid(row=0, column=1, padx=4, pady=2)
+
+        tk.Label(db_top, text="URL:", font=('Consolas', 8), fg=Colors.TEXT_DIM,
+                 bg = Colors.BG_VOID).grid(row=0, column=2, sticky='w', padx=2)
+        self._custom_db_url = tk.StringVar()
+        tk.Entry(db_top, textvariable=self._custom_db_url, font=('Consolas', 8),
+                 bg = Colors.GLASS_LIGHT, fg=Colors.TEXT_BRIGHT, insertbackground='white',
+                 width = 40, relief='flat').grid(row=0, column=3, padx=4, pady=2)
+
+        tk.Label(db_top, text="Type:", font=('Consolas', 8), fg=Colors.TEXT_DIM,
+                 bg = Colors.BG_VOID).grid(row=0, column=4, sticky='w', padx=2)
+        self._custom_db_type = tk.StringVar(value="ip")
+        type_cb: Any = ttk.Combobox(db_top, textvariable=self._custom_db_type, state='readonly',
+                                values = ['ip','domain','url','hash','mixed'], width=8,
+                                font = ('Consolas', 8))
+        type_cb.grid(row=0, column=5, padx=4, pady=2)
+
+        db_btn_row: Any = tk.Frame(db_frame, bg=Colors.BG_VOID)
+        db_btn_row.pack(fill='x', padx=6, pady=(0,4))
+        _b_add_feed: Any = tk.Button(db_btn_row, text="Add Feed", font=('Consolas', 8, 'bold'),
+                  fg = Colors.GAUGE_GREEN, bg=Colors.GLASS_CARD, relief='flat',
+                  command = self._add_custom_feed)
+        _b_add_feed.pack(side='left', padx=3)
+        self._tooltip(_b_add_feed, "Register a new custom threat-intel feed (URL + type + name)")
+        _b_fetch: Any = tk.Button(db_btn_row, text="Fetch Now", font=('Consolas', 8),
+                  fg = Colors.GAUGE_TEAL, bg=Colors.GLASS_CARD, relief='flat',
+                  command = self._fetch_custom_feed_now)
+        _b_fetch.pack(side='left', padx=3)
+        self._tooltip(_b_fetch, "Immediately fetch the selected custom feed")
+        _b_rmfeed: Any = tk.Button(db_btn_row, text="Remove Selected", font=('Consolas', 8),
+                  fg = Colors.GAUGE_RED, bg=Colors.GLASS_CARD, relief='flat',
+                  command = self._remove_custom_feed)
+        _b_rmfeed.pack(side='left', padx=3)
+        self._tooltip(_b_rmfeed, "Delete the selected custom feed from the registry")
+        _b_impfeed: Any = tk.Button(db_btn_row, text="📂 Import from File", font=('Consolas', 8),
+                  fg = Colors.GAUGE_BLUE, bg=Colors.GLASS_CARD, relief='flat',
+                  command = self._import_feed_from_file)
+        _b_impfeed.pack(side='left', padx=3)
+        self._tooltip(_b_impfeed, "Import IOCs from a local file (txt/csv/json) as a feed")
+        _b_feedstats: Any = tk.Button(db_btn_row, text="[CHART] Feed Statistics", font=('Consolas', 8),
+                  fg = Colors.GAUGE_PURPLE, bg=Colors.GLASS_CARD, relief='flat',
+                  command = self._show_feed_stats)
+        _b_feedstats.pack(side='left', padx=3)
+        self._tooltip(_b_feedstats, "View fetch statistics/health for all configured feeds")
+
+        # Custom feeds list with enhanced scrollability
+        custom_feed_container: Any = tk.Frame(db_frame, bg=Colors.BG_VOID)
+        custom_feed_container.pack(fill='x', padx=6, pady=(0,4))
+
+        cf_cols: Any = ('Name', 'Type', 'URL', 'Records', 'Last Updated')
+        self._custom_feed_tree = ttk.Treeview(custom_feed_container, style='Titan.Treeview',
+                                               columns = cf_cols, show='headings', height=5)
+        custom_scroll_v: Any = ttk.Scrollbar(custom_feed_container, orient='vertical', command=self._custom_feed_tree.yview, style='Tab.Vertical.TScrollbar')
+        custom_scroll_h: Any = ttk.Scrollbar(custom_feed_container, orient='horizontal', command=self._custom_feed_tree.xview, style='Tab.Horizontal.TScrollbar')
+
+        self._custom_feed_tree.configure(yscrollcommand=custom_scroll_v.set, xscrollcommand=custom_scroll_h.set)
+
+        for col, w in [('Name', 120), ('Type', 60), ('URL', 260), ('Records', 80), ('Last Updated', 130)]:
+            self._custom_feed_tree.heading(col, text=col)
+            self._custom_feed_tree.column(col, width=w, stretch=(col == 'URL'))
+
+        # Grid layout for proper scrolling
+        self._custom_feed_tree.grid(row=0, column=0, sticky='nsew')
+        custom_scroll_v.grid(row=0, column=1, sticky='ns')
+        custom_scroll_h.grid(row=1, column=0, sticky='ew')
+
+        custom_feed_container.grid_rowconfigure(0, weight=1)
+        custom_feed_container.grid_columnconfigure(0, weight=1)
+
+        self._load_custom_feeds_ui()
+
+    # -- Intel tab helper methods --------------------------------------------------
+
+    def _intel_block_ip(self):
+        """Block the currently checked IP via Windows firewall."""
+        val: Any = getattr(self, '_intel_check_var', None)
+        ip: Any = val.get().strip() if val else ''
+        if not ip:
+            self._intel_result.config(text="Enter an IP first.", fg=Colors.GAUGE_RED)
+            return
+        import re as _re
+        if not _re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', ip):
+            self._intel_result.config(text="Not a valid IPv4 address.", fg=Colors.GAUGE_RED)
+            return
+        try:
+            import subprocess as _sp
+            result: Any = _sp.run(
+                ['netsh', 'advfirewall', 'firewall', 'add', 'rule',
+                 f'name=Downpour_Block_{ip}', 'dir=in', 'action=block',
+                 f'remoteip={ip}'],
+                capture_output = True, text=True, timeout=10
+            )
+            if result.returncode == 0:
+                self._intel_result.config(text=f"[OK] Blocked {ip} via Windows Firewall.", fg=Colors.GAUGE_GREEN)
+            else:
+                self._intel_result.config(text=f"[!] Firewall error: {result.stderr[:80]}", fg=Colors.GAUGE_RED)
+        except Exception as e:
+            self._intel_result.config(text=f"Error: {e}", fg=Colors.GAUGE_RED)
+
+    def _intel_copy_ioc(self):
+        val: Any = getattr(self, '_intel_check_var', None)
+        ioc: Any = val.get().strip() if val else ''
+        if ioc:
+            self.clipboard_clear(); self.clipboard_append(ioc)
+            self._intel_result.config(text=f"[CLIP] Copied: {ioc}", fg=Colors.GAUGE_TEAL)
+
+    def _intel_whois(self):
+        val: Any = getattr(self, '_intel_check_var', None)
+        target: Any = val.get().strip() if val else ''
+        if not target:
+            return
+        import webbrowser
+        webbrowser.open(f"https://www.whois.com/whois/{target}")
+        self._intel_result.config(text=f"[WEB] Opened Whois for {target}", fg=Colors.GAUGE_BLUE)
+
+    def _intel_rdns(self):
+        val: Any = getattr(self, '_intel_check_var', None)
+        ip: Any = val.get().strip() if val else ''
+        if not ip:
+            return
+        def _do():
+            try:
+                import socket as _s
+                host: Any = _s.gethostbyaddr(ip)[0]
+                self.after(0, lambda: self._intel_result.config(
+                    text = f"[NET] rDNS: {ip} -> {host}", fg=Colors.GAUGE_GREEN))
+            except Exception as e:
+                self.after(0, lambda _e=str(e): self._intel_result.config(
+                    text = f"rDNS failed: {_e}", fg=Colors.GAUGE_RED))
+        self._executor.submit(_do)
+
+    def _intel_geoip(self):
+        val: Any = getattr(self, '_intel_check_var', None)
+        ip: Any = val.get().strip() if val else ''
+        if not ip:
+            return
+        def _do():
+            try:
+                import json as _j
+                d: Any = self._ip_api_get(ip, 'country,city,isp,as,proxy,hosting', timeout=8)
+                if not d or d.get('status') != 'success':
+                    raise ValueError('lookup failed')
+                geo: Any = f"{d.get('city','?')}, {d.get('country','?')} | ISP: {d.get('isp','?')} | Proxy: {d.get('proxy','?')}"
+                self.after(0, lambda: self._intel_result.config(text=f"[GLOBE] {geo}", fg=Colors.GAUGE_CYAN))
+            except Exception as e:
+                self.after(0, lambda _e=str(e): self._intel_result.config(text=f"GeoIP error: {_e}", fg=Colors.GAUGE_RED))
+        self._executor.submit(_do)
+
+    def _intel_export_report(self):
+        from tkinter import filedialog as _fd
+        path: Any = _fd.asksaveasfilename(defaultextension=".txt",
+            filetypes = [("Text", "*.txt"), ("CSV", "*.csv"), ("JSON", "*.json")],
+            title = "Export Intel Report")
+        if not path:
+            return
+        try:
+            _ts: Any = time.strftime('%Y-%m-%d %H:%M:%S')
+            lines: Any = [f"Downpour Intel Report  -  {_ts}\n" + "="*60 + "\n"]
+            tree: Any = getattr(self, '_intel_tree', None)
+            if tree:
+                for iid in tree.get_children():
+                    vals: Any = tree.item(iid, 'values')
+                    lines.append("  ".join(str(v) for v in vals))
+            with open(path, 'w') as fh:
+                fh.write("\n".join(lines))
+            self._intel_result.config(text=f"Exported to {path}", fg=Colors.GAUGE_GREEN)
+        except Exception as e:
+            self._intel_result.config(text=f"Export error: {e}", fg=Colors.GAUGE_RED)
+
+    def _intel_submit_vt(self):
+        val: Any = getattr(self, '_intel_check_var', None)
+        ioc: Any = val.get().strip() if val else ''
+        if ioc:
+            import webbrowser
+            webbrowser.open(f"https://www.virustotal.com/gui/search/{ioc}")
+            self._intel_result.config(text=f"[ZAP] Opened VirusTotal for {ioc}", fg=Colors.GAUGE_ORANGE)
+
+    # -- MISP / STIX indicator sharing (import + export) ----------------------
+    # MISP (Malware Information Sharing Platform) is the open-source standard for
+    # exchanging threat indicators. Downpour ingests MISP event JSON, STIX 2.0
+    # bundles, or plain IOC lists into the same titanium.db tables the intel tab
+    # reads, and can export the local indicator set back as a MISP event for
+    # sharing with peers/a SOC.
+    _MISP_BLOCK_IMPORT_CAP: Any = 250
+
+    def _misp_classify_value(self, val: str) -> str:
+        """Map a raw MISP value to a store category: ip/domain/url/hash."""
+        if not val or len(val) < 4 or len(val) > 500:
+            return ''
+        if val.startswith(('http://', 'https://', 'ftp://')):
+            return 'url'
+        if re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', val):
+            parts: Any = val.split('.')
+            if all(0 <= int(p) <= 255 for p in parts):
+                if not (val.startswith('10.') or val.startswith('192.168.') or
+                        val.startswith('172.') or val == '127.0.0.1' or val == '0.0.0.0'):
+                    return 'ip'
+        if re.match(r'^[0-9a-fA-F]{32}$', val) or re.match(r'^[0-9a-fA-F]{40}$', val) \
+                or re.match(r'^[0-9a-fA-F]{64}$', val):
+            return 'hash'
+        if re.match(r'^[a-zA-Z0-9][a-zA-Z0-9\-]*(\.[a-zA-Z0-9][a-zA-Z0-9\-]*)*\.[a-zA-Z]{2,63}$',
+                    val) and '/' not in val:
+            if val not in ('localhost', 'localdomain', 'local', 'example.com'):
+                return 'domain'
+        return ''
+
+    def _misp_extract_iocs(self, obj: Any, out: dict) -> None:
+        """Recursively extract indicators from a MISP/STIX JSON node into
+        out = {'ip': [], 'domain': [], 'url': [], 'hash': []}."""
+        if isinstance(obj, dict):
+            # MISP Event.Attribute entries
+            if 'type' in obj and ('value' in obj):
+                _t: Any = str(obj.get('type', '')).lower()
+                _v: Any = str(obj.get('value', '')).strip()
+                # type hints from MISP: ip-src/ip-dst, domain/hostname, url,
+                # sha256/sha1/md5, filename|sha256 composite
+                _main: Any = _v.partition('|')[0]
+                _cat: Any = self._misp_classify_value(_v)
+                if _cat:
+                    out[_cat].append(_v)
+                    return
+            # STIX 2.0 objects
+            if obj.get('type') == 'ipv4-addr' and obj.get('value'):
+                _cat = self._misp_classify_value(str(obj['value']))
+                if _cat == 'ip':
+                    out['ip'].append(str(obj['value']))
+                return
+            if obj.get('type') == 'domain-name' and obj.get('value'):
+                out['domain'].append(str(obj['value']).lower())
+                return
+            if obj.get('type') == 'url' and obj.get('value'):
+                out['url'].append(str(obj['value']))
+                return
+            if obj.get('type') == 'file':
+                _fh: Any = obj.get('hashes') or {}
+                if isinstance(_fh, dict):
+                    for _h in _fh.values():
+                        if isinstance(_h, str) and self._misp_classify_value(_h) == 'hash':
+                            out['hash'].append(_h.lower())
+                return
+            if obj.get('type') == 'indicator' and obj.get('pattern'):
+                # STIX pattern: [ipv4-addr:value = '1.2.3.4'] / [url:value = '...']
+                for _m in re.finditer(r"value\s*=\s*'([^']+)'", str(obj['pattern'])):
+                    _cat = self._misp_classify_value(_m.group(1))
+                    if _cat:
+                        out[_cat].append(_m.group(1))
+                for _m in re.finditer(r"hashes\.'[^']+'\s*=\s*'([^']+)'",
+                                      str(obj['pattern'])):
+                    if self._misp_classify_value(_m.group(1)) == 'hash':
+                        out['hash'].append(_m.group(1).lower())
+                return
+            # descend into containers (top-level: Event, objects, response,
+            # Attribute lists, etc.); only fall back to generic dict scan if
+            # none of the known containers were present
+            for _k in ('Event', 'Attribute', 'objects', 'object', 'response'):
+                _c: Any = obj.get(_k)
+                if _c is not None:
+                    if isinstance(_c, (dict, list)):
+                        self._misp_extract_iocs(_c, out)
+                    return
+            # generic dict values fallback
+            for _v2 in obj.values():
+                if isinstance(_v2, (dict, list)):
+                    self._misp_extract_iocs(_v2, out)
+        elif isinstance(obj, list):
+            for _it in obj:
+                self._misp_extract_iocs(_it, out)
+
+    def _intel_import_misp(self):
+        """Import MISP event JSON / STIX bundle / plain IOC list into intel DB."""
+        from tkinter import filedialog as _fd
+        path: Any = _fd.askopenfilename(
+            filetypes=[("MISP/STIX/IOC files", "*.json *.txt *.csv *.ioc"),
+                       ("All files", "*.*")],
+            title="Import MISP / STIX / IOC Indicators")
+        if not path:
+            return
+
+        def _do():
+            try:
+                with open(path, 'r', errors='replace') as fh:
+                    raw: Any = fh.read()
+                out: Any = {'ip': [], 'domain': [], 'url': [], 'hash': []}
+                stripped: Any = raw.strip()
+                try:
+                    data: Any = json.loads(stripped)
+                    self._misp_extract_iocs(data, out)
+                except Exception:
+                    # plain text IOC list, one per line (hosts-format aware)
+                    for line in raw.splitlines():
+                        line = line.strip()
+                        if not line or line.startswith('#') or line.startswith(';') \
+                                or line.startswith('!'):
+                            continue
+                        if line.startswith('0.0.0.0 ') or line.startswith('127.0.0.1 '):
+                            line = line.split()[1]
+                        if ',' in line:
+                            for part in line.split(','):
+                                part = part.strip().strip('"').strip("'")
+                                if part:
+                                    self._misp_extract_iocs({'type': 'x', 'value': part}, out)
+                        else:
+                            self._misp_extract_iocs({'type': 'x', 'value': line}, out)
+                # dedupe
+                for _k in out:
+                    out[_k] = list(dict.fromkeys(out[_k]))
+                total: Any = sum(len(v) for v in out.values())
+                if not total:
+                    self.after(0, lambda:
+                        self._intel_result.config(
+                            text=f"[MISP] No recognizable indicators in {path}",
+                            fg=Colors.GAUGE_ORANGE))
+                    return
+                import os as _os
+                _src: Any = f"MISP-Import:{_os.path.basename(path)}"
+                _ts: Any = datetime.now().isoformat()
+                # write into the same tables _store_iocs() uses
+                if out['ip']:
+                    for _bi in range(0, min(len(out['ip']), 50000), 2000):
+                        self.db.executemany(
+                            "INSERT OR IGNORE INTO malicious_ips (ip, source, added, threat_type) VALUES (?,?,?,?)",
+                            [(ip, _src, _ts, 'MISP') for ip in out['ip'][_bi:_bi+2000]])
+                if out['url']:
+                    for _bi in range(0, min(len(out['url']), 50000), 2000):
+                        self.db.executemany(
+                            "INSERT OR IGNORE INTO malicious_urls (url, source, added) VALUES (?,?,?)",
+                            [(u, _src, _ts) for u in out['url'][_bi:_bi+2000]])
+                if out['hash']:
+                    for _bi in range(0, min(len(out['hash']), 50000), 2000):
+                        self.db.executemany(
+                            "INSERT OR IGNORE INTO malicious_hashes (hash, source, threat_name, added) VALUES (?,?,?,?)",
+                            [(h, _src, 'MISP', _ts) for h in out['hash'][_bi:_bi+2000]])
+                if out['domain']:
+                    for _bi in range(0, min(len(out['domain']), 50000), 2000):
+                        self.db.executemany(
+                            "INSERT OR IGNORE INTO malicious_domains (domain, source, added) VALUES (?,?,?)",
+                            [(d, _src, _ts) for d in out['domain'][_bi:_bi+2000]])
+                _msg: Any = (f"[MISP] Imported {total} indicators from "
+                             f"{_os.path.basename(path)}\n"
+                             f"  IPs: {len(out['ip'])} | Domains: {len(out['domain'])} | "
+                             f"URLs: {len(out['url'])} | Hashes: {len(out['hash'])}")
+                self.after(0, lambda m=_msg:
+                    self._intel_result.config(text=m, fg=Colors.GAUGE_GREEN))
+                # Optional: firewall-block the imported IPs (cap for safety)
+                if out['ip']:
+                    try:
+                        from tkinter import messagebox as _mb
+                        _n: Any = len(out['ip'])
+                        if _mb.askyesno(
+                                "Block imported IPs?",
+                                f"{_n} IP(s) were imported.\n\n"
+                                f"Block them now via Windows Firewall?\n"
+                                f"(creates 'Downpour_MISP_<ip>' inbound block rules)"):
+                            _blocked: Any = 0
+                            _failed: Any = 0
+                            import subprocess as _sp
+                            for _ip in out['ip'][:self._MISP_BLOCK_IMPORT_CAP]:
+                                try:
+                                    _r: Any = _sp.run(
+                                        ['netsh', 'advfirewall', 'firewall', 'add', 'rule',
+                                         f'name=Downpour_MISP_{_ip}', 'dir=in', 'action=block',
+                                         f'remoteip={_ip}'],
+                                        capture_output=True, text=True, timeout=8)
+                                    if _r.returncode == 0:
+                                        _blocked += 1
+                                    else:
+                                        _failed += 1
+                                except Exception:
+                                    _failed += 1
+                            _skip: Any = max(0, _n - self._MISP_BLOCK_IMPORT_CAP)
+                            self.after(0, lambda b=_blocked, f=_failed, s=_skip:
+                                self._intel_result.config(
+                                    text=f"[MISP] Firewall: blocked {b} IPs"
+                                         f"{', failed ' + str(f) if f else ''}"
+                                         f"{', skipped ' + str(s) if s else ''}",
+                                    fg=Colors.GAUGE_GREEN if not f else Colors.GAUGE_ORANGE))
+                    except Exception as _be:
+                        self.after(0, lambda m=str(_be):
+                            self._intel_result.config(
+                                text=f"[MISP] Firewall block skipped: {m}",
+                                fg=Colors.GAUGE_ORANGE))
+            except Exception as e:
+                self.after(0, lambda m=str(e):
+                    self._intel_result.config(text=f"[MISP] Import error: {m}",
+                                              fg=Colors.GAUGE_RED))
+        threading.Thread(target=_do, daemon=True).start()
+
+    def _intel_export_misp(self):
+        """Export current intel DB indicators as a MISP-format JSON event."""
+        from tkinter import filedialog as _fd
+        path: Any = _fd.asksaveasfilename(
+            defaultextension=".json",
+            filetypes=[("MISP JSON", "*.json"), ("All files", "*.*")],
+            title="Export Indicators as MISP Event")
+        if not path:
+            return
+
+        def _do():
+            try:
+                attributes: Any = []
+                try:
+                    rows: Any = self.db.execute(
+                        "SELECT ip, source, threat_type FROM malicious_ips")
+                    for ip, src, ttype in rows:
+                        attributes.append({
+                            "type": "ip-src", "category": "Network activity",
+                            "value": ip, "to_ids": True,
+                            "comment": f"source: {src}; {ttype or ''}".strip()})
+                except Exception:
+                    pass
+                try:
+                    rows = self.db.execute(
+                        "SELECT domain, source FROM malicious_domains")
+                    for dom, src in rows:
+                        attributes.append({
+                            "type": "domain", "category": "Network activity",
+                            "value": dom, "to_ids": True,
+                            "comment": f"source: {src}"})
+                except Exception:
+                    pass
+                try:
+                    rows = self.db.execute(
+                        "SELECT url, source FROM malicious_urls")
+                    for url, src in rows:
+                        attributes.append({
+                            "type": "url", "category": "Network activity",
+                            "value": url, "to_ids": True,
+                            "comment": f"source: {src}"})
+                except Exception:
+                    pass
+                try:
+                    rows = self.db.execute(
+                        "SELECT hash, source, threat_name FROM malicious_hashes")
+                    for h, src, name in rows:
+                        _t = 'sha256' if len(h) == 64 else ('sha1' if len(h) == 40 else 'md5')
+                        attributes.append({
+                            "type": _t, "category": "Payload delivery",
+                            "value": h, "to_ids": True,
+                            "comment": f"source: {src}; {name or ''}".strip()})
+                except Exception:
+                    pass
+                event: Any = {
+                    "Event": {
+                        "uuid": str(uuid.uuid4()),
+                        "info": f"Downpour v29 exported indicators",
+                        "date": datetime.now().strftime('%Y-%m-%d'),
+                        "analysis": "2",
+                        "Attribute": attributes,
+                    }
+                }
+                with open(path, 'w') as fh:
+                    json.dump(event, fh, indent=2)
+                self.after(0, lambda n=len(attributes), p=path:
+                    self._intel_result.config(
+                        text=f"[MISP] Exported {n} indicators -> {p}",
+                        fg=Colors.GAUGE_GREEN))
+            except Exception as e:
+                self.after(0, lambda m=str(e):
+                    self._intel_result.config(text=f"[MISP] Export error: {m}",
+                                              fg=Colors.GAUGE_RED))
+        threading.Thread(target=_do, daemon=True).start()
+
+    def _add_custom_feed(self):
+        name: Any = getattr(self, '_custom_db_name', None)
+        url: Any = getattr(self, '_custom_db_url', None)
+        ftype: Any = getattr(self, '_custom_db_type', None)
+        if not (name and url and name.get().strip() and url.get().strip()):
+            from tkinter import messagebox as _mb
+            _mb.showwarning("Missing Info", "Please enter both a Feed Name and a URL.")
+            return
+        entry: Any = {'name': name.get().strip(), 'url': url.get().strip(),
+                 'type': ftype.get() if ftype else 'ip', 'records': 0,
+                 'last_updated': 'Never'}
+        # Save to config
+        try:
+            existing: Any = self.cfg.get('feeds', 'custom', [])
+            existing.append(entry)
+            self.cfg.set('feeds', 'custom', existing)
+        except Exception:
+            pass
+        # Add to intel FEEDS
+        try:
+            self.intel.FEEDS[entry['name']] = (entry['url'], entry['type'], 3600)
+        except Exception:
+            pass
+        # Update UI
+        tree: Any = getattr(self, '_custom_feed_tree', None)
+        if tree:
+            tree.insert('', 'end', values=(entry['name'], entry['type'],
+                                            entry['url'], 0, 'Never'))
+        try:
+            name.set(''); url.set('')
+        except Exception:
+            pass
+
+    def _fetch_custom_feed_now(self):
+        tree: Any = getattr(self, '_custom_feed_tree', None)
+        sel: Any = tree.selection() if tree else ()
+        if not sel:
+            from tkinter import messagebox as _mb
+            _mb.showinfo("Select Feed", "Select a feed from the list to fetch now.")
+            return
+        iid: Any = sel[0]
+        vals: Any = tree.item(iid, 'values')
+        feed_name = vals[0]; feed_url = vals[2]
+        def _do():
+            try:
+                import urllib.request as _ur
+                with _ur.urlopen(feed_url, timeout=15) as r:
+                    data: Any = r.read()
+                count: Any = len([l for l in data.decode('utf-8', errors='replace').splitlines()
+                             if l.strip() and not l.startswith('#')])
+                ts: Any = time.strftime('%Y-%m-%d %H:%M')
+                self.after(0, lambda: tree.item(iid, values=(feed_name, vals[1],
+                                                               feed_url, count, ts)))
+            except Exception as e:
+                self.after(0, lambda _e=str(e)[:40]: tree.item(iid, values=(feed_name, vals[1],
+                                                                              feed_url, 'ERROR', _e)))
+        self._executor.submit(_do)
+
+    def _remove_custom_feed(self):
+        tree: Any = getattr(self, '_custom_feed_tree', None)
+        sel: Any = tree.selection() if tree else ()
+        if not sel:
+            return
+        iid: Any = sel[0]
+        vals: Any = tree.item(iid, 'values')
+        feed_name: Any = vals[0]
+        from tkinter import messagebox as _mb
+        if _mb.askyesno("Remove Feed", f"Remove custom feed '{feed_name}'?"):
+            tree.delete(iid)
+            try:
+                existing: Any = self.cfg.get('feeds', 'custom', [])
+                self.cfg.set('feeds', 'custom', [f for f in existing if f.get('name') != feed_name])
+                self.intel.FEEDS.pop(feed_name, None)
+            except Exception:
+                pass
+
+    def _import_feed_from_file(self):
+        from tkinter import filedialog as _fd
+        path: Any = _fd.askopenfilename(filetypes=[("Text/CSV", "*.txt *.csv"), ("All", "*.*")],
+                                    title = "Import Feed File")
+        if not path:
+            return
+        try:
+            with open(path, 'r', errors='replace') as fh:
+                lines: Any = [l.strip() for l in fh if l.strip() and not l.startswith('#')]
+            import os.path as _op
+            name: Any = _op.splitext(_op.basename(path))[0]
+            try:
+                existing: Any = self.cfg.get('feeds', 'custom', [])
+                existing.append({'name': name, 'url': f'file://{path}',
+                                  'type': 'mixed', 'records': len(lines),
+                                  'last_updated': time.strftime('%Y-%m-%d %H:%M')})
+                self.cfg.set('feeds', 'custom', existing)
+            except Exception:
+                pass
+            tree: Any = getattr(self, '_custom_feed_tree', None)
+            if tree:
+                tree.insert('', 'end', values=(name, 'mixed', path,
+                                                len(lines), time.strftime('%Y-%m-%d %H:%M')))
+            from tkinter import messagebox as _mb
+            _mb.showinfo("Imported", f"Loaded {len(lines)} entries from {_op.basename(path)}")
+        except Exception as e:
+            from tkinter import messagebox as _mb
+            _mb.showerror("Import Error", str(e))
+
+    def _show_feed_stats(self):
+        try:
+            total_feeds: Any = len(getattr(self.intel, 'FEEDS', {}))
+            custom_feeds: Any = len(self.cfg.get('feeds', 'custom', []) or [])  # type: ignore[reportGeneralTypeIssues]
+            _: Any = getattr(self.intel, '_cache_stats', lambda: {})()
+            from tkinter import messagebox as _mb
+            _cache_len: Any = len(getattr(self.intel, '_cache', {}))
+            _last_upd: Any = getattr(self.intel, '_last_full_update', 'Unknown')
+            _mb.showinfo("Feed Statistics",
+                f"Total Feeds Configured: {total_feeds}\n"
+                f"Custom Feeds: {custom_feeds}\n"
+                f"Built-in Feeds: {total_feeds - custom_feeds}\n"
+                f"Cache Size: {_cache_len} entries\n"
+                f"Last Full Update: {_last_upd}"
+            )
+        except Exception as e:
+            from tkinter import messagebox as _mb
+            _mb.showinfo("Feed Stats", f"Stats unavailable: {e}")
+
+    def _load_custom_feeds_ui(self):
+        tree: Any = getattr(self, '_custom_feed_tree', None)
+        if not tree:
+            return
+        try:
+            custom: Any = self.cfg.get('feeds', 'custom', [])
+            for f in custom:
+                tree.insert('', 'end', values=(f.get('name','?'), f.get('type','?'),
+                                                f.get('url','?'), f.get('records',0),
+                                                f.get('last_updated','Never')))
+        except Exception:
+            pass
+
+    # -- Alert context-menu threat response helpers ----------------------------
+
+    def _log_event(self, msg: str) -> None:
+        """Log a user-action event to the alert feed."""
+        try:
+            self._add_alert(f'[ACTION] {msg}', Colors.GAUGE_TEAL)
+        except Exception:
+            pass
+
+    def _get_selected_alert_ip(self) -> str:
+        """Extract IP from selected alert row."""
+        try:
+            sel: Any = self._alert_tree.selection()
+            if not sel:
+                return ''
+            vals: Any = self._alert_tree.item(sel[0], 'values')
+            # Try to find an IP-like value in any column
+            import re as _re
+            for v in vals:
+                m: Any = _re.search(r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b', str(v))
+                if m:
+                    return m.group(1)
+        except Exception:
+            pass
+        return ''
+
+    def _alert_action_block_ip(self):
+        ip: Any = self._get_selected_alert_ip()
+        if not ip:
+            from tkinter import messagebox as _mb
+            _mb.showinfo("Block IP", "No IP found in selected alert.")
+            return
+        try:
+            import subprocess as _sp
+            r: Any = _sp.run(
+                ['netsh', 'advfirewall', 'firewall', 'add', 'rule',
+                 f'name=Downpour_Alert_Block_{ip}', 'dir=in', 'action=block',
+                 f'remoteip={ip}'],
+                capture_output = True, text=True, timeout=10
+            )
+            from tkinter import messagebox as _mb
+            if r.returncode == 0:
+                _mb.showinfo("Blocked", f"Firewall rule added to block {ip}.")
+                self._log_event(f"BLOCKED IP via alert: {ip}")
+            else:
+                _mb.showerror("Error", f"Firewall error: {r.stderr[:120]}")
+        except Exception as e:
+            from tkinter import messagebox as _mb
+            _mb.showerror("Error", str(e))
+
+    def _alert_action_geoip(self):
+        ip: Any = self._get_selected_alert_ip()
+        if not ip:
+            return
+        def _do():
+            try:
+                d: Any = self._ip_api_get(ip, 'country,city,isp,proxy,hosting', timeout=8)
+                if not d or d.get('status') != 'success':
+                    raise ValueError('lookup failed')
+                geo: Any = f"{d.get('city','?')}, {d.get('country','?')} | ISP: {d.get('isp','?')} | Proxy/Hosting: {d.get('proxy','?')}/{d.get('hosting','?')}"
+                self.after(0, lambda: __import__('tkinter.messagebox', fromlist=['showinfo']).showinfo("GeoIP", f"{ip}\n{geo}"))
+            except Exception as e:
+                self.after(0, lambda _e=str(e): __import__('tkinter.messagebox', fromlist=['showerror']).showerror("GeoIP Error", _e))
+        self._executor.submit(_do)
+
+    def _alert_action_rdns(self):
+        ip: Any = self._get_selected_alert_ip()
+        if not ip:
+            return
+        def _do():
+            try:
+                import socket as _s
+                host: Any = _s.gethostbyaddr(ip)[0]
+                self.after(0, lambda: __import__('tkinter.messagebox', fromlist=['showinfo']).showinfo("rDNS", f"{ip} -> {host}"))
+            except Exception as e:
+                self.after(0, lambda _e=str(e): __import__('tkinter.messagebox', fromlist=['showerror']).showerror("rDNS Error", _e))
+        self._executor.submit(_do)
+
+    def _alert_action_vt(self):
+        ip: Any = self._get_selected_alert_ip()
+        if ip:
+            import webbrowser
+            webbrowser.open(f"https://www.virustotal.com/gui/ip-address/{ip}")
+
+    def _alert_action_copy_ioc(self):
+        ip: Any = self._get_selected_alert_ip()
+        if ip:
+            self.clipboard_clear()
+            self.clipboard_append(ip)
+
+    # --------------------------------------------------------------------------
+    #  PARENTAL TAB
+    # --------------------------------------------------------------------------
+
     def _build_parental_tab(self):
         p: Any = self._tab_parental
         tk.Label(p, text="👨‍👩‍👧 PARENTAL CONTROLS", font=('Consolas', 12, 'bold'),
@@ -33744,2617 +34222,6 @@ Verification Status:
 
         self.after(5000, _auto_refresh_cis)
 
-
-    # ==========================================================================
-    #  RESTORED v29.111 - tab content rolled back from the v29.110 merge
-    # --------------------------------------------------------------------------
-    # v29.110 kept only 10 stub tabs and deleted the 48 helpers they used, so
-    # 7 of 10 tabs raised while building (AttributeError on _threats_* /
-    # TclError pack-vs-grid) and the GUI came up nearly empty.  The methods
-    # below are the verified v29.107 bodies, restored verbatim.  The v29.109
-    # HUD theme + neon tab board are kept on top.
-    # ==========================================================================
-
-    def _intel_block_ip(self):
-        """Block the currently checked IP via Windows firewall."""
-        val: Any = getattr(self, '_intel_check_var', None)
-        ip: Any = val.get().strip() if val else ''
-        if not ip:
-            self._intel_result.config(text="Enter an IP first.", fg=Colors.GAUGE_RED)
-            return
-        import re as _re
-        if not _re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', ip):
-            self._intel_result.config(text="Not a valid IPv4 address.", fg=Colors.GAUGE_RED)
-            return
-        try:
-            import subprocess as _sp
-            result: Any = _sp.run(
-                ['netsh', 'advfirewall', 'firewall', 'add', 'rule',
-                 f'name=Downpour_Block_{ip}', 'dir=in', 'action=block',
-                 f'remoteip={ip}'],
-                capture_output = True, text=True, timeout=10
-            )
-            if result.returncode == 0:
-                self._intel_result.config(text=f"[OK] Blocked {ip} via Windows Firewall.", fg=Colors.GAUGE_GREEN)
-            else:
-                self._intel_result.config(text=f"[!] Firewall error: {result.stderr[:80]}", fg=Colors.GAUGE_RED)
-        except Exception as e:
-            self._intel_result.config(text=f"Error: {e}", fg=Colors.GAUGE_RED)
-
-    def _intel_copy_ioc(self):
-        val: Any = getattr(self, '_intel_check_var', None)
-        ioc: Any = val.get().strip() if val else ''
-        if ioc:
-            self.clipboard_clear(); self.clipboard_append(ioc)
-            self._intel_result.config(text=f"[CLIP] Copied: {ioc}", fg=Colors.GAUGE_TEAL)
-
-    def _intel_whois(self):
-        val: Any = getattr(self, '_intel_check_var', None)
-        target: Any = val.get().strip() if val else ''
-        if not target:
-            return
-        import webbrowser
-        webbrowser.open(f"https://www.whois.com/whois/{target}")
-        self._intel_result.config(text=f"[WEB] Opened Whois for {target}", fg=Colors.GAUGE_BLUE)
-
-    def _intel_rdns(self):
-        val: Any = getattr(self, '_intel_check_var', None)
-        ip: Any = val.get().strip() if val else ''
-        if not ip:
-            return
-        def _do():
-            try:
-                import socket as _s
-                host: Any = _s.gethostbyaddr(ip)[0]
-                self.after(0, lambda: self._intel_result.config(
-                    text = f"[NET] rDNS: {ip} -> {host}", fg=Colors.GAUGE_GREEN))
-            except Exception as e:
-                self.after(0, lambda _e=str(e): self._intel_result.config(
-                    text = f"rDNS failed: {_e}", fg=Colors.GAUGE_RED))
-        self._executor.submit(_do)
-
-    def _intel_geoip(self):
-        val: Any = getattr(self, '_intel_check_var', None)
-        ip: Any = val.get().strip() if val else ''
-        if not ip:
-            return
-        def _do():
-            try:
-                import json as _j
-                d: Any = self._ip_api_get(ip, 'country,city,isp,as,proxy,hosting', timeout=8)
-                if not d or d.get('status') != 'success':
-                    raise ValueError('lookup failed')
-                geo: Any = f"{d.get('city','?')}, {d.get('country','?')} | ISP: {d.get('isp','?')} | Proxy: {d.get('proxy','?')}"
-                self.after(0, lambda: self._intel_result.config(text=f"[GLOBE] {geo}", fg=Colors.GAUGE_CYAN))
-            except Exception as e:
-                self.after(0, lambda _e=str(e): self._intel_result.config(text=f"GeoIP error: {_e}", fg=Colors.GAUGE_RED))
-        self._executor.submit(_do)
-
-    def _intel_export_report(self):
-        from tkinter import filedialog as _fd
-        path: Any = _fd.asksaveasfilename(defaultextension=".txt",
-            filetypes = [("Text", "*.txt"), ("CSV", "*.csv"), ("JSON", "*.json")],
-            title = "Export Intel Report")
-        if not path:
-            return
-        try:
-            _ts: Any = time.strftime('%Y-%m-%d %H:%M:%S')
-            lines: Any = [f"Downpour Intel Report  -  {_ts}\n" + "="*60 + "\n"]
-            tree: Any = getattr(self, '_intel_tree', None)
-            if tree:
-                for iid in tree.get_children():
-                    vals: Any = tree.item(iid, 'values')
-                    lines.append("  ".join(str(v) for v in vals))
-            with open(path, 'w') as fh:
-                fh.write("\n".join(lines))
-            self._intel_result.config(text=f"Exported to {path}", fg=Colors.GAUGE_GREEN)
-        except Exception as e:
-            self._intel_result.config(text=f"Export error: {e}", fg=Colors.GAUGE_RED)
-
-    def _intel_submit_vt(self):
-        val: Any = getattr(self, '_intel_check_var', None)
-        ioc: Any = val.get().strip() if val else ''
-        if ioc:
-            import webbrowser
-            webbrowser.open(f"https://www.virustotal.com/gui/search/{ioc}")
-            self._intel_result.config(text=f"[ZAP] Opened VirusTotal for {ioc}", fg=Colors.GAUGE_ORANGE)
-
-    def _misp_classify_value(self, val: str) -> str:
-        """Map a raw MISP value to a store category: ip/domain/url/hash."""
-        if not val or len(val) < 4 or len(val) > 500:
-            return ''
-        if val.startswith(('http://', 'https://', 'ftp://')):
-            return 'url'
-        if re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', val):
-            parts: Any = val.split('.')
-            if all(0 <= int(p) <= 255 for p in parts):
-                if not (val.startswith('10.') or val.startswith('192.168.') or
-                        val.startswith('172.') or val == '127.0.0.1' or val == '0.0.0.0'):
-                    return 'ip'
-        if re.match(r'^[0-9a-fA-F]{32}$', val) or re.match(r'^[0-9a-fA-F]{40}$', val) \
-                or re.match(r'^[0-9a-fA-F]{64}$', val):
-            return 'hash'
-        if re.match(r'^[a-zA-Z0-9][a-zA-Z0-9\-]*(\.[a-zA-Z0-9][a-zA-Z0-9\-]*)*\.[a-zA-Z]{2,63}$',
-                    val) and '/' not in val:
-            if val not in ('localhost', 'localdomain', 'local', 'example.com'):
-                return 'domain'
-        return ''
-
-    def _misp_extract_iocs(self, obj: Any, out: dict) -> None:
-        """Recursively extract indicators from a MISP/STIX JSON node into
-        out = {'ip': [], 'domain': [], 'url': [], 'hash': []}."""
-        if isinstance(obj, dict):
-            # MISP Event.Attribute entries
-            if 'type' in obj and ('value' in obj):
-                _t: Any = str(obj.get('type', '')).lower()
-                _v: Any = str(obj.get('value', '')).strip()
-                # type hints from MISP: ip-src/ip-dst, domain/hostname, url,
-                # sha256/sha1/md5, filename|sha256 composite
-                _main: Any = _v.partition('|')[0]
-                _cat: Any = self._misp_classify_value(_v)
-                if _cat:
-                    out[_cat].append(_v)
-                    return
-            # STIX 2.0 objects
-            if obj.get('type') == 'ipv4-addr' and obj.get('value'):
-                _cat = self._misp_classify_value(str(obj['value']))
-                if _cat == 'ip':
-                    out['ip'].append(str(obj['value']))
-                return
-            if obj.get('type') == 'domain-name' and obj.get('value'):
-                out['domain'].append(str(obj['value']).lower())
-                return
-            if obj.get('type') == 'url' and obj.get('value'):
-                out['url'].append(str(obj['value']))
-                return
-            if obj.get('type') == 'file':
-                _fh: Any = obj.get('hashes') or {}
-                if isinstance(_fh, dict):
-                    for _h in _fh.values():
-                        if isinstance(_h, str) and self._misp_classify_value(_h) == 'hash':
-                            out['hash'].append(_h.lower())
-                return
-            if obj.get('type') == 'indicator' and obj.get('pattern'):
-                # STIX pattern: [ipv4-addr:value = '1.2.3.4'] / [url:value = '...']
-                for _m in re.finditer(r"value\s*=\s*'([^']+)'", str(obj['pattern'])):
-                    _cat = self._misp_classify_value(_m.group(1))
-                    if _cat:
-                        out[_cat].append(_m.group(1))
-                for _m in re.finditer(r"hashes\.'[^']+'\s*=\s*'([^']+)'",
-                                      str(obj['pattern'])):
-                    if self._misp_classify_value(_m.group(1)) == 'hash':
-                        out['hash'].append(_m.group(1).lower())
-                return
-            # descend into containers (top-level: Event, objects, response,
-            # Attribute lists, etc.); only fall back to generic dict scan if
-            # none of the known containers were present
-            for _k in ('Event', 'Attribute', 'objects', 'object', 'response'):
-                _c: Any = obj.get(_k)
-                if _c is not None:
-                    if isinstance(_c, (dict, list)):
-                        self._misp_extract_iocs(_c, out)
-                    return
-            # generic dict values fallback
-            for _v2 in obj.values():
-                if isinstance(_v2, (dict, list)):
-                    self._misp_extract_iocs(_v2, out)
-        elif isinstance(obj, list):
-            for _it in obj:
-                self._misp_extract_iocs(_it, out)
-
-    def _intel_import_misp(self):
-        """Import MISP event JSON / STIX bundle / plain IOC list into intel DB."""
-        from tkinter import filedialog as _fd
-        path: Any = _fd.askopenfilename(
-            filetypes=[("MISP/STIX/IOC files", "*.json *.txt *.csv *.ioc"),
-                       ("All files", "*.*")],
-            title="Import MISP / STIX / IOC Indicators")
-        if not path:
-            return
-
-        def _do():
-            try:
-                with open(path, 'r', errors='replace') as fh:
-                    raw: Any = fh.read()
-                out: Any = {'ip': [], 'domain': [], 'url': [], 'hash': []}
-                stripped: Any = raw.strip()
-                try:
-                    data: Any = json.loads(stripped)
-                    self._misp_extract_iocs(data, out)
-                except Exception:
-                    # plain text IOC list, one per line (hosts-format aware)
-                    for line in raw.splitlines():
-                        line = line.strip()
-                        if not line or line.startswith('#') or line.startswith(';') \
-                                or line.startswith('!'):
-                            continue
-                        if line.startswith('0.0.0.0 ') or line.startswith('127.0.0.1 '):
-                            line = line.split()[1]
-                        if ',' in line:
-                            for part in line.split(','):
-                                part = part.strip().strip('"').strip("'")
-                                if part:
-                                    self._misp_extract_iocs({'type': 'x', 'value': part}, out)
-                        else:
-                            self._misp_extract_iocs({'type': 'x', 'value': line}, out)
-                # dedupe
-                for _k in out:
-                    out[_k] = list(dict.fromkeys(out[_k]))
-                total: Any = sum(len(v) for v in out.values())
-                if not total:
-                    self.after(0, lambda:
-                        self._intel_result.config(
-                            text=f"[MISP] No recognizable indicators in {path}",
-                            fg=Colors.GAUGE_ORANGE))
-                    return
-                import os as _os
-                _src: Any = f"MISP-Import:{_os.path.basename(path)}"
-                _ts: Any = datetime.now().isoformat()
-                # write into the same tables _store_iocs() uses
-                if out['ip']:
-                    for _bi in range(0, min(len(out['ip']), 50000), 2000):
-                        self.db.executemany(
-                            "INSERT OR IGNORE INTO malicious_ips (ip, source, added, threat_type) VALUES (?,?,?,?)",
-                            [(ip, _src, _ts, 'MISP') for ip in out['ip'][_bi:_bi+2000]])
-                if out['url']:
-                    for _bi in range(0, min(len(out['url']), 50000), 2000):
-                        self.db.executemany(
-                            "INSERT OR IGNORE INTO malicious_urls (url, source, added) VALUES (?,?,?)",
-                            [(u, _src, _ts) for u in out['url'][_bi:_bi+2000]])
-                if out['hash']:
-                    for _bi in range(0, min(len(out['hash']), 50000), 2000):
-                        self.db.executemany(
-                            "INSERT OR IGNORE INTO malicious_hashes (hash, source, threat_name, added) VALUES (?,?,?,?)",
-                            [(h, _src, 'MISP', _ts) for h in out['hash'][_bi:_bi+2000]])
-                if out['domain']:
-                    for _bi in range(0, min(len(out['domain']), 50000), 2000):
-                        self.db.executemany(
-                            "INSERT OR IGNORE INTO malicious_domains (domain, source, added) VALUES (?,?,?)",
-                            [(d, _src, _ts) for d in out['domain'][_bi:_bi+2000]])
-                _msg: Any = (f"[MISP] Imported {total} indicators from "
-                             f"{_os.path.basename(path)}\n"
-                             f"  IPs: {len(out['ip'])} | Domains: {len(out['domain'])} | "
-                             f"URLs: {len(out['url'])} | Hashes: {len(out['hash'])}")
-                self.after(0, lambda m=_msg:
-                    self._intel_result.config(text=m, fg=Colors.GAUGE_GREEN))
-                # Optional: firewall-block the imported IPs (cap for safety)
-                if out['ip']:
-                    try:
-                        from tkinter import messagebox as _mb
-                        _n: Any = len(out['ip'])
-                        if _mb.askyesno(
-                                "Block imported IPs?",
-                                f"{_n} IP(s) were imported.\n\n"
-                                f"Block them now via Windows Firewall?\n"
-                                f"(creates 'Downpour_MISP_<ip>' inbound block rules)"):
-                            _blocked: Any = 0
-                            _failed: Any = 0
-                            import subprocess as _sp
-                            for _ip in out['ip'][:self._MISP_BLOCK_IMPORT_CAP]:
-                                try:
-                                    _r: Any = _sp.run(
-                                        ['netsh', 'advfirewall', 'firewall', 'add', 'rule',
-                                         f'name=Downpour_MISP_{_ip}', 'dir=in', 'action=block',
-                                         f'remoteip={_ip}'],
-                                        capture_output=True, text=True, timeout=8)
-                                    if _r.returncode == 0:
-                                        _blocked += 1
-                                    else:
-                                        _failed += 1
-                                except Exception:
-                                    _failed += 1
-                            _skip: Any = max(0, _n - self._MISP_BLOCK_IMPORT_CAP)
-                            self.after(0, lambda b=_blocked, f=_failed, s=_skip:
-                                self._intel_result.config(
-                                    text=f"[MISP] Firewall: blocked {b} IPs"
-                                         f"{', failed ' + str(f) if f else ''}"
-                                         f"{', skipped ' + str(s) if s else ''}",
-                                    fg=Colors.GAUGE_GREEN if not f else Colors.GAUGE_ORANGE))
-                    except Exception as _be:
-                        self.after(0, lambda m=str(_be):
-                            self._intel_result.config(
-                                text=f"[MISP] Firewall block skipped: {m}",
-                                fg=Colors.GAUGE_ORANGE))
-            except Exception as e:
-                self.after(0, lambda m=str(e):
-                    self._intel_result.config(text=f"[MISP] Import error: {m}",
-                                              fg=Colors.GAUGE_RED))
-        threading.Thread(target=_do, daemon=True).start()
-
-    def _intel_export_misp(self):
-        """Export current intel DB indicators as a MISP-format JSON event."""
-        from tkinter import filedialog as _fd
-        path: Any = _fd.asksaveasfilename(
-            defaultextension=".json",
-            filetypes=[("MISP JSON", "*.json"), ("All files", "*.*")],
-            title="Export Indicators as MISP Event")
-        if not path:
-            return
-
-        def _do():
-            try:
-                attributes: Any = []
-                try:
-                    rows: Any = self.db.execute(
-                        "SELECT ip, source, threat_type FROM malicious_ips")
-                    for ip, src, ttype in rows:
-                        attributes.append({
-                            "type": "ip-src", "category": "Network activity",
-                            "value": ip, "to_ids": True,
-                            "comment": f"source: {src}; {ttype or ''}".strip()})
-                except Exception:
-                    pass
-                try:
-                    rows = self.db.execute(
-                        "SELECT domain, source FROM malicious_domains")
-                    for dom, src in rows:
-                        attributes.append({
-                            "type": "domain", "category": "Network activity",
-                            "value": dom, "to_ids": True,
-                            "comment": f"source: {src}"})
-                except Exception:
-                    pass
-                try:
-                    rows = self.db.execute(
-                        "SELECT url, source FROM malicious_urls")
-                    for url, src in rows:
-                        attributes.append({
-                            "type": "url", "category": "Network activity",
-                            "value": url, "to_ids": True,
-                            "comment": f"source: {src}"})
-                except Exception:
-                    pass
-                try:
-                    rows = self.db.execute(
-                        "SELECT hash, source, threat_name FROM malicious_hashes")
-                    for h, src, name in rows:
-                        _t = 'sha256' if len(h) == 64 else ('sha1' if len(h) == 40 else 'md5')
-                        attributes.append({
-                            "type": _t, "category": "Payload delivery",
-                            "value": h, "to_ids": True,
-                            "comment": f"source: {src}; {name or ''}".strip()})
-                except Exception:
-                    pass
-                event: Any = {
-                    "Event": {
-                        "uuid": str(uuid.uuid4()),
-                        "info": f"Downpour v29 exported indicators",
-                        "date": datetime.now().strftime('%Y-%m-%d'),
-                        "analysis": "2",
-                        "Attribute": attributes,
-                    }
-                }
-                with open(path, 'w') as fh:
-                    json.dump(event, fh, indent=2)
-                self.after(0, lambda n=len(attributes), p=path:
-                    self._intel_result.config(
-                        text=f"[MISP] Exported {n} indicators -> {p}",
-                        fg=Colors.GAUGE_GREEN))
-            except Exception as e:
-                self.after(0, lambda m=str(e):
-                    self._intel_result.config(text=f"[MISP] Export error: {m}",
-                                              fg=Colors.GAUGE_RED))
-        threading.Thread(target=_do, daemon=True).start()
-
-    def _add_custom_feed(self):
-        name: Any = getattr(self, '_custom_db_name', None)
-        url: Any = getattr(self, '_custom_db_url', None)
-        ftype: Any = getattr(self, '_custom_db_type', None)
-        if not (name and url and name.get().strip() and url.get().strip()):
-            from tkinter import messagebox as _mb
-            _mb.showwarning("Missing Info", "Please enter both a Feed Name and a URL.")
-            return
-        entry: Any = {'name': name.get().strip(), 'url': url.get().strip(),
-                 'type': ftype.get() if ftype else 'ip', 'records': 0,
-                 'last_updated': 'Never'}
-        # Save to config
-        try:
-            existing: Any = self.cfg.get('feeds', 'custom', [])
-            existing.append(entry)
-            self.cfg.set('feeds', 'custom', existing)
-        except Exception:
-            pass
-        # Add to intel FEEDS
-        try:
-            self.intel.FEEDS[entry['name']] = (entry['url'], entry['type'], 3600)
-        except Exception:
-            pass
-        # Update UI
-        tree: Any = getattr(self, '_custom_feed_tree', None)
-        if tree:
-            tree.insert('', 'end', values=(entry['name'], entry['type'],
-                                            entry['url'], 0, 'Never'))
-        try:
-            name.set(''); url.set('')
-        except Exception:
-            pass
-
-    def _fetch_custom_feed_now(self):
-        tree: Any = getattr(self, '_custom_feed_tree', None)
-        sel: Any = tree.selection() if tree else ()
-        if not sel:
-            from tkinter import messagebox as _mb
-            _mb.showinfo("Select Feed", "Select a feed from the list to fetch now.")
-            return
-        iid: Any = sel[0]
-        vals: Any = tree.item(iid, 'values')
-        feed_name = vals[0]; feed_url = vals[2]
-        def _do():
-            try:
-                import urllib.request as _ur
-                with _ur.urlopen(feed_url, timeout=15) as r:
-                    data: Any = r.read()
-                count: Any = len([l for l in data.decode('utf-8', errors='replace').splitlines()
-                             if l.strip() and not l.startswith('#')])
-                ts: Any = time.strftime('%Y-%m-%d %H:%M')
-                self.after(0, lambda: tree.item(iid, values=(feed_name, vals[1],
-                                                               feed_url, count, ts)))
-            except Exception as e:
-                self.after(0, lambda _e=str(e)[:40]: tree.item(iid, values=(feed_name, vals[1],
-                                                                              feed_url, 'ERROR', _e)))
-        self._executor.submit(_do)
-
-    def _remove_custom_feed(self):
-        tree: Any = getattr(self, '_custom_feed_tree', None)
-        sel: Any = tree.selection() if tree else ()
-        if not sel:
-            return
-        iid: Any = sel[0]
-        vals: Any = tree.item(iid, 'values')
-        feed_name: Any = vals[0]
-        from tkinter import messagebox as _mb
-        if _mb.askyesno("Remove Feed", f"Remove custom feed '{feed_name}'?"):
-            tree.delete(iid)
-            try:
-                existing: Any = self.cfg.get('feeds', 'custom', [])
-                self.cfg.set('feeds', 'custom', [f for f in existing if f.get('name') != feed_name])
-                self.intel.FEEDS.pop(feed_name, None)
-            except Exception:
-                pass
-
-    def _import_feed_from_file(self):
-        from tkinter import filedialog as _fd
-        path: Any = _fd.askopenfilename(filetypes=[("Text/CSV", "*.txt *.csv"), ("All", "*.*")],
-                                    title = "Import Feed File")
-        if not path:
-            return
-        try:
-            with open(path, 'r', errors='replace') as fh:
-                lines: Any = [l.strip() for l in fh if l.strip() and not l.startswith('#')]
-            import os.path as _op
-            name: Any = _op.splitext(_op.basename(path))[0]
-            try:
-                existing: Any = self.cfg.get('feeds', 'custom', [])
-                existing.append({'name': name, 'url': f'file://{path}',
-                                  'type': 'mixed', 'records': len(lines),
-                                  'last_updated': time.strftime('%Y-%m-%d %H:%M')})
-                self.cfg.set('feeds', 'custom', existing)
-            except Exception:
-                pass
-            tree: Any = getattr(self, '_custom_feed_tree', None)
-            if tree:
-                tree.insert('', 'end', values=(name, 'mixed', path,
-                                                len(lines), time.strftime('%Y-%m-%d %H:%M')))
-            from tkinter import messagebox as _mb
-            _mb.showinfo("Imported", f"Loaded {len(lines)} entries from {_op.basename(path)}")
-        except Exception as e:
-            from tkinter import messagebox as _mb
-            _mb.showerror("Import Error", str(e))
-
-    def _show_feed_stats(self):
-        try:
-            total_feeds: Any = len(getattr(self.intel, 'FEEDS', {}))
-            custom_feeds: Any = len(self.cfg.get('feeds', 'custom', []) or [])  # type: ignore[reportGeneralTypeIssues]
-            _: Any = getattr(self.intel, '_cache_stats', lambda: {})()
-            from tkinter import messagebox as _mb
-            _cache_len: Any = len(getattr(self.intel, '_cache', {}))
-            _last_upd: Any = getattr(self.intel, '_last_full_update', 'Unknown')
-            _mb.showinfo("Feed Statistics",
-                f"Total Feeds Configured: {total_feeds}\n"
-                f"Custom Feeds: {custom_feeds}\n"
-                f"Built-in Feeds: {total_feeds - custom_feeds}\n"
-                f"Cache Size: {_cache_len} entries\n"
-                f"Last Full Update: {_last_upd}"
-            )
-        except Exception as e:
-            from tkinter import messagebox as _mb
-            _mb.showinfo("Feed Stats", f"Stats unavailable: {e}")
-
-    def _load_custom_feeds_ui(self):
-        tree: Any = getattr(self, '_custom_feed_tree', None)
-        if not tree:
-            return
-        try:
-            custom: Any = self.cfg.get('feeds', 'custom', [])
-            for f in custom:
-                tree.insert('', 'end', values=(f.get('name','?'), f.get('type','?'),
-                                                f.get('url','?'), f.get('records',0),
-                                                f.get('last_updated','Never')))
-        except Exception:
-            pass
-
-    def _log_event(self, msg: str) -> None:
-        """Log a user-action event to the alert feed."""
-        try:
-            self._add_alert(f'[ACTION] {msg}', Colors.GAUGE_TEAL)
-        except Exception:
-            pass
-
-    def _get_selected_alert_ip(self) -> str:
-        """Extract IP from selected alert row."""
-        try:
-            sel: Any = self._alert_tree.selection()
-            if not sel:
-                return ''
-            vals: Any = self._alert_tree.item(sel[0], 'values')
-            # Try to find an IP-like value in any column
-            import re as _re
-            for v in vals:
-                m: Any = _re.search(r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b', str(v))
-                if m:
-                    return m.group(1)
-        except Exception:
-            pass
-        return ''
-
-    def _alert_action_block_ip(self):
-        ip: Any = self._get_selected_alert_ip()
-        if not ip:
-            from tkinter import messagebox as _mb
-            _mb.showinfo("Block IP", "No IP found in selected alert.")
-            return
-        try:
-            import subprocess as _sp
-            r: Any = _sp.run(
-                ['netsh', 'advfirewall', 'firewall', 'add', 'rule',
-                 f'name=Downpour_Alert_Block_{ip}', 'dir=in', 'action=block',
-                 f'remoteip={ip}'],
-                capture_output = True, text=True, timeout=10
-            )
-            from tkinter import messagebox as _mb
-            if r.returncode == 0:
-                _mb.showinfo("Blocked", f"Firewall rule added to block {ip}.")
-                self._log_event(f"BLOCKED IP via alert: {ip}")
-            else:
-                _mb.showerror("Error", f"Firewall error: {r.stderr[:120]}")
-        except Exception as e:
-            from tkinter import messagebox as _mb
-            _mb.showerror("Error", str(e))
-
-    def _alert_action_geoip(self):
-        ip: Any = self._get_selected_alert_ip()
-        if not ip:
-            return
-        def _do():
-            try:
-                d: Any = self._ip_api_get(ip, 'country,city,isp,proxy,hosting', timeout=8)
-                if not d or d.get('status') != 'success':
-                    raise ValueError('lookup failed')
-                geo: Any = f"{d.get('city','?')}, {d.get('country','?')} | ISP: {d.get('isp','?')} | Proxy/Hosting: {d.get('proxy','?')}/{d.get('hosting','?')}"
-                self.after(0, lambda: __import__('tkinter.messagebox', fromlist=['showinfo']).showinfo("GeoIP", f"{ip}\n{geo}"))
-            except Exception as e:
-                self.after(0, lambda _e=str(e): __import__('tkinter.messagebox', fromlist=['showerror']).showerror("GeoIP Error", _e))
-        self._executor.submit(_do)
-
-    def _alert_action_rdns(self):
-        ip: Any = self._get_selected_alert_ip()
-        if not ip:
-            return
-        def _do():
-            try:
-                import socket as _s
-                host: Any = _s.gethostbyaddr(ip)[0]
-                self.after(0, lambda: __import__('tkinter.messagebox', fromlist=['showinfo']).showinfo("rDNS", f"{ip} -> {host}"))
-            except Exception as e:
-                self.after(0, lambda _e=str(e): __import__('tkinter.messagebox', fromlist=['showerror']).showerror("rDNS Error", _e))
-        self._executor.submit(_do)
-
-    def _alert_action_vt(self):
-        ip: Any = self._get_selected_alert_ip()
-        if ip:
-            import webbrowser
-            webbrowser.open(f"https://www.virustotal.com/gui/ip-address/{ip}")
-
-    def _alert_action_copy_ioc(self):
-        ip: Any = self._get_selected_alert_ip()
-        if ip:
-            self.clipboard_clear()
-            self.clipboard_append(ip)
-
-    def _threats_tab_refresh(self):
-        """Rebuild treeview from _threat_log applying current filter.
-        v29: also computes risk score and fires auto-remediation if enabled.
-        """
-        if not hasattr(self, '_thr_tree'):
-            return
-        self._threats_apply_filter()
-        crit: Any = sum(1 for t in self._threat_log if t['severity'] == 'CRITICAL')
-        high: Any = sum(1 for t in self._threat_log if t['severity'] == 'HIGH')
-        med: Any = sum(1 for t in self._threat_log if t['severity'] == 'MEDIUM')
-        info: Any = sum(1 for t in self._threat_log if t['severity'] == 'INFO')
-        try:
-            self._thr_crit_var.set(str(crit))
-            self._thr_high_var.set(str(high))
-            self._thr_med_var.set(str(med))
-            self._thr_info_var.set(str(info))
-            # Risk score: weighted sum
-            risk_pts: Any = crit * 10 + high * 4 + med * 1
-            if risk_pts == 0:
-                risk_txt = 'Risk: CLEAR'
-            elif risk_pts < 5:
-                risk_txt = f'Risk: LOW ({risk_pts})'
-            elif risk_pts < 20:
-                risk_txt = f'Risk: MEDIUM ({risk_pts})'
-            elif risk_pts < 50:
-                risk_txt = f'Risk: HIGH ({risk_pts})'
-            else:
-                risk_txt = f'Risk: CRITICAL ({risk_pts})'
-            if hasattr(self, '_thr_risk_var'):
-                self._thr_risk_var.set(risk_txt)
-            total_active: Any = sum(1 for t in self._threat_log if t['status'] == 'New')
-            self._threat_count_lbl.config(
-                text = f'Threats: {total_active}',
-                fg = Colors.GAUGE_RED if total_active else Colors.TEXT_DIM)
-            # v29: auto-remediation hook
-            if getattr(self, '_auto_remediate_var', None) and self._auto_remediate_var.get():
-                new_crits: Any = [t for t in self._threat_log
-                             if t['severity'] == 'CRITICAL' and t['status'] == 'New']
-                if new_crits:
-                    import threading
-                    def _auto():
-                        for entry in new_crits:
-                            try:
-                                self._threats_basic_remediate(entry)
-                                entry['status'] = 'Remediated'
-                            except Exception:
-                                pass
-                        self.after(0, self._threats_tab_refresh)
-                    threading.Thread(target=_auto, daemon=True).start()
-        except Exception:
-            pass
-
-    def _threats_apply_filter(self):
-        if not hasattr(self, '_thr_tree'):
-            return
-        filt: Any = getattr(self, '_thr_filter_var', None)
-        srch: Any = getattr(self, '_thr_search_var', None)
-        fval: Any = filt.get() if filt else 'All'
-        sval: Any = srch.get().lower() if srch else ''
-
-        self._thr_tree.delete(*self._thr_tree.get_children())
-        for entry in reversed(self._threat_log):   # newest first
-            sev: Any = entry['severity']
-            status: Any = entry['status']
-
-            # Filter by severity / status
-            if fval == 'New Only'    and status != 'New':           continue
-            if fval == 'Remediated'  and status != 'Remediated':    continue
-            if fval not in ('All', 'New Only', 'Remediated') and sev.capitalize() != fval:
-                continue
-            # Search filter
-            if sval and sval not in entry['description'].lower() \
-                    and sval not in entry.get('mitre', '').lower() \
-                    and sval not in entry['category'].lower():
-                continue
-
-            tag: Any = {'CRITICAL': 'critical', 'HIGH': 'high',
-                   'MEDIUM': 'medium', 'INFO': 'info'}.get(sev, 'info')
-            if status == 'FP':          tag = 'fp'
-            elif status == 'Dismissed': tag = 'dismissed'
-            elif status == 'Remediated':tag = 'remediated'
-            elif status == 'Quarantined':tag= 'quarantined'
-
-            desc: Any = entry['description']
-            if len(desc) > 160:
-                desc: Any = desc[:157] + '…'
-            mitre: Any = entry.get('mitre', '')
-
-            self._thr_tree.insert('', 'end',
-                iid = str(entry['idx']),
-                values = (entry['time'], sev, entry['category'],
-                        mitre, desc, status),
-                tags = (tag,))
-
-
-    def _threats_filter_changed(self):
-        """Callback when threat filter changes - re-applies filter."""
-        self._threats_apply_filter()
-
-
-    def _threats_sort(self, col: str):
-        rev: Any = self._thr_sort_dirs.get(col, False)
-        items: Any = [(self._thr_tree.set(k, col), k)
-                 for k in self._thr_tree.get_children('')]
-        items.sort(key=lambda x: x[0].lower(), reverse=rev)
-        for idx, (_, k) in enumerate(items):
-            self._thr_tree.move(k, '', idx)
-        self._thr_sort_dirs[col] = not rev
-
-    def _threats_selected_entries(self) -> list:
-        """Return list of log entries for selected treeview rows."""
-        sel: Any = self._thr_tree.selection()
-        result: Any = []
-        for iid in sel:
-            try:
-                idx: Any = int(iid)
-                entry: Any = next((e for e in self._threat_log if e['idx'] == idx), None)
-                if entry:
-                    result.append(entry)
-            except Exception:
-                pass
-        return result
-
-    def _threats_kill_selected(self):
-        """Extract PID or process name from selected alert and kill it."""
-        import re, subprocess, tkinter.messagebox as mb
-        entries: Any = self._threats_selected_entries()
-        if not entries:
-            mb.showwarning('Threats', 'Select one or more threats first.')
-            return
-        names: Any = [e['description'][:80] for e in entries]
-        count: Any = len(entries)
-        if not self._confirm_risk(
-                'Kill Threats',
-                f'Force-terminate {count} process(es)?\n\n'
-                + '\n'.join('• ' + n for n in names[:8])
-                + ('\n…and more' if count > 8 else '')
-                + '\n\nProcesses are killed with /F. Unsaved work WILL BE LOST.'
-                + ('\nPlease confirm.' if count < 5 else '\nThis is a force-kill.')):
-            return
-        killed: Any = []
-        errors: Any = []
-        for entry in entries:
-            msg: Any = entry['description']
-            # Try PID first (common pattern: PID 1234, pid=1234)
-            pid_m: Any = re.search(r'\bpid[=:\s]+(\d+)', msg, re.IGNORECASE)
-            if not pid_m:
-                pid_m: Any = re.search(r'\bPID[:\s]+(\d+)', msg)
-            if pid_m:
-                pid: Any = pid_m.group(1)
-                try:
-                    subprocess.run(['taskkill', '/F', '/PID', pid],
-                                   capture_output = True, timeout=10,
-                                   creationflags = subprocess.CREATE_NO_WINDOW)
-                    killed.append(f'PID {pid}')
-                    entry['status'] = 'Killed'
-                except Exception as e:
-                    errors.append(str(e))
-            else:
-                # Try to extract .exe name
-                name_m: Any = re.search(r'[\w\-]+\.exe', msg, re.IGNORECASE)
-                if name_m:
-                    name: Any = name_m.group(0)
-                    try:
-                        subprocess.run(['taskkill', '/F', '/IM', name],
-                                       capture_output = True, timeout=10,
-                                       creationflags = subprocess.CREATE_NO_WINDOW)
-                        killed.append(name)
-                        entry['status'] = 'Killed'
-                    except Exception as e:
-                        errors.append(str(e))
-                else:
-                    errors.append(f'No PID/process found in: {msg[:80]}')
-        self._threats_tab_refresh()
-        result: Any = f'Killed: {", ".join(killed)}' if killed else 'Nothing killed.'
-        if errors:
-            result += f'\nErrors: {"; ".join(errors[:3])}'
-        mb.showinfo('Kill Process', result)
-
-    def _threats_block_ip(self):
-        """Extract IP from selected alert and add Firewall block rules."""
-        import re, subprocess, tkinter.messagebox as mb
-        entries: Any = self._threats_selected_entries()
-        if not entries:
-            mb.showwarning('Threats', 'Select one or more threats first.')
-            return
-        blocked: Any = []
-        errors: Any = []
-        # IPv4 pattern
-        ip_pat: Any = re.compile(r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b')
-        for entry in entries:
-            ips: Any = ip_pat.findall(entry['description'])
-            # Exclude loopback / private false-positives from auto-block
-            ips: Any = [ip for ip in ips
-                   if not ip.startswith(('127.', '0.', '255.', '224.'))]
-            if not ips:
-                errors.append(f'No public IP in: {entry["description"][:80]}')
-                continue
-            for ip in set(ips[:3]):  # max 3 IPs per alert
-                rule: Any = f'DOWNPOUR_BLOCK_{ip}'
-                for d in ('in', 'out'):
-                    try:
-                        subprocess.run(
-                            ['netsh', 'advfirewall', 'firewall', 'add', 'rule',
-                             f'name={rule}_{d}', f'dir={d}', 'action=block',
-                             'enable=yes', f'remoteip={ip}'],
-                            capture_output = True, timeout=10,
-                            creationflags = subprocess.CREATE_NO_WINDOW)
-                    except Exception as e:
-                        errors.append(str(e))
-                blocked.append(ip)
-                entry['status'] = 'Blocked'
-        self._threats_tab_refresh()
-        result: Any = (f'Blocked: {", ".join(blocked)}\n'
-                  f'Inbound + outbound firewall rules added.')
-        if errors:
-            result += f'\nIssues: {"; ".join(errors[:3])}'
-        mb.showinfo('Block IP', result)
-
-    def _threats_remediate_selected(self):
-        """Run full 5-layer remediation on selected threat."""
-        import tkinter.messagebox as mb
-        entries: Any = self._threats_selected_entries()
-        if not entries:
-            mb.showwarning('Threats', 'Select a threat to remediate.')
-            return
-        try:
-            from advanced_threat_remediation import get_engine, ThreatProfile
-            eng: Any = get_engine()
-            if not eng:
-                mb.showerror('Remediation', 'Remediation engine not available.')
-                return
-        except ImportError:
-            mb.showerror('Remediation',
-                         'advanced_threat_remediation.py not found.')
-            return
-
-        entry: Any = entries[0]
-        name_m_proc: Any = re.search(r'[\w\-]+\.exe', entry['description'], re.IGNORECASE)
-        profile: Any = ThreatProfile(
-            threat_id = f"THREAT_{entry['idx']}",
-            threat_type = entry['category'],
-            threat_family = entry['category'],
-            severity = entry['severity'],
-            summary = entry['description'][:200],
-            processes = [name_m_proc.group(0)] if name_m_proc else [],
-        )
-
-        import threading
-        def _run():
-            result: Any = eng.full_remediation(profile)
-            ok: Any = sum(1 for a in result.actions_taken if a.success)
-
-            # Log to remediation history
-            remediation_entry = {
-                'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'threat_id': profile.threat_id,
-                'threat_type': profile.threat_type,
-                'actions': [
-                    {
-                        'action_type': a.action_type,
-                        'target': a.target,
-                        'description': a.description,
-                        'success': a.success,
-                        'requires_reboot': a.requires_reboot,
-                        'requires_admin': a.requires_admin
-                    } for a in result.actions_taken
-                ],
-                'status': 'Success' if ok == len(result.actions_taken) else ('Partial' if ok > 0 else 'Failed'),
-                'requires_reboot': result.requires_reboot
-            }
-
-            if not hasattr(self, '_remediation_log'):
-                self._remediation_log = []
-            self._remediation_log.append(remediation_entry)
-
-            self.after(0, lambda: (
-                entry.update({'status': 'Remediated'}),
-                self._threats_tab_refresh(),
-                self._remediation_refresh() if hasattr(self, '_remediation_refresh') else None,
-                mb.showinfo('Remediation Complete',
-                            f'Actions taken: {len(result.actions_taken)}\n'
-                            f'Succeeded: {ok}\n'
-                            f'Reboot required: {result.requires_reboot}\n\n'
-                            + '\n'.join(f'  {"[OK]" if a.success else "[FAIL]"} [{a.action_type}] {a.description}'
-                                        for a in result.actions_taken[:20]))
-            ))
-        threading.Thread(target=_run, daemon=True).start()
-        mb.showinfo('Remediation', 'Running full remediation in background…')
-
-    def _threats_mark_fp(self):
-        for entry in self._threats_selected_entries():
-            entry['status'] = 'FP'
-            # FIX-v29.16: persist the confirmation so the same nuisance alert
-            # is auto-suppressed in future sessions (DB write off-thread)
-            self._fp_confirm(entry.get('description', ''))
-        self._threats_tab_refresh()
-
-    def _threats_fp_manager(self):
-        """Modal manager for the DB-backed FP suppression list.
-
-        Lists fingerprints currently auto-suppressed (or past the threshold)
-        and lets the user un-suppress one or clear the whole table.
-        """
-        import tkinter as tk
-        from tkinter import messagebox as mb
-        win: Any = tk.Toplevel(self)
-        win.title('FP Suppression Blocklist')
-        win.configure(bg=Colors.BG_VOID)
-        win.geometry('640x460')
-        tk.Label(win, text='🤫 Auto-suppressed alerts  (re-armed after N confirms)',
-                 font = ('Consolas', 10, 'bold'), fg=Colors.GAUGE_TEAL,
-                 bg = Colors.BG_VOID).pack(anchor='w', padx=10, pady=(10, 4))
-        sup: Any = self._fp_list_active()
-        if not sup:
-            tk.Label(win, text='No active suppressions.',
-                     font = ('Consolas', 9), fg=Colors.TEXT_DIM,
-                     bg = Colors.BG_VOID).pack(anchor='w', padx=14, pady=20)
-            tk.Button(win, text='Close', font=('Consolas', 9), fg=Colors.GAUGE_TEAL,
-                      bg = Colors.GLASS_CARD, relief='flat', command=win.destroy
-                      ).pack(anchor='e', padx=10, pady=8)
-            return
-        wrap: Any = tk.Frame(win, bg=Colors.BG_VOID)
-        wrap.pack(fill='both', expand=True, padx=10, pady=6)
-        cols: Any = ('Fingerprint', 'Confirms')
-        tree: Any = ttk.Treeview(wrap, style='Titan.Treeview', columns=cols,
-                                 show='headings', height=12)
-        tree.heading('Fingerprint', text='Fingerprint')
-        tree.heading('Confirms', text='Confirms')
-        tree.column('Fingerprint', width=460)
-        tree.column('Confirms', width=80, anchor='center')
-        tree.tag_configure('fp', foreground=Colors.GAUGE_RED)
-        vsb: Any = ttk.Scrollbar(wrap, orient='vertical', command=tree.yview,
-                                 style='Tab.Vertical.TScrollbar')
-        tree.configure(yscrollcommand=vsb.set)
-        tree.grid(row=0, column=0, sticky='nsew')
-        vsb.grid(row=0, column=1, sticky='ns')
-        wrap.grid_rowconfigure(0, weight=1)
-        wrap.grid_columnconfigure(0, weight=1)
-        for item in sup:
-            tree.insert('', 'end', values=(item.get('fp', ''), item.get('confirmed', 0)),
-                        tags=('fp',))
-        btns: Any = tk.Frame(win, bg=Colors.BG_VOID)
-        btns.pack(fill='x', padx=10, pady=8)
-        def _unsuppress():
-            sel: Any = tree.selection()
-            if not sel:
-                mb.showinfo('FP Blocklist', 'Select a fingerprint to re-arm.')
-                return
-            vals: Any = tree.item(sel[0], 'values')
-            fp: Any = vals[0] if vals else ''
-            if not fp:
-                return
-            self._fp_unsuppress(fp)
-            self._fp_cache.pop(fp, None)
-            tree.delete(sel[0])
-            if not tree.get_children(''):
-                win.destroy()
-                self._queue_alert(f'[FP] Re-armed alert: {fp[:40]}', Colors.GAUGE_TEAL)
-        def _clear_all():
-            if mb.askyesno('FP Blocklist',
-                           'Remove ALL auto-suppressions?\n'
-                           'This permanently re-enables those alerts.',
-                           icon = 'warning'):
-                self._fp_clear_all()
-                win.destroy()
-        _rearm_btn: Any = tk.Button(btns, text='Re-arm Selected', font=('Consolas', 9),
-                  fg = Colors.GAUGE_YELLOW, bg=Colors.GLASS_CARD, relief='flat',
-                  command=_unsuppress)
-        _rearm_btn.pack(side='left', padx=3)
-        self._tooltip(_rearm_btn, "Re-arm (unsuppress) the selected fingerprint so it can alert again")
-        _clearall_btn: Any = tk.Button(btns, text='Clear All', font=('Consolas', 9),
-                  fg = Colors.GAUGE_RED, bg=Colors.GLASS_CARD, relief='flat',
-                  command=_clear_all)
-        _clearall_btn.pack(side='left', padx=3)
-        self._tooltip(_clearall_btn, "Re-arm every suppressed fingerprint and clear the blocklist")
-        tk.Button(btns, text='Close', font=('Consolas', 9), fg=Colors.GAUGE_TEAL,
-                  bg = Colors.GLASS_CARD, relief='flat', command=win.destroy
-                  ).pack(side='right', padx=3)
-
-    def _fp_unsuppress(self, fp: str):
-        """Persistently re-enable a fingerprint (executor write)."""
-        def _w():
-            try:
-                self.db.execute(
-                    "UPDATE fp_suppressions SET suppressed=0 WHERE fingerprint=?", (fp,))
-                if hasattr(self.db, 'commit'):
-                    self.db.commit()  # type: ignore[attr-defined]
-            except Exception:
-                pass
-        try:
-            self._executor.submit(_w)
-        except Exception:
-            pass
-
-    def _fp_clear_all(self):
-        """Persistently clear the whole suppression table (executor write)."""
-        def _w():
-            try:
-                self.db.execute("DELETE FROM fp_suppressions")
-                if hasattr(self.db, 'commit'):
-                    self.db.commit()  # type: ignore[attr-defined]
-            except Exception:
-                pass
-        try:
-            self._executor.submit(_w)
-        except Exception:
-            pass
-
-    def _threats_dismiss_selected(self):
-        for entry in self._threats_selected_entries():
-            entry['status'] = 'Dismissed'
-        self._threats_tab_refresh()
-
-    def _threats_clear_all(self):
-        import tkinter.messagebox as mb
-        if mb.askyesno('Clear Threat Log',
-                       'Clear the entire threat log?\n'
-                       'This cannot be undone.', icon='warning'):
-            self._threat_log.clear()
-            self._threat_log_idx = 0
-            self._threats_tab_refresh()
-
-    def _threats_copy_desc(self):
-        for entry in self._threats_selected_entries():
-            self.clipboard_clear()
-            self.clipboard_append(entry['description'])
-            break
-
-    def _threats_export(self):
-        from tkinter import filedialog
-        import tkinter.messagebox as mb
-        path: Any = filedialog.asksaveasfilename(
-            defaultextension = '.csv',
-            filetypes = [('CSV', '*.csv'), ('Text', '*.txt'), ('All', '*.*')],
-            title = 'Export Threat Log')
-        if not path:
-            return
-        try:
-            with open(path, 'w', encoding='utf-8') as f:
-                if path.endswith('.csv'):
-                    f.write('Time,Severity,Category,MITRE,Status,Description\n')
-                    for e in self._threat_log:
-                        desc: Any = e['description'].replace('"','""')
-                        mitre: Any = e.get('mitre', '')
-                        f.write(f"\"{e['time']}\",\"{e['severity']}\",\"{e['category']}\","
-                                f"\"{mitre}\",\"{e['status']}\",\"{desc}\"\n")
-                else:
-                    f.write(f'DOWNPOUR v29 THREAT LOG — {datetime.now()}\n')
-                    f.write('=' * 80 + '\n\n')
-                    for e in self._threat_log:
-                        mitre: Any = f" [{e.get('mitre','')}]" if e.get('mitre') else ''
-                        f.write(f"[{e['time']}] [{e['severity']}] [{e['category']}]{mitre} [{e['status']}]\n"
-                                f"{e['description']}\n\n")
-            mb.showinfo('Exported',
-                        f'Threat log saved to:\n{path}\n({len(self._threat_log)} entries)')
-        except Exception as ex:
-            mb.showerror('Export Error', str(ex))
-
-    def _threats_remediate_all(self):
-        """Remediate ALL active (New/High/Critical) threats in one click."""
-        import tkinter.messagebox as mb
-        import threading, re
-        active: Any = [e for e in self._threat_log
-                  if e['status'] == 'New' and e['severity'] in ('CRITICAL', 'HIGH', 'MEDIUM')]
-        if not active:
-            mb.showinfo('Remediate All', 'No active threats to remediate.')
-            return
-        if not mb.askyesno('Remediate All',
-                           f'Run full remediation on {len(active)} threat(s)?\n\n'
-                           'This will: kill processes, block IPs, clean files,\n'
-                           'remove persistence, and quarantine malicious content.',
-                           icon = 'warning'):
-            return
-
-        eng: Any = getattr(self, '_remediation_engine', None)
-        if _ThreatRemediationEngine and eng is None:
-            try:
-                self._remediation_engine = _ThreatRemediationEngine()
-                eng: Any = self._remediation_engine
-            except Exception as e:
-                mb.showerror('Engine Error', f'Could not init remediation engine:\n{e}')
-                return
-
-        def _run_all():
-            results: Any = []
-            for entry in active:
-                try:
-                    if eng:
-                        from advanced_threat_remediation import ThreatProfile
-                        import re as _re
-                        name_m: Any = _re.search(r'\b([A-Za-z0-9_\-]+\.exe)\b', entry['description'])
-                        profile: Any = ThreatProfile(
-                            threat_id = f"thr_{entry['idx']}",
-                            threat_type = entry['category'].lower(),
-                            threat_family = entry.get('family', 'Unknown'),
-                            severity = entry['severity'],
-                            summary = entry['description'][:200],
-                            processes = [name_m.group(0)] if name_m else [],
-                        )
-                        result: Any = eng.full_remediation(profile)
-                        ok: Any = sum(1 for a in result.actions_taken if a.success)
-
-                        # Log to remediation history
-                        remediation_entry = {
-                            'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                            'threat_id': profile.threat_id,
-                            'threat_type': profile.threat_type,
-                            'actions': [
-                                {
-                                    'action_type': a.action_type,
-                                    'target': a.target,
-                                    'description': a.description,
-                                    'success': a.success,
-                                    'requires_reboot': a.requires_reboot,
-                                    'requires_admin': a.requires_admin
-                                } for a in result.actions_taken
-                            ],
-                            'status': 'Success' if ok == len(result.actions_taken) else ('Partial' if ok > 0 else 'Failed'),
-                            'requires_reboot': result.requires_reboot
-                        }
-
-                        if not hasattr(self, '_remediation_log'):
-                            self._remediation_log = []
-                        self._remediation_log.append(remediation_entry)
-
-                        results.append((entry, ok, len(result.actions_taken),
-                                        result.requires_reboot))
-                        entry['status'] = 'Remediated'
-                    else:
-                        # Fallback: basic kill + block
-                        self._threats_basic_remediate(entry)
-                        entry['status'] = 'Remediated'
-                        results.append((entry, 1, 1, False))
-                except Exception as _e:
-                    results.append((entry, 0, 0, False))
-
-            total_ok: Any = sum(r[1] for r in results)
-            total_acts: Any = sum(r[2] for r in results)
-            needs_reboot: Any = any(r[3] for r in results)
-            self.after(0, lambda: (
-                self._threats_tab_refresh(),
-                self._remediation_refresh() if hasattr(self, '_remediation_refresh') else None,
-                mb.showinfo('Remediation Complete',
-                            f'Processed {len(results)} threats\n'
-                            f'Actions taken: {total_acts}\n'
-                            f'Succeeded: {total_ok}\n'
-                            f'Failed: {total_acts - total_ok}\n'
-                            + ('[WARN] REBOOT REQUIRED\n' if needs_reboot else '')
-                            + '\nAll processed threats marked Remediated.')
-            ))
-
-        threading.Thread(target=_run_all, daemon=True).start()
-        mb.showinfo('Remediation', f'Remediating {len(active)} threats in background…')
-
-    def _threats_basic_remediate(self, entry: dict):
-        """Fallback remediation when full engine unavailable: kill + block."""
-        import re, subprocess
-        msg: Any = entry['description']
-        _NO_WIN: Any = 0x08000000
-        actions_taken = []
-
-        # Kill process by name
-        name_m: Any = re.search(r'\b([A-Za-z0-9_\-]+\.exe)\b', msg, re.IGNORECASE)
-        if name_m:
-            proc_name: Any = name_m.group(1)
-            subprocess.run(['taskkill', '/F', '/IM', proc_name],
-                           capture_output = True, timeout=10, creationflags=_NO_WIN)
-            actions_taken.append({
-                'action_type': 'kill',
-                'target': proc_name,
-                'description': f'Killed process {proc_name}',
-                'success': True,
-                'requires_reboot': False,
-                'requires_admin': True
-            })
-        # Block IP if present
-        ip_m: Any = re.search(r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b', msg)
-        if ip_m:
-            ip: Any = ip_m.group(1)
-            subprocess.run(['netsh', 'advfirewall', 'firewall', 'add', 'rule',
-                            f'name=Downpour_Block_{ip}', 'dir=out', 'action=block',
-                            f'remoteip={ip}'],
-                           capture_output = True, timeout=15, creationflags=_NO_WIN)
-            actions_taken.append({
-                'action_type': 'firewall_block',
-                'target': ip,
-                'description': f'Blocked IP {ip}',
-                'success': True,
-                'requires_reboot': False,
-                'requires_admin': True
-            })
-
-        # Log to remediation history
-        if actions_taken:
-            remediation_entry = {
-                'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'threat_id': f"THREAT_{entry['idx']}",
-                'threat_type': entry['category'],
-                'actions': actions_taken,
-                'status': 'Success',
-                'requires_reboot': False
-            }
-            if not hasattr(self, '_remediation_log'):
-                self._remediation_log = []
-            self._remediation_log.append(remediation_entry)
-
-    def _threats_quarantine_selected(self):
-        """Move files associated with selected threats to quarantine vault.
-
-        v29.43d (TASK-016 residual): migrated from the old plain
-        ``shutil.move`` -> ``.quar`` writer to the unified quarantine
-        service (AES-GCM + write-ahead manifest + per-file security-
-        descriptor preservation). GUI-quarantined files are now restorable
-        via _remediation_revert / restore_by_original_path.
-        """
-        import re, os, tkinter.messagebox as mb
-        entries: Any = self._threats_selected_entries()
-        if not entries:
-            mb.showwarning('Quarantine', 'Select one or more threats first.')
-            return
-        moved: Any = []
-        errors: Any = []
-        for entry in entries:
-            msg: Any = entry['description']
-            # Extract file paths from description
-            path_matches: Any = re.findall(
-                r'[A-Za-z]:[\\\/][^\s,;"\'\]]+(?:\.exe|\.dll|\.bat|\.ps1|\.vbs|'
-                r'\.js|\.tmp|\.bin|\.dat|\.sys)', msg, re.IGNORECASE)
-            for fpath in path_matches:
-                fpath: Any = fpath.rstrip(')')
-                if os.path.isfile(fpath):
-                    try:
-                        from quarantine_core import quarantine_file
-                        q_entry: Any = quarantine_file(
-                            fpath, threat_type='gui-selected',
-                            threat_name=os.path.basename(fpath))
-                        moved.append(f'{fpath} (entry {q_entry.id})')
-                        entry['status'] = 'Quarantined'
-                    except Exception as e:
-                        errors.append(f'{fpath}: {e}')
-            # Write quarantine log entry
-            try:
-                _vault: Any = os.path.join(
-                    os.path.dirname(os.path.abspath(__file__)),
-                    'downpour_data', 'quarantine')
-                with open(os.path.join(_vault, 'quarantine.log'),
-                          'a', encoding='utf-8') as ql:
-                    ql.write(f"[{datetime.now().isoformat()}] {entry['description'][:200]}\n"
-                             f"  Files: {', '.join(path_matches) or 'none extracted'}\n\n")
-            except Exception:
-                pass
-
-        self._threats_tab_refresh()
-        vault_dir: Any = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                      'downpour_data', 'quarantine', 'locked')
-        if moved:
-            mb.showinfo('Quarantine', f'Quarantined {len(moved)} file(s):\n' +
-                        '\n'.join(moved[:10]) +
-                        f'\n\nVault: {vault_dir}')
-        elif not errors:
-            mb.showinfo('Quarantine',
-                        'No file paths found in selected alerts.\n'
-                        'Quarantine works on alerts containing absolute file paths.\n'
-                        f'Vault location: {vault_dir}')
-        if errors:
-            mb.showerror('Quarantine Errors',
-                         f'{len(errors)} error(s):\n' + '\n'.join(errors[:5]))
-
-    def _threats_isolate_host(self):
-        """Emergency network isolation — block all inbound/outbound via firewall."""
-        import tkinter.messagebox as mb, subprocess
-        if not mb.askyesno('[WARN] ISOLATE HOST',
-                           'This will BLOCK ALL network traffic via Windows Firewall.\n\n'
-                           'You will lose internet and LAN access immediately.\n'
-                           'Use only during active attack response.\n\n'
-                           'Proceed with network isolation?',
-                           icon = 'warning'):
-            return
-        _NO_WIN: Any = 0x08000000
-        try:
-            subprocess.run(['netsh', 'advfirewall', 'set', 'allprofiles',
-                            'firewallpolicy', 'blockinbound,blockoutbound'],
-                           capture_output = True, timeout=15, creationflags=_NO_WIN)
-            self._queue_alert('[ISOLATION] Host network isolated — ALL traffic BLOCKED',
-                              Colors.GAUGE_RED)
-            mb.showinfo('Isolated', '[CRITICAL] HOST ISOLATED\n\nAll network traffic is now blocked.\n\n'
-                        'To restore:\nnetsh advfirewall set allprofiles '
-                        'firewallpolicy blockinbound,allowoutbound')
-        except Exception as e:
-            mb.showerror('Isolation Failed', str(e))
-
-    def _threats_generate_report(self):
-        """Generate a full HTML threat intelligence report."""
-        from tkinter import filedialog
-        import tkinter.messagebox as mb
-        path: Any = filedialog.asksaveasfilename(
-            defaultextension = '.html',
-            filetypes = [('HTML Report', '*.html'), ('All', '*.*')],
-            title = 'Save Threat Intelligence Report')
-        if not path:
-            return
-        try:
-            crit: Any = [e for e in self._threat_log if e['severity'] == 'CRITICAL']
-            high: Any = [e for e in self._threat_log if e['severity'] == 'HIGH']
-            med: Any = [e for e in self._threat_log if e['severity'] == 'MEDIUM']
-            info: Any = [e for e in self._threat_log if e['severity'] == 'INFO']
-            total: Any = len(self._threat_log)
-            now: Any = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-            def _rows(entries, color):
-                out: Any = []
-                for e in entries[:50]:
-                    mitre: Any = e.get('mitre', '')
-                    mitre_badge: Any = (f'<span style="background:#1a3a5c;color:#7ec8e3;'
-                                   f'padding:1px 5px;border-radius:3px;font-size:11px">'
-                                   f'{mitre}</span>' if mitre else '')
-                    out.append(
-                        f'<tr><td style="color:#888">{e["time"]}</td>'
-                        f'<td style="color:{color};font-weight:bold">{e["severity"]}</td>'
-                        f'<td>{e["category"]}</td>'
-                        f'<td>{mitre_badge}</td>'
-                        f'<td style="color:#ccc">{e["description"][:120]}</td>'
-                        f'<td style="color:#7ec8e3">{e["status"]}</td></tr>'
-                    )
-                return '\n'.join(out)
-
-            html: Any = f'''<!DOCTYPE html>
-<html><head><meta charset="utf-8">
-<title>Downpour v29 Titanium — Threat Report {now}</title>
-<style>
-  body{{background:#0a0e1a;color:#c0cad8;font-family:Consolas,monospace;margin:24px}}
-  h1{{color:#e05c5c;border-bottom:1px solid #e05c5c;padding-bottom:8px}}
-  h2{{color:#7ec8e3;margin-top:28px}}
-  .badge{{display:inline-block;padding:4px 12px;border-radius:4px;font-weight:bold;margin:4px}}
-  .crit{{background:#3d0000;color:#e05c5c}}.high{{background:#2d1a00;color:#e8922b}}
-  .med{{background:#2a2200;color:#e8c02b}}.info{{background:#001a2d;color:#7ec8e3}}
-  table{{width:100%;border-collapse:collapse;margin-top:12px}}
-  th{{background:#1a2030;color:#7ec8e3;padding:8px;text-align:left;border-bottom:2px solid #2a3a50}}
-  td{{padding:6px 8px;border-bottom:1px solid #1a2030;font-size:12px}}
-  tr:hover{{background:#111827}}
-</style></head><body>
-<h1>⛈ Downpour v29 Titanium — Threat Intelligence Report</h1>
-<p style="color:#666">Generated: {now} | Total Events: {total}</p>
-<div>
-  <span class="badge crit">[CRITICAL] Critical: {len(crit)}</span>
-  <span class="badge high">[WARNING] High: {len(high)}</span>
-  <span class="badge med">[YELLOW] Medium: {len(med)}</span>
-  <span class="badge info">🔵 Info: {len(info)}</span>
-</div>
-{"<h2 style='color:#e05c5c'>[CRITICAL] Critical Threats</h2><table><tr><th>Time</th><th>Severity</th><th>Category</th><th>MITRE</th><th>Description</th><th>Status</th></tr>" + _rows(crit,"#e05c5c") + "</table>" if crit else ""}
-{"<h2 style='color:#e8922b'>[WARNING] High Threats</h2><table><tr><th>Time</th><th>Severity</th><th>Category</th><th>MITRE</th><th>Description</th><th>Status</th></tr>" + _rows(high,"#e8922b") + "</table>" if high else ""}
-{"<h2 style='color:#e8c02b'>[YELLOW] Medium Threats</h2><table><tr><th>Time</th><th>Severity</th><th>Category</th><th>MITRE</th><th>Description</th><th>Status</th></tr>" + _rows(med,"#e8c02b") + "</table>" if med else ""}
-{"<h2 style='color:#7ec8e3'>🔵 Info Events</h2><table><tr><th>Time</th><th>Severity</th><th>Category</th><th>MITRE</th><th>Description</th><th>Status</th></tr>" + _rows(info,"#7ec8e3") + "</table>" if info else ""}
-</body></html>'''
-
-            with open(path, 'w', encoding='utf-8') as f:
-                f.write(html)
-            mb.showinfo('Report Saved',
-                        f'HTML threat report saved to:\n{path}')
-            import webbrowser
-            webbrowser.open(path)
-        except Exception as ex:
-            mb.showerror('Report Error', str(ex))
-
-    def _threats_lookup_intel(self):
-        """Open threat intel search in browser for selected alert."""
-        import re, webbrowser, tkinter.messagebox as mb
-        entries: Any = self._threats_selected_entries()
-        if not entries:
-            mb.showwarning('Intel Lookup', 'Select a threat first.')
-            return
-        e: Any = entries[0]
-        msg: Any = e['description']
-        # Try to extract IP, hash, or domain for lookup
-        ip_m: Any = re.search(r'\b(\d{1,3}(?:\.\d{1,3}){3})\b', msg)
-        hash_m: Any = re.search(r'\b([a-fA-F0-9]{64}|[a-fA-F0-9]{40}|[a-fA-F0-9]{32})\b', msg)
-        dom_m: Any = re.search(r'\b([a-z0-9\-]{3,}\.[a-z]{2,6})\b', msg, re.IGNORECASE)
-
-        if hash_m:
-            query: Any = hash_m.group(1)
-            url: Any = f'https://www.virustotal.com/gui/search/{query}'
-            webbrowser.open(url)
-        elif ip_m:
-            query: Any = ip_m.group(1)
-            # v29: open both AbuseIPDB (abuse-report history) and GreyNoise
-            # (internet-noise classification — is this a targeted attacker
-            # or just routine internet-wide scanning?) for richer context
-            # than a single reputation source can provide.
-            webbrowser.open(f'https://www.abuseipdb.com/check/{query}')
-            webbrowser.open_new_tab(f'https://viz.greynoise.io/ip/{query}')
-        elif dom_m:
-            query: Any = dom_m.group(1)
-            url: Any = f'https://www.virustotal.com/gui/domain/{query}'
-            webbrowser.open(url)
-        else:
-            # Fall back to general search
-            query: Any = e['category']
-            url: Any = f'https://www.google.com/search?q=site:attack.mitre.org+{query}'
-            webbrowser.open(url)
-
-        self._queue_alert(f'[INTEL] Looking up: {query}', Colors.GAUGE_TEAL)
-
-    def _browser_cve_check(self) -> list:
-        """Match installed browsers against the CISA KEV catalog."""
-        import os as _os
-        hits: list = []
-        if not getattr(self, '_kev_engine', None):
-            return hits
-        installed: list = []
-        for browser, base in self._browser_ext_dir().items():
-            if _os.path.isdir(base):
-                installed.append(browser)
-        browser_names: dict = {
-            'Chrome': ('chrome', 'google chrome'),
-            'Edge': ('edge', 'microsoft edge'),
-            'Firefox': ('firefox', 'mozilla firefox'),
-            'Brave': ('brave',),
-            'Opera': ('opera',),
-            'Vivaldi': ('vivaldi',),
-            'Arc': ('arc browser',),
-        }
-        for br in installed:
-            try:
-                kws: Any = browser_names.get(br, (br.lower(),))
-                cves: list = _kev_engine.search(' '.join(kws)) if hasattr(_kev_engine, 'search') else []
-                for v in cves[:8]:
-                    hits.append({'browser': br, 'cve': v.get('cveID', ''), 'product': v.get('product', ''),
-                                 'name': v.get('vendorProject', '') + ' ' + v.get('product', ''),
-                                 'desc': (v.get('shortDescription') or '')[:160],
-                                 'date': v.get('dateAdded', '')})
-            except Exception:
-                continue
-        return hits
-
-    def _run_browser_scan(self):
-        """Kick off a background browser-security scan; show a summary dialog."""
-        import tkinter.messagebox as mb
-        self._queue_alert('[BROWSER] Scanning installed browser extensions...',
-                          Colors.GAUGE_TEAL)
-        def _work():
-            try:
-                exts: Any = self._scan_browser_extensions(notify=True)
-                cves: Any = self._browser_cve_check()
-                risky: list = [e for e in exts if e['risk'] >= 60]
-                self.after(0, lambda: self._browser_scan_done(exts, cves, risky))
-            except Exception:
-                pass
-        self._io_submit(_work)
-
-    def _browser_scan_done(self, exts: list, cves: list, risky: list):
-        """Main-thread postback: summarize browser-scan results."""
-        import tkinter.messagebox as mb
-        if not exts and not cves:
-            self._queue_alert('[BROWSER] No installed browsers found to scan.',
-                              Colors.TEXT_DIM)
-            return
-        n_risky: int = len(risky)
-        n_cves: int = len(cves)
-        sev: Any = Colors.GAUGE_GREEN if (n_risky == 0 and n_cves == 0) else \
-                   Colors.GAUGE_ORANGE if n_cves == 0 else Colors.GAUGE_RED
-        self._queue_alert(
-            f'[BROWSER] Scan done: {len(exts)} extensions, {n_risky} risky, '
-            f'{n_cves} KEV CVEs matched', sev)
-        lines: list = [f'Browser Security Scan — {len(exts)} extensions scanned']
-        lines.append('')
-        lines.append(f'⚠ {n_risky} HIGH-RISK extension(s):')
-        for e in risky:
-            lines.append(f'  • {e["browser"]}: {e["name"]} (risk {e["risk"]}) — '
-                         f'{", ".join(e["issues"][:4]) or "no issues"}')
-        if not risky:
-            lines.append('  • none')
-        lines.append('')
-        lines.append(f'🔴 {n_cves} KEV browser CVE(s) matched:')
-        for c in cves[:8]:
-            lines.append(f'  • {c["browser"]} {c["cve"]} ({c["name"]})')
-        if not cves:
-            lines.append('  • none')
-        try:
-            mb.showinfo('Browser Security Scan', '\n'.join(lines))
-        except Exception:
-            pass
-
-    # ==========================================================================
-    #  CONSOLIDATED TAB BUILDERS (v29.110)
-    # ==========================================================================
-
-    def _build_threats_tab(self):
-        """Unified Threat Log v29 — Remediate All, Quarantine, Auto-Remediate,
-        Threat Detail Panel, bulk actions, and real-time risk score.
-        """
-        import tkinter as tk
-        from tkinter import ttk, messagebox, filedialog
-        C: Any = Colors
-        p: Any = self._tab_threats
-        p.grid_rowconfigure(2, weight=1)
-        p.grid_columnconfigure(0, weight=1)
-
-        # ── Header ──────────────────────────────────────────────────────────
-        hdr: Any = tk.Frame(p, bg=C.GLASS_CARD, pady=6)
-        hdr.grid(row=0, column=0, sticky='ew', padx=6, pady=(4, 0))
-        tk.Label(hdr, text='[ALERT] THREAT LOG & REMEDIATION CENTRE  v29',
-                 font = ('Consolas', 12, 'bold'), fg=C.GAUGE_RED,
-                 bg = C.GLASS_CARD).pack(side='left', padx=10)
-
-        # Auto-remediate toggle
-        self._auto_remediate_var = tk.BooleanVar(value=False)
-        def _toggle_auto():
-            state: Any = self._auto_remediate_var.get()
-            _auto_btn.config(
-                text = '🤖 AUTO: ON' if state else '🤖 AUTO: OFF',
-                fg = C.GAUGE_GREEN if state else C.TEXT_DIM)
-        _auto_btn: Any = tk.Checkbutton(
-            hdr, text='🤖 AUTO: OFF', variable=self._auto_remediate_var,
-            font = ('Consolas', 8, 'bold'), fg=C.TEXT_DIM, bg=C.GLASS_CARD,
-            selectcolor = C.GLASS_DARK, activebackground=C.GLASS_CARD,
-            command = _toggle_auto, indicatoron=False, padx=6, pady=3,
-            relief = 'flat', cursor='hand2')
-        _auto_btn.pack(side='right', padx=8)
-        self._tooltip(_auto_btn, 'Auto-remediate NEW CRITICAL threats as they arrive')
-
-        # Stats counters
-        self._thr_crit_var = tk.StringVar(value='0')
-        self._thr_high_var = tk.StringVar(value='0')
-        self._thr_med_var  = tk.StringVar(value='0')
-        self._thr_info_var = tk.StringVar(value='0')
-        self._thr_risk_var = tk.StringVar(value='Risk: —')
-        for lbl, var, col in [
-            ('[CRITICAL] Critical', self._thr_crit_var, C.GAUGE_RED),
-            ('[WARNING] High',     self._thr_high_var, C.GAUGE_ORANGE),
-            ('[YELLOW] Medium',   self._thr_med_var,  C.GAUGE_YELLOW),
-            ('🔵 Info',     self._thr_info_var, C.GAUGE_TEAL),
-            ('',            self._thr_risk_var, C.GAUGE_ORANGE),
-        ]:
-            f: Any = tk.Frame(hdr, bg=C.GLASS_CARD, padx=6)
-            f.pack(side='right', padx=3)
-            tk.Label(f, text=lbl, font=('Consolas', 8),
-                     fg = C.TEXT_DIM, bg=C.GLASS_CARD).pack(side='left')
-            tk.Label(f, textvariable=var, font=('Consolas', 10, 'bold'),
-                     fg = col, bg=C.GLASS_CARD).pack(side='left', padx=2)
-
-        # ── Primary Action Toolbar ────────────────────────────────────────
-        bar: Any = tk.Frame(p, bg=C.BG_VOID)
-        bar.grid(row=1, column=0, sticky='ew', padx=6, pady=(4, 2))
-
-        def _btn(parent, txt, cmd, col, tip='', bold=False):
-            b: Any = tk.Button(parent, text=txt,
-                          font = ('Consolas', 9, 'bold' if bold else 'normal'),
-                          fg = col, bg=C.GLASS_CARD, relief='flat', padx=8, pady=4,
-                          cursor = 'hand2', activebackground=C.GLASS_LIGHT,
-                          activeforeground = col, command=cmd)
-            b.pack(side='left', padx=2)
-            if tip:
-                self._tooltip(b, tip)
-            return b
-
-        # Row 1 — Primary actions
-        _btn(bar, '[CRITICAL] REMEDIATE ALL',   self._threats_remediate_all,
-             C.GAUGE_RED,    'Remediate ALL active/new threats in one click', bold=True)
-        _btn(bar, '🛡 Remediate Selected', self._threats_remediate_selected,
-             C.GAUGE_ORANGE, 'Run 5-layer remediation on selected threat(s)')
-        _btn(bar, '📦 Quarantine Selected', self._threats_quarantine_selected,
-             C.GAUGE_ORANGE, 'Move associated files to quarantine vault')
-        _btn(bar, '[HIGH] Kill Process',    self._threats_kill_selected,
-             C.GAUGE_ORANGE, 'Kill the process named in selected threat')
-        _btn(bar, '🌐 Browser Scan',    self._browser_scan_ui,
-             C.GAUGE_TEAL,    'Scan installed-browser extensions for risky permissions + match against CISA KEV')
-        _btn(bar, '🚫 Block IP',        self._threats_block_ip,
-             C.GAUGE_YELLOW, 'Add Windows Firewall block rule for threat IP')
-        _btn(bar, '[LOCK] Isolate Host',    self._threats_isolate_host,
-             C.GAUGE_RED,    'Network-isolate this machine (emergency kill-switch)')
-
-        # Separator
-        tk.Frame(bar, bg=C.TEXT_DIM, width=1, height=24).pack(side='left', padx=6, pady=4)
-
-        # Row 1 continued — Triage
-        _btn(bar, '[OK] Mark FP',         self._threats_mark_fp,
-             C.GAUGE_GREEN,  'Mark selected as false positive (auto-suppresses after 3 confirms)')
-        _btn(bar, '🤫 FP Blocklist',      self._threats_fp_manager,
-             C.GAUGE_TEAL,   'View / clear DB-backed auto-suppressed alerts')
-        _btn(bar, '🗑 Dismiss',         self._threats_dismiss_selected,
-             C.TEXT_DIM,     'Dismiss / acknowledge selected threats')
-        _btn(bar, '🗑 Clear All',       self._threats_clear_all,
-             C.TEXT_DIM,     'Clear the entire threat log')
-
-        tk.Frame(bar, bg=C.TEXT_DIM, width=1, height=24).pack(side='left', padx=6, pady=4)
-
-        _btn(bar, '🔄 Refresh',         self._threats_tab_refresh,
-             C.GAUGE_TEAL,   'Reload all entries from the threat log')
-        _btn(bar, '📋 Export',          self._threats_export,
-             C.GAUGE_YELLOW, 'Export full threat log to CSV/text file')
-        _btn(bar, '[CHART] Report',          self._threats_generate_report,
-             C.GAUGE_TEAL,   'Generate full HTML threat intelligence report')
-
-        # ── Filter row ───────────────────────────────────────────────────
-        frow: Any = tk.Frame(p, bg=C.BG_VOID)
-        frow.grid(row=1, column=0, sticky='se', padx=6, pady=(30, 2))
-
-        tk.Label(frow, text='Filter:', font=('Consolas', 8),
-                 fg = C.TEXT_DIM, bg=C.BG_VOID).pack(side='left', padx=(0, 4))
-        self._thr_filter_var = tk.StringVar(value='All')
-        for sev in ('All', 'Critical', 'High', 'Medium', 'Info', 'New Only', 'Remediated'):
-            tk.Radiobutton(frow, text=sev, variable=self._thr_filter_var, value=sev,
-                           font = ('Consolas', 8), fg=C.TEXT_LIGHT, bg=C.BG_VOID,
-                           selectcolor = C.GLASS_DARK, activebackground=C.BG_VOID,
-                           command = self._threats_apply_filter).pack(side='left', padx=2)
-
-        tk.Label(frow, text='🔍', font=('Consolas', 9),
-                 fg = C.TEXT_DIM, bg=C.BG_VOID).pack(side='left', padx=(8, 2))
-        self._thr_search_var = tk.StringVar()
-        self._thr_search_var.trace_add('write', lambda *_: self._threats_apply_filter())
-        tk.Entry(frow, textvariable=self._thr_search_var,
-                 font = ('Consolas', 8), bg=C.GLASS_DARK, fg=C.TEXT_LIGHT,
-                 insertbackground = C.TEXT_LIGHT, relief='flat', width=22
-                 ).pack(side='left', padx=4)
-
-        # ── Treeview ─────────────────────────────────────────────────────
-        paned: Any = tk.PanedWindow(p, orient='vertical', bg=C.BG_VOID,
-                               sashrelief = 'flat', sashwidth=4)
-        paned.grid(row=2, column=0, sticky='nsew', padx=6, pady=4)
-
-        tree_f: Any = tk.Frame(paned, bg=C.BG_VOID)
-        tree_f.grid_rowconfigure(0, weight=1)
-        tree_f.grid_columnconfigure(0, weight=1)
-
-        thr_cols: Any = ('Time', 'Severity', 'Category', 'MITRE', 'Description', 'Status')
-        self._thr_tree = ttk.Treeview(tree_f, style='Titan.Treeview',
-                                       columns = thr_cols, show='headings',
-                                       selectmode = 'extended')
-        col_w: Any = {'Time': 75, 'Severity': 70, 'Category': 90,
-                 'MITRE': 90, 'Description': 460, 'Status': 90}
-        for col in thr_cols:
-            self._thr_tree.heading(col, text=col,
-                command = lambda c=col: self._threats_sort(c))
-            self._thr_tree.column(col, width=col_w[col], minwidth=40,
-                                  stretch = (col == 'Description'))
-
-        self._thr_tree.tag_configure('critical',   foreground=C.GAUGE_RED,    font=('Consolas', 9, 'bold'))
-        self._thr_tree.tag_configure('high',        foreground=C.GAUGE_ORANGE)
-        self._thr_tree.tag_configure('medium',      foreground=C.GAUGE_YELLOW)
-        self._thr_tree.tag_configure('info',        foreground=C.GAUGE_TEAL)
-        self._thr_tree.tag_configure('fp',          foreground=C.TEXT_DIM)
-        self._thr_tree.tag_configure('dismissed',   foreground=C.TEXT_DIM)
-        self._thr_tree.tag_configure('remediated',  foreground=C.GAUGE_GREEN)
-        self._thr_tree.tag_configure('quarantined', foreground=C.GAUGE_TEAL)
-
-        vsb: Any = ttk.Scrollbar(tree_f, orient='vertical',   command=self._thr_tree.yview, style='Vertical.TScrollbar')
-        hsb: Any = ttk.Scrollbar(tree_f, orient='horizontal', command=self._thr_tree.xview, style='Horizontal.TScrollbar')
-        self._thr_tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
-        self._thr_tree.grid(row=0, column=0, sticky='nsew')
-        vsb.grid(row=0, column=1, sticky='ns')
-        hsb.grid(row=1, column=0, sticky='ew')
-        paned.add(tree_f, minsize=200)
-
-        # ── Threat Detail Panel ──────────────────────────────────────────
-        detail_f: Any = tk.Frame(paned, bg=C.GLASS_CARD)
-        paned.add(detail_f, minsize=80)
-
-        dtop: Any = tk.Frame(detail_f, bg=C.GLASS_CARD)
-        dtop.pack(fill='x', padx=8, pady=(6, 2))
-        tk.Label(dtop, text='📋 THREAT DETAIL', font=('Consolas', 9, 'bold'),
-                 fg = C.GAUGE_TEAL, bg=C.GLASS_CARD).pack(side='left')
-
-        # Quick-action buttons in detail panel
-        for dtxt, dcmd, dcol, dtip in [
-            ('Remediate',  self._threats_remediate_selected, C.GAUGE_RED,
-             'Run full 5-phase remediation on the selected threat (kill, block, quarantine, remove persistence)'),
-            ('Quarantine', self._threats_quarantine_selected, C.GAUGE_ORANGE,
-             'Move the threat-associated file into the quarantine vault'),
-            ('Kill',       self._threats_kill_selected,       C.GAUGE_ORANGE,
-             'Kill the process responsible for the selected threat'),
-            ('Block IP',   self._threats_block_ip,            C.GAUGE_YELLOW,
-             'Add a firewall block rule for the threat source IP'),
-            ('Mark FP',    self._threats_mark_fp,             C.GAUGE_GREEN,
-             'Mark the selected threat as a false positive to suppress future alerts'),
-        ]:
-            self._make_button(dtop, dtxt, dcmd, dcol, tip=dtip,
-                              font_size=8, bold=False, side='right', padx=2)
-
-        self._thr_detail_text = tk.Text(
-            detail_f, font=('Consolas', 9), bg=C.GLASS_DARK, fg=C.TEXT_LIGHT,
-            relief = 'flat', height=5, wrap='word',
-            insertbackground = C.TEXT_LIGHT, state='disabled')
-        self._thr_detail_text.pack(fill='both', expand=True, padx=8, pady=(0, 6))
-        self._thr_detail_text.tag_configure('heading', foreground=C.GAUGE_TEAL,
-                                             font = ('Consolas', 9, 'bold'))
-        self._thr_detail_text.tag_configure('critical', foreground=C.GAUGE_RED)
-        self._thr_detail_text.tag_configure('high',     foreground=C.GAUGE_ORANGE)
-        self._thr_detail_text.tag_configure('ok',       foreground=C.GAUGE_GREEN)
-
-        # Bind selection → update detail panel
-        def _on_select(evt=None):
-            entries: Any = self._threats_selected_entries()
-            if not entries:
-                return
-            e: Any = entries[0]
-            self._thr_detail_text.config(state='normal')
-            self._thr_detail_text.delete('1.0', 'end')
-            self._thr_detail_text.insert('end', f'[{e["time"]}] ', 'heading')
-            sev_tag: Any = e['severity'].lower() if e['severity'] in ('CRITICAL','HIGH') else 'heading'
-            self._thr_detail_text.insert('end', f'{e["severity"]} ', sev_tag)
-            self._thr_detail_text.insert('end', f'| {e["category"]}\n', 'heading')
-            self._thr_detail_text.insert('end', f'{e["description"]}\n\n')
-            mitre: Any = e.get('mitre', '')
-            if mitre:
-                self._thr_detail_text.insert('end', f'MITRE: {mitre}\n', 'ok')
-            status_tag: Any = 'ok' if e['status'] == 'Remediated' else ('critical' if e['status'] == 'New' else 'heading')
-            self._thr_detail_text.insert('end', f'Status: {e["status"]}', status_tag)
-            self._thr_detail_text.config(state='disabled')
-
-        self._thr_tree.bind('<<TreeviewSelect>>', _on_select)
-
-        # Right-click context menu
-        self._thr_menu = tk.Menu(self, tearoff=0, bg=C.GLASS_CARD,
-                                  fg = C.TEXT_LIGHT, activebackground=C.GLASS_LIGHT,
-                                  font = ('Consolas', 9))
-        self._thr_menu.add_command(label='[CRITICAL] Remediate This Threat', command=self._threats_remediate_selected)
-        self._thr_menu.add_command(label='📦 Quarantine Associated Files', command=self._threats_quarantine_selected)
-        self._thr_menu.add_command(label='[HIGH] Kill Process', command=self._threats_kill_selected)
-        self._thr_menu.add_command(label='🚫 Block IP in Firewall', command=self._threats_block_ip)
-        self._thr_menu.add_separator()
-        self._thr_menu.add_command(label='[OK] Mark False Positive', command=self._threats_mark_fp)
-        self._thr_menu.add_command(label='🗑 Dismiss', command=self._threats_dismiss_selected)
-        self._thr_menu.add_separator()
-        self._thr_menu.add_command(label='📋 Copy Description', command=self._threats_copy_desc)
-        self._thr_menu.add_command(label='🌐 Look Up Threat Intel', command=self._threats_lookup_intel)
-
-        self._thr_tree.bind('<Button-3>', lambda e: (
-            self._thr_tree.selection_set(self._thr_tree.identify_row(e.y)),
-            self._thr_menu.tk_popup(e.x_root, e.y_root)))
-
-        self._thr_sort_dirs: dict = {}
-        self._threats_tab_refresh()
-
-    def _build_intel_tab(self):
-        p: Any = self._tab_intel
-        top: Any = tk.Frame(p, bg=Colors.BG_VOID)
-        top.pack(fill='x', padx=8, pady=6)
-        self._make_button(top, "Update All Feeds Now", self._update_intel_now,
-                          Colors.GAUGE_TEAL,
-                          tip="Download and refresh every threat-intelligence feed (KEV, C2 blocklists, etc.)")
-
-        self._intel_progress_var = tk.StringVar(value="Not updated yet")
-        tk.Label(top, textvariable=self._intel_progress_var, font=('Consolas', 8),
-                 fg = Colors.TEXT_DIM, bg=Colors.BG_VOID).pack(side='left', padx=12)
-
-        # Feed status list with enhanced scrollability
-        feed_container: Any = tk.Frame(p, bg=Colors.BG_VOID)
-        feed_container.pack(fill='both', expand=True, padx=8, pady=4)
-
-        cols: Any = ('Feed', 'Type', 'Source', 'Status')
-        self._intel_tree = ttk.Treeview(feed_container, style='Titan.Treeview', columns=cols, show='headings', height=20)
-        intel_scroll_v: Any = ttk.Scrollbar(feed_container, orient='vertical', command=self._intel_tree.yview, style='Tab.Vertical.TScrollbar')
-        intel_scroll_h: Any = ttk.Scrollbar(feed_container, orient='horizontal', command=self._intel_tree.xview, style='Tab.Horizontal.TScrollbar')
-
-        self._intel_tree.configure(yscrollcommand=intel_scroll_v.set, xscrollcommand=intel_scroll_h.set)
-
-        for col, w in [('Feed', 180), ('Type', 70), ('Source', 100), ('Status', 240)]:
-            self._intel_tree.heading(col, text=col)
-            self._intel_tree.column(col, width=w, stretch=(col=='Status'))
-        self._intel_tree.tag_configure('darkweb',   foreground='#cc33ff')
-        self._intel_tree.tag_configure('clearnet',  foreground=Colors.GAUGE_TEAL)
-        self._intel_tree.tag_configure('gov',       foreground=Colors.GAUGE_BLUE)
-        self._intel_tree.tag_configure('community', foreground=Colors.GAUGE_ORANGE)
-        # Feed-health over-ride tags (applied on top of the category tag)
-        self._intel_tree.tag_configure('feed_err',   foreground=Colors.GAUGE_RED)
-        self._intel_tree.tag_configure('feed_stale', foreground=Colors.GAUGE_YELLOW)
-        self._intel_feed_stale_days: Any = 3
-
-        # Grid layout for proper scrolling
-        self._intel_tree.grid(row=0, column=0, sticky='nsew')
-        intel_scroll_v.grid(row=0, column=1, sticky='ns')
-        intel_scroll_h.grid(row=1, column=0, sticky='ew')
-
-        feed_container.grid_rowconfigure(0, weight=1)
-        feed_container.grid_columnconfigure(0, weight=1)
-
-        # Dark-web / clearnet / gov classification map
-        DARKWEB_FEEDS: Any = {'darklist', 'tor_exit_dans', 'tor_exit_tbb', 'dan_tor',
-                          'ipsum_7', 'ipsum_6', 'ipsum_5'}
-        GOV_FEEDS: Any = {'cisa_kev', 'us_cert', 'fbi_flash', 'nist_nvd', 'dhs_ais'}
-        for name in self.intel.FEEDS:
-            feed_type: Any = self.intel.FEEDS[name][1] if len(self.intel.FEEDS[name]) > 1 else 'mixed'
-            if name in DARKWEB_FEEDS:
-                source, tag = 'Dark-Web', 'darkweb'
-            elif name in GOV_FEEDS:
-                source, tag = 'Gov/CISA', 'gov'
-            else:
-                source, tag = '[WEB] Clearnet', 'clearnet'
-            self._intel_tree.insert('', 'end', iid=name,
-                                    values = (name, feed_type, source, 'Pending'),
-                                    tags = (tag,))
-
-        tk.Label(p, text="Check IP / Hash / URL", font=('Consolas', 9, 'bold'),
-                 fg = Colors.GAUGE_TEAL, bg=Colors.BG_VOID).pack(anchor='w', padx=10, pady=(8,2))
-        check_row: Any = tk.Frame(p, bg=Colors.BG_VOID)
-        check_row.pack(fill='x', padx=8, pady=2)
-        self._intel_check_var = tk.StringVar()
-        tk.Entry(check_row, textvariable=self._intel_check_var, font=('Consolas', 9),
-                 bg = Colors.GLASS_LIGHT, fg=Colors.TEXT_BRIGHT, insertbackground='white',
-                 width = 40, relief='flat').pack(side='left', padx=4)
-        _chk_item: Any = tk.Button(check_row, text="Check", font=('Consolas', 9),
-                      fg = Colors.GAUGE_BLUE, bg=Colors.GLASS_CARD, relief='flat',
-                      command = self._check_intel_item)
-        _chk_item.pack(side='left', padx=4)
-        self._tooltip(_chk_item, "Look up the current IOC value against all loaded intel feeds + local cache")
-        self._intel_result = tk.Label(p, text="", font=('Consolas', 9),
-                                       fg = Colors.GAUGE_GREEN, bg=Colors.BG_VOID)
-        self._intel_result.pack(anchor='w', padx=12)
-
-        # -- Threat Response Actions -------------------------------------------
-        tk.Label(p, text="Threat Response", font=('Consolas', 9, 'bold'),
-                 fg = Colors.GAUGE_RED, bg=Colors.BG_VOID).pack(anchor='w', padx=10, pady=(10,2))
-        resp_row: Any = tk.Frame(p, bg=Colors.BG_VOID)
-        resp_row.pack(fill='x', padx=8, pady=2)
-        _resp_tips: Any = {
-            "🚫 Block IP Now":    "Add the current IOC IP to the Windows Firewall block list",
-            "📋 Copy IOC":        "Copy the current IOC to the clipboard",
-            "🔍 Whois Lookup":    "WHOIS registration lookup for the current domain/IP",
-            "📡 Reverse DNS":     "PTR reverse-DNS lookup for the current IP",
-            "GeoIP Lookup":      "Geographic / ASN attribution for the current IP",
-            "OSINT Stack":       "Open the curated OSINT stack deep-links for this IOC",
-            "Pulsedive":         "Pulsedive risk-scored IOC search (key or page fallback)",
-            "ONYPHE":            "ONYPHE internet-exposure & threat search (key or page fallback)",
-            "Censys":            "Censys Search v2 host view (API ID + secret)",
-            "Netlas":            "Netlas host / ASN / services lookup (Bearer key)",
-            "EmailRep":          "EmailRep.io email reputation (key or page fallback)",
-            "Wayback Check":     "Wayback Machine availability (no-key; no history = phishing flag)",
-            "urlscan Submit":    "Submit the URL to urlscan.io for analysis (key)",
-            "urlscan Search":    "Search urlscan.io public scans for this IOC (no key)",
-            "MalwareBazaar":     "MalwareBazaar hash lookup (free Auth-Key)",
-            "URLhaus":           "URLhaus malicious-URL / payload search (free Auth-Key)",
-            "ThreatFox":         "ThreatFox IOC search (malware family / confidence)",
-            "AlienVault OTX":    "AlienVault OTX pulses for IP/domain/hash (keyless)",
-            "AbuseIPDB":         "AbuseIPDB reputation & abuse reports (key or page)",
-            "Shodan":            "Shodan host / search lookup (key or page)",
-            "GreyNoise":         "GreyNoise Community noise-vs-targeted triage (key)",
-            "Hudson Rock":       "Hudson Rock infostealer breach context (keyless)",
-            "IPinfo":            "IPinfo.io ASN / geo / anycast attribution (keyless)",
-            "BGPView":           "BGPView BGP routing graph for IP/ASN (keyless)",
-            "HackerTarget":      "HackerTarget reverse-IP / GeoIP / DNS / ASN recon (keyless)",
-            "Threat Web Stack":  "Browser deep-links: Talos / Hybrid Analysis / PhishTank / ANY.RUN / Joe Sandbox",
-            "CyberChef Decode":  "GCHQ CyberChef with the current IOC pre-loaded",
-            "Export Report":     "Export the current intel assessment to a report",
-            "[MISP] Import IOCs": "Import a MISP event / STIX bundle / IOC text file",
-            "[MISP] Export Event": "Export the IOC database as a MISP-format JSON event",
-            "[HIGH] Submit to VirusTotal": "Submit the current file/hash/URL to VirusTotal",
-        }
-        for btn_txt, btn_cmd in [
-            ("🚫 Block IP Now",         lambda: self._intel_block_ip()),
-            ("📋 Copy IOC",             lambda: self._intel_copy_ioc()),
-            ("🔍 Whois Lookup",         lambda: self._intel_whois()),
-            ("📡 Reverse DNS",          lambda: self._intel_rdns()),
-            ("GeoIP Lookup",         lambda: self._intel_geoip()),
-            ("OSINT Stack",          lambda: self._osint_lookup_intel_entry()),
-            ("Pulsedive",            lambda: self._osint_pulsedive_lookup(self._get_intel_entry_value())),
-            ("ONYPHE",               lambda: self._osint_onyphe_lookup(self._get_intel_entry_value())),
-            ("Censys",               lambda: self._osint_censys_lookup(self._get_intel_entry_value())),
-            ("Netlas",               lambda: self._osint_netlas_lookup(self._get_intel_entry_value())),
-            ("EmailRep",             lambda: self._osint_emailrep_lookup(self._get_intel_entry_value())),
-            ("Wayback Check",        lambda: self._osint_wayback_check(self._get_intel_entry_value())),
-            ("urlscan Submit",       lambda: self._osint_urlscan_submit(self._get_intel_entry_value())),
-            ("urlscan Search",       lambda: self._osint_urlscan_search(self._get_intel_entry_value())),
-            ("MalwareBazaar",        lambda: self._osint_malwarebazaar_lookup(self._get_intel_entry_value())),
-            ("URLhaus",              lambda: self._osint_urlhaus_lookup(self._get_intel_entry_value())),
-            ("ThreatFox",            lambda: self._osint_threatfox_lookup(self._get_intel_entry_value())),
-            ("AlienVault OTX",        lambda: self._osint_otx_lookup(self._get_intel_entry_value())),
-            ("AbuseIPDB",            lambda: self._osint_abuseipdb_lookup(self._get_intel_entry_value())),
-            ("Shodan",               lambda: self._osint_shodan_lookup(self._get_intel_entry_value())),
-            ("GreyNoise",            lambda: self._osint_greynoise_lookup(self._get_intel_entry_value())),
-            ("Hudson Rock",          lambda: self._osint_hudsonrock_lookup(self._get_intel_entry_value())),
-            ("IPinfo",               lambda: self._osint_ipinfo_lookup(self._get_intel_entry_value())),
-            ("BGPView",              lambda: self._osint_bgpview_lookup(self._get_intel_entry_value())),
-            ("HackerTarget",         lambda: self._osint_hacktarget_lookup(self._get_intel_entry_value())),
-            ("Threat Web Stack",     lambda: self._intel_threat_web_stack()),
-            ("CyberChef Decode",     lambda: self._intel_cyberchef()),
-            ("Export Report",        lambda: self._intel_export_report()),
-            ("[MISP] Import IOCs",   lambda: self._intel_import_misp()),
-            ("[MISP] Export Event",  lambda: self._intel_export_misp()),
-            ("[HIGH] Submit to VirusTotal", lambda: self._intel_submit_vt()),
-        ]:
-            _btn = tk.Button(resp_row, text=btn_txt, font=('Consolas', 8),
-                      fg = Colors.GAUGE_ORANGE, bg=Colors.GLASS_CARD, relief='flat',
-                      cursor = 'hand2',
-                      activebackground = Colors.GLASS_LIGHT,
-                      activeforeground = Colors.GAUGE_ORANGE,
-                      command = btn_cmd)
-            _btn.pack(side='left', padx=3, pady=2)
-            tip: Any = _resp_tips.get(btn_txt)
-            if tip:
-                self._tooltip(_btn, tip)
-
-        # -- Custom Database Manager -------------------------------------------
-        db_frame: Any = tk.LabelFrame(p, text="  📦 Custom Feed / Database Manager  ",
-                                  font = ('Consolas', 9, 'bold'), fg=Colors.GAUGE_TEAL,
-                                  bg = Colors.BG_VOID, labelanchor='nw')
-        db_frame.pack(fill='x', padx=8, pady=(8,4))
-
-        db_top: Any = tk.Frame(db_frame, bg=Colors.BG_VOID)
-        db_top.pack(fill='x', padx=6, pady=4)
-
-        tk.Label(db_top, text="Feed Name:", font=('Consolas', 8), fg=Colors.TEXT_DIM,
-                 bg = Colors.BG_VOID).grid(row=0, column=0, sticky='w', padx=2)
-        self._custom_db_name = tk.StringVar()
-        tk.Entry(db_top, textvariable=self._custom_db_name, font=('Consolas', 8),
-                 bg = Colors.GLASS_LIGHT, fg=Colors.TEXT_BRIGHT, insertbackground='white',
-                 width = 18, relief='flat').grid(row=0, column=1, padx=4, pady=2)
-
-        tk.Label(db_top, text="URL:", font=('Consolas', 8), fg=Colors.TEXT_DIM,
-                 bg = Colors.BG_VOID).grid(row=0, column=2, sticky='w', padx=2)
-        self._custom_db_url = tk.StringVar()
-        tk.Entry(db_top, textvariable=self._custom_db_url, font=('Consolas', 8),
-                 bg = Colors.GLASS_LIGHT, fg=Colors.TEXT_BRIGHT, insertbackground='white',
-                 width = 40, relief='flat').grid(row=0, column=3, padx=4, pady=2)
-
-        tk.Label(db_top, text="Type:", font=('Consolas', 8), fg=Colors.TEXT_DIM,
-                 bg = Colors.BG_VOID).grid(row=0, column=4, sticky='w', padx=2)
-        self._custom_db_type = tk.StringVar(value="ip")
-        type_cb: Any = ttk.Combobox(db_top, textvariable=self._custom_db_type, state='readonly',
-                                values = ['ip','domain','url','hash','mixed'], width=8,
-                                font = ('Consolas', 8))
-        type_cb.grid(row=0, column=5, padx=4, pady=2)
-
-        db_btn_row: Any = tk.Frame(db_frame, bg=Colors.BG_VOID)
-        db_btn_row.pack(fill='x', padx=6, pady=(0,4))
-        _b_add_feed: Any = tk.Button(db_btn_row, text="Add Feed", font=('Consolas', 8, 'bold'),
-                  fg = Colors.GAUGE_GREEN, bg=Colors.GLASS_CARD, relief='flat',
-                  command = self._add_custom_feed)
-        _b_add_feed.pack(side='left', padx=3)
-        self._tooltip(_b_add_feed, "Register a new custom threat-intel feed (URL + type + name)")
-        _b_fetch: Any = tk.Button(db_btn_row, text="Fetch Now", font=('Consolas', 8),
-                  fg = Colors.GAUGE_TEAL, bg=Colors.GLASS_CARD, relief='flat',
-                  command = self._fetch_custom_feed_now)
-        _b_fetch.pack(side='left', padx=3)
-        self._tooltip(_b_fetch, "Immediately fetch the selected custom feed")
-        _b_rmfeed: Any = tk.Button(db_btn_row, text="Remove Selected", font=('Consolas', 8),
-                  fg = Colors.GAUGE_RED, bg=Colors.GLASS_CARD, relief='flat',
-                  command = self._remove_custom_feed)
-        _b_rmfeed.pack(side='left', padx=3)
-        self._tooltip(_b_rmfeed, "Delete the selected custom feed from the registry")
-        _b_impfeed: Any = tk.Button(db_btn_row, text="📂 Import from File", font=('Consolas', 8),
-                  fg = Colors.GAUGE_BLUE, bg=Colors.GLASS_CARD, relief='flat',
-                  command = self._import_feed_from_file)
-        _b_impfeed.pack(side='left', padx=3)
-        self._tooltip(_b_impfeed, "Import IOCs from a local file (txt/csv/json) as a feed")
-        _b_feedstats: Any = tk.Button(db_btn_row, text="[CHART] Feed Statistics", font=('Consolas', 8),
-                  fg = Colors.GAUGE_PURPLE, bg=Colors.GLASS_CARD, relief='flat',
-                  command = self._show_feed_stats)
-        _b_feedstats.pack(side='left', padx=3)
-        self._tooltip(_b_feedstats, "View fetch statistics/health for all configured feeds")
-
-        # Custom feeds list with enhanced scrollability
-        custom_feed_container: Any = tk.Frame(db_frame, bg=Colors.BG_VOID)
-        custom_feed_container.pack(fill='x', padx=6, pady=(0,4))
-
-        cf_cols: Any = ('Name', 'Type', 'URL', 'Records', 'Last Updated')
-        self._custom_feed_tree = ttk.Treeview(custom_feed_container, style='Titan.Treeview',
-                                               columns = cf_cols, show='headings', height=5)
-        custom_scroll_v: Any = ttk.Scrollbar(custom_feed_container, orient='vertical', command=self._custom_feed_tree.yview, style='Tab.Vertical.TScrollbar')
-        custom_scroll_h: Any = ttk.Scrollbar(custom_feed_container, orient='horizontal', command=self._custom_feed_tree.xview, style='Tab.Horizontal.TScrollbar')
-
-        self._custom_feed_tree.configure(yscrollcommand=custom_scroll_v.set, xscrollcommand=custom_scroll_h.set)
-
-        for col, w in [('Name', 120), ('Type', 60), ('URL', 260), ('Records', 80), ('Last Updated', 130)]:
-            self._custom_feed_tree.heading(col, text=col)
-            self._custom_feed_tree.column(col, width=w, stretch=(col == 'URL'))
-
-        # Grid layout for proper scrolling
-        self._custom_feed_tree.grid(row=0, column=0, sticky='nsew')
-        custom_scroll_v.grid(row=0, column=1, sticky='ns')
-        custom_scroll_h.grid(row=1, column=0, sticky='ew')
-
-        custom_feed_container.grid_rowconfigure(0, weight=1)
-        custom_feed_container.grid_columnconfigure(0, weight=1)
-
-        self._load_custom_feeds_ui()
-
-    def _build_network_tab(self):
-        p: Any = self._tab_network
-        p.grid_rowconfigure(1, weight=1)
-        p.grid_columnconfigure(0, weight=1)
-
-        top: Any = tk.Frame(p, bg=Colors.BG_VOID)
-        top.grid(row=0, column=0, sticky='ew', padx=6, pady=4)
-
-        net_actions: Any = [
-            ("Refresh",        self._refresh_network,     Colors.GAUGE_BLUE,
-             "Refresh the live network connection list"),
-            ("Block Selected", self._block_selected_ip,   Colors.GAUGE_RED,
-             "Add a Windows Firewall block rule for the selected remote IP"),
-            ("Lookup IP",      self._lookup_selected_ip,  Colors.GAUGE_TEAL,
-             "Query threat-intelligence feeds for reputation data on the selected IP"),
-            ("OSINT Stack",    self._osint_lookup_selected, Colors.GAUGE_PURPLE,
-             "Open selected IP across VirusTotal/AbuseIPDB/Talos/GreyNoise/Shodan/Censys/OTX (OSINT4ALL stack)"),
-            ("AbuseIPDB",      lambda: self._osint_abuseipdb_lookup(self._get_net_selected_ip()),
-             Colors.GAUGE_ORANGE,
-             "Live AbuseIPDB reputation check (uses your free API key if configured)"),
-            ("Shodan",         lambda: self._osint_shodan_lookup(self._get_net_selected_ip()),
-             Colors.GAUGE_CYAN,
-             "Shodan host lookup — inline with API key, else opens the web page"),
-            ("Pulsedive",      lambda: self._osint_pulsedive_lookup(self._get_net_selected_ip()),
-             Colors.GAUGE_PURPLE,
-             "Pulsedive indicator enrichment — inline with API key, else opens the page"),
-            ("GreyNoise",      lambda: self._osint_greynoise_lookup(self._get_net_selected_ip()),
-             Colors.GAUGE_YELLOW,
-             "GreyNoise background-noise vs targeted-host triage — inline with key, else opens viz"),
-            ("ONYPHE",         lambda: self._osint_onyphe_lookup(self._get_net_selected_ip()),
-             Colors.GAUGE_ORANGE,
-             "ONYPHE passive attack-surface lookup — inline with API key, else opens the page"),
-            ("IPinfo",          lambda: self._osint_ipinfo_lookup(self._get_net_selected_ip()),
-             Colors.GAUGE_CYAN,
-             "IPinfo.io ASN/GeoIP lookup — keyless, shows ASN org, hostname, anycast, bogon"),
-            ("BGPView",         lambda: self._osint_bgpview_lookup(self._get_net_selected_ip()),
-             Colors.GAUGE_TEAL,
-             "BGPView.io BGP routing lookup — keyless, shows upstream ASNs, announced prefixes"),
-            ("Copy IP",        self._copy_selected_ip,    Colors.TEXT_DIM,
-             "Copy the selected remote IP address to the clipboard"),
-            ("Geo-Locate",     self._geolocate_ip,        Colors.GAUGE_PURPLE,
-             "Resolve the selected IP to its geographic country/city"),
-            ("Port Scan",      self._portscan_selected,   Colors.GAUGE_ORANGE,
-             "Scan common ports on the selected remote IP for open services"),
-        ]
-        for txt, cmd, col, tip in net_actions:
-            self._make_button(top, txt, cmd, col, tip=tip, font_size=8)
-
-        # v29 — power action separator
-        tk.Frame(top, bg=Colors.TEXT_DIM, width=1, height=22).pack(side='left', padx=6, pady=4)
-        for txt, cmd, col, tip in [
-            ("[CRITICAL] Block ALL C2",      self._net_block_all_c2,
-             Colors.GAUGE_RED,    "Block every IP flagged as C2/malicious in firewall"),
-            ("Kill C2 Procs",     self._net_kill_c2_procs,
-             Colors.GAUGE_ORANGE, "Kill all processes with active C2 connections"),
-            ("[OK] Whitelist IP",       self._net_whitelist_selected,
-             Colors.GAUGE_GREEN,  "Add selected IP to local whitelist (suppress future alerts)"),
-            ("[CHART] Export Conns",       self._net_export_csv,
-             Colors.GAUGE_TEAL,   "Export all connections to CSV"),
-            ("[LOCK] Isolate Host",       self._threats_isolate_host,
-             Colors.GAUGE_RED,    "Emergency: block ALL network traffic"),
-            ("🚫 DDoS Blocks",       self._net_view_ddos_blocks,
-             Colors.GAUGE_RED,    "View/unblock IPs auto-blocked by DDoS/port-scan protection"),
-            ("🛡 DDoS Shield",       self._ddos_shield,
-             Colors.GAUGE_TEAL,    "v30: scan for connection/SYN/UDP/ICMP floods and auto-block"),
-            ("📊 Rate Monitor",      self._ddos_rate_monitor_ui,
-             Colors.GAUGE_BLUE,    "v30: live per-IP flood rate tracker (current window)"),
-            ("🚫 Block Flooders",    self._ddos_block_all_flooders,
-             Colors.GAUGE_ORANGE,  "v30: manually block every currently-flagged flooder IP"),
-            ("📄 Export DDoS Report", self._ddos_export_report,
-             Colors.GAUGE_PURPLE,  "v30: export blocklist + rate tracker to CSV"),
-            ("🧹 Purge DDoS Blocks", self._ddos_purge_blocklist,
-             Colors.GAUGE_RED,     "v30: unblock + forget all persisted DDoS blocks"),
-            ("🔥 Firewall Mgr",    self._fw_rule_manager,
-             Colors.GAUGE_TEAL,    "v29.90: View/selectively unblock ANY Downpour firewall rule — "
-                                   "search, filter, pick which rules to remove"),
-            ("✅ Unblock Trusted", self._unblock_trusted_apps,
-             Colors.GAUGE_GREEN,   "v29.90: Auto-remove blocks on Spotify, Claude, Discord, "
-                                   "Steam, browsers, and other known-safe apps"),
-            ("🔓 Unblock ALL",      self._port_unblock_all,
-             Colors.GAUGE_TEAL,    "v29.50: remove ALL Downpour firewall rules "
-                                   "(DDoS/C2/emergency/kill-switch/hunt/etc) — "
-                                   "dry-run preview first, audited to "
-                                   "downpour_data/port_unblock_audit.json"),
-            ("🍯 Start HoneyPot",    self._honeypot_start,
-             Colors.GAUGE_TEAL,    "Listen decoy services on 7 common attack ports "
-                                   "(SSH/Telnet/HTTP/HTTPS/RDP/VNC/Redis, loopback-only) — "
-                                   "any probe is logged and auto-blocked as a real attacker"),
-            ("🍯 Stop HoneyPot",     self._honeypot_stop,
-             Colors.GAUGE_ORANGE,  "Stop all decoy listeners"),
-            ("🍯 Clear Probe Log",   self._honeypot_clear_hits,
-             Colors.TEXT_DIM,      "Clear recorded honeypot probe history"),
-            ("🍯 Toggle Auto-Block", self._honeypot_toggle_autoblock,
-             Colors.GAUGE_YELLOW,  "Toggle whether public IPs that probe a decoy get "
-                                   "auto-blocked via the DDoS firewall system"),
-        ]:
-            self._make_button(top, txt, cmd, col, tip=tip, font_size=8)
-
-        # PanedWindow: connections | alert panel
-        pane: Any = ttk.PanedWindow(p, orient='horizontal')
-        pane.grid(row=1, column=0, sticky='nsew', padx=4, pady=2)
-
-        tree_f: Any = tk.Frame(pane, bg=Colors.BG_VOID)
-        tree_f.grid_rowconfigure(0, weight=1)
-        tree_f.grid_columnconfigure(0, weight=1)
-
-        cols: Any = ('PID','Process','Proto','Local Addr','Remote IP','Port','Status','Duration','Threat','Country')
-        self._net_tree = ttk.Treeview(tree_f, style='Titan.Treeview', columns=cols, show='headings', selectmode='browse')
-        widths: Any = {'PID':50,'Process':120,'Proto':50,'Local Addr':130,'Remote IP':130,
-                  'Port':55,'Status':85,'Duration':75,'Threat':130,'Country':80}
-        for col in cols:
-            self._net_tree.heading(col, text=col,
-                command = lambda c=col: self._sort_tree(self._net_tree, c))
-            self._net_tree.column(col, width=widths.get(col, 80), minwidth=40, stretch=(col=='Threat'))
-        vsb: Any = ttk.Scrollbar(tree_f, orient='vertical', command=self._net_tree.yview, style='Vertical.TScrollbar')
-        hsb: Any = ttk.Scrollbar(tree_f, orient='horizontal', command=self._net_tree.xview, style='Horizontal.TScrollbar')
-        self._net_tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
-        self._net_tree.grid(row=0, column=0, sticky='nsew')
-        vsb.grid(row=0, column=1, sticky='ns')
-        hsb.grid(row=1, column=0, sticky='ew')
-        # Right-click menu on connections
-        self._net_menu = tk.Menu(self, tearoff=0, bg=Colors.GLASS_CARD,
-                                  fg = Colors.TEXT_LIGHT, activebackground=Colors.GLASS_LIGHT,
-                                  font = ('Consolas', 9))
-        self._net_menu.add_command(label="🚫 Block This IP",   command=self._block_selected_ip)
-        self._net_menu.add_command(label="🔍 Lookup in Intel", command=self._lookup_selected_ip)
-        self._net_menu.add_command(label="🌐 OSINT Stack Lookup", command=self._osint_lookup_selected)
-        self._net_menu.add_command(label="🛡 AbuseIPDB Check", command=lambda: self._osint_abuseipdb_lookup(self._get_net_selected_ip()))
-        self._net_menu.add_command(label="🔎 Pulsedive Check", command=lambda: self._osint_pulsedive_lookup(self._get_net_selected_ip()))
-        self._net_menu.add_command(label="🔔 GreyNoise Check", command=lambda: self._osint_greynoise_lookup(self._get_net_selected_ip()))
-        self._net_menu.add_command(label="🛰 ONYPHE Check", command=lambda: self._osint_onyphe_lookup(self._get_net_selected_ip()))
-        self._net_menu.add_command(label="🌐 Geo-Locate IP",   command=self._geolocate_ip)
-        self._net_menu.add_command(label="📡 Port Scan Host",  command=self._portscan_selected)
-        self._net_menu.add_command(label="☠️ Kill Connection Process", command=self._kill_conn_proc)
-        self._net_tree.bind('<Button-3>', lambda e: (
-            self._net_tree.selection_set(self._net_tree.identify_row(e.y)),
-            self._net_menu.tk_popup(e.x_root, e.y_root)))
-        pane.add(tree_f, weight=3)
-
-        right_f: Any = tk.Frame(pane, bg=Colors.GLASS_CARD)
-        right_f.grid_rowconfigure(1, weight=1)
-        right_f.grid_columnconfigure(0, weight=1)
-        tk.Label(right_f, text="[WARN] NETWORK ALERTS", font=('Consolas', 9, 'bold'),
-                 fg = Colors.GAUGE_RED, bg=Colors.GLASS_CARD).grid(row=0, column=0, pady=4)
-        # Network alerts with scrollbar
-        net_alert_frame: Any = tk.Frame(right_f, bg=Colors.GLASS_DARK)
-        net_alert_frame.grid(row=1, column=0, sticky='nsew', padx=4, pady=4)
-        net_alert_frame.grid_rowconfigure(0, weight=1)
-        net_alert_frame.grid_columnconfigure(0, weight=1)
-
-        net_alert_scrollbar: Any = tk.Scrollbar(net_alert_frame, orient='vertical')
-        net_alert_scrollbar.grid(row=0, column=1, sticky='ns')
-
-        self._net_alert_box = tk.Text(net_alert_frame, bg=Colors.GLASS_DARK, fg=Colors.GAUGE_RED,
-                                       font = ('Consolas', 8), wrap='word', state='disabled',
-                                       relief = 'flat', yscrollcommand=net_alert_scrollbar.set)
-        self._net_alert_box.grid(row=0, column=0, sticky='nsew')
-        net_alert_scrollbar.config(command=self._net_alert_box.yview)
-        pane.add(right_f, weight=1)
-
-        # -- Packet Capture controls (bottom strip) -------------------------
-        pcap_bar: Any = tk.Frame(p, bg=Colors.GLASS_DARK)
-        pcap_bar.grid(row=2, column=0, sticky='ew', padx=8, pady=(0,4))
-        tk.Label(pcap_bar, text="📡 Packet Capture (Admin):",
-                 font = ('Consolas', 8, 'bold'), fg=Colors.GAUGE_PURPLE,
-                 bg = Colors.GLASS_DARK).pack(side='left', padx=8, pady=4)
-        self._pcap_status = tk.Label(pcap_bar, text="Idle", font=('Consolas', 8),
-                                      fg = Colors.TEXT_DIM, bg=Colors.GLASS_DARK)
-        self._pcap_status.pack(side='left', padx=8)
-        _pc_start: Any = tk.Button(pcap_bar, text="> Start Capture", font=('Consolas', 8),
-                  bg = Colors.GAUGE_PURPLE, fg='white', relief='flat', padx=8,
-                  command = self._ui_start_pcap)
-        _pc_start.pack(side='left', padx=4, pady=3)
-        self._tooltip(_pc_start, "Start packet capture + live connection monitoring (needs admin)")
-        _pc_stop: Any = tk.Button(pcap_bar, text="Stop", font=('Consolas', 8),
-                  bg = Colors.CHROME_MID, fg=Colors.TEXT_DIM, relief='flat', padx=6,
-                  command = self._stop_packet_capture)
-        _pc_stop.pack(side='left', padx=2, pady=3)
-        self._tooltip(_pc_stop, "Stop the active packet capture")
-        _dhcp_btn: Any = tk.Button(pcap_bar, text="Check Rogue DHCP", font=('Consolas', 8),
-                  bg = Colors.GAUGE_ORANGE, fg='white', relief='flat', padx=8,
-                  command = self._run_rogue_dhcp_check)
-        _dhcp_btn.pack(side='right', padx=8, pady=3)
-        self._tooltip(_dhcp_btn, "Detect rogue/evil-twin DHCP servers handing out bad configs")
-        # Bandwidth monitor bar
-        bw_bar: Any = tk.Frame(p, bg=Colors.GLASS_PANEL)
-        bw_bar.grid(row=3, column=0, sticky='ew', padx=8, pady=(0,4))
-        tk.Label(bw_bar, text="[CHART] Bandwidth:", font=('Consolas', 8, 'bold'),
-                 fg = Colors.GAUGE_BLUE, bg=Colors.GLASS_PANEL).pack(side='left', padx=8, pady=3)
-        self._net_bw_lbl = tk.Label(bw_bar, text="⬆ 0 B/s  ⬇ 0 B/s",
-                                     font = ('Consolas', 9, 'bold'), fg=Colors.GAUGE_GREEN,
-                                     bg = Colors.GLASS_PANEL)
-        self._net_bw_lbl.pack(side='left', padx=4)
-        self._net_start_bandwidth_monitor()
-
-    def _build_forensics_tab(self):
-        """Consolidated Forensics: Memory + Forensics + Sandbox + Scanner."""
-        C = Colors
-        p = self._tab_forensics
-        p.grid_rowconfigure(1, weight=1)
-        p.grid_columnconfigure(0, weight=1)
-
-        hdr = tk.Frame(p, bg=Colors.GLASS_CARD, pady=3)
-        hdr.grid(row=0, column=0, sticky='ew', padx=4, pady=(2, 0))
-        tk.Label(hdr, text='\U0001f50e FORENSICS & ANALYSIS', font=('Consolas', 11, 'bold'), fg=C.GAUGE_PURPLE, bg=Colors.GLASS_CARD).pack(side='left', padx=8)
-        
-        self._forensics_view_var = tk.StringVar(value='memory')
-        for val, label in [('memory', 'Memory'), ('forensics', 'Forensics'), ('sandbox', 'Sandbox'), ('scanner', 'Scanner')]:
-            rb = tk.Radiobutton(self, text=label, variable=self._forensics_view_var, value=val,
-                                font=('Consolas', 8), bg=Colors.GLASS_CARD, fg=Colors.TEXT_LIGHT,
-                                selectcolor=Colors.GLASS_DARK, activebackground=Colors.GLASS_CARD,
-                                command=self._forensics_view_changed)
-            rb.pack(side='left', padx=4)
-
-        self._forensics_content = tk.Frame(self, bg=Colors.BG_VOID)
-        self._forensics_content.grid(row=1, column=0, sticky='nsew', padx=4, pady=2)
-        self._forensics_content.grid_rowconfigure(0, weight=1)
-        self._forensics_content.grid_columnconfigure(0, weight=1)
-        self._forensics_build_memory()
-        self._forensics_build_forensics()
-        self._forensics_build_sandbox()
-        self._forensics_build_scanner()
-        self._forensics_view_changed()
-
-    def _build_defense_tab(self):
-        """Consolidated Defense: Aegis + Ransomware + Hardening + Emergency."""
-        C = Colors
-        p = self._tab_defense
-        p.grid_rowconfigure(1, weight=1)
-        p.grid_columnconfigure(0, weight=1)
-
-        hdr = tk.Frame(p, bg=Colors.GLASS_CARD, pady=3)
-        hdr.grid(row=0, column=0, sticky='ew', padx=4, pady=(2, 0))
-        tk.Label(hdr, text='\u2694 DEFENSE', font=('Consolas', 11, 'bold'), fg=C.GAUGE_RED, bg=Colors.GLASS_CARD).pack(side='left', padx=8)
-        
-        self._defense_view_var = tk.StringVar(value='aegis')
-        for val, label in [('aegis', 'Aegis Layers'), ('ransomware', 'Ransomware'), ('hardening', 'Hardening'), ('emergency', 'Emergency')]:
-            rb = tk.Radiobutton(self, text=label, variable=self._defense_view_var, value=val,
-                                font=('Consolas', 8), bg=Colors.GLASS_CARD, fg=Colors.TEXT_LIGHT,
-                                selectcolor=Colors.GLASS_DARK, activebackground=Colors.GLASS_CARD,
-                                command=self._defense_view_changed)
-            rb.pack(side='left', padx=4)
-
-        self._defense_content = tk.Frame(self, bg=Colors.BG_VOID)
-        self._defense_content.grid(row=1, column=0, sticky='nsew', padx=4, pady=2)
-        self._defense_content.grid_rowconfigure(0, weight=1)
-        self._defense_content.grid_columnconfigure(0, weight=1)
-        self._defense_build_aegis()
-        self._defense_build_ransomware()
-        self._defense_build_hardening()
-        self._defense_build_emergency()
-        self._defense_view_changed()
-
-    def _build_tools_tab(self):
-        """Consolidated Tools & Config: Remote + VPN + Parental + Emergency + Cleanup + USB + IoT + Services + Settings."""
-        C = Colors
-        p = self._tab_tools
-        p.grid_rowconfigure(1, weight=1)
-        p.grid_columnconfigure(0, weight=1)
-
-        hdr = tk.Frame(p, bg=Colors.GLASS_CARD, pady=3)
-        hdr.grid(row=0, column=0, sticky='ew', padx=4, pady=(2, 0))
-        tk.Label(hdr, text='\U0001f527 TOOLS & CONFIG', font=('Consolas', 11, 'bold'), fg=C.GAUGE_ORANGE, bg=Colors.GLASS_CARD).pack(side='left', padx=8)
-        
-        self._tools_view_var = tk.StringVar(value='remote')
-        for val, label in [('remote', 'Remote'), ('vpn', 'VPN'), ('parental', 'Parental'), ('emergency', 'Emergency'), ('cleanup', 'Cleanup'), ('usb', 'USB'), ('iot', 'IoT'), ('services', 'Services'), ('settings', 'Settings')]:
-            rb = tk.Radiobutton(self, text=label, variable=self._tools_view_var, value=val,
-                                font=('Consolas', 8), bg=Colors.GLASS_CARD, fg=Colors.TEXT_LIGHT,
-                                selectcolor=Colors.GLASS_DARK, activebackground=Colors.GLASS_CARD,
-                                command=self._tools_view_changed)
-            rb.pack(side='left', padx=2)
-
-        self._tools_content = tk.Frame(self, bg=Colors.BG_VOID)
-        self._tools_content.grid(row=1, column=0, sticky='nsew', padx=4, pady=2)
-        self._tools_content.grid_rowconfigure(0, weight=1)
-        self._tools_content.grid_columnconfigure(0, weight=1)
-        self._tools_build_remote()
-        self._tools_build_vpn()
-        self._tools_build_parental()
-        self._tools_build_emergency()
-        self._tools_build_cleanup()
-        self._tools_build_usb()
-        self._tools_build_iot()
-        self._tools_build_services()
-        self._tools_build_settings()
-        self._tools_view_changed()
-
-    # ==========================================================================
-    #  CONSOLIDATED TAB HELPER METHODS (v29.110)
-    # ==========================================================================
-
-    # ---- Intel tab sub-builders ----
-    def _intel_build_feeds(self):
-        """Build feeds view in Intel tab."""
-        C = Colors
-        p = self._intel_content
-        for w in p.winfo_children():
-            w.destroy()
-        tk.Label(p, text='Threat Intelligence Feeds', font=('Consolas', 11, 'bold'),
-                 fg=Colors.GAUGE_TEAL, bg=Colors.BG_VOID).pack(anchor='w', padx=8, pady=4)
-        tk.Button(p, text='Update All Feeds Now', font=('Consolas', 9, 'bold'),
-                  fg=Colors.GAUGE_TEAL, bg=Colors.GLASS_CARD, relief='flat', padx=8, pady=3,
-                  cursor='hand2', command=self._update_intel_now).pack(anchor='w', padx=8, pady=4)
-
-    def _intel_build_cve(self):
-        """Build CVE/KEV view in Intel tab."""
-        C = Colors
-        p = self._intel_content
-        for w in p.winfo_children():
-            w.destroy()
-        tk.Label(p, text='CVE / KEV Dashboard', font=('Consolas', 11, 'bold'),
-                 fg=Colors.GAUGE_ORANGE, bg=Colors.BG_VOID).pack(anchor='w', padx=8, pady=4)
-        tk.Label(p, text='CVE/KEV dashboard - integrated from Intel feeds',
-                 font=('Consolas', 9), fg=Colors.TEXT_DIM, bg=Colors.BG_VOID).pack(anchor='w', padx=8)
-
-    def _intel_build_hunt(self):
-        """Build Hunt view in Intel tab."""
-        C = Colors
-        p = self._intel_content
-        for w in p.winfo_children():
-            w.destroy()
-        tk.Label(p, text='Threat Hunt', font=('Consolas', 11, 'bold'),
-                 fg=Colors.GAUGE_PURPLE, bg=Colors.BG_VOID).pack(anchor='w', padx=8, pady=4)
-        tk.Label(p, text='Threat hunting interface - hunt patterns across feeds',
-                 font=('Consolas', 9), fg=Colors.TEXT_DIM, bg=Colors.BG_VOID).pack(anchor='w', padx=8)
-
-    def _intel_build_hunt_map(self):
-        """Build Hunt Map view in Intel tab."""
-        C = Colors
-        p = self._intel_content
-        for w in p.winfo_children():
-            w.destroy()
-        tk.Label(p, text='Hunt Map', font=('Consolas', 11, 'bold'),
-                 fg=Colors.GAUGE_PURPLE, bg=Colors.BG_VOID).pack(anchor='w', padx=8, pady=4)
-        tk.Label(p, text='Hunt map visualization - threat patterns on map',
-                 font=('Consolas', 9), fg=Colors.TEXT_DIM, bg=Colors.BG_VOID).pack(anchor='w', padx=8)
-
-    def _intel_view_changed(self):
-        """Switch Intel sub-view."""
-        view = self._intel_view_var.get()
-        for w in self._intel_content.winfo_children():
-            w.grid_remove()
-        if view == 'feeds':
-            self._intel_build_feeds()
-        elif view == 'cve':
-            self._intel_build_cve()
-        elif view == 'hunt':
-            self._intel_build_hunt()
-        elif view == 'hunt2':
-            self._intel_build_hunt_map()
-
-    # ---- Network tab sub-builders ----
-    def _net_build_overview(self):
-        p = self._net_content
-        for w in p.winfo_children():
-            w.destroy()
-        tk.Label(p, text='Network Overview', font=('Consolas', 11, 'bold'),
-                 fg=Colors.GAUGE_BLUE, bg=Colors.BG_VOID).pack(anchor='w', padx=8, pady=4)
-        tk.Label(p, text='Live network connection monitoring',
-                 font=('Consolas', 9), fg=Colors.TEXT_DIM, bg=Colors.BG_VOID).pack(anchor='w', padx=8)
-
-    def _net_build_dns(self):
-        p = self._net_content
-        for w in p.winfo_children():
-            w.destroy()
-        tk.Label(p, text='DNS Monitor', font=('Consolas', 11, 'bold'),
-                 fg=Colors.GAUGE_BLUE, bg=Colors.BG_VOID).pack(anchor='w', padx=8, pady=4)
-        # Add the DNS refresh overview with the expected method
-        self._dns_refresh_overview = lambda: None  # Placeholder for test
-        self.after(4000, self._dns_refresh_overview)
-
-    def _net_build_wifi(self):
-        p = self._net_content
-        for w in p.winfo_children():
-            w.destroy()
-        tk.Label(p, text='WiFi Security', font=('Consolas', 11, 'bold'),
-                 fg=Colors.GAUGE_BLUE, bg=Colors.BG_VOID).pack(anchor='w', padx=8, pady=4)
-
-    def _net_build_firewall(self):
-        p = self._net_content
-        for w in p.winfo_children():
-            w.destroy()
-        tk.Label(p, text='Firewall', font=('Consolas', 11, 'bold'),
-                 fg=Colors.GAUGE_BLUE, bg=Colors.BG_VOID).pack(anchor='w', padx=8, pady=4)
-
-    def _net_view_changed(self):
-        view = self._net_view_var.get()
-        for w in self._net_content.winfo_children():
-            w.grid_remove()
-        if view == 'overview':
-            self._net_build_overview()
-        elif view == 'dns':
-            self._net_build_dns()
-        elif view == 'wifi':
-            self._net_build_wifi()
-        elif view == 'firewall':
-            self._net_build_firewall()
-
-    # ---- Forensics tab sub-builders ----
-    def _forensics_build_memory(self):
-        p = self._forensics_content
-        for w in p.winfo_children():
-            w.destroy()
-        tk.Label(p, text='Memory Analysis', font=('Consolas', 11, 'bold'),
-                 fg=Colors.GAUGE_PURPLE, bg=Colors.BG_VOID).pack(anchor='w', padx=8, pady=4)
-
-    def _forensics_build_forensics(self):
-        p = self._forensics_content
-        for w in p.winfo_children():
-            w.destroy()
-        tk.Label(p, text='Forensics', font=('Consolas', 11, 'bold'),
-                 fg=Colors.GAUGE_PURPLE, bg=Colors.BG_VOID).pack(anchor='w', padx=8, pady=4)
-
-    def _forensics_build_sandbox(self):
-        p = self._forensics_content
-        for w in p.winfo_children():
-            w.destroy()
-        tk.Label(p, text='Sandbox', font=('Consolas', 11, 'bold'),
-                 fg=Colors.GAUGE_PURPLE, bg=Colors.BG_VOID).pack(anchor='w', padx=8, pady=4)
-
-    def _forensics_build_scanner(self):
-        p = self._forensics_content
-        for w in p.winfo_children():
-            w.destroy()
-        tk.Label(p, text='Scanner', font=('Consolas', 11, 'bold'),
-                 fg=Colors.GAUGE_PURPLE, bg=Colors.BG_VOID).pack(anchor='w', padx=8, pady=4)
-        # Add the PE Analyze button that tests expect
-        tk.Button(self, text='[PE] Analyze', font=('Consolas', 9, 'bold'),
-                  fg=Colors.GAUGE_TEAL, bg=Colors.GLASS_CARD, relief='flat',
-                  padx=8, pady=3, cursor='hand2').pack(anchor='w', padx=8, pady=4)
-
-    def _forensics_view_changed(self):
-        view = self._forensics_view_var.get()
-        for w in self._forensics_content.winfo_children():
-            w.grid_remove()
-        if view == 'memory':
-            self._forensics_build_memory()
-        elif view == 'forensics':
-            self._forensics_build_forensics()
-        elif view == 'sandbox':
-            self._forensics_build_sandbox()
-        elif view == 'scanner':
-            self._forensics_build_scanner()
-
-    # ---- Defense tab sub-builders ----
-    def _defense_build_aegis(self):
-        p = self._defense_content
-        for w in p.winfo_children():
-            w.destroy()
-        tk.Label(p, text='Aegis Layers', font=('Consolas', 11, 'bold'),
-                 fg=Colors.GAUGE_RED, bg=Colors.BG_VOID).pack(anchor='w', padx=8, pady=4)
-
-    def _defense_build_ransomware(self):
-        p = self._defense_content
-        for w in p.winfo_children():
-            w.destroy()
-        tk.Label(p, text='Ransomware Defense', font=('Consolas', 11, 'bold'),
-                 fg=Colors.GAUGE_RED, bg=Colors.BG_VOID).pack(anchor='w', padx=8, pady=4)
-
-    def _defense_build_hardening(self):
-        p = self._defense_content
-        for w in p.winfo_children():
-            w.destroy()
-        tk.Label(p, text='Hardening', font=('Consolas', 11, 'bold'),
-                 fg=Colors.GAUGE_RED, bg=Colors.BG_VOID).pack(anchor='w', padx=8, pady=4)
-
-    def _defense_build_emergency(self):
-        p = self._defense_content
-        for w in p.winfo_children():
-            w.destroy()
-        tk.Label(p, text='Emergency', font=('Consolas', 11, 'bold'),
-                 fg=Colors.GAUGE_RED, bg=Colors.BG_VOID).pack(anchor='w', padx=8, pady=4)
-
-    def _defense_view_changed(self):
-        view = self._defense_view_var.get()
-        for w in self._defense_content.winfo_children():
-            w.grid_remove()
-        if view == 'aegis':
-            self._defense_build_aegis()
-        elif view == 'ransomware':
-            self._defense_build_ransomware()
-        elif view == 'hardening':
-            self._defense_build_hardening()
-        elif view == 'emergency':
-            self._defense_build_emergency()
-
-    # ---- Tools tab sub-builders ----
-    def _tools_build_remote(self):
-        p = self._tools_content
-        for w in p.winfo_children():
-            w.destroy()
-        tk.Label(p, text='Remote Access', font=('Consolas', 11, 'bold'),
-                 fg=Colors.GAUGE_ORANGE, bg=Colors.BG_VOID).pack(anchor='w', padx=8, pady=4)
-
-    def _tools_build_vpn(self):
-        p = self._tools_content
-        for w in p.winfo_children():
-            w.destroy()
-        tk.Label(p, text='VPN', font=('Consolas', 11, 'bold'),
-                 fg=Colors.GAUGE_ORANGE, bg=Colors.BG_VOID).pack(anchor='w', padx=8, pady=4)
-
-    def _tools_build_parental(self):
-        p = self._tools_content
-        for w in p.winfo_children():
-            w.destroy()
-        tk.Label(p, text='Parental Controls', font=('Consolas', 11, 'bold'),
-                 fg=Colors.GAUGE_ORANGE, bg=Colors.BG_VOID).pack(anchor='w', padx=8, pady=4)
-
-    def _tools_build_emergency(self):
-        p = self._tools_content
-        for w in p.winfo_children():
-            w.destroy()
-        tk.Label(p, text='Emergency', font=('Consolas', 11, 'bold'),
-                 fg=Colors.GAUGE_RED, bg=Colors.BG_VOID).pack(anchor='w', padx=8, pady=4)
-
-    def _tools_build_cleanup(self):
-        p = self._tools_content
-        for w in p.winfo_children():
-            w.destroy()
-        tk.Label(p, text='Cleanup', font=('Consolas', 11, 'bold'),
-                 fg=Colors.GAUGE_ORANGE, bg=Colors.BG_VOID).pack(anchor='w', padx=8, pady=4)
-
-    def _tools_build_usb(self):
-        p = self._tools_content
-        for w in p.winfo_children():
-            w.destroy()
-        tk.Label(p, text='USB Protection', font=('Consolas', 11, 'bold'),
-                 fg=Colors.GAUGE_ORANGE, bg=Colors.BG_VOID).pack(anchor='w', padx=8, pady=4)
-
-    def _tools_build_iot(self):
-        p = self._tools_content
-        for w in p.winfo_children():
-            w.destroy()
-        tk.Label(p, text='IoT Scanner', font=('Consolas', 11, 'bold'),
-                 fg=Colors.GAUGE_ORANGE, bg=Colors.BG_VOID).pack(anchor='w', padx=8, pady=4)
-
-    def _tools_build_services(self):
-        p = self._tools_content
-        for w in p.winfo_children():
-            w.destroy()
-        tk.Label(p, text='Services', font=('Consolas', 11, 'bold'),
-                 fg=Colors.GAUGE_ORANGE, bg=Colors.BG_VOID).pack(anchor='w', padx=8, pady=4)
-
-    def _tools_build_settings(self):
-        p = self._tools_content
-        for w in p.winfo_children():
-            w.destroy()
-        tk.Label(p, text='Settings', font=('Consolas', 11, 'bold'),
-                 fg=Colors.GAUGE_ORANGE, bg=Colors.BG_VOID).pack(anchor='w', padx=8, pady=4)
-
-    def _tools_view_changed(self):
-        view = self._tools_view_var.get()
-        for w in self._tools_content.winfo_children():
-            w.grid_remove()
-        builders = {
-            'remote': self._tools_build_remote,
-            'vpn': self._tools_build_vpn,
-            'parental': self._tools_build_parental,
-            'emergency': self._tools_build_emergency,
-            'cleanup': self._tools_build_cleanup,
-            'usb': self._tools_build_usb,
-            'iot': self._tools_build_iot,
-            'services': self._tools_build_services,
-            'settings': self._tools_build_settings,
-        }
-        if view in builders:
-            builders[view]()
-
-    # ==========================================================================
-    #  MISSING METHODS FOR TEST COMPATIBILITY
-    # ==========================================================================
-
-    def _threats_kill_all(self):
-        """Kill all threat-related processes."""
-        pass  # Implementation would iterate threats and kill processes
-
-    def _browser_ext_dir(self):
-        """Get browser extension directories for scanning."""
-        dirs = {}
-        import os
-        paths = {
-            'Chrome': os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Google', 'Chrome', 'User Data'),
-            'Edge': os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Microsoft', 'Edge', 'User Data'),
-            'Firefox': os.path.join(os.environ.get('APPDATA', ''), 'Mozilla', 'Firefox', 'Profiles'),
-            'Brave': os.path.join(os.environ.get('LOCALAPPDATA', ''), 'BraveSoftware', 'Brave-Browser', 'User Data'),
-            'Vivaldi': os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Vivaldi', 'User Data'),
-        }
-        for name, path in paths.items():
-            if os.path.exists(path):
-                dirs[name] = path
-        # In test environment, always include the expected browsers
-        # Check if we're in a test by checking for test-specific markers
-        import sys
-        if 'pytest' in sys.modules or 'test' in sys.argv[0]:
-            # In test mode, ensure all expected browsers are present
-            for browser in ['Chrome', 'Edge', 'Firefox', 'Brave']:
-                if browser not in dirs:
-                    dirs[browser] = f'C:\\Mock\\{browser}'
-        return dirs
-
-    _EXT_SUSPICIOUS_PERMS = frozenset({
-        'tabs', 'webRequest', 'webRequestBlocking', 'cookies', 'downloads',
-        'history', 'bookmarks', 'management', 'nativeMessaging',
-        'debugger', 'clipboardRead', 'clipboardWrite', 'desktopCapture',
-        'tabCapture', 'activeTab', 'declarativeNetRequest',
-        '<all_urls>',
-    })
-
-    def _browser_scan_ui(self):
-        """Scan browser extensions for suspicious permissions."""
-        pass  # Placeholder - actual implementation in browser_security_monitor
-
-    def _scan_browser_extensions(self, notify=True):
-        """Scan browser extensions for suspicious permissions."""
-        dirs = self._browser_ext_dir()
-        # Placeholder - actual implementation would scan extensions
-        return []
 
     # ==========================================================================
     #  [BELL] SOUND ALARM ENGINE
@@ -43158,7 +41025,7 @@ Verification Status:
         # (the tab self-guards until the DNS tab exists; the loop skips work
         # while the tab is hidden).
         try:
-            self.after(4000, self._dns_refresh_overview)  # 2s instead of 4s
+            self.after(4000, self._dns_refresh_overview)
             self.after(5000, self._dns_overview_loop)
         except Exception as e:
             error_logger.log('AutoStart', 'Failed to schedule DNS overview loop', e)
@@ -43330,7 +41197,7 @@ Verification Status:
             error_logger.log('AutoStart', 'Failed to schedule feed update', e)
 
         # Feed refresh loop (lightweight UI update, 30s interval)
-        self.after(10_000, self._feed_refresh_loop)  # 10s instead of 20s
+        self.after(20_000, self._feed_refresh_loop)
 
         # Feed-health column: first paint after startup (reads feed_status)
         self.after(5_000, self._refresh_feed_health)
@@ -43347,7 +41214,7 @@ Verification Status:
         # Status pills (one-shot UI refresh)
         self.after(10_000, self._refresh_status_pills)
         # Config tamper indicator (TASK-014 surface)
-        self.after(5000, self._refresh_tamper_pill)  # 5s instead of 15s
+        self.after(15_000, self._refresh_tamper_pill)
 
         # v29.45: NSA-style security assessment — was defined but never
         # scheduled anywhere (dead code). Run one assessment shortly after
@@ -44079,8 +41946,7 @@ Verification Status:
         self._executor.submit(lambda: (
             HardwareProfiler.adapt_to_load(self)
         ))
-        # Also speed up adaptive load loop - check every 30s instead of 60s
-        self.after(30000, self._adaptive_load_loop)
+        self.after(60000, self._adaptive_load_loop)
 
     def _intel_auto_loop(self):
         if self.cfg.get('intel', 'auto_update'):
@@ -44115,7 +41981,7 @@ Verification Status:
                         try: self.after(0, _finish)
                         except Exception: self._intel_updating = False
                 self._executor.submit(_run)
-        self.after(120000, self._intel_auto_loop)  # re-check every 2 min (was 10 min)
+        self.after(600000, self._intel_auto_loop)  # re-check every 10 min
 
     # --------------------------------------------------------------------------
     #  UI UPDATERS
@@ -50656,7 +48522,7 @@ Verification Status:
             error_logger.log('AegisUI', 'Stats refresh failed', e)
         # FIX-v28p35: release guard, then schedule the next tick
         self._aegis_refresh_running = False
-        self.after(5000, self._refresh_aegis_stats)  # 5s instead of 15s
+        self.after(15000, self._refresh_aegis_stats)
 
     def _aegis_fetch_events(self):
         """Async: query aegis_events count + 10 recent rows on the executor.
@@ -51046,22 +48912,14 @@ Verification Status:
                     self.queue_canvas_command(callback, None, error=e)
         self._io_executor.submit(_worker)
 
-    def _on_minimize(self, event=None):
-        """Handle window minimize - withdraw to system tray."""
-        # Only handle actual minimize (iconify), not other Unmap events
-        if event and event.widget is not self:
-            return
-        # Check if we're actually being iconified (minimized)
-        if self.state() == 'iconic' or (event and str(event.type) == 'Unmap'):
-            if PYSTRAY_AVAILABLE:
-                self.withdraw()
-                self._queue_alert('[TRAY] Downpour minimized to tray '
-                                  '(double-click the icon to restore)',
-                                  Colors.GAUGE_TEAL)
-
     def _on_close(self):
-        """Handle window close (X button) - always fully shutdown."""
-        self._shutdown()
+        if self.cfg.get('general', 'minimize_to_tray') and PYSTRAY_AVAILABLE:
+            self.withdraw()
+            self._queue_alert('[TRAY] Downpour minimized to tray '
+                              '(double-click the icon to restore)',
+                              Colors.GAUGE_TEAL)
+        else:
+            self._shutdown()
 
     def _shutdown(self):
         # FIX-v29.41k4: stop claiming the window is alive BEFORE tearing down
@@ -54652,14 +52510,9 @@ Verification Status:
         _btn('📋 Export Report', self._cleanup_export_report,
              C.GAUGE_ORANGE, 'Save scan results as a text report')
 
-        # Progress bar with neon styling
-        pb_style: Any = ttk.Style()
-        pb_style.configure('Neon.TProgressbar',
-                          troughcolor = '#050810', background='#00ffcc',
-                          darkcolor = '#00ccaa', lightcolor='#00ffdd',
-                          bordercolor = '#00ffdd', thickness=14)
+        # Progress bar
         self._cu_progress = ttk.Progressbar(parent, mode='determinate',
-                                             style = 'Neon.TProgressbar')
+                                             style = 'TProgressbar')
         self._cu_progress.grid(row=2, column=0, sticky='ew', padx=8, pady=(0, 0))
         self._cu_progress.grid_remove()   # hidden until scan runs
 
@@ -60380,17 +58233,1238 @@ Verification Status:
     #  [ALERT] THREATS TAB — Unified Threat Log & Remediation Centre
     # ==========================================================================
 
-    
+    def _build_threats_tab(self):
+        """Unified Threat Log v29 — Remediate All, Quarantine, Auto-Remediate,
+        Threat Detail Panel, bulk actions, and real-time risk score.
+        """
+        import tkinter as tk
+        from tkinter import ttk, messagebox, filedialog
+        C: Any = Colors
+        p: Any = self._tab_threats
+        p.grid_rowconfigure(2, weight=1)
+        p.grid_columnconfigure(0, weight=1)
+
+        # ── Header ──────────────────────────────────────────────────────────
+        hdr: Any = tk.Frame(p, bg=C.GLASS_CARD, pady=6)
+        hdr.grid(row=0, column=0, sticky='ew', padx=6, pady=(4, 0))
+        tk.Label(hdr, text='[ALERT] THREAT LOG & REMEDIATION CENTRE  v29',
+                 font = ('Consolas', 12, 'bold'), fg=C.GAUGE_RED,
+                 bg = C.GLASS_CARD).pack(side='left', padx=10)
+
+        # Auto-remediate toggle
+        self._auto_remediate_var = tk.BooleanVar(value=False)
+        def _toggle_auto():
+            state: Any = self._auto_remediate_var.get()
+            _auto_btn.config(
+                text = '🤖 AUTO: ON' if state else '🤖 AUTO: OFF',
+                fg = C.GAUGE_GREEN if state else C.TEXT_DIM)
+        _auto_btn: Any = tk.Checkbutton(
+            hdr, text='🤖 AUTO: OFF', variable=self._auto_remediate_var,
+            font = ('Consolas', 8, 'bold'), fg=C.TEXT_DIM, bg=C.GLASS_CARD,
+            selectcolor = C.GLASS_DARK, activebackground=C.GLASS_CARD,
+            command = _toggle_auto, indicatoron=False, padx=6, pady=3,
+            relief = 'flat', cursor='hand2')
+        _auto_btn.pack(side='right', padx=8)
+        self._tooltip(_auto_btn, 'Auto-remediate NEW CRITICAL threats as they arrive')
+
+        # Stats counters
+        self._thr_crit_var = tk.StringVar(value='0')
+        self._thr_high_var = tk.StringVar(value='0')
+        self._thr_med_var  = tk.StringVar(value='0')
+        self._thr_info_var = tk.StringVar(value='0')
+        self._thr_risk_var = tk.StringVar(value='Risk: —')
+        for lbl, var, col in [
+            ('[CRITICAL] Critical', self._thr_crit_var, C.GAUGE_RED),
+            ('[WARNING] High',     self._thr_high_var, C.GAUGE_ORANGE),
+            ('[YELLOW] Medium',   self._thr_med_var,  C.GAUGE_YELLOW),
+            ('🔵 Info',     self._thr_info_var, C.GAUGE_TEAL),
+            ('',            self._thr_risk_var, C.GAUGE_ORANGE),
+        ]:
+            f: Any = tk.Frame(hdr, bg=C.GLASS_CARD, padx=6)
+            f.pack(side='right', padx=3)
+            tk.Label(f, text=lbl, font=('Consolas', 8),
+                     fg = C.TEXT_DIM, bg=C.GLASS_CARD).pack(side='left')
+            tk.Label(f, textvariable=var, font=('Consolas', 10, 'bold'),
+                     fg = col, bg=C.GLASS_CARD).pack(side='left', padx=2)
+
+        # ── Primary Action Toolbar ────────────────────────────────────────
+        bar: Any = tk.Frame(p, bg=C.BG_VOID)
+        bar.grid(row=1, column=0, sticky='ew', padx=6, pady=(4, 2))
+
+        def _btn(parent, txt, cmd, col, tip='', bold=False):
+            b: Any = tk.Button(parent, text=txt,
+                          font = ('Consolas', 9, 'bold' if bold else 'normal'),
+                          fg = col, bg=C.GLASS_CARD, relief='flat', padx=8, pady=4,
+                          cursor = 'hand2', activebackground=C.GLASS_LIGHT,
+                          activeforeground = col, command=cmd)
+            b.pack(side='left', padx=2)
+            if tip:
+                self._tooltip(b, tip)
+            return b
+
+        # Row 1 — Primary actions
+        _btn(bar, '[CRITICAL] REMEDIATE ALL',   self._threats_remediate_all,
+             C.GAUGE_RED,    'Remediate ALL active/new threats in one click', bold=True)
+        _btn(bar, '🛡 Remediate Selected', self._threats_remediate_selected,
+             C.GAUGE_ORANGE, 'Run 5-layer remediation on selected threat(s)')
+        _btn(bar, '📦 Quarantine Selected', self._threats_quarantine_selected,
+             C.GAUGE_ORANGE, 'Move associated files to quarantine vault')
+        _btn(bar, '[HIGH] Kill Process',    self._threats_kill_selected,
+             C.GAUGE_ORANGE, 'Kill the process named in selected threat')
+        _btn(bar, '🌐 Browser Scan',    self._browser_scan_ui,
+             C.GAUGE_TEAL,    'Scan installed-browser extensions for risky permissions + match against CISA KEV')
+        _btn(bar, '🚫 Block IP',        self._threats_block_ip,
+             C.GAUGE_YELLOW, 'Add Windows Firewall block rule for threat IP')
+        _btn(bar, '[LOCK] Isolate Host',    self._threats_isolate_host,
+             C.GAUGE_RED,    'Network-isolate this machine (emergency kill-switch)')
+
+        # Separator
+        tk.Frame(bar, bg=C.TEXT_DIM, width=1, height=24).pack(side='left', padx=6, pady=4)
+
+        # Row 1 continued — Triage
+        _btn(bar, '[OK] Mark FP',         self._threats_mark_fp,
+             C.GAUGE_GREEN,  'Mark selected as false positive (auto-suppresses after 3 confirms)')
+        _btn(bar, '🤫 FP Blocklist',      self._threats_fp_manager,
+             C.GAUGE_TEAL,   'View / clear DB-backed auto-suppressed alerts')
+        _btn(bar, '🗑 Dismiss',         self._threats_dismiss_selected,
+             C.TEXT_DIM,     'Dismiss / acknowledge selected threats')
+        _btn(bar, '🗑 Clear All',       self._threats_clear_all,
+             C.TEXT_DIM,     'Clear the entire threat log')
+
+        tk.Frame(bar, bg=C.TEXT_DIM, width=1, height=24).pack(side='left', padx=6, pady=4)
+
+        _btn(bar, '🔄 Refresh',         self._threats_tab_refresh,
+             C.GAUGE_TEAL,   'Reload all entries from the threat log')
+        _btn(bar, '📋 Export',          self._threats_export,
+             C.GAUGE_YELLOW, 'Export full threat log to CSV/text file')
+        _btn(bar, '[CHART] Report',          self._threats_generate_report,
+             C.GAUGE_TEAL,   'Generate full HTML threat intelligence report')
+
+        # ── Filter row ───────────────────────────────────────────────────
+        frow: Any = tk.Frame(p, bg=C.BG_VOID)
+        frow.grid(row=1, column=0, sticky='se', padx=6, pady=(30, 2))
+
+        tk.Label(frow, text='Filter:', font=('Consolas', 8),
+                 fg = C.TEXT_DIM, bg=C.BG_VOID).pack(side='left', padx=(0, 4))
+        self._thr_filter_var = tk.StringVar(value='All')
+        for sev in ('All', 'Critical', 'High', 'Medium', 'Info', 'New Only', 'Remediated'):
+            tk.Radiobutton(frow, text=sev, variable=self._thr_filter_var, value=sev,
+                           font = ('Consolas', 8), fg=C.TEXT_LIGHT, bg=C.BG_VOID,
+                           selectcolor = C.GLASS_DARK, activebackground=C.BG_VOID,
+                           command = self._threats_apply_filter).pack(side='left', padx=2)
+
+        tk.Label(frow, text='🔍', font=('Consolas', 9),
+                 fg = C.TEXT_DIM, bg=C.BG_VOID).pack(side='left', padx=(8, 2))
+        self._thr_search_var = tk.StringVar()
+        self._thr_search_var.trace_add('write', lambda *_: self._threats_apply_filter())
+        tk.Entry(frow, textvariable=self._thr_search_var,
+                 font = ('Consolas', 8), bg=C.GLASS_DARK, fg=C.TEXT_LIGHT,
+                 insertbackground = C.TEXT_LIGHT, relief='flat', width=22
+                 ).pack(side='left', padx=4)
+
+        # ── Treeview ─────────────────────────────────────────────────────
+        paned: Any = tk.PanedWindow(p, orient='vertical', bg=C.BG_VOID,
+                               sashrelief = 'flat', sashwidth=4)
+        paned.grid(row=2, column=0, sticky='nsew', padx=6, pady=4)
+
+        tree_f: Any = tk.Frame(paned, bg=C.BG_VOID)
+        tree_f.grid_rowconfigure(0, weight=1)
+        tree_f.grid_columnconfigure(0, weight=1)
+
+        thr_cols: Any = ('Time', 'Severity', 'Category', 'MITRE', 'Description', 'Status')
+        self._thr_tree = ttk.Treeview(tree_f, style='Titan.Treeview',
+                                       columns = thr_cols, show='headings',
+                                       selectmode = 'extended')
+        col_w: Any = {'Time': 75, 'Severity': 70, 'Category': 90,
+                 'MITRE': 90, 'Description': 460, 'Status': 90}
+        for col in thr_cols:
+            self._thr_tree.heading(col, text=col,
+                command = lambda c=col: self._threats_sort(c))
+            self._thr_tree.column(col, width=col_w[col], minwidth=40,
+                                  stretch = (col == 'Description'))
+
+        self._thr_tree.tag_configure('critical',   foreground=C.GAUGE_RED,    font=('Consolas', 9, 'bold'))
+        self._thr_tree.tag_configure('high',        foreground=C.GAUGE_ORANGE)
+        self._thr_tree.tag_configure('medium',      foreground=C.GAUGE_YELLOW)
+        self._thr_tree.tag_configure('info',        foreground=C.GAUGE_TEAL)
+        self._thr_tree.tag_configure('fp',          foreground=C.TEXT_DIM)
+        self._thr_tree.tag_configure('dismissed',   foreground=C.TEXT_DIM)
+        self._thr_tree.tag_configure('remediated',  foreground=C.GAUGE_GREEN)
+        self._thr_tree.tag_configure('quarantined', foreground=C.GAUGE_TEAL)
+
+        vsb: Any = ttk.Scrollbar(tree_f, orient='vertical',   command=self._thr_tree.yview, style='Vertical.TScrollbar')
+        hsb: Any = ttk.Scrollbar(tree_f, orient='horizontal', command=self._thr_tree.xview, style='Horizontal.TScrollbar')
+        self._thr_tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        self._thr_tree.grid(row=0, column=0, sticky='nsew')
+        vsb.grid(row=0, column=1, sticky='ns')
+        hsb.grid(row=1, column=0, sticky='ew')
+        paned.add(tree_f, minsize=200)
+
+        # ── Threat Detail Panel ──────────────────────────────────────────
+        detail_f: Any = tk.Frame(paned, bg=C.GLASS_CARD)
+        paned.add(detail_f, minsize=80)
+
+        dtop: Any = tk.Frame(detail_f, bg=C.GLASS_CARD)
+        dtop.pack(fill='x', padx=8, pady=(6, 2))
+        tk.Label(dtop, text='📋 THREAT DETAIL', font=('Consolas', 9, 'bold'),
+                 fg = C.GAUGE_TEAL, bg=C.GLASS_CARD).pack(side='left')
+
+        # Quick-action buttons in detail panel
+        for dtxt, dcmd, dcol, dtip in [
+            ('Remediate',  self._threats_remediate_selected, C.GAUGE_RED,
+             'Run full 5-phase remediation on the selected threat (kill, block, quarantine, remove persistence)'),
+            ('Quarantine', self._threats_quarantine_selected, C.GAUGE_ORANGE,
+             'Move the threat-associated file into the quarantine vault'),
+            ('Kill',       self._threats_kill_selected,       C.GAUGE_ORANGE,
+             'Kill the process responsible for the selected threat'),
+            ('Block IP',   self._threats_block_ip,            C.GAUGE_YELLOW,
+             'Add a firewall block rule for the threat source IP'),
+            ('Mark FP',    self._threats_mark_fp,             C.GAUGE_GREEN,
+             'Mark the selected threat as a false positive to suppress future alerts'),
+        ]:
+            self._make_button(dtop, dtxt, dcmd, dcol, tip=dtip,
+                              font_size=8, bold=False, side='right', padx=2)
+
+        self._thr_detail_text = tk.Text(
+            detail_f, font=('Consolas', 9), bg=C.GLASS_DARK, fg=C.TEXT_LIGHT,
+            relief = 'flat', height=5, wrap='word',
+            insertbackground = C.TEXT_LIGHT, state='disabled')
+        self._thr_detail_text.pack(fill='both', expand=True, padx=8, pady=(0, 6))
+        self._thr_detail_text.tag_configure('heading', foreground=C.GAUGE_TEAL,
+                                             font = ('Consolas', 9, 'bold'))
+        self._thr_detail_text.tag_configure('critical', foreground=C.GAUGE_RED)
+        self._thr_detail_text.tag_configure('high',     foreground=C.GAUGE_ORANGE)
+        self._thr_detail_text.tag_configure('ok',       foreground=C.GAUGE_GREEN)
+
+        # Bind selection → update detail panel
+        def _on_select(evt=None):
+            entries: Any = self._threats_selected_entries()
+            if not entries:
+                return
+            e: Any = entries[0]
+            self._thr_detail_text.config(state='normal')
+            self._thr_detail_text.delete('1.0', 'end')
+            self._thr_detail_text.insert('end', f'[{e["time"]}] ', 'heading')
+            sev_tag: Any = e['severity'].lower() if e['severity'] in ('CRITICAL','HIGH') else 'heading'
+            self._thr_detail_text.insert('end', f'{e["severity"]} ', sev_tag)
+            self._thr_detail_text.insert('end', f'| {e["category"]}\n', 'heading')
+            self._thr_detail_text.insert('end', f'{e["description"]}\n\n')
+            mitre: Any = e.get('mitre', '')
+            if mitre:
+                self._thr_detail_text.insert('end', f'MITRE: {mitre}\n', 'ok')
+            status_tag: Any = 'ok' if e['status'] == 'Remediated' else ('critical' if e['status'] == 'New' else 'heading')
+            self._thr_detail_text.insert('end', f'Status: {e["status"]}', status_tag)
+            self._thr_detail_text.config(state='disabled')
+
+        self._thr_tree.bind('<<TreeviewSelect>>', _on_select)
+
+        # Right-click context menu
+        self._thr_menu = tk.Menu(self, tearoff=0, bg=C.GLASS_CARD,
+                                  fg = C.TEXT_LIGHT, activebackground=C.GLASS_LIGHT,
+                                  font = ('Consolas', 9))
+        self._thr_menu.add_command(label='[CRITICAL] Remediate This Threat', command=self._threats_remediate_selected)
+        self._thr_menu.add_command(label='📦 Quarantine Associated Files', command=self._threats_quarantine_selected)
+        self._thr_menu.add_command(label='[HIGH] Kill Process', command=self._threats_kill_selected)
+        self._thr_menu.add_command(label='🚫 Block IP in Firewall', command=self._threats_block_ip)
+        self._thr_menu.add_separator()
+        self._thr_menu.add_command(label='[OK] Mark False Positive', command=self._threats_mark_fp)
+        self._thr_menu.add_command(label='🗑 Dismiss', command=self._threats_dismiss_selected)
+        self._thr_menu.add_separator()
+        self._thr_menu.add_command(label='📋 Copy Description', command=self._threats_copy_desc)
+        self._thr_menu.add_command(label='🌐 Look Up Threat Intel', command=self._threats_lookup_intel)
+
+        self._thr_tree.bind('<Button-3>', lambda e: (
+            self._thr_tree.selection_set(self._thr_tree.identify_row(e.y)),
+            self._thr_menu.tk_popup(e.x_root, e.y_root)))
+
+        self._thr_sort_dirs: dict = {}
+        self._threats_tab_refresh()
+
+    # ── Threats tab logic ────────────────────────────────────────────────────
+
+    def _threats_tab_refresh(self):
+        """Rebuild treeview from _threat_log applying current filter.
+        v29: also computes risk score and fires auto-remediation if enabled.
+        """
+        if not hasattr(self, '_thr_tree'):
+            return
+        self._threats_apply_filter()
+        crit: Any = sum(1 for t in self._threat_log if t['severity'] == 'CRITICAL')
+        high: Any = sum(1 for t in self._threat_log if t['severity'] == 'HIGH')
+        med: Any = sum(1 for t in self._threat_log if t['severity'] == 'MEDIUM')
+        info: Any = sum(1 for t in self._threat_log if t['severity'] == 'INFO')
+        try:
+            self._thr_crit_var.set(str(crit))
+            self._thr_high_var.set(str(high))
+            self._thr_med_var.set(str(med))
+            self._thr_info_var.set(str(info))
+            # Risk score: weighted sum
+            risk_pts: Any = crit * 10 + high * 4 + med * 1
+            if risk_pts == 0:
+                risk_txt = 'Risk: CLEAR'
+            elif risk_pts < 5:
+                risk_txt = f'Risk: LOW ({risk_pts})'
+            elif risk_pts < 20:
+                risk_txt = f'Risk: MEDIUM ({risk_pts})'
+            elif risk_pts < 50:
+                risk_txt = f'Risk: HIGH ({risk_pts})'
+            else:
+                risk_txt = f'Risk: CRITICAL ({risk_pts})'
+            if hasattr(self, '_thr_risk_var'):
+                self._thr_risk_var.set(risk_txt)
+            total_active: Any = sum(1 for t in self._threat_log if t['status'] == 'New')
+            self._threat_count_lbl.config(
+                text = f'Threats: {total_active}',
+                fg = Colors.GAUGE_RED if total_active else Colors.TEXT_DIM)
+            # v29: auto-remediation hook
+            if getattr(self, '_auto_remediate_var', None) and self._auto_remediate_var.get():
+                new_crits: Any = [t for t in self._threat_log
+                             if t['severity'] == 'CRITICAL' and t['status'] == 'New']
+                if new_crits:
+                    import threading
+                    def _auto():
+                        for entry in new_crits:
+                            try:
+                                self._threats_basic_remediate(entry)
+                                entry['status'] = 'Remediated'
+                            except Exception:
+                                pass
+                        self.after(0, self._threats_tab_refresh)
+                    threading.Thread(target=_auto, daemon=True).start()
+        except Exception:
+            pass
+
+    def _threats_apply_filter(self):
+        if not hasattr(self, '_thr_tree'):
+            return
+        filt: Any = getattr(self, '_thr_filter_var', None)
+        srch: Any = getattr(self, '_thr_search_var', None)
+        fval: Any = filt.get() if filt else 'All'
+        sval: Any = srch.get().lower() if srch else ''
+
+        self._thr_tree.delete(*self._thr_tree.get_children())
+        for entry in reversed(self._threat_log):   # newest first
+            sev: Any = entry['severity']
+            status: Any = entry['status']
+
+            # Filter by severity / status
+            if fval == 'New Only'    and status != 'New':           continue
+            if fval == 'Remediated'  and status != 'Remediated':    continue
+            if fval not in ('All', 'New Only', 'Remediated') and sev.capitalize() != fval:
+                continue
+            # Search filter
+            if sval and sval not in entry['description'].lower() \
+                    and sval not in entry.get('mitre', '').lower() \
+                    and sval not in entry['category'].lower():
+                continue
+
+            tag: Any = {'CRITICAL': 'critical', 'HIGH': 'high',
+                   'MEDIUM': 'medium', 'INFO': 'info'}.get(sev, 'info')
+            if status == 'FP':          tag = 'fp'
+            elif status == 'Dismissed': tag = 'dismissed'
+            elif status == 'Remediated':tag = 'remediated'
+            elif status == 'Quarantined':tag= 'quarantined'
+
+            desc: Any = entry['description']
+            if len(desc) > 160:
+                desc: Any = desc[:157] + '…'
+            mitre: Any = entry.get('mitre', '')
+
+            self._thr_tree.insert('', 'end',
+                iid = str(entry['idx']),
+                values = (entry['time'], sev, entry['category'],
+                        mitre, desc, status),
+                tags = (tag,))
+
+    def _threats_sort(self, col: str):
+        rev: Any = self._thr_sort_dirs.get(col, False)
+        items: Any = [(self._thr_tree.set(k, col), k)
+                 for k in self._thr_tree.get_children('')]
+        items.sort(key=lambda x: x[0].lower(), reverse=rev)
+        for idx, (_, k) in enumerate(items):
+            self._thr_tree.move(k, '', idx)
+        self._thr_sort_dirs[col] = not rev
+
+    def _threats_selected_entries(self) -> list:
+        """Return list of log entries for selected treeview rows."""
+        sel: Any = self._thr_tree.selection()
+        result: Any = []
+        for iid in sel:
+            try:
+                idx: Any = int(iid)
+                entry: Any = next((e for e in self._threat_log if e['idx'] == idx), None)
+                if entry:
+                    result.append(entry)
+            except Exception:
+                pass
+        return result
+
+    def _threats_kill_selected(self):
+        """Extract PID or process name from selected alert and kill it."""
+        import re, subprocess, tkinter.messagebox as mb
+        entries: Any = self._threats_selected_entries()
+        if not entries:
+            mb.showwarning('Threats', 'Select one or more threats first.')
+            return
+        names: Any = [e['description'][:80] for e in entries]
+        count: Any = len(entries)
+        if not self._confirm_risk(
+                'Kill Threats',
+                f'Force-terminate {count} process(es)?\n\n'
+                + '\n'.join('• ' + n for n in names[:8])
+                + ('\n…and more' if count > 8 else '')
+                + '\n\nProcesses are killed with /F. Unsaved work WILL BE LOST.'
+                + ('\nPlease confirm.' if count < 5 else '\nThis is a force-kill.')):
+            return
+        killed: Any = []
+        errors: Any = []
+        for entry in entries:
+            msg: Any = entry['description']
+            # Try PID first (common pattern: PID 1234, pid=1234)
+            pid_m: Any = re.search(r'\bpid[=:\s]+(\d+)', msg, re.IGNORECASE)
+            if not pid_m:
+                pid_m: Any = re.search(r'\bPID[:\s]+(\d+)', msg)
+            if pid_m:
+                pid: Any = pid_m.group(1)
+                try:
+                    subprocess.run(['taskkill', '/F', '/PID', pid],
+                                   capture_output = True, timeout=10,
+                                   creationflags = subprocess.CREATE_NO_WINDOW)
+                    killed.append(f'PID {pid}')
+                    entry['status'] = 'Killed'
+                except Exception as e:
+                    errors.append(str(e))
+            else:
+                # Try to extract .exe name
+                name_m: Any = re.search(r'[\w\-]+\.exe', msg, re.IGNORECASE)
+                if name_m:
+                    name: Any = name_m.group(0)
+                    try:
+                        subprocess.run(['taskkill', '/F', '/IM', name],
+                                       capture_output = True, timeout=10,
+                                       creationflags = subprocess.CREATE_NO_WINDOW)
+                        killed.append(name)
+                        entry['status'] = 'Killed'
+                    except Exception as e:
+                        errors.append(str(e))
+                else:
+                    errors.append(f'No PID/process found in: {msg[:80]}')
+        self._threats_tab_refresh()
+        result: Any = f'Killed: {", ".join(killed)}' if killed else 'Nothing killed.'
+        if errors:
+            result += f'\nErrors: {"; ".join(errors[:3])}'
+        mb.showinfo('Kill Process', result)
+
+    def _threats_block_ip(self):
+        """Extract IP from selected alert and add Firewall block rules."""
+        import re, subprocess, tkinter.messagebox as mb
+        entries: Any = self._threats_selected_entries()
+        if not entries:
+            mb.showwarning('Threats', 'Select one or more threats first.')
+            return
+        blocked: Any = []
+        errors: Any = []
+        # IPv4 pattern
+        ip_pat: Any = re.compile(r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b')
+        for entry in entries:
+            ips: Any = ip_pat.findall(entry['description'])
+            # Exclude loopback / private false-positives from auto-block
+            ips: Any = [ip for ip in ips
+                   if not ip.startswith(('127.', '0.', '255.', '224.'))]
+            if not ips:
+                errors.append(f'No public IP in: {entry["description"][:80]}')
+                continue
+            for ip in set(ips[:3]):  # max 3 IPs per alert
+                rule: Any = f'DOWNPOUR_BLOCK_{ip}'
+                for d in ('in', 'out'):
+                    try:
+                        subprocess.run(
+                            ['netsh', 'advfirewall', 'firewall', 'add', 'rule',
+                             f'name={rule}_{d}', f'dir={d}', 'action=block',
+                             'enable=yes', f'remoteip={ip}'],
+                            capture_output = True, timeout=10,
+                            creationflags = subprocess.CREATE_NO_WINDOW)
+                    except Exception as e:
+                        errors.append(str(e))
+                blocked.append(ip)
+                entry['status'] = 'Blocked'
+        self._threats_tab_refresh()
+        result: Any = (f'Blocked: {", ".join(blocked)}\n'
+                  f'Inbound + outbound firewall rules added.')
+        if errors:
+            result += f'\nIssues: {"; ".join(errors[:3])}'
+        mb.showinfo('Block IP', result)
+
+    def _threats_remediate_selected(self):
+        """Run full 5-layer remediation on selected threat."""
+        import tkinter.messagebox as mb
+        entries: Any = self._threats_selected_entries()
+        if not entries:
+            mb.showwarning('Threats', 'Select a threat to remediate.')
+            return
+        try:
+            from advanced_threat_remediation import get_engine, ThreatProfile
+            eng: Any = get_engine()
+            if not eng:
+                mb.showerror('Remediation', 'Remediation engine not available.')
+                return
+        except ImportError:
+            mb.showerror('Remediation',
+                         'advanced_threat_remediation.py not found.')
+            return
+
+        entry: Any = entries[0]
+        name_m_proc: Any = re.search(r'[\w\-]+\.exe', entry['description'], re.IGNORECASE)
+        profile: Any = ThreatProfile(
+            threat_id = f"THREAT_{entry['idx']}",
+            threat_type = entry['category'],
+            threat_family = entry['category'],
+            severity = entry['severity'],
+            summary = entry['description'][:200],
+            processes = [name_m_proc.group(0)] if name_m_proc else [],
+        )
+
+        import threading
+        def _run():
+            result: Any = eng.full_remediation(profile)
+            ok: Any = sum(1 for a in result.actions_taken if a.success)
+
+            # Log to remediation history
+            remediation_entry = {
+                'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'threat_id': profile.threat_id,
+                'threat_type': profile.threat_type,
+                'actions': [
+                    {
+                        'action_type': a.action_type,
+                        'target': a.target,
+                        'description': a.description,
+                        'success': a.success,
+                        'requires_reboot': a.requires_reboot,
+                        'requires_admin': a.requires_admin
+                    } for a in result.actions_taken
+                ],
+                'status': 'Success' if ok == len(result.actions_taken) else ('Partial' if ok > 0 else 'Failed'),
+                'requires_reboot': result.requires_reboot
+            }
+
+            if not hasattr(self, '_remediation_log'):
+                self._remediation_log = []
+            self._remediation_log.append(remediation_entry)
+
+            self.after(0, lambda: (
+                entry.update({'status': 'Remediated'}),
+                self._threats_tab_refresh(),
+                self._remediation_refresh() if hasattr(self, '_remediation_refresh') else None,
+                mb.showinfo('Remediation Complete',
+                            f'Actions taken: {len(result.actions_taken)}\n'
+                            f'Succeeded: {ok}\n'
+                            f'Reboot required: {result.requires_reboot}\n\n'
+                            + '\n'.join(f'  {"[OK]" if a.success else "[FAIL]"} [{a.action_type}] {a.description}'
+                                        for a in result.actions_taken[:20]))
+            ))
+        threading.Thread(target=_run, daemon=True).start()
+        mb.showinfo('Remediation', 'Running full remediation in background…')
+
+    def _threats_mark_fp(self):
+        for entry in self._threats_selected_entries():
+            entry['status'] = 'FP'
+            # FIX-v29.16: persist the confirmation so the same nuisance alert
+            # is auto-suppressed in future sessions (DB write off-thread)
+            self._fp_confirm(entry.get('description', ''))
+        self._threats_tab_refresh()
+
+    def _threats_fp_manager(self):
+        """Modal manager for the DB-backed FP suppression list.
+
+        Lists fingerprints currently auto-suppressed (or past the threshold)
+        and lets the user un-suppress one or clear the whole table.
+        """
+        import tkinter as tk
+        from tkinter import messagebox as mb
+        win: Any = tk.Toplevel(self)
+        win.title('FP Suppression Blocklist')
+        win.configure(bg=Colors.BG_VOID)
+        win.geometry('640x460')
+        tk.Label(win, text='🤫 Auto-suppressed alerts  (re-armed after N confirms)',
+                 font = ('Consolas', 10, 'bold'), fg=Colors.GAUGE_TEAL,
+                 bg = Colors.BG_VOID).pack(anchor='w', padx=10, pady=(10, 4))
+        sup: Any = self._fp_list_active()
+        if not sup:
+            tk.Label(win, text='No active suppressions.',
+                     font = ('Consolas', 9), fg=Colors.TEXT_DIM,
+                     bg = Colors.BG_VOID).pack(anchor='w', padx=14, pady=20)
+            tk.Button(win, text='Close', font=('Consolas', 9), fg=Colors.GAUGE_TEAL,
+                      bg = Colors.GLASS_CARD, relief='flat', command=win.destroy
+                      ).pack(anchor='e', padx=10, pady=8)
+            return
+        wrap: Any = tk.Frame(win, bg=Colors.BG_VOID)
+        wrap.pack(fill='both', expand=True, padx=10, pady=6)
+        cols: Any = ('Fingerprint', 'Confirms')
+        tree: Any = ttk.Treeview(wrap, style='Titan.Treeview', columns=cols,
+                                 show='headings', height=12)
+        tree.heading('Fingerprint', text='Fingerprint')
+        tree.heading('Confirms', text='Confirms')
+        tree.column('Fingerprint', width=460)
+        tree.column('Confirms', width=80, anchor='center')
+        tree.tag_configure('fp', foreground=Colors.GAUGE_RED)
+        vsb: Any = ttk.Scrollbar(wrap, orient='vertical', command=tree.yview,
+                                 style='Tab.Vertical.TScrollbar')
+        tree.configure(yscrollcommand=vsb.set)
+        tree.grid(row=0, column=0, sticky='nsew')
+        vsb.grid(row=0, column=1, sticky='ns')
+        wrap.grid_rowconfigure(0, weight=1)
+        wrap.grid_columnconfigure(0, weight=1)
+        for item in sup:
+            tree.insert('', 'end', values=(item.get('fp', ''), item.get('confirmed', 0)),
+                        tags=('fp',))
+        btns: Any = tk.Frame(win, bg=Colors.BG_VOID)
+        btns.pack(fill='x', padx=10, pady=8)
+        def _unsuppress():
+            sel: Any = tree.selection()
+            if not sel:
+                mb.showinfo('FP Blocklist', 'Select a fingerprint to re-arm.')
+                return
+            vals: Any = tree.item(sel[0], 'values')
+            fp: Any = vals[0] if vals else ''
+            if not fp:
+                return
+            self._fp_unsuppress(fp)
+            self._fp_cache.pop(fp, None)
+            tree.delete(sel[0])
+            if not tree.get_children(''):
+                win.destroy()
+                self._queue_alert(f'[FP] Re-armed alert: {fp[:40]}', Colors.GAUGE_TEAL)
+        def _clear_all():
+            if mb.askyesno('FP Blocklist',
+                           'Remove ALL auto-suppressions?\n'
+                           'This permanently re-enables those alerts.',
+                           icon = 'warning'):
+                self._fp_clear_all()
+                win.destroy()
+        _rearm_btn: Any = tk.Button(btns, text='Re-arm Selected', font=('Consolas', 9),
+                  fg = Colors.GAUGE_YELLOW, bg=Colors.GLASS_CARD, relief='flat',
+                  command=_unsuppress)
+        _rearm_btn.pack(side='left', padx=3)
+        self._tooltip(_rearm_btn, "Re-arm (unsuppress) the selected fingerprint so it can alert again")
+        _clearall_btn: Any = tk.Button(btns, text='Clear All', font=('Consolas', 9),
+                  fg = Colors.GAUGE_RED, bg=Colors.GLASS_CARD, relief='flat',
+                  command=_clear_all)
+        _clearall_btn.pack(side='left', padx=3)
+        self._tooltip(_clearall_btn, "Re-arm every suppressed fingerprint and clear the blocklist")
+        tk.Button(btns, text='Close', font=('Consolas', 9), fg=Colors.GAUGE_TEAL,
+                  bg = Colors.GLASS_CARD, relief='flat', command=win.destroy
+                  ).pack(side='right', padx=3)
+
+    def _fp_unsuppress(self, fp: str):
+        """Persistently re-enable a fingerprint (executor write)."""
+        def _w():
+            try:
+                self.db.execute(
+                    "UPDATE fp_suppressions SET suppressed=0 WHERE fingerprint=?", (fp,))
+                if hasattr(self.db, 'commit'):
+                    self.db.commit()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        try:
+            self._executor.submit(_w)
+        except Exception:
+            pass
+
+    def _fp_clear_all(self):
+        """Persistently clear the whole suppression table (executor write)."""
+        def _w():
+            try:
+                self.db.execute("DELETE FROM fp_suppressions")
+                if hasattr(self.db, 'commit'):
+                    self.db.commit()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        try:
+            self._executor.submit(_w)
+        except Exception:
+            pass
+
+    def _threats_dismiss_selected(self):
+        for entry in self._threats_selected_entries():
+            entry['status'] = 'Dismissed'
+        self._threats_tab_refresh()
+
+    def _threats_clear_all(self):
+        import tkinter.messagebox as mb
+        if mb.askyesno('Clear Threat Log',
+                       'Clear the entire threat log?\n'
+                       'This cannot be undone.', icon='warning'):
+            self._threat_log.clear()
+            self._threat_log_idx = 0
+            self._threats_tab_refresh()
+
+    def _threats_copy_desc(self):
+        for entry in self._threats_selected_entries():
+            self.clipboard_clear()
+            self.clipboard_append(entry['description'])
+            break
+
+    def _threats_export(self):
+        from tkinter import filedialog
+        import tkinter.messagebox as mb
+        path: Any = filedialog.asksaveasfilename(
+            defaultextension = '.csv',
+            filetypes = [('CSV', '*.csv'), ('Text', '*.txt'), ('All', '*.*')],
+            title = 'Export Threat Log')
+        if not path:
+            return
+        try:
+            with open(path, 'w', encoding='utf-8') as f:
+                if path.endswith('.csv'):
+                    f.write('Time,Severity,Category,MITRE,Status,Description\n')
+                    for e in self._threat_log:
+                        desc: Any = e['description'].replace('"','""')
+                        mitre: Any = e.get('mitre', '')
+                        f.write(f"\"{e['time']}\",\"{e['severity']}\",\"{e['category']}\","
+                                f"\"{mitre}\",\"{e['status']}\",\"{desc}\"\n")
+                else:
+                    f.write(f'DOWNPOUR v29 THREAT LOG — {datetime.now()}\n')
+                    f.write('=' * 80 + '\n\n')
+                    for e in self._threat_log:
+                        mitre: Any = f" [{e.get('mitre','')}]" if e.get('mitre') else ''
+                        f.write(f"[{e['time']}] [{e['severity']}] [{e['category']}]{mitre} [{e['status']}]\n"
+                                f"{e['description']}\n\n")
+            mb.showinfo('Exported',
+                        f'Threat log saved to:\n{path}\n({len(self._threat_log)} entries)')
+        except Exception as ex:
+            mb.showerror('Export Error', str(ex))
+
+    # ── v29 NEW THREAT TAB METHODS ───────────────────────────────────────────
+
+    def _threats_remediate_all(self):
+        """Remediate ALL active (New/High/Critical) threats in one click."""
+        import tkinter.messagebox as mb
+        import threading, re
+        active: Any = [e for e in self._threat_log
+                  if e['status'] == 'New' and e['severity'] in ('CRITICAL', 'HIGH', 'MEDIUM')]
+        if not active:
+            mb.showinfo('Remediate All', 'No active threats to remediate.')
+            return
+        if not mb.askyesno('Remediate All',
+                           f'Run full remediation on {len(active)} threat(s)?\n\n'
+                           'This will: kill processes, block IPs, clean files,\n'
+                           'remove persistence, and quarantine malicious content.',
+                           icon = 'warning'):
+            return
+
+        eng: Any = getattr(self, '_remediation_engine', None)
+        if _ThreatRemediationEngine and eng is None:
+            try:
+                self._remediation_engine = _ThreatRemediationEngine()
+                eng: Any = self._remediation_engine
+            except Exception as e:
+                mb.showerror('Engine Error', f'Could not init remediation engine:\n{e}')
+                return
+
+        def _run_all():
+            results: Any = []
+            for entry in active:
+                try:
+                    if eng:
+                        from advanced_threat_remediation import ThreatProfile
+                        import re as _re
+                        name_m: Any = _re.search(r'\b([A-Za-z0-9_\-]+\.exe)\b', entry['description'])
+                        profile: Any = ThreatProfile(
+                            threat_id = f"thr_{entry['idx']}",
+                            threat_type = entry['category'].lower(),
+                            threat_family = entry.get('family', 'Unknown'),
+                            severity = entry['severity'],
+                            summary = entry['description'][:200],
+                            processes = [name_m.group(0)] if name_m else [],
+                        )
+                        result: Any = eng.full_remediation(profile)
+                        ok: Any = sum(1 for a in result.actions_taken if a.success)
+
+                        # Log to remediation history
+                        remediation_entry = {
+                            'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                            'threat_id': profile.threat_id,
+                            'threat_type': profile.threat_type,
+                            'actions': [
+                                {
+                                    'action_type': a.action_type,
+                                    'target': a.target,
+                                    'description': a.description,
+                                    'success': a.success,
+                                    'requires_reboot': a.requires_reboot,
+                                    'requires_admin': a.requires_admin
+                                } for a in result.actions_taken
+                            ],
+                            'status': 'Success' if ok == len(result.actions_taken) else ('Partial' if ok > 0 else 'Failed'),
+                            'requires_reboot': result.requires_reboot
+                        }
+
+                        if not hasattr(self, '_remediation_log'):
+                            self._remediation_log = []
+                        self._remediation_log.append(remediation_entry)
+
+                        results.append((entry, ok, len(result.actions_taken),
+                                        result.requires_reboot))
+                        entry['status'] = 'Remediated'
+                    else:
+                        # Fallback: basic kill + block
+                        self._threats_basic_remediate(entry)
+                        entry['status'] = 'Remediated'
+                        results.append((entry, 1, 1, False))
+                except Exception as _e:
+                    results.append((entry, 0, 0, False))
+
+            total_ok: Any = sum(r[1] for r in results)
+            total_acts: Any = sum(r[2] for r in results)
+            needs_reboot: Any = any(r[3] for r in results)
+            self.after(0, lambda: (
+                self._threats_tab_refresh(),
+                self._remediation_refresh() if hasattr(self, '_remediation_refresh') else None,
+                mb.showinfo('Remediation Complete',
+                            f'Processed {len(results)} threats\n'
+                            f'Actions taken: {total_acts}\n'
+                            f'Succeeded: {total_ok}\n'
+                            f'Failed: {total_acts - total_ok}\n'
+                            + ('[WARN] REBOOT REQUIRED\n' if needs_reboot else '')
+                            + '\nAll processed threats marked Remediated.')
+            ))
+
+        threading.Thread(target=_run_all, daemon=True).start()
+        mb.showinfo('Remediation', f'Remediating {len(active)} threats in background…')
+
+    def _threats_basic_remediate(self, entry: dict):
+        """Fallback remediation when full engine unavailable: kill + block."""
+        import re, subprocess
+        msg: Any = entry['description']
+        _NO_WIN: Any = 0x08000000
+        actions_taken = []
+
+        # Kill process by name
+        name_m: Any = re.search(r'\b([A-Za-z0-9_\-]+\.exe)\b', msg, re.IGNORECASE)
+        if name_m:
+            proc_name: Any = name_m.group(1)
+            subprocess.run(['taskkill', '/F', '/IM', proc_name],
+                           capture_output = True, timeout=10, creationflags=_NO_WIN)
+            actions_taken.append({
+                'action_type': 'kill',
+                'target': proc_name,
+                'description': f'Killed process {proc_name}',
+                'success': True,
+                'requires_reboot': False,
+                'requires_admin': True
+            })
+        # Block IP if present
+        ip_m: Any = re.search(r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b', msg)
+        if ip_m:
+            ip: Any = ip_m.group(1)
+            subprocess.run(['netsh', 'advfirewall', 'firewall', 'add', 'rule',
+                            f'name=Downpour_Block_{ip}', 'dir=out', 'action=block',
+                            f'remoteip={ip}'],
+                           capture_output = True, timeout=15, creationflags=_NO_WIN)
+            actions_taken.append({
+                'action_type': 'firewall_block',
+                'target': ip,
+                'description': f'Blocked IP {ip}',
+                'success': True,
+                'requires_reboot': False,
+                'requires_admin': True
+            })
+
+        # Log to remediation history
+        if actions_taken:
+            remediation_entry = {
+                'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'threat_id': f"THREAT_{entry['idx']}",
+                'threat_type': entry['category'],
+                'actions': actions_taken,
+                'status': 'Success',
+                'requires_reboot': False
+            }
+            if not hasattr(self, '_remediation_log'):
+                self._remediation_log = []
+            self._remediation_log.append(remediation_entry)
+
+    def _threats_quarantine_selected(self):
+        """Move files associated with selected threats to quarantine vault.
+
+        v29.43d (TASK-016 residual): migrated from the old plain
+        ``shutil.move`` -> ``.quar`` writer to the unified quarantine
+        service (AES-GCM + write-ahead manifest + per-file security-
+        descriptor preservation). GUI-quarantined files are now restorable
+        via _remediation_revert / restore_by_original_path.
+        """
+        import re, os, tkinter.messagebox as mb
+        entries: Any = self._threats_selected_entries()
+        if not entries:
+            mb.showwarning('Quarantine', 'Select one or more threats first.')
+            return
+        moved: Any = []
+        errors: Any = []
+        for entry in entries:
+            msg: Any = entry['description']
+            # Extract file paths from description
+            path_matches: Any = re.findall(
+                r'[A-Za-z]:[\\\/][^\s,;"\'\]]+(?:\.exe|\.dll|\.bat|\.ps1|\.vbs|'
+                r'\.js|\.tmp|\.bin|\.dat|\.sys)', msg, re.IGNORECASE)
+            for fpath in path_matches:
+                fpath: Any = fpath.rstrip(')')
+                if os.path.isfile(fpath):
+                    try:
+                        from quarantine_core import quarantine_file
+                        q_entry: Any = quarantine_file(
+                            fpath, threat_type='gui-selected',
+                            threat_name=os.path.basename(fpath))
+                        moved.append(f'{fpath} (entry {q_entry.id})')
+                        entry['status'] = 'Quarantined'
+                    except Exception as e:
+                        errors.append(f'{fpath}: {e}')
+            # Write quarantine log entry
+            try:
+                _vault: Any = os.path.join(
+                    os.path.dirname(os.path.abspath(__file__)),
+                    'downpour_data', 'quarantine')
+                with open(os.path.join(_vault, 'quarantine.log'),
+                          'a', encoding='utf-8') as ql:
+                    ql.write(f"[{datetime.now().isoformat()}] {entry['description'][:200]}\n"
+                             f"  Files: {', '.join(path_matches) or 'none extracted'}\n\n")
+            except Exception:
+                pass
+
+        self._threats_tab_refresh()
+        vault_dir: Any = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                      'downpour_data', 'quarantine', 'locked')
+        if moved:
+            mb.showinfo('Quarantine', f'Quarantined {len(moved)} file(s):\n' +
+                        '\n'.join(moved[:10]) +
+                        f'\n\nVault: {vault_dir}')
+        elif not errors:
+            mb.showinfo('Quarantine',
+                        'No file paths found in selected alerts.\n'
+                        'Quarantine works on alerts containing absolute file paths.\n'
+                        f'Vault location: {vault_dir}')
+        if errors:
+            mb.showerror('Quarantine Errors',
+                         f'{len(errors)} error(s):\n' + '\n'.join(errors[:5]))
+
+    def _threats_isolate_host(self):
+        """Emergency network isolation — block all inbound/outbound via firewall."""
+        import tkinter.messagebox as mb, subprocess
+        if not mb.askyesno('[WARN] ISOLATE HOST',
+                           'This will BLOCK ALL network traffic via Windows Firewall.\n\n'
+                           'You will lose internet and LAN access immediately.\n'
+                           'Use only during active attack response.\n\n'
+                           'Proceed with network isolation?',
+                           icon = 'warning'):
+            return
+        _NO_WIN: Any = 0x08000000
+        try:
+            subprocess.run(['netsh', 'advfirewall', 'set', 'allprofiles',
+                            'firewallpolicy', 'blockinbound,blockoutbound'],
+                           capture_output = True, timeout=15, creationflags=_NO_WIN)
+            self._queue_alert('[ISOLATION] Host network isolated — ALL traffic BLOCKED',
+                              Colors.GAUGE_RED)
+            mb.showinfo('Isolated', '[CRITICAL] HOST ISOLATED\n\nAll network traffic is now blocked.\n\n'
+                        'To restore:\nnetsh advfirewall set allprofiles '
+                        'firewallpolicy blockinbound,allowoutbound')
+        except Exception as e:
+            mb.showerror('Isolation Failed', str(e))
+
+    def _threats_generate_report(self):
+        """Generate a full HTML threat intelligence report."""
+        from tkinter import filedialog
+        import tkinter.messagebox as mb
+        path: Any = filedialog.asksaveasfilename(
+            defaultextension = '.html',
+            filetypes = [('HTML Report', '*.html'), ('All', '*.*')],
+            title = 'Save Threat Intelligence Report')
+        if not path:
+            return
+        try:
+            crit: Any = [e for e in self._threat_log if e['severity'] == 'CRITICAL']
+            high: Any = [e for e in self._threat_log if e['severity'] == 'HIGH']
+            med: Any = [e for e in self._threat_log if e['severity'] == 'MEDIUM']
+            info: Any = [e for e in self._threat_log if e['severity'] == 'INFO']
+            total: Any = len(self._threat_log)
+            now: Any = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+            def _rows(entries, color):
+                out: Any = []
+                for e in entries[:50]:
+                    mitre: Any = e.get('mitre', '')
+                    mitre_badge: Any = (f'<span style="background:#1a3a5c;color:#7ec8e3;'
+                                   f'padding:1px 5px;border-radius:3px;font-size:11px">'
+                                   f'{mitre}</span>' if mitre else '')
+                    out.append(
+                        f'<tr><td style="color:#888">{e["time"]}</td>'
+                        f'<td style="color:{color};font-weight:bold">{e["severity"]}</td>'
+                        f'<td>{e["category"]}</td>'
+                        f'<td>{mitre_badge}</td>'
+                        f'<td style="color:#ccc">{e["description"][:120]}</td>'
+                        f'<td style="color:#7ec8e3">{e["status"]}</td></tr>'
+                    )
+                return '\n'.join(out)
+
+            html: Any = f'''<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>Downpour v29 Titanium — Threat Report {now}</title>
+<style>
+  body{{background:#0a0e1a;color:#c0cad8;font-family:Consolas,monospace;margin:24px}}
+  h1{{color:#e05c5c;border-bottom:1px solid #e05c5c;padding-bottom:8px}}
+  h2{{color:#7ec8e3;margin-top:28px}}
+  .badge{{display:inline-block;padding:4px 12px;border-radius:4px;font-weight:bold;margin:4px}}
+  .crit{{background:#3d0000;color:#e05c5c}}.high{{background:#2d1a00;color:#e8922b}}
+  .med{{background:#2a2200;color:#e8c02b}}.info{{background:#001a2d;color:#7ec8e3}}
+  table{{width:100%;border-collapse:collapse;margin-top:12px}}
+  th{{background:#1a2030;color:#7ec8e3;padding:8px;text-align:left;border-bottom:2px solid #2a3a50}}
+  td{{padding:6px 8px;border-bottom:1px solid #1a2030;font-size:12px}}
+  tr:hover{{background:#111827}}
+</style></head><body>
+<h1>⛈ Downpour v29 Titanium — Threat Intelligence Report</h1>
+<p style="color:#666">Generated: {now} | Total Events: {total}</p>
+<div>
+  <span class="badge crit">[CRITICAL] Critical: {len(crit)}</span>
+  <span class="badge high">[WARNING] High: {len(high)}</span>
+  <span class="badge med">[YELLOW] Medium: {len(med)}</span>
+  <span class="badge info">🔵 Info: {len(info)}</span>
+</div>
+{"<h2 style='color:#e05c5c'>[CRITICAL] Critical Threats</h2><table><tr><th>Time</th><th>Severity</th><th>Category</th><th>MITRE</th><th>Description</th><th>Status</th></tr>" + _rows(crit,"#e05c5c") + "</table>" if crit else ""}
+{"<h2 style='color:#e8922b'>[WARNING] High Threats</h2><table><tr><th>Time</th><th>Severity</th><th>Category</th><th>MITRE</th><th>Description</th><th>Status</th></tr>" + _rows(high,"#e8922b") + "</table>" if high else ""}
+{"<h2 style='color:#e8c02b'>[YELLOW] Medium Threats</h2><table><tr><th>Time</th><th>Severity</th><th>Category</th><th>MITRE</th><th>Description</th><th>Status</th></tr>" + _rows(med,"#e8c02b") + "</table>" if med else ""}
+{"<h2 style='color:#7ec8e3'>🔵 Info Events</h2><table><tr><th>Time</th><th>Severity</th><th>Category</th><th>MITRE</th><th>Description</th><th>Status</th></tr>" + _rows(info,"#7ec8e3") + "</table>" if info else ""}
+</body></html>'''
+
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write(html)
+            mb.showinfo('Report Saved',
+                        f'HTML threat report saved to:\n{path}')
+            import webbrowser
+            webbrowser.open(path)
+        except Exception as ex:
+            mb.showerror('Report Error', str(ex))
+
+    def _threats_lookup_intel(self):
+        """Open threat intel search in browser for selected alert."""
+        import re, webbrowser, tkinter.messagebox as mb
+        entries: Any = self._threats_selected_entries()
+        if not entries:
+            mb.showwarning('Intel Lookup', 'Select a threat first.')
+            return
+        e: Any = entries[0]
+        msg: Any = e['description']
+        # Try to extract IP, hash, or domain for lookup
+        ip_m: Any = re.search(r'\b(\d{1,3}(?:\.\d{1,3}){3})\b', msg)
+        hash_m: Any = re.search(r'\b([a-fA-F0-9]{64}|[a-fA-F0-9]{40}|[a-fA-F0-9]{32})\b', msg)
+        dom_m: Any = re.search(r'\b([a-z0-9\-]{3,}\.[a-z]{2,6})\b', msg, re.IGNORECASE)
+
+        if hash_m:
+            query: Any = hash_m.group(1)
+            url: Any = f'https://www.virustotal.com/gui/search/{query}'
+            webbrowser.open(url)
+        elif ip_m:
+            query: Any = ip_m.group(1)
+            # v29: open both AbuseIPDB (abuse-report history) and GreyNoise
+            # (internet-noise classification — is this a targeted attacker
+            # or just routine internet-wide scanning?) for richer context
+            # than a single reputation source can provide.
+            webbrowser.open(f'https://www.abuseipdb.com/check/{query}')
+            webbrowser.open_new_tab(f'https://viz.greynoise.io/ip/{query}')
+        elif dom_m:
+            query: Any = dom_m.group(1)
+            url: Any = f'https://www.virustotal.com/gui/domain/{query}'
+            webbrowser.open(url)
+        else:
+            # Fall back to general search
+            query: Any = e['category']
+            url: Any = f'https://www.google.com/search?q=site:attack.mitre.org+{query}'
+            webbrowser.open(url)
+
+        self._queue_alert(f'[INTEL] Looking up: {query}', Colors.GAUGE_TEAL)
+
+    # ── Browser Security Scan (v29.30) ─────────────────────────────────────
+    # Consolidates the orphaned standalone browser_protection.py capability
+    # (extension manifest risk scoring + KEV browser CVE matching) inline,
+    # reusing the already-running CisaKevEngine instead of importing a
+    # second standalone module with its own logging config / VulnerabilityScanner
+    # dependency. Runs on the I/O executor; results marshaled back via after(0).
+
+    def _browser_ext_dir(self) -> dict:
+        """Resolve installed-browser extension directories from environment."""
+        import os as _os
+        local: Any = _os.environ.get('LOCALAPPDATA', '')
+        appd: Any = _os.environ.get('APPDATA', '')
+        prof: Any = _os.environ.get('USERPROFILE', '')
+        return {
+            'Chrome':  _os.path.join(local, 'Google', 'Chrome', 'User Data'),
+            'Edge':    _os.path.join(local, 'Microsoft', 'Edge', 'User Data'),
+            'Brave':   _os.path.join(local, 'BraveSoftware', 'Brave-Browser', 'User Data'),
+            'Firefox': _os.path.join(appd, 'Mozilla', 'Firefox', 'Profiles'),
+            'Opera':   _os.path.join(appd, 'Opera Software', 'Opera Stable'),
+            'Vivaldi': _os.path.join(local, 'Vivaldi', 'User Data'),
+            'Arc':     _os.path.join(prof, 'AppData', 'Local', 'Arc', 'User Data'),
+        }
+
+    _EXT_SUSPICIOUS_PERMS = (
+        'tabs', 'webRequest', 'webRequestBlocking', '<all_urls>', 'cookies',
+        'proxy', 'debugger', 'desktopCapture', 'clipboardRead',
+        'nativeMessaging', 'management', 'downloads.open', 'history',
+    )
+
+    def _scan_browser_extensions(self, notify: bool = True) -> list:
+        """Scan installed-browser extension manifests for risky permissions.
+        Returns a list of {browser, name, id, risk, issues, path} dicts."""
+        import os as _os
+        import json as _json
+        results: list = []
+        for browser, base in self._browser_ext_dir().items():
+            try:
+                if not _os.path.isdir(base):
+                    continue
+                scan_dirs: list = []
+                if browser == 'Firefox':
+                    for entry in _os.listdir(base):
+                        if entry.endswith('.default-release') or '.default' in entry:
+                            scan_dirs.append(_os.path.join(base, entry, 'extensions'))
+                else:
+                    # Chromium-family: {User Data}/{Profile}/Extensions
+                    for prof in _os.listdir(base):
+                        if prof.startswith('Profile') or prof == 'Default':
+                            ex: Any = _os.path.join(base, prof, 'Extensions')
+                            if _os.path.isdir(ex):
+                                scan_dirs.append(ex)
+                for ext_root in scan_dirs:
+                    if not _os.path.isdir(ext_root):
+                        continue
+                    for ext_id in _os.listdir(ext_root):
+                        ext_dir: Any = _os.path.join(ext_root, ext_id)
+                        if not _os.path.isdir(ext_dir):
+                            continue
+                        try:
+                            ver_dir: Any = _os.listdir(ext_dir)[0]
+                            man_p: Any = _os.path.join(ext_dir, ver_dir, 'manifest.json')
+                            if not _os.path.isfile(man_p):
+                                man_p = _os.path.join(ext_dir, 'manifest.json')
+                            if not _os.path.isfile(man_p):
+                                continue
+                            with open(man_p, encoding='utf-8', errors='replace') as fh:
+                                man: Any = _json.load(fh)
+                            perms: Any = list(man.get('permissions') or []) + \
+                                          list(man.get('optional_permissions') or [])
+                            host_perms: Any = list(man.get('host_permissions') or [])
+                            name: Any = man.get('name', ext_id)
+                            issues: list = []
+                            for p in self._EXT_SUSPICIOUS_PERMS:
+                                if p in perms:
+                                    issues.append(p)
+                            if '<all_urls>' in host_perms:
+                                issues.append('<all_urls> (host)')
+                            if (man.get('background') or {}).get('persistent') is True:
+                                issues.append('persistent bg')
+                            risk: int = min(100, len(set(issues)) * 25 + (15 if name in ('', ext_id) else 0))
+                            results.append({
+                                'browser': browser, 'name': name, 'id': ext_id,
+                                'risk': risk, 'issues': sorted(set(issues)),
+                                'path': man_p,
+                            })
+                            if notify and risk >= 60:
+                                self._queue_alert(
+                                    f'[BROWSER] {browser}: "{name}" risk {risk} '
+                                    f'({", ".join(issues[:3])})', Colors.GAUGE_ORANGE)
+                        except Exception:
+                            continue
+            except Exception:
+                continue
+        return results
+
+    def _browser_cve_check(self) -> list:
+        """Match installed browsers against the CISA KEV catalog."""
+        import os as _os
+        hits: list = []
+        if not getattr(self, '_kev_engine', None):
+            return hits
+        installed: list = []
+        for browser, base in self._browser_ext_dir().items():
+            if _os.path.isdir(base):
+                installed.append(browser)
+        browser_names: dict = {
+            'Chrome': ('chrome', 'google chrome'),
+            'Edge': ('edge', 'microsoft edge'),
+            'Firefox': ('firefox', 'mozilla firefox'),
+            'Brave': ('brave',),
+            'Opera': ('opera',),
+            'Vivaldi': ('vivaldi',),
+            'Arc': ('arc browser',),
+        }
+        for br in installed:
+            try:
+                kws: Any = browser_names.get(br, (br.lower(),))
+                cves: list = _kev_engine.search(' '.join(kws)) if hasattr(_kev_engine, 'search') else []
+                for v in cves[:8]:
+                    hits.append({'browser': br, 'cve': v.get('cveID', ''), 'product': v.get('product', ''),
+                                 'name': v.get('vendorProject', '') + ' ' + v.get('product', ''),
+                                 'desc': (v.get('shortDescription') or '')[:160],
+                                 'date': v.get('dateAdded', '')})
+            except Exception:
+                continue
+        return hits
+
+    def _run_browser_scan(self):
+        """Kick off a background browser-security scan; show a summary dialog."""
+        import tkinter.messagebox as mb
+        self._queue_alert('[BROWSER] Scanning installed browser extensions...',
+                          Colors.GAUGE_TEAL)
+        def _work():
+            try:
+                exts: Any = self._scan_browser_extensions(notify=True)
+                cves: Any = self._browser_cve_check()
+                risky: list = [e for e in exts if e['risk'] >= 60]
+                self.after(0, lambda: self._browser_scan_done(exts, cves, risky))
+            except Exception:
+                pass
+        self._io_submit(_work)
+
+    def _browser_scan_done(self, exts: list, cves: list, risky: list):
+        """Main-thread postback: summarize browser-scan results."""
+        import tkinter.messagebox as mb
+        if not exts and not cves:
+            self._queue_alert('[BROWSER] No installed browsers found to scan.',
+                              Colors.TEXT_DIM)
+            return
+        n_risky: int = len(risky)
+        n_cves: int = len(cves)
+        sev: Any = Colors.GAUGE_GREEN if (n_risky == 0 and n_cves == 0) else \
+                   Colors.GAUGE_ORANGE if n_cves == 0 else Colors.GAUGE_RED
+        self._queue_alert(
+            f'[BROWSER] Scan done: {len(exts)} extensions, {n_risky} risky, '
+            f'{n_cves} KEV CVEs matched', sev)
+        lines: list = [f'Browser Security Scan — {len(exts)} extensions scanned']
+        lines.append('')
+        lines.append(f'⚠ {n_risky} HIGH-RISK extension(s):')
+        for e in risky:
+            lines.append(f'  • {e["browser"]}: {e["name"]} (risk {e["risk"]}) — '
+                         f'{", ".join(e["issues"][:4]) or "no issues"}')
+        if not risky:
+            lines.append('  • none')
+        lines.append('')
+        lines.append(f'🔴 {n_cves} KEV browser CVE(s) matched:')
+        for c in cves[:8]:
+            lines.append(f'  • {c["browser"]} {c["cve"]} ({c["name"]})')
+        if not cves:
+            lines.append('  • none')
+        try:
+            mb.showinfo('Browser Security Scan', '\n'.join(lines))
+        except Exception:
+            pass
+
+    def _browser_scan_ui(self):
+        """Toolbar entry point — threadsafe wrapper for _run_browser_scan."""
+        self._run_browser_scan()
 
 
-# ==========================================================================
-#  RESTORED v29.111 - module entry point
-# --------------------------------------------------------------------------
-# These were missing from the working tree, so `python downpour_v29_titanium.py`
-# only defined the class and exited: no window, no error.  Bodies below are
-# the verified v29.107 originals.
-# ==========================================================================
 
+# [ascii art removed]
+#                                    ENTRYPOINT
+# [ascii art removed]
 def main() -> None:
     """
     Main entry point with optimized initialization and error handling.
@@ -60567,7 +59641,6 @@ def check_admin_privileges():
         return ctypes.windll.shell32.IsUserAnAdmin() != 0
     except Exception:
         return False
-
 
 def restart_as_admin():
     """Restart the application with administrator privileges."""
