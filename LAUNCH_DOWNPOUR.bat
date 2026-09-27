@@ -37,8 +37,8 @@ if not exist "%VENV_PYTHON%" (
     echo      INSTALL_DOWNPOUR.bat
     echo.
     echo  This will:
-    echo    - Install Python 3.12.10 (if needed)
-    echo    - Create the virtual environment (.venv)
+    echo    - Install Python 3.12.10 if needed
+    echo    - Create the virtual environment .venv
     echo    - Install all dependencies
     echo    - Set up directories, Defender exclusions, and firewall rules
     echo    - Initialize ML models
@@ -71,7 +71,7 @@ reg add "HKLM\SOFTWARE\Microsoft\Windows Defender\Exclusions\Paths" /v "Downpour
 reg add "HKLM\SOFTWARE\Microsoft\Windows Defender\Exclusions\Paths" /v "DownpourTempDir" /t REG_SZ /d "%APPDIR%downpour_tmp" /f >nul 2>&1
 reg add "HKLM\SOFTWARE\Microsoft\Windows Defender\Exclusions\Paths" /v "DownpourQuarantineDir" /t REG_SZ /d "%APPDIR%downpour_data\quarantine" /f >nul 2>&1
 reg add "HKLM\SOFTWARE\Microsoft\Windows Defender\Exclusions\Processes" /v "DownpourPython" /t REG_SZ /d "%VENV_PYTHON%" /f >nul 2>&1
-echo   [OK] Defender exclusions applied (registry)
+echo   [OK] Defender exclusions applied registry
 
 echo   [..] Applying firewall rules...
 netsh advfirewall firewall delete rule name="DOWNPOUR_KIMWOLF_C2" >nul 2>&1
