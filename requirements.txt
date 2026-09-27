@@ -13,7 +13,7 @@
 # ── Core dependencies (used by every run, keep always present) ──────────────
 psutil>=6.1.0            # system metrics (CPU/RAM/disk/net/processes) - latest
 nvidia-ml-py>=13.590.0   # GPU telemetry via NVML (falls back to GPUtil / nvidia-smi)
-cryptography>=43.0.0     # quarantine encryption, hashing (latest)
+cryptography>=50.0.1     # quarantine encryption, hashing (latest)
 requests>=2.32.0         # threat feeds, OSINT lookups, intel updates
 urllib3>=2.2.0,<3.0.0    # HTTP library with compatible version for requests
 charset-normalizer>=3.3.0,<4.0.0  # Character encoding compatibility for requests
@@ -26,25 +26,16 @@ watchdog>=4.0.0          # file integrity monitoring (FIM)
 numpy>=2.0.0             # ML / behavioral analysis backend
 
 # ── Optional (feature toggles, graceful fallback when missing) ──────────────
-# YARA-X: VirusTotal's Rust YARA rewrite — 5-10x faster scanning of the
-# yara_rules/ rulesets (falls back to yara-python when absent)
-yara-x>=1.0.0
-# System tray icon + restore window
-pystray>=0.19.5
-# Floating widgets, tray icon rendering, image analysis
-pillow>=10.4.0
-# Real PDF export for security / compliance reports
-reportlab>=4.2.0
-# Charting / matplotlib-backed analytics (uses Agg backend, headless-safe)
-matplotlib>=3.9.0
-# ML behavior scoring (isolated forest / random forest) — falls back to
-# heuristic scoring when absent
-scikit-learn>=1.5.0
-# Pattern matching signatures (fallback: regex engine)
-yara-python>=4.5.0
-# GPU fallback path when nvidia-ml-py is unavailable
-GPUtil>=1.4.0
-# Misc helpers used by cleanup / clipboard / progress paths
+yara-x>=1.0.0            # YARA-X: VirusTotal's Rust YARA rewrite — 5-10x faster scanning
+pystray>=0.19.5          # System tray icon + restore window
+pillow>=10.4.0           # Floating widgets, tray icon rendering, image analysis
+reportlab>=4.2.0         # Real PDF export for security / compliance reports
+matplotlib>=3.9.0        # Charting / matplotlib-backed analytics (uses Agg backend, headless-safe)
+scikit-learn>=1.5.0      # ML behavior scoring (isolated forest / random forest)
+yara-python>=4.5.0       # Pattern matching signatures (fallback: regex engine)
+GPUtil>=1.4.0            # GPU fallback path when nvidia-ml-py is unavailable
+
+# ── Misc helpers used by cleanup / clipboard / progress paths ───────────────
 joblib>=1.4.0
 tqdm>=4.66.0
 pyperclip>=1.9.0
@@ -54,7 +45,6 @@ netifaces>=0.11.0        # network interface enumeration
 scipy>=1.13.0            # signal/entropy calculations
 pefile>=2024.8.26        # PE header analysis
 pytest>=8.2.0            # test runner
-# Additional modern dependencies
 pydantic>=2.7.0          # data validation for configs
 pyyaml>=6.0.1            # YAML config support
 tomli>=2.0.1             # TOML config support (stdlib in 3.11+)
@@ -64,20 +54,16 @@ click>=8.1.0             # CLI utilities
 rich>=13.7.0             # rich terminal output
 packaging>=24.0          # version parsing
 importlib-metadata>=8.0  # metadata access
-tomli>=2.0.1             # TOML config support (stdlib in 3.11+)
 
 # ── Extended Security & Integration Dependencies ────────────────────────────
 # Async HTTP / DNS / scheduling
-aiohttp>=3.9.0           # async HTTP for threat feeds
-aiodns>=3.1.0            # async DNS resolution
 tenacity>=9.1.0          # retry logic with backoff
 schedule>=1.2.2          # task scheduling
 # Alerting / notification integrations
 prometheus-client>=0.26.0  # metrics export
-slack-sdk>=3.44.0        # Slack notifications
+slack-sdk>=3.44.1        # Slack notifications
 python-telegram-bot>=22.8  # Telegram bot alerts
 discord.py>=2.7.1        # Discord bot integration
-slack-sdk>=3.44.1        # Slack SDK
 # Database / persistence
 psycopg2-binary>=2.9.13  # PostgreSQL async
 redis>=8.1.0             # Redis cache/queue
@@ -87,142 +73,21 @@ paramiko>=5.0.0          # SSH/SFTP
 pyjwt>=2.15.0            # JWT tokens
 pyotp>=2.10.0            # TOTP/MFA
 qrcode>=8.2              # QR code generation
-cryptography>=50.0.1     # already in core
 # Network / scanning
 python-nmap>=0.7.1       # nmap wrapper
-scapy>=2.6.0             # already in core
 shodan>=1.31.0           # Shodan API
 censys>=2.3.0            # Censys API
 greyNoise>=3.1.0         # GreyNoise API
 # File / document processing
 weasyprint>=70.0         # HTML to PDF rendering
 pdfkit>=1.0.0            # PDF generation (wkhtmltopdf wrapper)
-pyotp>=2.10.0            # TOTP
-qrcode>=8.2              # QR codes
-qrcode>=8.2              # QR codes
 python-magic>=0.4.27     # file type detection
-# Threat intel / OSINT
-shodan>=1.31.0           # Shodan API
-censys>=2.3.0            # Censys API
-greyNoise>=3.1.0         # GreyNoise API
-# Scheduling / retry
-schedule>=1.2.2          # job scheduling
-tenacity>=9.1.0          # retry with backoff
-# Database / persistence
-psycopg2-binary>=2.9.13  # PostgreSQL
-redis>=8.1.0             # Redis
-# Async / concurrency
-aiohttp>=3.9.0           # async HTTP
-aiodns>=3.1.0            # async DNS
-tenacity>=9.1.0          # retry with backoff
-# CLI / UI
-click>=8.4.1             # CLI utilities
-rich>=15.0.0             # rich terminal output
-prompt-toolkit>=3.0.53   # interactive CLI
-# Serialization / validation
-pydantic>=2.13.0         # data validation
-pyyaml>=6.0.1            # YAML config
-pydantic>=2.7.0          # data validation for configs
-# Crypto / JWT
-pycryptodome>=3.23.0     # crypto primitives
-pyjwt>=2.15.0            # JWT tokens
-pyotp>=2.10.0            # TOTP
-qrcode>=8.2              # QR codes
-# File type detection
-python-magic>=0.4.27     # file type detection
-# Threat intel APIs
-shodan>=1.31.0           # Shodan API
-censys>=2.3.0            # Censys API
-greyNoise>=3.1.0         # GreyNoise API
-# Scheduling
-schedule>=1.2.2          # job scheduling
-tenacity>=9.1.0          # retry with backoff
-# Database
-psycopg2-binary>=2.9.13  # PostgreSQL
-redis>=8.1.0             # Redis
-# Async
-aiohttp>=3.14.0          # async HTTP
-aiodns>=4.0.4            # async DNS
-# Crypto
-pycryptodome>=3.23.0     # crypto
-pyjwt>=2.15.0            # JWT
-pyotp>=2.10.0            # TOTP
-qrcode>=8.2              # QR codes
-# File type
-python-magic>=0.4.27     # file type detection
-# Threat intel
-shodan>=1.31.0           # Shodan
-censys>=2.3.0            # Censys
-greyNoise>=3.1.0         # GreyNoise
-# Schedule / retry
-schedule>=1.2.2          # scheduler
-tenacity>=9.1.0          # retry logic
-# Database
-psycopg2-binary>=2.9.13  # Postgres
-redis>=8.1.0             # Redis
-# Async
-aiohttp>=3.14.0          # async HTTP
-aiodns>=4.0.4            # async DNS
-# Crypto
-pycryptodome>=3.23.0     # crypto
-pyjwt>=2.15.0            # JWT
-pyotp>=2.10.0            # TOTP
-qrcode>=8.2              # QR
-# File type
-python-magic>=0.4.27     # magic
-# Threat intel
-shodan>=1.31.0           # Shodan
-censys>=2.3.0            # Censys
-greyNoise>=3.1.0         # GreyNoise
-# Schedule
-schedule>=1.2.2          # scheduler
-tenacity>=9.1.0          # retry
-# Database
-psycopg2-binary>=2.9.13  # Postgres
-redis>=8.1.0             # Redis
-# Async
-aiohttp>=3.14.0          # async HTTP
-aiodns>=4.0.4            # async DNS
-# Crypto
-pycryptodome>=3.23.0     # crypto
-pyjwt>=2.15.0            # JWT
-pyotp>=2.10.0            # TOTP
-qrcode>=8.2              # QR
-# File type
-python-magic>=0.4.27     # file type
-# Threat intel
-shodan>=1.31.0           # Shodan
-censys>=2.3.0            # Censys
-greyNoise>=3.1.0         # GreyNoise
-# Schedule
-schedule>=1.2.2          # scheduler
-tenacity>=9.1.0          # retry
-# Database
-psycopg2-binary>=2.9.13  # Postgres
-redis>=8.1.0             # Redis
-# Async
-aiohttp>=3.14.0          # async HTTP
-aiodns>=4.0.4            # async DNS
-# Crypto
-pycryptodome>=3.23.0     # crypto
-pyjwt>=2.15.0            # JWT
-pyotp>=2.10.0            # TOTP
-qrcode>=8.2              # QR
-# File type
-python-magic>=0.4.27     # file type
-# Threat intel
-shodan>=1.31.0           # Shodan
-censys>=2.3.0            # Censys
-greyNoise>=3.1.0         # GreyNoise
-# Schedule
-schedule>=1.2.2          # scheduler
-tenacity>=9.1.0          # retry
-# Database
-psycopg2-binary>=2.9.13  # Postgres
-redis>=8.1.0             # Redis
 
 # ── v29.61 Enhanced Security Dependencies ───────────────────────────────────
 # Advanced memory forensics integration
 # (Optional - falls back to basic process analysis)
 # volatility3>=2.0.0       # Memory forensics analysis (optional)
 # memprocfs>=2.0.0         # Advanced memory parsing (optional)
+
+# ── CLI / UI ────────────────────────────────────────────────────────────────
+prompt-toolkit>=3.0.53   # interactive CLI
