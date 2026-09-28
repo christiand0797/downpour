@@ -106,6 +106,12 @@ except (FileNotFoundError, PermissionError, OSError):
     _fh.enable(all_threads=True)  # fallback to stderr
 # ---------------------------------------------------------------------------
 
+# Ensure log directory exists before logger initialization
+try:
+    _os.makedirs(_os.path.join(_DOWNPOUR_DIR, 'downpour_data', 'logs'), exist_ok=True)
+except (FileNotFoundError, PermissionError, OSError):
+    pass
+
 _crash_lg: Any = _crash_logging.getLogger('Downpour.CrashCatcher')
 
 # Python 3.13+ does NOT auto-bind logging.handlers as an attribute; import it explicitly.
