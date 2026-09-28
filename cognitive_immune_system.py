@@ -917,8 +917,19 @@ class NeuromorphicDetector:
                 self.logger.error(f"Neuromorphic detection error: {e}")
                 time.sleep(0.01)
     
-    def _encode_to_spikes(self, sensor_data: Dict) -> Dict:
+    def _encode_to_spikes(self, sensor_data) -> Dict:
         """Convert sensor data to spike trains"""
+        # Handle SystemSnapshot or other objects by converting to dict
+        if not isinstance(sensor_data, dict):
+            try:
+                from dataclasses import asdict
+                sensor_data = asdict(sensor_data)
+            except Exception:
+                try:
+                    sensor_data = vars(sensor_data)
+                except Exception:
+                    sensor_data = {}
+        
         spike_trains = {}
         for key, value in sensor_data.items():
             if isinstance(value, (int, float)):
