@@ -99,8 +99,10 @@ from collections import deque
 # -- FAULTHANDLER: Catch C-level segfaults/access violations ----------------
 # This writes the thread stack trace to a file on fatal crash (SIGSEGV etc)
 import faulthandler as _fh
+_fh_file: Any = None
 try:
-    _fh_file: Any = open(_os.path.join(_DOWNPOUR_DIR, 'crash_fault.log'), 'w')
+    # Open with sharing mode to allow other processes to read/delete
+    _fh_file = open(_os.path.join(_DOWNPOUR_DIR, 'crash_fault.log'), 'w', buffering=1)
     _fh.enable(file=_fh_file, all_threads=True)
 except (FileNotFoundError, PermissionError, OSError):
     _fh.enable(all_threads=True)  # fallback to stderr
@@ -111,6 +113,17 @@ try:
     _os.makedirs(_os.path.join(_DOWNPOUR_DIR, 'downpour_data', 'logs'), exist_ok=True)
 except (FileNotFoundError, PermissionError, OSError):
     pass
+
+# Close faulthandler file on exit
+import atexit as _atexit
+def _close_fh():
+    global _fh_file
+    if _fh_file is not None:
+        try:
+            _fh_file.close()
+        except Exception:
+            pass
+_atexit.register(_close_fh)
 
 _crash_lg: Any = _crash_logging.getLogger('Downpour.CrashCatcher')
 
