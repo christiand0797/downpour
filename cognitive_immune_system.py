@@ -893,7 +893,9 @@ class NeuromorphicDetector:
         while self.running:
             try:
                 # Get sensor data from CIS
-                sensor_data = self.cis.sensor_hub.get_last_snapshot() if hasattr(self.cis, 'sensor_hub') else None
+                sensor_data = None
+                if hasattr(self.cis, 'sensor_hub') and self.cis.sensor_hub is not None:
+                    sensor_data = self.cis.sensor_hub.get_last_snapshot()
                 
                 if sensor_data:
                     # Convert to spike trains
