@@ -571,12 +571,12 @@ class HistoryManager:
                 WHERE change_id <= ? AND file_path = ?
                 ORDER BY timestamp DESC LIMIT 1
             """, (change_id, file_path))
-            row = conn.fetchone()
+            row = cursor.fetchone()
             return row[0] if row else None
     
     def diff_changes(self, change_id1: int, change_id2: int) -> str:
         """Generate diff between two changes."""
-        c1 = self.get_change_details(change_id)
+        c1 = self.get_change_details(change_id1)
         c2 = self.get_change_details(change_id2)
         
         if not c1 or not c2:

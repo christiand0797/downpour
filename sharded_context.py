@@ -453,6 +453,7 @@ class ShardedContextManager:
         
         # Event system
         self._subscribers: Dict[str, List[Callable]] = defaultdict(list)
+        self._subscription_index: Dict[str, Tuple[str, Callable]] = {}
         self._event_thread: Optional[threading.Thread] = None
         self._running = False
         
@@ -678,15 +679,23 @@ class ShardedContextManager:
         """Subscribe to context events."""
         sub_id = str(uuid.uuid4())
         self._subscribers[key_pattern].append(callback)
+        self._subscription_index[sub_id] = (key_pattern, callback)
         return sub_id
     
     def unsubscribe(self, sub_id: str) -> bool:
         """Unsubscribe from events."""
-        for pattern, callbacks in self._subscribers.items():
-            if callback in callbacks:
-                callbacks.remove(callback)
-                return True
-        return False
+        subscription = self._subscription_index.pop(sub_id, None)
+        if subscription is None:
+            return False
+        pattern, callback = subscription
+        callbacks = self._subscribers.get(pattern, [])
+        try:
+            callbacks.remove(callback)
+        except ValueError:
+            return False
+        if not callbacks:
+            self._subscribers.pop(pattern, None)
+        return True
     
     # Component registration
     
@@ -763,7 +772,8 @@ class ShardedContextManager:
         )
         self._notify_subscribers(event)
         
-        _log.info(f"Created snapshot: {snapshot_id} with {sum(len(s['shards'][i]) for i in snapshot_data['shards'])} entries")
+        entry_count = sum(len(entries) for entries in snapshot_data['shards'].values())
+        _log.info(f"Created snapshot: {snapshot_id} with {entry_count} entries")
         return snapshot_id
     
     def restore_snapshot(self, snapshot_id: str) -> bool:

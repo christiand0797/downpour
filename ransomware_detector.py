@@ -43,6 +43,7 @@ SUPPORTED RANSOMWARE TYPES:
 """
 
 import os
+import math
 import re
 import shutil
 import sqlite3

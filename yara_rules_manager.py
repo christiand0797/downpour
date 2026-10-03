@@ -19,7 +19,7 @@ import tempfile
 import shutil
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set, Any, Tuple
+from typing import Callable, Dict, List, Optional, Set, Any, Tuple
 from pathlib import Path
 import json
 import urllib.request
@@ -252,13 +252,13 @@ class YaraRulesManager:
             try:
                 subprocess.run(
                     ['git', '-C', str(target_path), 'pull', 'origin', 'main'],
-                    capture_output=True, text=True, timeout=60
+                    capture_output=True, text=True, timeout=60, check=True
                 )
             except subprocess.CalledProcessError:
                 try:
                     subprocess.run(
                         ['git', '-C', str(target_path), 'pull', 'origin', 'master'],
-                        capture_output=True, text=True, timeout=60
+                        capture_output=True, text=True, timeout=60, check=True
                     )
                 except subprocess.CalledProcessError as e:
                     _log.warning(f"Git pull failed for {source_id}: {e}")
@@ -267,13 +267,16 @@ class YaraRulesManager:
             try:
                 subprocess.run(
                     ['git', 'clone', '--depth', '1', repo_url + '.git', str(target_path)],
-                    capture_output=True, text=True, timeout=120
+                    capture_output=True, text=True, timeout=120, check=True
                 )
             except subprocess.CalledProcessError as e:
                 _log.error(f"Git clone failed for {source_id}: {e}")
                 raise
         
         # Scan for .yar/.yara files
+        rule_set = self.rule_sets.get(source_id)
+        if rule_set is None:
+            raise KeyError(f"YARA rule source {source_id!r} is not registered")
         self._scan_rule_files(rule_set, target_path, source_info.get('paths', ['']))
     
     def _update_malwarebazaar_source(self, target_path: Path):

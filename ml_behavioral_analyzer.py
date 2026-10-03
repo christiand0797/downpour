@@ -567,7 +567,7 @@ class MLDetector:
 # Global instance
 _ml_detector_instance = None
 
-def get_ml_detector(config=None) -> 'MLBehavioralDetector':
+def get_ml_detector(config=None) -> 'MLDetector':
     """Get global ML detector instance."""
     global _ml_detector_instance
     if _ml_detector_instance is None:

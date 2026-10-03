@@ -5267,7 +5267,7 @@ class EnhancedCveHardeningFramework:
                     winreg.CloseKey(k)
                 return True
             except Exception as exc:
-                _log.debug('ps_native reg_set %s: %s', name, exc)
+                _logger.debug('ps_native reg_set %s: %s', name, exc)
                 return False
 
         ok_all = True
@@ -24232,42 +24232,50 @@ class FileSandbox:
 
 # -- 1a. tab-board skin -----------------------------------------------------
 _TAB_BAR_SPEC: Any = {
-    'rows': 2,                      # DOWNPOUR_TAB_ROWS env var overrides this
-    'font': ('Consolas', 8, 'bold'),
-    'bar_bg': '#010205',
+    'rows': 3,                      # DOWNPOUR_TAB_ROWS env var overrides this
+    'font': ('Segoe UI', 9, 'bold'),
+    'bar_bg': '#070b12',
     'header': True,
     'header_bg': '#060c15',
     'header_fg': '#00ffdd',
     'header_dim': '#6f8fa8',
     'header_font': ('Consolas', 7, 'bold'),
     'corner': '#00ffdd',            # HUD corner brackets on the header strip
-    'idle_bg': '#0b0f18',
-    'idle_fg': '#b9c6d8',
-    'idle_border': '#243044',
-    'idle_accent': '#243044',
-    'idle_top': '#2b3850',
-    'hover_bg': '#151f31',
-    'hover_fg': '#ffffff',
-    'hover_border': '#00c4ff',
-    'hover_accent': '#00c4ff',
-    'hover_top': '#00c4ff',
-    'press_bg': '#1b2b45',
-    'active_bg': '#062b36',
-    'active_fg': '#00ffdd',
-    'active_border': '#00ffdd',
-    'active_accent': '#00ffdd',
-    'active_top': '#00ffff',
+    'idle_bg': '#111827',
+    'idle_fg': '#cbd5e1',
+    'idle_border': '#273449',
+    'idle_accent': '#334155',
+    'idle_top': '#334155',
+    'hover_bg': '#1a2738',
+    'hover_fg': '#f8fafc',
+    'hover_border': '#36b9c7',
+    'hover_accent': '#36b9c7',
+    'hover_top': '#36b9c7',
+    'press_bg': '#203247',
+    'active_bg': '#102b35',
+    'active_fg': '#67e8f9',
+    'active_border': '#36b9c7',
+    'active_accent': '#36b9c7',
+    'active_top': '#67e8f9',
     'card_padx': 2,
     'card_pady': 2,
     'text_padx': 5,
     'text_pady': 3,
     'accent_w': 3,
     'accent_w_active': 5,
-    'pulse': True,                  # breathing glow on the active tab
+    'pulse': False,                 # keep navigation calm and reduce motion
     'pulse_ms': 1100,
     'pulse_a': '#00ffdd',
     'pulse_b': '#0d7f96',
 }
+
+
+def _performance_gauge_layout(width: int) -> tuple[int, int]:
+    """Return a responsive (column_count, dial_size) for the gauge board."""
+    available_width = max(1, int(width))
+    columns = max(4, min(10, available_width // 180))
+    dial_size = max(124, min(200, available_width // columns - 20))
+    return columns, dial_size
 
 # -- 1b. hud-theme skin -----------------------------------------------------
 _HUD_THEME: Any = {
@@ -26559,7 +26567,7 @@ class downpour(tk.Tk):
 
 # -- Create all tab frames and register with notebook ------------------
         # v29.110: CONSOLIDATED tabs - grouped by function, sub-tabs for detail
-        # v29.111: 31-tab board restored.  The v29.110 tab merge left
+        # v29.111: 33-tab board restored. The v29.110 tab merge left
         # stub builders behind (7/10 tabs failed to build, 48 real
         # helpers deleted) - the verified v29.86 tab set is back and the
         # v29.109 HUD board / theme work on top of it unchanged.
@@ -26600,8 +26608,26 @@ class downpour(tk.Tk):
         ]
         # Maps self._tab_xxx (inner) -> outer frame added to notebook; used by _select_tab()
         self._nb_outer: dict = {}
+        _seen_tab_attrs: Any = set()
+        _seen_tab_labels: Any = set()
+        _tab_label_counts: Any = {}
         _tab_idx: Any = 0
         for attr, label, builder in _TAB_DEFS:
+            if attr in _seen_tab_attrs:
+                logger.error('Skipping duplicate tab identifier: %s', attr)
+                continue
+            _seen_tab_attrs.add(attr)
+            _label_key: Any = label.strip().casefold()
+            if _label_key in _seen_tab_labels:
+                _base_label: Any = label
+                _suffix: Any = _tab_label_counts.get(_label_key, 1) + 1
+                _tab_label_counts[_label_key] = _suffix
+                label = f'{_base_label} ({_suffix})'
+                _label_key = label.casefold()
+                logger.warning('Disambiguated duplicate tab label: %s', _base_label)
+            else:
+                _tab_label_counts[_label_key] = 1
+            _seen_tab_labels.add(_label_key)
             # Outer frame lives inside the notebook
             outer: Any = tk.Frame(self.nb, bg=Colors.BG_VOID)
             self.nb.add(outer, text=label)
@@ -31928,13 +31954,12 @@ Verification Status:
             ('ACTIVE ALERTS',   'active_alerts',     100, '',    'orange'),
         ]
 
-        # v29.5: 5-column grid + smaller gauges so ALL gauges fit on screen
-        # without scrolling (the scroll canvas was painting a black box over
-        # rows when the user scrolled).
-        COLS: Any = 5
-        SIZE: Any = 148      # canvas size per gauge
+        # Adapt the gauge count and size to the available window width.
+        COLS, SIZE = _performance_gauge_layout(max(p.winfo_width(), self.winfo_width(), 1280))
         self._perf_canvases = {}    # key -> Canvas
         self._perf_gauge_meta = {}  # key -> (max_val, unit, color_scheme)
+        self._perf_gauge_cells = {}
+        self._perf_gauge_size = SIZE
 
         for idx, (label, key, maxv, unit, scheme) in enumerate(GAUGES):
             row: Any = idx // COLS
@@ -31947,12 +31972,14 @@ Verification Status:
                           bg = Colors.BG_VOID, highlightthickness=0)
             c.pack()
             self._perf_canvases[key] = c
+            self._perf_gauge_cells[key] = cell
             self._perf_gauge_meta[key] = (maxv, unit, scheme, label)
             self._draw_gauge(c, SIZE, label, 0, maxv, unit, scheme)
 
         # -- Per-core mini bars ------------------------------------------------
-        tk.Label(grid_frame, text='PER-CORE CPU %', font=('Consolas', 9, 'bold'),
-                 fg = Colors.GAUGE_TEAL, bg=Colors.BG_VOID).grid(
+        self._perf_core_heading = tk.Label(grid_frame, text='PER-CORE CPU %', font=('Consolas', 9, 'bold'),
+                 fg = Colors.GAUGE_TEAL, bg=Colors.BG_VOID)
+        self._perf_core_heading.grid(
                  row = len(GAUGES)//COLS + 1, column=0, columnspan=4,
                  sticky = 'w', padx=10, pady=(12,4))
         self._core_bar_frame = tk.Frame(grid_frame, bg=Colors.BG_VOID)
@@ -31964,12 +31991,14 @@ Verification Status:
         # SPRINT1: Top-10 CPU process table
         import tkinter.ttk as ttk
         _proc_row_base = len(GAUGES)//COLS + 3
-        tk.Label(grid_frame, text='TOP PROCESSES BY CPU %', font=('Consolas', 9, 'bold'),
-                 fg=Colors.GAUGE_ORANGE, bg=Colors.BG_VOID).grid(
+        self._perf_process_heading = tk.Label(grid_frame, text='TOP PROCESSES BY CPU %', font=('Consolas', 9, 'bold'),
+                 fg=Colors.GAUGE_ORANGE, bg=Colors.BG_VOID)
+        self._perf_process_heading.grid(
                  row=_proc_row_base, column=0, columnspan=4,
                  sticky='w', padx=10, pady=(14,4))
         _proc_cols = ('pid', 'name', 'cpu%', 'mem%', 'rssMB', 'rd', 'wr', 'conns', 'gpu', 'status')
         _proc_frame = tk.Frame(grid_frame, bg=Colors.BG_VOID)
+        self._perf_process_frame = _proc_frame
         _proc_frame.grid(row=_proc_row_base+1, column=0, columnspan=4, sticky='ew', padx=10, pady=(0,14))
         # Style the treeview
         _proc_style = ttk.Style()
@@ -31998,6 +32027,7 @@ Verification Status:
         # v29.28: actionable row — kill selected process / clear table
         _proc_action_row: Any = _proc_row_base + 2
         _proc_actions: Any = tk.Frame(grid_frame, bg=Colors.BG_VOID)
+        self._perf_process_actions = _proc_actions
         _proc_actions.grid(row=_proc_action_row, column=0, columnspan=4,
                            sticky='ew', padx=10, pady=(0,4))
         _perf_kill_btn = tk.Button(
@@ -32065,12 +32095,14 @@ Verification Status:
 
         # -- Live network interface table ------------------------------------
         _net_row_base = _proc_row_base + 3
-        tk.Label(grid_frame, text='LIVE NETWORK INTERFACES', font=('Consolas', 9, 'bold'),
-                 fg = Colors.GAUGE_GREEN, bg=Colors.BG_VOID).grid(
+        self._perf_network_heading = tk.Label(grid_frame, text='LIVE NETWORK INTERFACES', font=('Consolas', 9, 'bold'),
+                 fg = Colors.GAUGE_GREEN, bg=Colors.BG_VOID)
+        self._perf_network_heading.grid(
                  row=_net_row_base, column=0, columnspan=4,
                  sticky='w', padx=10, pady=(14,4))
         _net_cols = ('int', 'state', 'sent', 'recv', 'link')
         _net_frame = tk.Frame(grid_frame, bg=Colors.BG_VOID)
+        self._perf_network_frame = _net_frame
         _net_frame.grid(row=_net_row_base+1, column=0, columnspan=4,
                         sticky='ew', padx=10, pady=(0,14))
         _net_style = ttk.Style()
@@ -32096,12 +32128,14 @@ Verification Status:
 
         # -- Live disk partition table ---------------------------------------
         _disk_row_base = _net_row_base + 2
-        tk.Label(grid_frame, text='DISK PARTITIONS', font=('Consolas', 9, 'bold'),
-                 fg = Colors.GAUGE_ORANGE, bg=Colors.BG_VOID).grid(
+        self._perf_disk_heading = tk.Label(grid_frame, text='DISK PARTITIONS', font=('Consolas', 9, 'bold'),
+                 fg = Colors.GAUGE_ORANGE, bg=Colors.BG_VOID)
+        self._perf_disk_heading.grid(
                  row=_disk_row_base, column=0, columnspan=4,
                  sticky='w', padx=10, pady=(14,4))
         _disk_cols = ('drive', 'used%', 'used', 'total', 'free')
         _disk_frame = tk.Frame(grid_frame, bg=Colors.BG_VOID)
+        self._perf_disk_frame = _disk_frame
         _disk_frame.grid(row=_disk_row_base+1, column=0, columnspan=4,
                          sticky='ew', padx=10, pady=(0,10))
         _disk_style = ttk.Style()
@@ -32128,11 +32162,13 @@ Verification Status:
 
         # -- v29.38: 60-Second History Timeline Chart -------------------------
         _timeline_row_base = _disk_row_base + 2
-        tk.Label(grid_frame, text='60-SECOND HISTORY TIMELINE', font=('Consolas', 9, 'bold'),
-                 fg = Colors.GAUGE_PURPLE, bg=Colors.BG_VOID).grid(
+        self._perf_timeline_heading = tk.Label(grid_frame, text='60-SECOND HISTORY TIMELINE', font=('Consolas', 9, 'bold'),
+                 fg = Colors.GAUGE_PURPLE, bg=Colors.BG_VOID)
+        self._perf_timeline_heading.grid(
                  row=_timeline_row_base, column=0, columnspan=4,
                  sticky='w', padx=10, pady=(14,4))
         _timeline_frame = tk.Frame(grid_frame, bg=Colors.BG_VOID)
+        self._perf_timeline_frame = _timeline_frame
         _timeline_frame.grid(row=_timeline_row_base+1, column=0, columnspan=4,
                            sticky='ew', padx=10, pady=(0,10))
         # Timeline canvas - v29.38: expanded to 140px height for 8 metrics
@@ -32159,6 +32195,42 @@ Verification Status:
         }
         self._tooltip(self._perf_timeline_canvas,
                      '60-second rolling timeline: CPU%, RAM%, GPU%, NET KB/s, FILES, CONNS, CTX/s, INT/s over the last 60 samples.')
+
+        def _resize_perf_gauges(_event=None):
+            width = max(1, grid_frame.winfo_width())
+            cols, size = _performance_gauge_layout(width)
+            if cols == getattr(self, '_perf_gauge_columns', None) and size == self._perf_gauge_size:
+                return
+            self._perf_gauge_columns = cols
+            self._perf_gauge_size = size
+            for col in range(10):
+                grid_frame.grid_columnconfigure(col, weight=1 if col < cols else 0, minsize=0)
+            for idx, (key, cell) in enumerate(self._perf_gauge_cells.items()):
+                cell.grid(row=idx // cols, column=idx % cols)
+                canvas = self._perf_canvases[key]
+                canvas.configure(width=size, height=size + 62)
+                maxv, unit, scheme, label = self._perf_gauge_meta[key]
+                self._draw_gauge(canvas, size, label, 0, maxv, unit, scheme)
+            core_row = math.ceil(len(GAUGES) / cols)
+            sections = (
+                (self._perf_core_heading, core_row),
+                (self._core_bar_frame, core_row + 1),
+                (self._perf_process_heading, core_row + 2),
+                (self._perf_process_frame, core_row + 3),
+                (self._perf_process_actions, core_row + 4),
+                (self._perf_network_heading, core_row + 5),
+                (self._perf_network_frame, core_row + 6),
+                (self._perf_disk_heading, core_row + 7),
+                (self._perf_disk_frame, core_row + 8),
+                (self._perf_timeline_heading, core_row + 9),
+                (self._perf_timeline_frame, core_row + 10),
+            )
+            for widget, row in sections:
+                widget.grid_configure(row=row, columnspan=cols)
+            self._perf_drawn_cache = {}
+
+        grid_frame.bind('<Configure>', _resize_perf_gauges, add='+')
+        self.after_idle(_resize_perf_gauges)
 
         # -- Start update loop -------------------------------------------------
         try:
@@ -32515,6 +32587,7 @@ Verification Status:
         """Apply fetched stats to gauge canvases  -  runs on main thread."""
         if not self.winfo_exists():
             return
+        self._perf_latest_stats = s
         # v29.30: warm-history pre-pass — keep per-gauge history, previous-sample
         # deltas and the adaptive rate ceilings updated even while the Perf tab
         # is hidden, so sparklines are already populated and delta markers are
@@ -32617,10 +32690,11 @@ Verification Status:
                 self._perf_drawn_cache[key] = _cache_key
 
                 _delta: Any = self._perf_delta.get(key, 0.0)
-                self._draw_gauge(canvas, 148, label, val, maxv, unit, scheme, delta=_delta)
+                _gauge_size = getattr(self, '_perf_gauge_size', 148)
+                self._draw_gauge(canvas, _gauge_size, label, val, maxv, unit, scheme, delta=_delta)
                 # v29.30: sparkline reads the warm history filled by the pre-pass
                 if len(self._perf_history.get(key, ())) >= 2:
-                    self._draw_sparkline(canvas, 148, list(self._perf_history[key]), maxv, scheme)
+                    self._draw_sparkline(canvas, _gauge_size, list(self._perf_history[key]), maxv, scheme)
 
             # Update per-core bars
             per_core: Any = s.get('cpu_per_core', [])
@@ -33036,7 +33110,8 @@ Verification Status:
                               command=_win.destroy).pack(pady=6)
                 self.after(0, _show)
             except Exception as _e:
-                self.after(0, lambda: self._set_status(f'Analyze failed: {_e}'))
+                self.after(0, lambda error=_e: self._set_status(
+                    f'Analyze failed: {error}'))
         self._executor.submit(_do)
 
     def _perf_set_priority(self):
@@ -33082,8 +33157,8 @@ Verification Status:
                         self.after(0, lambda: self._set_status(
                             f'Priority of {name} (PID {pid}) set to {l}'))
                     except Exception as _e:
-                        self.after(0, lambda: self._set_status(
-                            f'Priority change failed: {_e}'))
+                        self.after(0, lambda error=_e: self._set_status(
+                            f'Priority change failed: {error}'))
                 self._executor.submit(_do)
                 prio_win.destroy()
             tk.Button(prio_win, text=label, font=('Consolas', 9, 'bold'),
@@ -33123,7 +33198,8 @@ Verification Status:
                 else:
                     self.after(0, lambda: self._set_status(f'Path not found: {folder}'))
             except Exception as _e:
-                self.after(0, lambda: self._set_status(f'Open location failed: {_e}'))
+                self.after(0, lambda error=_e: self._set_status(
+                    f'Open location failed: {error}'))
         self._executor.submit(_do)
 
     def _harden_analyze(self):
@@ -43030,9 +43106,9 @@ Verification Status:
                 try:
                     ef = self._elev_checker.check()
                     for ef_ in ef:
-                        self.after(0, lambda ee=ef_: self._queue_alert(
-                            f'[ELEVATION/{ee_["severity"]}] '
-                            f'{ee_["detail"]}', Colors.GAUGE_YELLOW))
+                        self.after(0, lambda finding=ef_: self._queue_alert(
+                            f'[ELEVATION/{finding["severity"]}] '
+                            f'{finding["detail"]}', Colors.GAUGE_YELLOW))
                 except Exception as e:
                     error_logger.log('DefenseSuite', 'elevation audit', e)
 
@@ -45552,8 +45628,8 @@ Verification Status:
                     f'{", ".join(sorted(levels))}  -  check DDoS Blocks.', Colors.GAUGE_ORANGE))
             except Exception as e:
                 logger.debug('[DDOS] shield scan error: %s', e)
-                self.after(0, lambda: self._queue_alert(
-                    f'[DDOS-SHIELD] Scan error: {str(e)[:80]}', Colors.GAUGE_RED))
+                self.after(0, lambda error=str(e): self._queue_alert(
+                    f'[DDOS-SHIELD] Scan error: {error[:80]}', Colors.GAUGE_RED))
         self._executor.submit(_bg)
 
     def _ddos_rate_monitor_ui(self):
@@ -46643,9 +46719,12 @@ Verification Status:
                     data: Any = f.read(min(fsize, 4 * 1048576))
                 fhash: Any = hashlib.sha256(data).hexdigest()
 
-                # Static PE analysis (v29.44c) - early for test visibility
+                # Static PE analysis (v29.44c).
                 ext: Any = os.path.splitext(fpath)[1].lower()
                 pe_analysis = None
+                threat_label: Any = ""
+                score: Any = 0
+                rules: Any = []
                 if PE_ANALYZER_AVAILABLE and ext in ('.exe', '.dll', '.sys'):
                     try:
                         pe_result = pe_analyzer.analyze_pe(fpath)
@@ -46654,10 +46733,10 @@ Verification Status:
                     except Exception as e:
                         _safe_log('PEAnalysis', f"PE analysis failed for {fpath}: {e}")
 
-                # Early merge of PE risk score for test visibility (pe_analysis.risk_score)
+                # Seed the result accumulators with PE analysis. Later IOC, YARA,
+                # entropy, and behavior results are merged into these values.
                 if pe_analysis:
                     score = max(score, pe_analysis.risk_score)
-                    # Apply PE risk factors to rules early for test visibility
                     if pe_analysis.risk_factors:
                         rules.extend(pe_analysis.risk_factors)
                     if pe_analysis.packers_detected:
@@ -46685,16 +46764,17 @@ Verification Status:
                 behaviors: Any = self.yara.check_behaviors(data)
                 entropy: Any = self.yara.compute_entropy(data[:65536])
 
-                threat_label: Any = ""
-                score: Any = 0
-                rules: Any = []
+                # Preserve the PE analysis already added above.
+                threat_label = threat_label or ""
+                score = max(score, 0)
+                rules = list(rules)
 
                 if intel_hit:
                     threat_label: Any = f"INTEL: {intel_hit}"
                     score: Any = 95
                 if yara_hits:
                     score: Any = max(score, max(h['score'] for h in yara_hits))
-                    rules: Any = [h['rule'] for h in yara_hits]
+                    rules.extend(h['rule'] for h in yara_hits)
                     threat_label: Any = threat_label or f"YARA: {', '.join(rules[:2])}"
                 if entropy > 7.8 and ext in ('.exe', '.dll', '.sys'):
                     score: Any = max(score, 25)
@@ -50501,12 +50581,13 @@ Verification Status:
                            "That does NOT mean the password is secure — it "
                            "only means it has not been seen in public leaks.")
                     col = Colors.GAUGE_GREEN
-                self.after(0, lambda _m=msg: mb.showinfo('Password Breach Check', _m))
+                self.after(0, lambda _m=msg: messagebox.showinfo(
+                    'Password Breach Check', _m))
                 self._queue_alert(
                     f'[OSINT] Pwned Passwords: {"BREACHED " + str(n) + "x" if n else "not found"}',
                     col)
             except Exception as e:
-                self.after(0, lambda _e=str(e): mb.showwarning(
+                self.after(0, lambda _e=str(e): messagebox.showwarning(
                     'Pwned Passwords', f'Check failed ({_e[:120]}). '
                                        'Check network connectivity.'))
         self._executor.submit(_do)

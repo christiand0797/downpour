@@ -10,6 +10,7 @@ try:
     _KEV_AVAILABLE = True
 except ImportError:
     _KEV_AVAILABLE = False
+import os
 import sys
 import time
 import threading

@@ -751,7 +751,7 @@ class SelfHealingCode:
     def _apply_patch(self, source_code: str, patch: str) -> str:
         """Apply patch to source code"""
         # Simplified - in reality would use proper patching
-        return patched_code if isinstance(patch, str) else source_code
+        return patch if isinstance(patch, str) else source_code
     
     def get_healing_status(self) -> Dict:
         return {
@@ -959,7 +959,7 @@ class NeuromorphicDetector:
             return outputs
         elif BRIAN2_AVAILABLE and hasattr(self, 'network'):
             # Run Brian2 simulation
-            self.network.run(1*ms)
+            self.network.run(1*brian2.ms)
             return self._read_spikes()
         return {}
     

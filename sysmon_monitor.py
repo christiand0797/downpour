@@ -11,6 +11,7 @@ import time
 import threading
 import logging
 import json
+import math
 import subprocess
 from collections import deque, defaultdict
 from dataclasses import dataclass, field
@@ -530,7 +531,7 @@ class SysmonMonitor:
     def _process_dns(self, event: SysmonEvent):
         """Process DNS query event."""
         # Check for DGA domains
-        query = event.data.get('QueryName', '') or data.get('Query', '')
+        query = event.data.get('QueryName', '') or event.data.get('Query', '')
         if query:
             entropy = self._calculate_entropy(query)
             if entropy > 3.5 and len(query) > 15:

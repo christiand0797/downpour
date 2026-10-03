@@ -36,6 +36,7 @@ SUPPORTED ATTACKS:
 """
 
 import ctypes
+import os
 import ctypes.wintypes
 try:
     import psutil
@@ -172,7 +173,7 @@ class MemoryForensicsAnalyzer:
         for cb in self._callbacks:
             try: cb(msg)
             except Exception as _e:
-                _safe_log('MemoryForensics', 'callback failed', _e)
+                self._safe_log('MemoryForensics', 'callback failed', _e)
 
     def _safe_log(self, component: str, msg: str, exc: Exception):
         """Safe logging that never raises."""
@@ -989,7 +990,7 @@ class MemoryForensicsAnalyzer:
 # Global instance
 _memory_analyzer_instance = None
 
-def get_memory_analyzer(config=None) -> 'MemoryForensics':
+def get_memory_analyzer(config=None) -> 'MemoryForensicsAnalyzer':
     """Get global memory analyzer instance."""
     global _memory_analyzer_instance
     if _memory_analyzer_instance is None:

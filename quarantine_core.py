@@ -10,6 +10,7 @@ Single quarantine implementation replacing 3 divergent formats:
 
 from __future__ import annotations
 import os
+import base64
 import json
 import hashlib
 import shutil

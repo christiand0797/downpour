@@ -37,6 +37,13 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Callable, Dict, List, Optional, Set
 
+try:
+    from vulnerability_scanner import VulnerabilityScanner
+    _KEV_AVAILABLE = True
+except ImportError:
+    VulnerabilityScanner = None
+    _KEV_AVAILABLE = False
+
 log = logging.getLogger(__name__)
 _NO_WIN = subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
 
@@ -636,10 +643,10 @@ class IoTDeviceScanner:
         # KEV vulnerability check
         if _KEV_AVAILABLE:
             kev_result = self.check_device_kev_status(device)
-            if kev_result.get('vulnerabilities_found', 0) > 0:
+            if kev_result.get('kev_matches'):
                 device.risk_level = 'HIGH'
                 device.botnet_indicators.extend([
-                    f"KEV: {cve['cveID']}" for cve in kev_result.get('matched_cves', [])[:3]
+                    f"KEV: {cve['cve']}" for cve in kev_result.get('kev_matches', [])[:3]
                 ])
 
         with self._lock:
@@ -889,7 +896,8 @@ class IoTDeviceScanner:
         }
         
         try:
-            from vulnerability_scanner import VulnerabilityScanner
+            if not _KEV_AVAILABLE or VulnerabilityScanner is None:
+                return result
             scanner = VulnerabilityScanner()
             
             iot_vendors = ['realtek', 'huawei', 'tp-link', 'netgear', 'd-link', 

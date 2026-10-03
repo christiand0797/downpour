@@ -30,6 +30,14 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 try:
+    from mega_threat_signatures import PORT_PROFILES, PortCategory
+    ENHANCED_PORTS_AVAILABLE = True
+except ImportError:
+    PORT_PROFILES = {}
+    PortCategory = None
+    ENHANCED_PORTS_AVAILABLE = False
+
+try:
     import psutil
     PSUTIL_AVAILABLE = True
 except ImportError:
@@ -1022,6 +1030,16 @@ class BehaviorScanner:
                 
                 remote_ip = conn.raddr.ip
                 remote_port = conn.raddr.port
+
+                proc_name = "Unknown"
+                proc_exe = ""
+                try:
+                    if conn.pid:
+                        proc = psutil.Process(conn.pid)
+                        proc_name = proc.name() or proc_name
+                        proc_exe = proc.exe() or proc_exe
+                except (psutil.AccessDenied, psutil.NoSuchProcess, psutil.ZombieProcess):
+                    pass
                 
                 threat_indicators = []
                 severity = 'low'
