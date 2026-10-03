@@ -25250,6 +25250,18 @@ class downpour(tk.Tk):
             if self.sigma_engine:
                 logger.info("[OK] Sigma Engine active")
 
+            # ExploitDB Integration
+            try:
+                from exploit_db import get_exploit_db, start_exploit_db_updater
+                self.exploit_db = get_exploit_db(self._DATA_DIR)
+                # Start background updater (daily)
+                self._exploit_db_updater = start_exploit_db_updater(self._DATA_DIR, interval_hours=24)
+                logger.info("[OK] ExploitDB integration active")
+            except Exception as e:
+                logger.warning(f"ExploitDB init failed: {e}")
+                self.exploit_db = None
+                self._exploit_db_updater = None
+
             # YARA Rules Manager
             self.yara_rules_manager = YaraRulesManager() if YARA_RULES_MANAGER_AVAILABLE else None
             if self.yara_rules_manager:

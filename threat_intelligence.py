@@ -1,12 +1,6 @@
 """
-import logging
-_log = logging.getLogger(__name__)
-_log.info("Threat Intelligence Manager loaded (v29)")
-__version__ = "29.0.0"
-
-================================================================================
 THREAT INTELLIGENCE MANAGER
-==============================================================================
+================================================================================
 
 PURPOSE: Manages real-time threat intelligence feeds from multiple reputable sources
          to provide up-to-date malware signatures, IOCs, and threat indicators.
@@ -48,6 +42,12 @@ UPDATE FREQUENCY:
 
 INTEGRATION:
 - Updates network monitor with malicious IPs
+"""
+
+import logging
+logger = logging.getLogger(__name__)
+logger.info("Threat Intelligence Manager loaded (v29)")
+__version__ = "29.0.0"
 - Updates file monitor with malware hashes
 - Provides IOCs to behavioral analyzer
 - Feeds threat data to main alert system
@@ -159,6 +159,10 @@ class ThreatIntelligenceManager:
         # v29: KEV cache for CVE correlation
         self.kev_cache = {}
         self.suspicious_emails = set()
+
+        # ExploitDB integration for CVE-exploit correlation
+        self._exploit_db = None
+        self._exploit_db_initialized = False
         
         # API keys (would be loaded from config in production)
         self.api_keys = {
@@ -303,7 +307,14 @@ class ThreatIntelligenceManager:
             'urlscan': {'last_update': 0, 'interval': 3600, 'enabled': True, 'error_count': 0},
             'darkapi_urlhaus': {'last_update': 0, 'interval': 900, 'enabled': True, 'error_count': 0},
             'darkapi_malwarebazaar': {'last_update': 0, 'interval': 900, 'enabled': True, 'error_count': 0},
-            'threatbook_ioc': {'last_update': 0, 'interval': 3600, 'enabled': True, 'error_count': 0}
+            'threatbook_ioc': {'last_update': 0, 'interval': 3600, 'enabled': True, 'error_count': 0},
+            'exploitdb': {
+                'url': 'https://www.exploit-db.com/download.csv',
+                'enabled': True,
+                'priority': 'high',
+                'update_interval': 86400,  # 24 hours
+                'last_update': 0
+            }
         }
         
         # Statistics
@@ -1885,16 +1896,34 @@ class ThreatIntelligenceManager:
             logging.debug(f"KEV cache load: {e}")
             self.kev_cache = {}
     
+    def _init_exploit_db(self):
+        """Lazy initialize ExploitDB integration."""
+        if self._exploit_db_initialized:
+            return
+
+        try:
+            from exploit_db import get_exploit_db
+            # Use default data directory
+            from pathlib import Path
+            data_dir = Path("downpour_data")
+            self._exploit_db = get_exploit_db(str(data_dir))
+            self._exploit_db_initialized = True
+            logger.info("ThreatIntelligence: ExploitDB initialized")
+        except Exception as e:
+            logger.debug(f"ExploitDB init failed: {e}")
+            self._exploit_db = None
+            self._exploit_db_initialized = True
+
     def get_cve_threat_context(self, cve_id: str) -> Dict:
         """Get comprehensive CVE threat context.
         
-        Combines KEV status, EPSS score, and known IOC correlations.
+        Combines KEV status, EPSS score, ExploitDB exploits, and known IOC correlations.
         
         Args:
             cve_id: CVE identifier
             
         Returns:
-            Dict with: kev_status, epss_score, risk_level, description
+            Dict with: kev_status, epss_score, risk_level, description, exploits
         """
         result = {
             'cve_id': cve_id,
@@ -1903,7 +1932,11 @@ class ThreatIntelligenceManager:
             'cvss_score': 0.0,
             'risk_level': 'LOW',
             'known_exploited': False,
-            'ransomware_associated': False
+            'ransomware_associated': False,
+            'exploits': [],
+            'exploit_count': 0,
+            'platforms': [],
+            'exploit_types': []
         }
         
         kev_data = self.check_cve_known_exploited(cve_id)
@@ -1932,6 +1965,38 @@ class ThreatIntelligenceManager:
                     result['risk_level'] = 'HIGH'
         except Exception:
             pass
+
+        # Add ExploitDB exploits for this CVE
+        if not self._exploit_db_initialized:
+            self._init_exploit_db()
+        
+        if self._exploit_db:
+            try:
+                exploits = self._exploit_db.get_exploits_by_cve(cve_id)
+                if exploits:
+                    result['exploits'] = [
+                        {
+                            'id': exp.id,
+                            'description': exp.description,
+                            'date': exp.date_published,
+                            'author': exp.author,
+                            'platform': exp.platform,
+                            'type': exp.type,
+                            'verified': exp.verified,
+                            'source_url': exp.source_url,
+                            'download_url': f"https://www.exploit-db.com/exploits/{exp.file}"
+                        }
+                        for exp in exploits[:20]  # Limit to 20
+                    ]
+                    result['exploit_count'] = len(exploits)
+                    result['platforms'] = list(set(e.platform for e in exploits))
+                    result['exploit_types'] = list(set(e.type for e in exploits))
+                    
+                    # If there are public exploits, increase risk level
+                    if exploits and result['risk_level'] == 'LOW':
+                        result['risk_level'] = 'MEDIUM'
+            except Exception as e:
+                logger.debug(f"ExploitDB lookup failed for {cve_id}: {e}")
         
         return result
     

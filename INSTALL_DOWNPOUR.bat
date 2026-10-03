@@ -341,6 +341,17 @@ call :LOG_INFO "Upgrading pip..."
 call :LOG_OK "pip upgraded"
 
 REM ================================================================
+REM INSTALL MICROSOFT VISUAL C++ BUILD TOOLS (for netifaces and other C extensions)
+REM ================================================================
+call :LOG_STEP "Installing MSVC Build Tools (required for netifaces)..."
+winget install --id Microsoft.VisualStudio.2022.BuildTools --silent --accept-source-agreements --accept-package-agreements --override "--add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.Windows10SDK.19041" 2>nul
+if errorlevel 1 (
+    call :LOG_WRN "winget install failed, trying alternative: Visual Studio Installer..."
+    powershell -Command "Start-Process 'https://aka.ms/vs/17/release/vs_buildtools.exe' -Verb RunAs" 2>nul
+    call :LOG_WRN "If MSVC Build Tools install failed, netifaces may not install. Run 'vs_buildtools.exe' manually with 'Desktop development with C++' workload."
+)
+
+REM ================================================================
 REM INSTALL DEPENDENCIES - Multi-pass with auto-fallback
 REM ================================================================
 call :LOG_STEP "Installing dependencies"
@@ -351,18 +362,18 @@ call :LOG_INFO "Pass 1: Installing from requirements.txt..."
 if !errorlevel! equ 0 (
     call :LOG_WRN "Some packages failed, trying core packages (Pass 2)..."
     
-    REM Pass 2: Core packages only, no version constraints
-    "%VENV_PIP%" install psutil requests cryptography watchdog nvidia-ml-py colorama wmi pywin32 scikit-learn yara-python pillow dnspython netifaces joblib tqdm pyperclip python-dateutil charset-normalizer idna urllib3 certifi scipy pefile pydantic pyyaml tomli aiohttp aiodns click rich packaging importlib-metadata tenacity schedule prometheus-client slack-sdk python-telegram-bot discord.py psycopg2-binary redis pycryptodome paramiko pyjwt pyotp qrcode python-nmap shodan censys greyNoise weasyprint pdfkit python-magic prompt-toolkit --quiet --disable-pip-version-check 2>nul
+    REM Pass 2: Core packages only, no version constraints (netifaces optional)
+    "%VENV_PIP%" install psutil requests cryptography watchdog nvidia-ml-py colorama wmi pywin32 scikit-learn yara-python pillow dnspython joblib tqdm pyperclip python-dateutil charset-normalizer idna urllib3 certifi scipy pefile pydantic pyyaml tomli aiohttp aiodns click rich packaging importlib-metadata tenacity schedule prometheus-client slack-sdk python-telegram-bot discord.py psycopg2-binary redis pycryptodome paramiko pyjwt pyotp qrcode python-nmap shodan censys greyNoise weasyprint pdfkit python-magic prompt-toolkit --quiet --disable-pip-version-check 2>nul
     
     if !errorlevel! equ 0 (
         call :LOG_WRN "Core install had issues, trying minimal set (Pass 3)..."
         
         REM Pass 3: Absolute minimum
-        "%VENV_PIP%" install psutil requests cryptography watchdog colorama pywin32 numpy scipy scikit-learn pillow dnspython netifaces joblib tqdm pyperclip python-dateutil charset-normalizer idna urllib3 certifi pydantic pyyaml aiohttp aiodns click rich tenacity schedule --quiet --disable-pip-version-check 2>nul
+        "%VENV_PIP%" install psutil requests cryptography watchdog colorama pywin32 numpy scipy scikit-learn pillow dnspython joblib tqdm pyperclip python-dateutil charset-normalizer idna urllib3 certifi pydantic pyyaml aiohttp aiodns click rich tenacity schedule --quiet --disable-pip-version-check 2>nul
         
         if !errorlevel! equ 0 (
             call :LOG_WRN "Installing packages one by one (Pass 4)..."
-            for %%P in (psutil requests cryptography watchdog colorama pywin32 numpy scipy scikit-learn pillow dnspython netifaces joblib tqdm pyperclip python-dateutil charset-normalizer idna urllib3 certifi pydantic pyyaml aiohttp aiodns click rich tenacity schedule) do (
+            for %%P in (psutil requests cryptography watchdog colorama pywin32 numpy scipy scikit-learn pillow dnspython joblib tqdm pyperclip python-dateutil charset-normalizer idna urllib3 certifi pydantic pyyaml aiohttp aiodns click rich tenacity schedule) do (
                 "%VENV_PIP%" install "%%P" --quiet --disable-pip-version-check 2>nul
                 if errorlevel 1 call :LOG_WRN "Failed: %%P"
             )
@@ -373,12 +384,29 @@ if !errorlevel! equ 0 (
 call :LOG_OK "Dependency installation complete"
 
 REM ================================================================
-REM VERIFY CORE IMPORTS WORK
+REM INSTALL NETIFACES SEPARATELY (requires MSVC Build Tools)
+REM ================================================================
+call :LOG_STEP "Installing netifaces (requires MSVC Build Tools)..."
+"%VENV_PIP%" install netifaces --quiet --disable-pip-version-check 2>nul
+if errorlevel 1 (
+    call :LOG_WRN "netifaces install failed - requires MSVC Build Tools"
+    call :LOG_INFO "To install netifaces manually:"
+    call :LOG_INFO "  1. Install 'Desktop development with C++' workload via Visual Studio Installer"
+    call :LOG_INFO "  2. Run: %VENV_PIP% install netifaces"
+    call :LOG_INFO "  Or download pre-built wheel from https://github.com/al45tair/netifaces/releases"
+) else (
+    call :LOG_OK "netifaces installed successfully"
+)
+
+call :LOG_OK "Dependency installation complete"
+
+REM ================================================================
+REM VERIFY CORE IMPORTS WORK (netifaces is optional)
 REM ================================================================
 call :LOG_INFO "Verifying core imports..."
 "%VENV_PYTHON%" -c "
 import sys
-mods = ['psutil','requests','cryptography','watchdog','colorama','wmi','sklearn','numpy','scipy','pillow','dnspython','netifaces','joblib','tqdm','pyperclip','pydantic','yaml','aiohttp','click','rich','tenacity','schedule']
+mods = ['psutil','requests','cryptography','watchdog','colorama','wmi','sklearn','numpy','scipy','pillow','dnspython','joblib','tqdm','pyperclip','pydantic','yaml','aiohttp','click','rich','tenacity','schedule']
 failed = []
 for m in mods:
     try: __import__(m.replace('-','_'))
@@ -389,6 +417,9 @@ print('ALL CORE IMPORTS OK')
 if errorlevel 1 (
     call :LOG_WRN "Some imports may not work (will retry on launch)"
 )
+
+REM Check optional netifaces
+"%VENV_PYTHON%" -c "import netifaces; print('netifaces: OK')" 2>nul || call :LOG_WRN "netifaces not available (optional - requires MSVC Build Tools)"
 
 REM ================================================================
 REM INITIALIZE ML MODELS

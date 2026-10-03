@@ -53,12 +53,20 @@ if "!PY!"=="" (
 )
 echo   [OK] Python: !PY!
 
-echo   [..] Installing all dependencies...
-"!PY!" -m pip install psutil requests cryptography watchdog nvidia-ml-py colorama wmi pywin32 scikit-learn yara-python pillow dnspython netifaces joblib tqdm pyperclip python-dateutil charset-normalizer idna urllib3 certifi
+echo   [..] Installing core dependencies...
+"!PY!" -m pip install psutil requests cryptography watchdog nvidia-ml-py colorama wmi pywin32 scikit-learn yara-python pillow dnspython joblib tqdm pyperclip python-dateutil charset-normalizer idna urllib3 certifi
 if %errorlevel%==0 (
-    echo   [OK] All dependencies installed successfully
+    echo   [OK] Core dependencies installed successfully
 ) else (
-    echo   [!!] Some dependencies failed to install
+    echo   [!!] Some core dependencies failed to install
+)
+
+echo   [..] Installing optional dependencies (netifaces may require MSVC Build Tools)...
+"!PY!" -m pip install netifaces scipy pefile pydantic pyyaml tomli aiohttp aiodns click rich packaging importlib-metadata tenacity schedule prometheus-client slack-sdk python-telegram-bot discord.py psycopg2-binary redis pycryptodome paramiko pyjwt pyotp qrcode python-nmap shodan censys greyNoise weasyprint pdfkit python-magic prompt-toolkit 2>&1 | findstr /V "Successfully installed Requirement already satisfied"
+if %errorlevel%==0 (
+    echo   [OK] Optional dependencies installed
+) else (
+    echo   [!!] Some optional dependencies failed (netifaces requires MSVC Build Tools - run INSTALL_DOWNPOUR.bat as Admin for full setup)
 )
 
 echo   [..] Configuring Defender exclusions...

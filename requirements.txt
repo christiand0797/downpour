@@ -41,7 +41,7 @@ tqdm>=4.66.0
 pyperclip>=1.9.0
 
 # ── Additional dependencies ──────────────
-netifaces>=0.11.0        # network interface enumeration
+# netifaces>=0.11.0        # network interface enumeration (requires MSVC Build Tools - optional)
 scipy>=1.13.0            # signal/entropy calculations
 pefile>=2024.8.26        # PE header analysis
 pytest>=8.2.0            # test runner
