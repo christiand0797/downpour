@@ -1035,6 +1035,15 @@ try:
 except ImportError:
     nvml: Any = None
 
+# Auto-Updater
+try:
+    from downpour_updater import DownpourUpdater, integrate_updater
+    UPDATER_AVAILABLE: Any = True
+except ImportError:
+    UPDATER_AVAILABLE: Any = False
+    DownpourUpdater: Any = None
+    integrate_updater: Any = None
+
 # Security and networking imports
 try:
     import cryptography
@@ -24831,6 +24840,24 @@ class downpour(tk.Tk):
                 self._init_async_operations()
                 self._init_smart_rendering()
                 self._init_performance_monitoring()
+                
+                # Initialize auto-updater
+                if UPDATER_AVAILABLE:
+                    try:
+                        _status("Initializing auto-updater...")
+                        self._updater = integrate_updater(self)
+                        # Check for updates in background
+                        def _check_updates():
+                            try:
+                                result = self._updater.check_for_updates()
+                                if result.get("available"):
+                                    self.after(0, lambda: self._show_update_notification(result))
+                            except Exception:
+                                pass
+                        threading.Thread(target=_check_updates, daemon=True).start()
+                    except Exception as _ue:
+                        logger.warning(f"Updater init failed: {_ue}")
+                
                 _status("Building UI...")
             except Exception as _e:
                 import logging as _lg
@@ -24975,6 +25002,80 @@ class downpour(tk.Tk):
             self.after(10000, self._keepalive)
         except Exception:
             pass
+
+    def _show_update_notification(self, result: Dict[str, Any]) -> None:
+        """Show update available notification."""
+        try:
+            import tkinter as tk
+            from tkinter import messagebox
+
+            if not hasattr(self, 'updater_ui') or not self.updater_ui:
+                # Simple notification
+                if messagebox.askyesno("Update Available",
+                    f"Downpour v{result['latest']} is available!\n\n"
+                    f"Current: v{result['current']}\n\n"
+                    f"Update now?"):
+                    self._start_manual_update()
+                return
+
+            # Use the full UI
+            self.updater_ui._show_update_dialog(result)
+        except Exception as e:
+            logger.error(f"Update notification failed: {e}")
+
+    def _start_manual_update(self) -> None:
+        """Start update from manual trigger."""
+        try:
+            import tkinter as tk
+            from tkinter import ttk
+
+            prog_win = tk.Toplevel(self)
+            prog_win.title("Updating Downpour")
+            prog_win.geometry("400x150")
+            prog_win.resizable(False, False)
+            prog_win.transient(self)
+            prog_win.grab_set()
+
+            ttk.Label(prog_win, text="Updating Downpour...",
+                     font=("Consolas", 12)).pack(pady=15)
+
+            prog_var = tk.DoubleVar()
+            prog_bar = ttk.Progressbar(prog_win, variable=prog_var, maximum=100)
+            prog_bar.pack(fill="x", padx=20, pady=10)
+
+            status_lbl = ttk.Label(prog_win, text="Starting...", font=("Consolas", 9))
+            status_lbl.pack(pady=5)
+
+            def progress_cb(progress: float, msg: str):
+                self.after(0, lambda: [
+                    prog_var.set(progress * 100),
+                    status_lbl.config(text=msg)
+                ])
+
+            def do_update():
+                if not hasattr(self, '_updater') or not self._updater:
+                    return
+                success = self._updater.download_and_install(progress_cb)
+                self.after(0, lambda: self._update_done(prog_win, success))
+
+            threading.Thread(target=do_update, daemon=True).start()
+
+        except Exception as e:
+            logger.error(f"Manual update start failed: {e}")
+
+    def _update_done(self, window, success: bool):
+        """Handle update completion."""
+        try:
+            import tkinter.messagebox as mb
+            window.destroy()
+            if success:
+                mb.showinfo("Update Complete",
+                    f"Downpour updated to v{self._updater.latest_version}\n\n"
+                    "Please restart the application.")
+            else:
+                mb.showerror("Update Failed", "Update failed. Check logs for details.")
+        except Exception as e:
+            logger.error(f"Update done handler failed: {e}")
 
     def _build_ui_safe(self) -> None:
         """Wrapper that calls _build_ui with full error capture."""
