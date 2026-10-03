@@ -100,6 +100,7 @@ Use `LAUNCH.bat` (run as Administrator). It:
 
 | File | Contents |
 |---|---|
+| `CLONE_ARCHITECTURE_GUIDE.md` | Feature-preserving plan for a native C#/.NET Downpour successor |
 | `DEFENDER_BYPASS_GUIDE.md` | How path exclusions work |
 | `ENHANCED_BYPASS_GUIDE.md` | Enhanced compatibility system |
 | `COMPREHENSIVE_INSTALLATION_GUIDE.md` | Full install walkthrough |

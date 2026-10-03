@@ -3,6 +3,15 @@
 ## Project Overview
 **Downpour v29 Titanium** is a Windows security monitoring suite with a Tkinter GUI (~58K lines in `downpour_v29_titanium.py`). It provides real-time process monitoring, network threat detection, ransomware behavioral analysis, system hardening, memory forensics, parental controls, GPU-accelerated scanning, and the five-layer Project AEGIS defence framework.
 
+## Engineering Notes (2026-10-03)
+
+- The tab board declares 33 unique destination IDs and labels. Its layout now uses three rows, guards against duplicate runtime registrations, and uses a calmer Segoe UI visual hierarchy.
+- Performance gauges now recompute their dial size and column count as the window width changes. The process, network, disk, and timeline sections move with the gauge rows.
+- Repository audit fixed confirmed delayed-callback exception captures, PE risk-score initialization, runtime imports/undefined names, IoT KEV result handling, history queries, YARA update failures, and sharded-context unsubscribe/snapshot errors. Code changes were pushed in commit `848f926`.
+- Python 3.12.10 full test run: 420 passed, 1 skipped. `downpour_health_check.py`: 75/76; its sole failure is the machine-local signed code-integrity baseline, which reports source edits from this worktree. Do not regenerate that local baseline as part of a normal source change.
+- Native-window screenshot review was unavailable in this session. The UI changes were checked by compilation, source structure, and the existing suite; capture and review the application at narrow, standard, and ultrawide sizes before release.
+- See [`docs/CLONE_ARCHITECTURE_GUIDE.md`](docs/CLONE_ARCHITECTURE_GUIDE.md) for the planned feature-parity migration to a native C#/.NET desktop and service architecture.
+
 ## Key Architecture Decisions
 
 ### 1. Single-File Monolithic Architecture
@@ -71,7 +80,7 @@
 
 ### HIGH PRIORITY
 - [ ] **GPU ML workloads** -- gpu_executor pool exists (50% cores) but no CUDA ML workloads (cupy/tensorflow not installed)
-- [ ] **Tab overlap on small windows** -- `minsize(1280, 700)` helps but ttk.Notebook has no native tab scrolling
+- [x] **Tab crowding on small windows** -- custom navigation now distributes the 33 routes across three rows; performance gauges resize and reflow with the available width (2026-10-03). Check narrow-window screenshots before release.
 
 ### MEDIUM PRIORITY
 - [ ] Unit tests for thread-safety mechanisms (partial: 16 tests in `test_thread_safety.py`)

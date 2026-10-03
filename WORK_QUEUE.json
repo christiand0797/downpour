@@ -339,6 +339,19 @@
       "claimed_at": "2026-09-11T13:45:00Z",
       "completed_at": "2026-09-12T10:45:00Z",
       "notes": "FIXED (v29.60). Root causes found and fixed live: (1) stray pynvml/ stub dir in repo root shadowed the real package as a namespace package - renamed to _stub_pynvml_DO_NOT_IMPORT/ and installed nvidia-ml-py into .venv (NVML telemetry live-verified: RTX 3050, 49C, 1822MHz, 37.4W). (2) NVMLError_DriverNotLoaded poisoned stale handles forever - _fetch_unsafe now does full shutdown->re-init retry, 5-failure backoff with auto re-probe, throttled logging, and an nvidia-smi CLI fallback (60s TTL) so gauges stay alive while NVML is wedged. gpu_detector_fix.py layered detection already handles the rest. Tests: 388 passed."
+    },
+    {
+      "id": "TASK-021",
+      "title": "Repository-wide fixes, responsive GUI cleanup, verification, GitHub push, and clone architecture documentation",
+      "status": "completed",
+      "assignee": "agent-codex-009",
+      "priority": "high",
+      "dependencies": [],
+      "files": ["repository-wide", "docs/CLONE_ARCHITECTURE_GUIDE.md"],
+      "created": "2026-10-03T22:24:34Z",
+      "claimed_at": "2026-10-03T22:24:34Z",
+      "completed_at": "2026-10-03T23:28:05Z",
+      "notes": "Fixed confirmed runtime defects and improved tab/gauge responsiveness; pushed source commit 848f926 to main. Added feature-preserving C#/.NET 10 + WinUI 3 successor plan and updated shared context/docs index. Python 3.12.10 tests: 420 passed, 1 skipped. Health check 75/76; remaining failure is the machine-local signed code-integrity baseline reflecting the changed worktree."
     }
   ]
 }

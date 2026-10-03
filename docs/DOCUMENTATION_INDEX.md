@@ -19,6 +19,10 @@
 
 ## 🎯 **DOCUMENTATION CATEGORIES**
 
+### Architecture and migration
+
+- **CLONE_ARCHITECTURE_GUIDE.md** — C#/.NET and WinUI 3 target architecture, capability parity inventory, staged migration, and release gates for a feature-preserving successor.
+
 ### **✅ Main Documentation**
 
 **📖 Primary Guides**:

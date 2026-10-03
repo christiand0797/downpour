@@ -87,6 +87,17 @@
       "capabilities": ["code_edit", "file_ops", "bash", "gpu_debug", "driver_troubleshooting"],
       "completed_tasks": ["TASK-019", "TASK-020"],
       "notes": "Completed v29.61 enhancements: enhanced rain particle system, advanced lightning, threat feed logging with export, advanced memory forensics integration, expanded MITRE coverage"
+    },
+    {
+      "id": "agent-codex-009",
+      "name": "Codex Repository Auditor",
+      "specialization": ["repository-audit", "bug-fixing", "verification", "documentation", "git"],
+      "status": "idle",
+      "current_task": null,
+      "heartbeat": "2026-10-03T23:28:05Z",
+      "started_at": "2026-10-03T22:24:34Z",
+      "capabilities": ["code_edit", "file_ops", "git", "test_run"],
+      "completed_tasks": ["TASK-021"]
     }
   ]
 }
