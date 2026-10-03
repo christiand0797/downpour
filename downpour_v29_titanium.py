@@ -510,6 +510,7 @@ import contextlib
 import ctypes
 import gc
 import hashlib
+import queue
 
 # v29.90c: Suppress Windows error dialogs for child processes (nvidia-smi.exe
 # crashes produce "Application Error" popups without this). SEM_FAILCRITICALERRORS
@@ -1182,12 +1183,41 @@ _log_file_handler: Any = _FlushingFileHandler(
 _log_file_handler.setLevel(logging.INFO)
 _log_file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
 
+# Non-blocking log queue handler to prevent main-thread stalls
+_log_queue: Any = queue.Queue(maxsize=10000)
+_log_queue_handler: Any = logging.handlers.QueueHandler(_log_queue)
+_log_queue_handler.setLevel(logging.INFO)
+
+# Background thread to process log queue
+def _log_queue_worker():
+    while True:
+        try:
+            record = _log_queue.get()
+            if record is None:  # shutdown signal
+                break
+            _log_file_handler.emit(record)
+        except Exception:
+            pass
+
+_log_worker_thread = threading.Thread(target=_log_queue_worker, daemon=True, name='LogQueueWorker')
+_log_worker_thread.start()
+
+# Register shutdown
+import atexit
+def _shutdown_logging():
+    try:
+        _log_queue.put(None)
+        _log_worker_thread.join(timeout=2)
+    except Exception:
+        pass
+atexit.register(_shutdown_logging)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),
-        _log_file_handler
+        _log_queue_handler
     ]
 )
 logger: Any = logging.getLogger(__name__)
@@ -1409,8 +1439,8 @@ class HardwareProfile:
             # Laptop-specific adjustments for power saving
             if not battery_plugged:
                 # On battery - reduce rain intensity, increase intervals
-                profile.rain_intensity = max(20, profile.rain_intensity // 2)
-                profile.rain_height = max(40, profile.rain_height // 2)
+                profile.rain_intensity = max(10, profile.rain_intensity // 4)  # more aggressive reduction
+                profile.rain_height = max(30, profile.rain_height // 3)
                 profile.hw_loop_interval_ms = min(profile.hw_loop_interval_ms * 2, 5000)
                 profile.perf_interval_ms = min(profile.perf_interval_ms * 2, 2000)
                 profile.feed_refresh_ms = min(profile.feed_refresh_ms * 2, 60000)
@@ -1419,7 +1449,13 @@ class HardwareProfile:
                 # Thermal throttling active - reduce worker counts
                 profile.workers_cpu = max(1, profile.workers_cpu // 2)
                 profile.workers_scan = max(1, profile.workers_scan // 2)
-                profile.rain_intensity = max(10, profile.rain_intensity // 3)
+                profile.rain_intensity = max(5, profile.rain_intensity // 4)  # more aggressive
+            
+            # Low battery emergency mode
+            if battery_percent < 20 and not battery_plugged:
+                profile.rain_intensity = 5
+                profile.rain_height = 20
+                profile.rain_enabled = True  # keep enabled but minimal
         
         return profile
 
@@ -13203,12 +13239,19 @@ _shared_parse_pool_used: Any = False
 def _get_shared_parse_pool():
     """Lazily create the ONE shared 2-worker process parse pool."""
     global _shared_parse_pool, _shared_parse_pool_used
+    # Allow complete disable via env var for problematic environments
+    import os
+    if os.environ.get('DOWNPOUR_DISABLE_MULTIPROCESSING', '').lower() in ('1', 'true', 'yes'):
+        return None
     if _shared_parse_pool is None:
         with _shared_parse_pool_lock:
             if _shared_parse_pool is None:
                 from concurrent.futures import ProcessPoolExecutor as _SPPE
                 try:
-                    _shared_parse_pool = _SPPE(max_workers=2)
+                    # Use 'spawn' context explicitly for Windows
+                    import multiprocessing as _mp
+                    ctx = _mp.get_context('spawn')
+                    _shared_parse_pool = _SPPE(max_workers=2, mp_context=ctx)
                     # FIX-v29.60: one-time canary. On some setups every
                     # spawned worker dies at import ("DLL load failed while
                     # importing _ctypes") — detect that ONCE here instead of
@@ -13218,7 +13261,7 @@ def _get_shared_parse_pool():
                 except Exception:
                     try:
                         if _shared_parse_pool is not None:
-                            _shared_parse_pool.shutdown(wait=False)
+                            _shared_parse_pool.shutdown(wait=False, cancel_futures=True)
                     except Exception:
                         pass
                     _shared_parse_pool = None   # callers fall back in-thread
@@ -20613,6 +20656,15 @@ class ImmersiveRainCanvas(tk.Canvas):
             ]
             self._drop_colors = ['#88ccee'] * n
             self._drop_widths = [1] * n
+
+    def set_intensity(self, new_intensity: int):
+        """Dynamically adjust rain intensity (number of drops)."""
+        new_intensity = max(1, min(new_intensity, 120))
+        if new_intensity == self.intensity:
+            return
+        self.intensity = new_intensity
+        # Re-initialize drops with new count
+        self._init_drops()
 
     def _new_drop(self, warm=False):
         h: Any = self.h
@@ -41638,9 +41690,34 @@ Verification Status:
         if not self.winfo_exists():
             return
         try:
-            import psutil
-            cpu: Any = psutil.cpu_percent(interval=0)
-            mem: Any = psutil.virtual_memory().percent
+            # Get CPU/memory from sensor_hub (already polled off main thread)
+            cpu: Any = 0
+            mem: Any = 0
+            if SENSOR_HUB_AVAILABLE:
+                try:
+                    hub = get_sensor_hub()
+                    # Access latest snapshot from UI queue (non-blocking)
+                    try:
+                        ui_q = hub._queues.get('ui')
+                        if ui_q and not ui_q.empty():
+                            # Get most recent snapshot
+                            while not ui_q.empty():
+                                snap = ui_q.get_nowait()
+                                if snap:
+                                    cpu = snap.cpu_percent
+                                    mem = snap.memory_percent
+                                    break
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+            # Fallback: use cached values from hardware monitor
+            if cpu == 0 and mem == 0:
+                try:
+                    cpu = getattr(self, '_last_cpu_pct', 0)
+                    mem = getattr(self, '_last_mem_pct', 0)
+                except Exception:
+                    pass
             alerts: Any = len(self._alert_queue) if hasattr(self, '_alert_queue') else 0
             pending: Any = len(self._pending_after) if hasattr(self, '_pending_after') else 0
             # v29.43h (audit §8.5): surface sensor liveness — stalled sensors
@@ -43981,6 +44058,30 @@ Verification Status:
                              f"DISK {_sb_disk} | ↑{_rate(net_up)} ↓{_rate(net_dn)} "
                              f"| 🛡 {proc_ct}",
                         fg=_sb_col)
+            except Exception:
+                pass
+            # Dynamic rain intensity based on battery/thermal state
+            try:
+                if hasattr(self, 'rain') and hasattr(self.rain, 'set_intensity'):
+                    battery_pct: float = s.get('battery_percent', 100.0) or 100.0
+                    battery_plugged: bool = s.get('battery_plugged', True)
+                    thermal_state: str = s.get('thermal_state', 'normal')
+                    base_intensity: int = getattr(self, '_hw_profile', None)
+                    if base_intensity and hasattr(base_intensity, 'rain_intensity'):
+                        base_intensity = base_intensity.rain_intensity
+                    else:
+                        base_intensity = 90  # fallback
+                    target_intensity: int = base_intensity
+                    if not battery_plugged:
+                        target_intensity = max(10, base_intensity // 4)
+                    if thermal_state in ('hot', 'critical'):
+                        target_intensity = max(5, target_intensity // 2)
+                    if battery_pct < 20 and not battery_plugged:
+                        target_intensity = 5
+                    # Smooth transition - only adjust if significant difference
+                    current_intensity: int = getattr(self.rain, 'intensity', target_intensity)
+                    if abs(current_intensity - target_intensity) > 5:
+                        self.rain.set_intensity(target_intensity)
             except Exception:
                 pass
         except Exception:
