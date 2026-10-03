@@ -48,10 +48,6 @@ import logging
 logger = logging.getLogger(__name__)
 logger.info("Threat Intelligence Manager loaded (v29)")
 __version__ = "29.0.0"
-- Updates file monitor with malware hashes
-- Provides IOCs to behavioral analyzer
-- Feeds threat data to main alert system
-"""
 
 try:
     import requests
@@ -493,7 +489,7 @@ class ThreatIntelligenceManager:
             pass
 
     def _verify_feed_content(self, feed_name: str, content_bytes: bytes) -> bool:
-        """Verify feed content against signed manifest (TASK-013 follow-up).
+        """Verify feed content against signed manifest (TASK-13 follow-up).
         
         Returns True if content is verified (or baseline created), False if rejected.
         """
@@ -2091,3 +2087,5 @@ if __name__ == "__main__":
     
     print("\nPress Enter to exit...")
     input()
+
+    print("\nTest complete!")
