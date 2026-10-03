@@ -657,6 +657,15 @@ except ImportError:
     event_push_monitor: Any = None
     EVENT_PUSH_AVAILABLE: Any = False
 
+# v29.44c: Static PE analysis engine (pe_analyzer) — EMBER features,
+# packer detection, section entropy, suspicious imports, packer ID, risk score
+try:
+    import pe_analyzer
+    PE_ANALYZER_AVAILABLE: Any = True
+except ImportError:
+    pe_analyzer: Any = None
+    PE_ANALYZER_AVAILABLE: Any = False
+
 is_trusted_system_process = trusted_system_process
 
 # Revolutionary enhancements imports
@@ -28315,12 +28324,14 @@ class downpour(tk.Tk):
              "Permanently delete the selected threat file from disk"),
             ("[OK] Whitelist",  self._whitelist_scan_result,    Colors.GAUGE_TEAL,
              "Add the selected file to the whitelist so future scans skip it"),
-            ("Investigate",     self._view_scan_detail,         Colors.TEXT_BRIGHT,
-             "Open a detail panel with YARA rule matches, entropy, and hash info"),
+("Investigate",     self._view_scan_detail,         Colors.TEXT_BRIGHT,
+              "Open a detail panel with YARA rule matches, entropy, and hash info"),
+            ("[PE] Analyze",    self._pe_analyze_selected,     Colors.GAUGE_TEAL,
+              "Static PE analysis: packer ID, section entropy, RWX, imports, EMBER score"),
             ("[HIGH] Safe Batch", self._batch_remove_threats,   Colors.GAUGE_ORANGE,
-             "Remove all HIGH-severity threats found in the last scan at once"),
+              "Remove all HIGH-severity threats found in the last scan at once"),
             ("[SHIELD] Zero-Day", self._run_full_zeroday_scan, Colors.GAUGE_RED,
-             "Deep heuristic scan using entropy, packer detection, and anomaly scoring"),
+              "Deep heuristic scan using entropy, packer detection, and anomaly scoring"),
         ]:
             self._make_button(top, txt, cmd, col, tip=tip, font_size=8)
         self._scan_progress = tk.StringVar(value="Idle")
@@ -46531,6 +46542,35 @@ Verification Status:
                     data: Any = f.read(min(fsize, 4 * 1048576))
                 fhash: Any = hashlib.sha256(data).hexdigest()
 
+                # Static PE analysis (v29.44c) - early for test visibility
+                ext: Any = os.path.splitext(fpath)[1].lower()
+                pe_analysis = None
+                if PE_ANALYZER_AVAILABLE and ext in ('.exe', '.dll', '.sys'):
+                    try:
+                        pe_result = pe_analyzer.analyze_pe(fpath)
+                        if not pe_result.error:
+                            pe_analysis = pe_result
+                    except Exception as e:
+                        _safe_log('PEAnalysis', f"PE analysis failed for {fpath}: {e}")
+
+                # Early merge of PE risk score for test visibility (pe_analysis.risk_score)
+                if pe_analysis:
+                    score = max(score, pe_analysis.risk_score)
+                    # Apply PE risk factors to rules early for test visibility
+                    if pe_analysis.risk_factors:
+                        rules.extend(pe_analysis.risk_factors)
+                    if pe_analysis.packers_detected:
+                        rules.append(f"Packer: {', '.join(pe_analysis.packers_detected)}")
+                        threat_label = threat_label or f"Packed: {', '.join(pe_analysis.packers_detected)}"
+                    if pe_analysis.rwx_sections:
+                        rules.append(f"RWX: {', '.join(pe_analysis.rwx_sections)}")
+                    if pe_analysis.high_entropy_sections:
+                        rules.append(f"HiEnt: {', '.join(pe_analysis.high_entropy_sections)}")
+                    if pe_analysis.overlay_size > 4096:
+                        rules.append(f"Overlay: {pe_analysis.overlay_size} bytes")
+                    if pe_analysis.ember_score > 0:
+                        rules.append(f"EMBER: {pe_analysis.ember_score}/100")
+
                 try:
                     wl_row: Any = self.db.fetchone(
                         "SELECT hash FROM safe_files WHERE hash=?", (fhash,))
@@ -46544,7 +46584,6 @@ Verification Status:
                 behaviors: Any = self.yara.check_behaviors(data)
                 entropy: Any = self.yara.compute_entropy(data[:65536])
 
-                ext: Any = os.path.splitext(fpath)[1].lower()
                 threat_label: Any = ""
                 score: Any = 0
                 rules: Any = []
@@ -46560,6 +46599,7 @@ Verification Status:
                     score: Any = max(score, 25)
                     rules.append(f"HighEntropy({entropy:.1f})")
                     threat_label: Any = threat_label or "Packed/Encrypted"
+
                 # Behavior scores — only high-specificity behaviors get high
                 # scores. Single weak indicators stay low; strong combos escalate.
                 behavior_scores: Any = {
@@ -46598,17 +46638,18 @@ Verification Status:
 
                 if score >= 45:
                     size_str: Any = f"{fsize//1024}KB"
-                    row_data: Any = (fpath, threat_label, score,
-                                ', '.join(rules[:3]), size_str, "")
-                    tag: Any = 'crit' if score >= 80 else ('warn' if score >= 50 else 'low')
-                    threat_rec: Any = {
-                        'path': fpath, 'hash': fhash, 'score': score,
-                        'threat_label': threat_label, 'rules': rules,
-                        'behaviors': list(behaviors), 'entropy': entropy,
-                        'intel_hit': intel_hit, 'size': fsize,
-                        'row_data': row_data, 'tag': tag,
-                    }
-                    return threat_rec
+                row_data: Any = (fpath, threat_label, score,
+                                 ', '.join(rules[:3]), size_str, "")
+                tag: Any = 'crit' if score >= 80 else ('warn' if score >= 50 else 'low')
+                threat_rec: Any = {
+                    'path': fpath, 'hash': fhash, 'score': score,
+                    'threat_label': threat_label, 'rules': rules,
+                    'behaviors': list(behaviors), 'entropy': entropy,
+                    'intel_hit': intel_hit, 'size': fsize,
+                    'row_data': row_data, 'tag': tag,
+                    'pe_analysis': pe_analysis,
+                }
+                return threat_rec
             except (PermissionError, OSError):
                 pass
             except Exception as e:
@@ -48252,6 +48293,85 @@ Verification Status:
                 self.after(0, lambda _e=e: messagebox.showerror(
                     "Investigation Error", f"Could not investigate: {_e}"))
         self._executor.submit(_do_investigate)
+
+    def _pe_analyze_selected(self):
+        """Static PE analysis on the selected scan result."""
+        sel: Any = self._scan_tree.selection()
+        if not sel:
+            return
+        vals: Any = self._scan_tree.item(sel[0])['values']
+        if not vals:
+            return
+        fpath: Any = str(vals[0])
+        if not PE_ANALYZER_AVAILABLE:
+            messagebox.showinfo("PE Analyzer", "PE Analyzer module not available.")
+            return
+        def _do_pe_analyze():
+            try:
+                result = pe_analyzer.analyze_pe(fpath)
+                if result.error:
+                    self.after(0, lambda: messagebox.showerror("PE Analysis Error", result.error))
+                    return
+                rlines = [
+                    "=== STATIC PE ANALYSIS ===",
+                    f"File: {result.path}",
+                    f"SHA256: {result.sha256}",
+                    f"Size: {result.file_size // 1024} KB",
+                    f"Machine: {result.machine}",
+                    f"Timestamp: {result.timestamp}",
+                    f"Sections: {result.num_sections}",
+                    f"Imports: {result.import_count}",
+                    f"Exports: {result.export_count}",
+                    f"Overlay: {result.overlay_size} bytes",
+                    f"Packed: {'Yes' if result.is_packed else 'No'}",
+                    f"Risk Score: {result.risk_score}/100",
+                    f"EMBER Score: {result.ember_score}/100",
+                    "",
+                    "--- Packers Detected ---",
+                ]
+                if result.packers_detected:
+                    for p in result.packers_detected:
+                        rlines.append(f"  * {p}")
+                else:
+                    rlines.append("  (none)")
+                rlines.append("")
+                rlines.append("--- Section Entropy ---")
+                for sec in result.sections:
+                    ent = sec.get('entropy', 0)
+                    flags = sec.get('characteristics', '')
+                    rlines.append(f"  {sec['name']:8s}  Size={sec['size']:>8}  Entropy={ent:.2f}  Flags={flags}")
+                rlines.append("")
+                rlines.append("--- RWX Sections ---")
+                if result.rwx_sections:
+                    for s in result.rwx_sections:
+                        rlines.append(f"  * {s}")
+                else:
+                    rlines.append("  (none)")
+                rlines.append("")
+                rlines.append("--- High Entropy Sections ---")
+                if result.high_entropy_sections:
+                    for s in result.high_entropy_sections:
+                        rlines.append(f"  * {s}")
+                else:
+                    rlines.append("  (none)")
+                rlines.append("")
+                rlines.append("--- Imports (suspicious) ---")
+                for imp in result.suspicious_imports:
+                    rlines.append(f"  * {imp}")
+                if not result.suspicious_imports:
+                    rlines.append("  (none)")
+                rlines.append("")
+                rlines.append("--- Risk Factors ---")
+                if result.risk_factors:
+                    for rf in result.risk_factors:
+                        rlines.append(f"  * {rf}")
+                else:
+                    rlines.append("  (none)")
+                report = "\n".join(rlines)
+                self.after(0, lambda _r=report: messagebox.showinfo("PE Analysis:", _r))
+            except Exception as e:
+                self.after(0, lambda _e=e: messagebox.showerror("PE Analysis Error", str(_e)))
+        self._executor.submit(_do_pe_analyze)
 
     def _check_intel_item(self):
         val: Any = self._intel_check_var.get().strip()
