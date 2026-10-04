@@ -34,6 +34,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import hashlib
 import threading
+from urllib.parse import urljoin, urlsplit
 
 # v29: KEV/CISA constants
 CISA_KEV_URL = "https://www.cisa.gov/known-exploited-vulnerabilities-catalog.csv"
@@ -50,6 +51,9 @@ class ThreatIntelligenceUpdater:
     MAX_RETRIES = 3
     BACKOFF_BASE = 2.0     # seconds — doubles each retry (2, 4, 8)
     RATE_LIMIT_S = 1.0     # min seconds between requests to same source
+    MAX_RESPONSE_BYTES = 64 * 1024 * 1024
+    RESPONSE_CHUNK_BYTES = 64 * 1024
+    MAX_REDIRECTS = 5
 
     def __init__(self, db_path="threat_intelligence.db"):
         self.db_path = db_path
@@ -226,6 +230,109 @@ class ThreatIntelligenceUpdater:
         elapsed = (datetime.now() - self.last_update).total_seconds()
         return elapsed >= self.update_interval
     
+    def _open_https_response(self, url, **kwargs):
+        """Open a feed response with HTTPS-only redirects and no credential leaks."""
+        from feed_transport import validate_https_feed_url
+
+        current_url = validate_https_feed_url(url)
+        timeout = kwargs.pop('timeout', 30)
+        params = kwargs.pop('params', None)
+        headers = dict(kwargs.pop('headers', {}) or {})
+        for name in list(headers):
+            if name.lower() == 'accept-encoding':
+                del headers[name]
+        headers['Accept-Encoding'] = 'identity'
+        kwargs.pop('allow_redirects', None)
+        kwargs.pop('stream', None)
+
+        def _origin(value):
+            parsed = urlsplit(value)
+            return parsed.scheme.lower(), (parsed.hostname or '').lower(), parsed.port or 443
+
+        for redirect_index in range(self.MAX_REDIRECTS + 1):
+            response = requests.get(
+                current_url,
+                headers=headers,
+                params=params,
+                timeout=timeout,
+                stream=True,
+                allow_redirects=False,
+                **kwargs,
+            )
+            if response.status_code in {301, 302, 303, 307, 308}:
+                location = response.headers.get('Location')
+                response.close()
+                if not location:
+                    raise ValueError('Threat feed redirect omitted its destination')
+                if redirect_index >= self.MAX_REDIRECTS:
+                    raise ValueError('Threat feed exceeded the redirect limit')
+                destination = validate_https_feed_url(urljoin(current_url, location))
+                if _origin(destination) != _origin(current_url):
+                    headers = {
+                        key: value for key, value in headers.items()
+                        if key.lower() not in {'authorization', 'cookie', 'proxy-authorization'}
+                    }
+                    kwargs.pop('auth', None)
+                    kwargs.pop('cookies', None)
+                    kwargs.pop('cert', None)
+                    params = None
+                current_url = destination
+                continue
+            if 300 <= response.status_code < 400:
+                response.close()
+                raise ValueError(f'Unexpected threat-feed redirect: {response.status_code}')
+            try:
+                validate_https_feed_url(getattr(response, 'url', None) or current_url)
+            except Exception:
+                response.close()
+                raise
+            return response
+        raise ValueError('Threat feed exceeded the redirect limit')
+
+    def _cache_bounded_response(self, response):
+        """Bound and cache a response so existing JSON/text parsers still work."""
+        import gzip
+        from io import BytesIO
+
+        try:
+            encoding = str(response.headers.get('Content-Encoding', '') or '').strip().lower()
+            if encoding not in ('', 'identity', 'gzip'):
+                raise ValueError(f'Unsupported threat-feed encoding: {encoding[:32]}')
+            declared = response.headers.get('Content-Length')
+            if declared is not None:
+                try:
+                    declared = int(declared)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError('Threat feed has an invalid Content-Length') from exc
+                if declared < 0 or declared > self.MAX_RESPONSE_BYTES:
+                    raise ValueError(f'Threat feed exceeds {self.MAX_RESPONSE_BYTES}-byte limit')
+
+            body = BytesIO()
+            size = 0
+            for chunk in response.raw.stream(self.RESPONSE_CHUNK_BYTES, decode_content=False):
+                if not chunk:
+                    continue
+                size += len(chunk)
+                if size > self.MAX_RESPONSE_BYTES:
+                    raise ValueError(f'Threat feed exceeds {self.MAX_RESPONSE_BYTES}-byte limit')
+                body.write(chunk)
+            raw = body.getvalue()
+            if declared is not None and size != declared:
+                raise ValueError('Threat feed body is truncated')
+            content = raw
+            if encoding == 'gzip':
+                with gzip.GzipFile(fileobj=BytesIO(raw), mode='rb') as compressed:
+                    content = compressed.read(self.MAX_RESPONSE_BYTES + 1)
+                if len(content) > self.MAX_RESPONSE_BYTES:
+                    raise ValueError(f'Expanded threat feed exceeds {self.MAX_RESPONSE_BYTES}-byte limit')
+            response.close()
+            response._content = content
+            response._content_consumed = True
+            return response
+        except Exception:
+            response.close()
+            raise
+
     def _fetch_with_backoff(self, source_name, url, **kwargs):
         """Fetch URL with exponential backoff, retry, and rate limiting.
 
@@ -246,19 +353,22 @@ class ThreatIntelligenceUpdater:
         for attempt in range(self.MAX_RETRIES):
             try:
                 self._last_request_time[source_name] = time.monotonic()
-                resp = requests.get(url, **kwargs)
+                resp = self._open_https_response(url, **kwargs)
                 if resp.status_code == 429:
+                    resp.close()
                     # Rate limited — backoff longer
                     backoff = self.BACKOFF_BASE * (2 ** (attempt + 1))
                     logging.warning(f"[{source_name}] Rate limited (429), backing off {backoff:.1f}s")
                     time.sleep(backoff)
                     continue
                 if resp.status_code >= 500:
+                    resp.close()
                     # Server error — retry with backoff
                     backoff = self.BACKOFF_BASE * (2 ** attempt)
                     logging.warning(f"[{source_name}] Server error {resp.status_code}, retry in {backoff:.1f}s")
                     time.sleep(backoff)
                     continue
+                resp = self._cache_bounded_response(resp)
                 # Success or client error (4xx other than 429)
                 self._backoff_state[source_name] = 0
                 return resp

@@ -469,6 +469,19 @@
       "claimed_at": "2026-10-04T05:57:17Z",
       "completed_at": "2026-10-04T06:07:31Z",
       "notes": "All vulnerability-scanner direct GET/POST feed lookups now use a bounded HTTPS client, including CISA KEV, per-CVE NVD enrichment, recent NVD, ThreatRadar, EPSS batch/trend, and CWE XML. The helper disables auto-redirects, rejects non-HTTPS destinations/final URLs, strips credentials and query data across origins, caps wire and gzip expansion, checks Content-Length/truncation, and returns a cached requests.Response. CVE IDs are sent via params. Added ten offline transport tests. Python 3.12.10 suite: 507 passed, 1 skipped, one existing sklearn warning; health check 75/76 due to the machine-local signed code-integrity baseline."
+    },
+    {
+      "id": "TASK-031",
+      "title": "Bound downloads in the scheduled threat intelligence updater",
+      "status": "completed",
+      "assignee": "agent-codex-009",
+      "priority": "high",
+      "dependencies": [],
+      "files": ["threat_intelligence_updater.py", "tests/test_threat_intelligence_updater_http.py"],
+      "created": "2026-10-04T06:09:06Z",
+      "claimed_at": "2026-10-04T06:09:06Z",
+      "completed_at": "2026-10-04T06:14:29Z",
+      "notes": "The scheduled updater now uses HTTPS-only manual redirects, drops credentials/query params on cross-origin redirects, caps wire and gzip-expanded responses at 64 MiB, detects invalid Content-Length/truncation/encoding, and returns a cached requests.Response. 429/5xx responses close before retrying. Added nine offline tests. Python 3.12.10 full suite: 516 passed, 1 skipped, one existing sklearn warning; health check 75/76 due to machine-local signed code-integrity baseline."
     }
   ]
 }
