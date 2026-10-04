@@ -13,9 +13,13 @@ import threading
 import logging
 import zipfile
 import tempfile
+import re
+import stat
 from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Optional, Dict, Any, Callable
 from datetime import datetime, timedelta
+from urllib.parse import urljoin, urlsplit
 
 try:
     import requests
@@ -28,6 +32,13 @@ GITHUB_REPO = "christiand0797/downpour"
 GITHUB_API = "https://api.github.com"
 GITHUB_RAW = "https://raw.githubusercontent.com"
 CURRENT_VERSION = "29.124"
+MAX_UPDATE_ARCHIVE_BYTES = 256 * 1024 * 1024
+MAX_UPDATE_EXPANDED_BYTES = 512 * 1024 * 1024
+MAX_UPDATE_MEMBER_BYTES = 128 * 1024 * 1024
+MAX_UPDATE_ARCHIVE_ENTRIES = 10000
+MAX_UPDATE_COMPRESSION_RATIO = 250
+MAX_GITHUB_REDIRECTS = 5
+GITHUB_DOWNLOAD_HOSTS = {"api.github.com", "github.com", "codeload.github.com"}
 
 # Files to update (relative to repo root)
 UPDATE_FILES = [
@@ -129,6 +140,182 @@ class DownpourUpdater:
         self.release_info: Optional[Dict] = None
         self._stop_event = threading.Event()
 
+    @staticmethod
+    def _validate_github_url(url: str) -> str:
+        """Allow only credential-free HTTPS URLs on the GitHub download hosts."""
+        if not isinstance(url, str) or len(url) > 2048:
+            raise ValueError("GitHub update URL is invalid")
+        try:
+            parsed = urlsplit(url)
+            port = parsed.port
+        except ValueError as exc:
+            raise ValueError("GitHub update URL is malformed") from exc
+        if (
+            parsed.scheme.lower() != "https"
+            or not parsed.hostname
+            or parsed.hostname.lower() not in GITHUB_DOWNLOAD_HOSTS
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.fragment
+            or port not in (None, 443)
+        ):
+            raise ValueError("Update downloads must remain on an approved HTTPS GitHub host")
+        return url
+
+    def _open_github_stream(self, url: str, timeout: int):
+        """Open an update URL without allowing arbitrary or insecure redirects."""
+        if not REQUESTS_AVAILABLE:
+            raise RuntimeError("requests not installed")
+        current_url = self._validate_github_url(url)
+        for redirect_count in range(MAX_GITHUB_REDIRECTS + 1):
+            response = requests.get(
+                current_url,
+                headers={"Accept-Encoding": "identity", "User-Agent": "Downpour-Updater"},
+                timeout=timeout,
+                stream=True,
+                allow_redirects=False,
+            )
+            if response.status_code in {301, 302, 303, 307, 308}:
+                location = response.headers.get("Location")
+                response.close()
+                if not location:
+                    raise ValueError("GitHub update redirect omitted its destination")
+                if redirect_count >= MAX_GITHUB_REDIRECTS:
+                    raise ValueError("GitHub update exceeded the redirect limit")
+                current_url = self._validate_github_url(urljoin(current_url, location))
+                continue
+            if 300 <= response.status_code < 400:
+                response.close()
+                raise ValueError(f"Unexpected GitHub update redirect: {response.status_code}")
+            try:
+                self._validate_github_url(response.url or current_url)
+            except Exception:
+                response.close()
+                raise
+            return response
+        raise ValueError("GitHub update exceeded the redirect limit")
+
+    @staticmethod
+    def _cache_bounded_response(response, max_bytes: int):
+        """Read and cache a small HTTP response while preserving requests APIs."""
+        try:
+            encoding = str(response.headers.get("Content-Encoding", "identity")).lower().strip()
+            if encoding not in ("", "identity"):
+                raise ValueError(f"Unsupported update response encoding: {encoding[:32]}")
+            declared = response.headers.get("Content-Length")
+            if declared is not None:
+                try:
+                    declared = int(declared)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("Update response has an invalid Content-Length") from exc
+                if declared < 0 or declared > max_bytes:
+                    raise ValueError(f"Update response exceeds the {max_bytes}-byte limit")
+            data = bytearray()
+            for chunk in response.raw.stream(64 * 1024, decode_content=False):
+                if not chunk:
+                    continue
+                data.extend(chunk)
+                if len(data) > max_bytes:
+                    raise ValueError(f"Update response exceeds the {max_bytes}-byte limit")
+            if declared is not None and len(data) != declared:
+                raise ValueError("Update response is truncated")
+            response.raise_for_status()
+            response.close()
+            response._content = bytes(data)
+            response._content_consumed = True
+            return response
+        except Exception:
+            response.close()
+            raise
+
+    @staticmethod
+    def _safe_extract_update(archive_path: str, destination: Path) -> Path:
+        """Extract only whitelisted regular files from one safe GitHub zip root."""
+        wanted = {PurePosixPath(item).as_posix() for item in UPDATE_FILES}
+        if any(
+            path.is_absolute() or ".." in path.parts or "\\" in item
+            for item in UPDATE_FILES
+            for path in (PurePosixPath(item),)
+        ):
+            raise ValueError("Updater file allowlist contains an unsafe path")
+
+        with zipfile.ZipFile(archive_path, "r") as archive:
+            entries = archive.infolist()
+            if not entries or len(entries) > MAX_UPDATE_ARCHIVE_ENTRIES:
+                raise ValueError("Update archive has an invalid number of entries")
+            roots = set()
+            seen_paths = set()
+            expanded_total = 0
+            selected = {}
+            for info in entries:
+                name = info.filename
+                if not name or "\\" in name or "\x00" in name:
+                    raise ValueError("Update archive contains an unsafe path")
+                path = PurePosixPath(name)
+                if path.is_absolute() or any(part in ("", ".", "..") for part in path.parts):
+                    raise ValueError("Update archive contains an unsafe path")
+                if path.parts and ":" in path.parts[0]:
+                    raise ValueError("Update archive contains a drive-qualified path")
+                if len(path.parts) < 2:
+                    if info.is_dir() and len(path.parts) == 1:
+                        roots.add(path.parts[0])
+                        continue
+                    raise ValueError("Update archive is missing its repository root")
+                roots.add(path.parts[0])
+                normalized = path.as_posix().rstrip("/").casefold()
+                if normalized in seen_paths:
+                    raise ValueError("Update archive contains duplicate paths")
+                seen_paths.add(normalized)
+
+                unix_mode = (info.external_attr >> 16) & 0xFFFF
+                file_type = stat.S_IFMT(unix_mode)
+                if file_type not in (0, stat.S_IFREG, stat.S_IFDIR):
+                    raise ValueError("Update archive contains a non-regular file")
+                if info.is_dir():
+                    continue
+                if info.file_size < 0 or info.file_size > MAX_UPDATE_MEMBER_BYTES:
+                    raise ValueError("Update archive member exceeds its size limit")
+                expanded_total += info.file_size
+                if expanded_total > MAX_UPDATE_EXPANDED_BYTES:
+                    raise ValueError("Update archive exceeds its expanded size limit")
+                if info.file_size and (
+                    info.compress_size <= 0
+                    or info.file_size / info.compress_size > MAX_UPDATE_COMPRESSION_RATIO
+                ):
+                    raise ValueError("Update archive member has an unsafe compression ratio")
+                relative = PurePosixPath(*path.parts[1:]).as_posix()
+                if relative in wanted:
+                    selected[relative] = info
+
+            if len(roots) != 1:
+                raise ValueError("Update archive must contain exactly one repository root")
+            if "downpour_v29_titanium.py" not in selected:
+                raise ValueError("Update archive is missing the main application")
+
+            root_dir = destination / next(iter(roots))
+            root_dir.mkdir(parents=True, exist_ok=True)
+            extracted_total = 0
+            for relative, info in selected.items():
+                output = root_dir.joinpath(*PurePosixPath(relative).parts)
+                resolved_output = output.resolve()
+                if not resolved_output.is_relative_to(root_dir.resolve()):
+                    raise ValueError("Update archive path escapes its staging directory")
+                output.parent.mkdir(parents=True, exist_ok=True)
+                written = 0
+                with archive.open(info, "r") as source, output.open("wb") as target:
+                    while True:
+                        chunk = source.read(64 * 1024)
+                        if not chunk:
+                            break
+                        written += len(chunk)
+                        extracted_total += len(chunk)
+                        if written > MAX_UPDATE_MEMBER_BYTES or extracted_total > MAX_UPDATE_EXPANDED_BYTES:
+                            raise ValueError("Update archive exceeded its extraction limit")
+                        target.write(chunk)
+                if written != info.file_size:
+                    raise ValueError("Update archive member size does not match its directory")
+            return root_dir
+
     def _notify(self, status: str, progress: float = 0.0, message: str = ""):
         """Send status update to callback."""
         if self.callback:
@@ -148,12 +335,14 @@ class DownpourUpdater:
         try:
             # Get latest release
             url = f"{GITHUB_API}/repos/{GITHUB_REPO}/releases/latest"
-            headers = {"Accept": "application/vnd.github.v3+json"}
-            resp = requests.get(url, headers=headers, timeout=15)
-            resp.raise_for_status()
+            resp = self._open_github_stream(url, timeout=15)
+            resp.headers.setdefault("Content-Type", "application/json")
+            resp = self._cache_bounded_response(resp, 2 * 1024 * 1024)
             release = resp.json()
 
             self.latest_version = release.get("tag_name", "").lstrip("v")
+            if not re.fullmatch(r"\d+(?:\.\d+){1,3}(?:-[A-Za-z0-9][A-Za-z0-9.-]*)?", self.latest_version):
+                raise ValueError("GitHub returned an invalid release version")
             self.release_info = release
 
             # Compare versions
@@ -201,43 +390,59 @@ class DownpourUpdater:
 
         self._notify("downloading", 0.1, "Downloading update...")
 
+        zip_path = None
         try:
-            # Download zipball
-            zip_url = self.release_info.get("zipball_url")
-            if not zip_url:
-                zip_url = f"{GITHUB_API}/repos/{GITHUB_REPO}/zipball/v{self.latest_version}"
+            # Construct a known GitHub API URL instead of trusting a release's
+            # user-controlled zipball_url field.
+            if not REQUESTS_AVAILABLE:
+                raise RuntimeError("requests not installed")
+            if not self.latest_version or not re.fullmatch(
+                r"\d+(?:\.\d+){1,3}(?:-[A-Za-z0-9][A-Za-z0-9.-]*)?", self.latest_version
+            ):
+                raise ValueError("No valid release version is selected")
+            from urllib.parse import quote
+            zip_url = f"{GITHUB_API}/repos/{GITHUB_REPO}/zipball/v{quote(self.latest_version, safe='.-')}"
+            resp = self._open_github_stream(zip_url, timeout=60)
+            try:
+                resp.raise_for_status()
+                content_encoding = str(resp.headers.get("Content-Encoding", "identity")).lower().strip()
+                if content_encoding not in ("", "identity"):
+                    raise ValueError(f"Unsupported update archive encoding: {content_encoding[:32]}")
+                declared_length = resp.headers.get("Content-Length")
+                total_size = 0
+                if declared_length is not None:
+                    try:
+                        total_size = int(declared_length)
+                    except (TypeError, ValueError) as exc:
+                        raise ValueError("Update archive has an invalid Content-Length") from exc
+                    if total_size < 0 or total_size > MAX_UPDATE_ARCHIVE_BYTES:
+                        raise ValueError("Update archive exceeds the download size limit")
 
-            resp = requests.get(zip_url, stream=True, timeout=60)
-            resp.raise_for_status()
-
-            total_size = int(resp.headers.get("content-length", 0))
-            downloaded = 0
-
-            # Save to temp file
-            with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
-                zip_path = tmp.name
-                for chunk in resp.iter_content(chunk_size=8192):
-                    if self._stop_event.is_set():
-                        return False
-                    if chunk:
-                        tmp.write(chunk)
+                downloaded = 0
+                with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
+                    zip_path = tmp.name
+                    for chunk in resp.raw.stream(64 * 1024, decode_content=False):
+                        if self._stop_event.is_set():
+                            return False
+                        if not chunk:
+                            continue
                         downloaded += len(chunk)
+                        if downloaded > MAX_UPDATE_ARCHIVE_BYTES:
+                            raise ValueError("Update archive exceeds the download size limit")
+                        tmp.write(chunk)
                         if total_size and progress_callback:
                             progress = 0.1 + (downloaded / total_size) * 0.6
                             progress_callback(progress, f"Downloaded {downloaded}/{total_size} bytes")
+                if total_size and downloaded != total_size:
+                    raise ValueError("Update archive download was truncated")
+            finally:
+                resp.close()
 
-            self._notify("extracting", 0.7, "Extracting update...")
+            self._notify("extracting", 0.7, "Validating and extracting update...")
 
-            # Extract to temp directory
+            # Validate the whole archive before copying any file into the app.
             with tempfile.TemporaryDirectory() as extract_dir:
-                with zipfile.ZipFile(zip_path, "r") as zf:
-                    zf.extractall(extract_dir)
-
-                # Find extracted repo folder (github creates folder like user-repo-hash)
-                extracted_folders = [d for d in Path(extract_dir).iterdir() if d.is_dir()]
-                if not extracted_folders:
-                    raise Exception("No extracted folder found")
-                repo_dir = extracted_folders[0]
+                repo_dir = self._safe_extract_update(zip_path, Path(extract_dir))
 
                 # Backup current files
                 self._notify("backing_up", 0.75, "Backing up current installation...")
@@ -251,14 +456,29 @@ class DownpourUpdater:
                         dst.parent.mkdir(parents=True, exist_ok=True)
                         shutil.copy2(src, dst)
 
-                # Copy new files
+                # Copy new files and restore touched files if any copy fails.
                 self._notify("installing", 0.8, "Installing update...")
-                for f in UPDATE_FILES:
-                    src = repo_dir / f
-                    if src.exists():
+                touched = []
+                try:
+                    for f in UPDATE_FILES:
+                        src = repo_dir / f
+                        if src.exists():
+                            dst = self.app_dir / f
+                            dst.parent.mkdir(parents=True, exist_ok=True)
+                            touched.append(f)
+                            shutil.copy2(src, dst)
+                except Exception:
+                    for f in reversed(touched):
                         dst = self.app_dir / f
-                        dst.parent.mkdir(parents=True, exist_ok=True)
-                        shutil.copy2(src, dst)
+                        backup = backup_dir / f
+                        try:
+                            if backup.exists():
+                                shutil.copy2(backup, dst)
+                            elif dst.exists():
+                                dst.unlink()
+                        except OSError:
+                            logger.exception("Failed to roll back partially installed file: %s", f)
+                    raise
 
                 # Create directories
                 for d in UPDATE_DIRS:
@@ -272,12 +492,6 @@ class DownpourUpdater:
                 self._notify("updating_deps", 0.9, "Updating dependencies...")
                 self._update_dependencies()
 
-            # Cleanup
-            try:
-                os.unlink(zip_path)
-            except Exception:
-                pass
-
             self._notify("complete", 1.0, f"Updated to v{self.latest_version}")
             return True
 
@@ -285,6 +499,12 @@ class DownpourUpdater:
             logger.error(f"Update failed: {e}")
             self._notify("error", 0, f"Update failed: {e}")
             return False
+        finally:
+            if zip_path:
+                try:
+                    os.unlink(zip_path)
+                except OSError:
+                    pass
 
     def _update_dependencies(self):
         """Update Python dependencies."""

@@ -430,6 +430,19 @@
       "claimed_at": "2026-10-04T05:25:29Z",
       "completed_at": "2026-10-04T05:36:12Z",
       "notes": "All 22 ThreatIntelligenceManager feed/reputation HTTP calls now use a bounded HTTPS-only requests client. It rejects insecure redirects, strips explicit and session credentials on cross-origin redirects, enforces a 64 MiB wire/expanded cap, validates declared length and truncation, and preserves Response JSON/text access after closing the socket. Added nine offline tests. Python 3.12.10 full suite: 476 passed, 1 skipped, one existing sklearn model-version warning; health check 75/76 due to its machine-local signed code-integrity manifest reporting source modifications."
+    },
+    {
+      "id": "TASK-028",
+      "title": "Harden automatic updater downloads and archive installation",
+      "status": "completed",
+      "assignee": "agent-codex-009",
+      "priority": "critical",
+      "dependencies": [],
+      "files": ["downpour_updater.py", "tests/test_downpour_updater_security.py"],
+      "created": "2026-10-04T05:38:01Z",
+      "claimed_at": "2026-10-04T05:38:01Z",
+      "completed_at": "2026-10-04T05:48:27Z",
+      "notes": "The updater now accepts only approved GitHub HTTPS hosts through manual redirect validation, limits release JSON to 2 MiB and ZIPs to 256 MiB, validates Content-Length/truncation/encoding, and no longer calls extractall. ZIP paths/types/count/expanded bytes/member sizes/compression ratios are checked, only UPDATE_FILES are staged, and partial file-copy failures trigger rollback. The version tag is validated and the archive URL is constructed locally. Added 17 offline tests. Python 3.12.10 suite: 493 passed, 1 skipped, one existing sklearn warning; health check 75/76 due to machine-local signed code-integrity baseline."
     }
   ]
 }
