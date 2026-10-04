@@ -443,6 +443,19 @@
       "claimed_at": "2026-10-04T05:38:01Z",
       "completed_at": "2026-10-04T05:48:27Z",
       "notes": "The updater now accepts only approved GitHub HTTPS hosts through manual redirect validation, limits release JSON to 2 MiB and ZIPs to 256 MiB, validates Content-Length/truncation/encoding, and no longer calls extractall. ZIP paths/types/count/expanded bytes/member sizes/compression ratios are checked, only UPDATE_FILES are staged, and partial file-copy failures trigger rollback. The version tag is validated and the archive URL is constructed locally. Added 17 offline tests. Python 3.12.10 suite: 493 passed, 1 skipped, one existing sklearn warning; health check 75/76 due to machine-local signed code-integrity baseline."
+    },
+    {
+      "id": "TASK-029",
+      "title": "Enforce HTTPS-only redirects in the primary threat feed aggregator",
+      "status": "completed",
+      "assignee": "agent-codex-009",
+      "priority": "critical",
+      "dependencies": [],
+      "files": ["threat_feed_aggregator.py", "tests/test_feed_download_bounds.py"],
+      "created": "2026-10-04T05:50:48Z",
+      "claimed_at": "2026-10-04T05:50:48Z",
+      "completed_at": "2026-10-04T05:55:52Z",
+      "notes": "The primary aggregator now disables automatic redirects, validates every redirect and final response URL with the credential-free HTTPS validator, limits redirect count, and switches to stateless requests after crossing origins. Existing bounded streaming/gzip and integrity checks are preserved. Added four offline redirect tests. Python 3.12.10 suite: 497 passed, 1 skipped, one existing sklearn warning; health check 75/76 due to the machine-local signed code-integrity baseline."
     }
   ]
 }

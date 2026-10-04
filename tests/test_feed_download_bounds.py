@@ -6,9 +6,11 @@ from threat_feed_aggregator import ThreatFeedAggregator
 
 
 class _FakeResponse:
-    def __init__(self, chunks, headers=None):
+    def __init__(self, chunks, headers=None, *, status=200, url=None):
         self._chunks = chunks
         self.headers = headers or {}
+        self.status_code = status
+        self.url = url
         self.chunk_sizes = []
         self.closed = False
 
@@ -16,6 +18,9 @@ class _FakeResponse:
         return self
 
     def __exit__(self, *_exc):
+        self.closed = True
+
+    def close(self):
         self.closed = True
 
     def raise_for_status(self):
@@ -31,13 +36,15 @@ class _FakeResponse:
 
 
 class _FakeSession:
-    def __init__(self, response):
-        self.response = response
+    def __init__(self, *responses):
+        self.responses = list(responses)
         self.calls = []
 
     def get(self, url, **kwargs):
         self.calls.append((url, kwargs))
-        return self.response
+        if not self.responses:
+            raise AssertionError("unexpected session request")
+        return self.responses.pop(0)
 
 
 class _ValidManifest:
@@ -67,7 +74,52 @@ def test_fetch_feed_streams_https_body_and_returns_text():
 
     assert aggregator.fetch_feed("sample", {"url": "https://feeds.example/sample.txt"}) == "first second"
     assert aggregator.session.calls[0][1]["stream"] is True
+    assert aggregator.session.calls[0][1]["allow_redirects"] is False
     assert response.chunk_sizes == [aggregator.DOWNLOAD_CHUNK_BYTES]
+    assert response.closed
+
+
+def test_fetch_feed_rejects_http_initial_url_before_request():
+    response = _FakeResponse([b"item"])
+    aggregator = _aggregator(response)
+
+    assert aggregator.fetch_feed("insecure", {"url": "http://feeds.example/list.txt"}) is None
+    assert aggregator.session.calls == []
+
+
+def test_fetch_feed_rejects_http_redirect_before_following():
+    redirect = _FakeResponse([], {"Location": "http://evil.example/list"}, status=302)
+    aggregator = _aggregator(redirect)
+
+    assert aggregator.fetch_feed("downgrade", {"url": "https://feeds.example/list"}) is None
+    assert len(aggregator.session.calls) == 1
+    assert redirect.closed
+
+
+def test_fetch_feed_allows_safe_https_redirect(monkeypatch):
+    redirect = _FakeResponse([], {"Location": "https://cdn.example/list"}, status=302)
+    final = _FakeResponse([b"1.2.3.4"], url="https://cdn.example/list")
+    aggregator = _aggregator(redirect)
+    stateless_calls = []
+
+    def stateless_get(url, **kwargs):
+        stateless_calls.append((url, kwargs))
+        return final
+
+    monkeypatch.setattr("threat_feed_aggregator.requests.get", stateless_get)
+    assert aggregator.fetch_feed("cdn", {"url": "https://feeds.example/list"}) == "1.2.3.4"
+    assert len(aggregator.session.calls) == 1
+    assert stateless_calls[0][0] == "https://cdn.example/list"
+    assert stateless_calls[0][1]["allow_redirects"] is False
+    assert redirect.closed
+    assert final.closed
+
+
+def test_fetch_feed_rejects_insecure_final_response_url():
+    response = _FakeResponse([b"item"], url="http://feeds.example/list")
+    aggregator = _aggregator(response)
+
+    assert aggregator.fetch_feed("final-http", {"url": "https://feeds.example/list"}) is None
     assert response.closed
 
 

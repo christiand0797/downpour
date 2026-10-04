@@ -702,6 +702,7 @@ class ThreatFeedAggregator:
     MAX_DOWNLOAD_BYTES = 64 * 1024 * 1024
     MAX_DECOMPRESSED_BYTES = 64 * 1024 * 1024
     DOWNLOAD_CHUNK_BYTES = 64 * 1024
+    MAX_FEED_REDIRECTS = 5
 
     def __init__(self, db: ThreatDatabase = None):
         self.db = db or get_database()
@@ -723,6 +724,58 @@ class ThreatFeedAggregator:
         # Feed manifest verifier (TASK-013)
         self._manifest_verifier = FeedManifestVerifier()
 
+    def _open_https_feed(self, url: str, timeout: int):
+        """Open a configured feed while validating every redirect hop."""
+        from urllib.parse import urljoin, urlsplit
+        from feed_transport import validate_https_feed_url
+
+        current_url = validate_https_feed_url(url)
+        headers = {"Accept-Encoding": "identity"}
+        client = self.session if self.session is not None else requests
+
+        def _origin(value):
+            parsed = urlsplit(value)
+            return (parsed.scheme.lower(), (parsed.hostname or "").lower(), parsed.port or 443)
+
+        for redirect_index in range(self.MAX_FEED_REDIRECTS + 1):
+            response = client.get(
+                current_url,
+                timeout=timeout,
+                stream=True,
+                allow_redirects=False,
+                headers=headers,
+            )
+            if response.status_code in {301, 302, 303, 307, 308}:
+                location = response.headers.get("Location")
+                response.close()
+                if not location:
+                    raise ValueError("Feed redirect omitted its destination")
+                if redirect_index >= self.MAX_FEED_REDIRECTS:
+                    raise ValueError("Feed exceeded the redirect limit")
+                destination = validate_https_feed_url(urljoin(current_url, location))
+                if _origin(destination) != _origin(current_url):
+                    # A configured session may have origin-scoped auth or
+                    # cookies. Do not carry those into a different host.
+                    headers = {
+                        key: value for key, value in headers.items()
+                        if key.lower() not in {
+                            "authorization", "cookie", "proxy-authorization",
+                        }
+                    }
+                    client = requests
+                current_url = destination
+                continue
+            if 300 <= response.status_code < 400:
+                response.close()
+                raise ValueError(f"Unexpected feed redirect status: {response.status_code}")
+            try:
+                validate_https_feed_url(getattr(response, "url", None) or current_url)
+            except Exception:
+                response.close()
+                raise
+            return response
+        raise ValueError("Feed exceeded the redirect limit")
+
     def fetch_feed(self, feed_id: str, feed_config: Dict) -> Optional[str]:
         """Fetch content from a single feed.
 
@@ -736,12 +789,7 @@ class ThreatFeedAggregator:
             url = feed_config['url']
             timeout = feed_config.get('timeout', 30)
 
-            if not str(url).lower().startswith('https://'):
-                logger.warning("FEED-INTEGRITY feed=%s REFUSED non-HTTPS url: %s",
-                               feed_id, url)
-                return None
-
-            with self.session.get(url, timeout=timeout, stream=True) as response:
+            with self._open_https_feed(url, timeout) as response:
                 response.raise_for_status()
                 raw_content = self._read_bounded_body(response)
 
