@@ -528,12 +528,149 @@ class ThreatIntelligenceManager:
             logging.error("FEED-INTEGRITY feed=%s verification error: %s", feed_name, e)
             return False
 
+    MAX_FEED_RESPONSE_BYTES = 64 * 1024 * 1024
+    FEED_RESPONSE_CHUNK_BYTES = 64 * 1024
+    MAX_FEED_REDIRECTS = 5
+
+    def _bounded_get(self, url: str, **kwargs):
+        """Fetch an HTTPS feed with safe redirects and bounded body handling.
+
+        The returned requests.Response retains its normal ``content``, ``text``
+        and ``json()`` behavior, but the bytes are read and checked before any
+        caller can parse them.
+        """
+        if not _REQUESTS_AVAILABLE:
+            raise RuntimeError("The requests package is required for threat feeds")
+        from urllib.parse import urljoin, urlsplit
+        from io import BytesIO
+        import gzip
+        from feed_transport import validate_https_feed_url
+
+        current_url = validate_https_feed_url(url)
+        timeout = kwargs.pop('timeout', 30)
+        params = kwargs.pop('params', None)
+        headers = dict(kwargs.pop('headers', {}) or {})
+        if not any(key.lower() == 'accept-encoding' for key in headers):
+            headers['Accept-Encoding'] = 'identity'
+        kwargs.pop('allow_redirects', None)
+        kwargs.pop('stream', None)
+        request_client = self._session if getattr(self, '_session', None) is not None else requests
+
+        def _origin(value):
+            parsed = urlsplit(value)
+            return (parsed.scheme.lower(), (parsed.hostname or '').lower(), parsed.port or 443)
+
+        for redirect_index in range(self.MAX_FEED_REDIRECTS + 1):
+            response = request_client.get(
+                current_url,
+                headers=headers,
+                params=params,
+                timeout=timeout,
+                stream=True,
+                allow_redirects=False,
+                **kwargs,
+            )
+            status_code = response.status_code
+            if status_code in {301, 302, 303, 307, 308}:
+                location = response.headers.get('Location')
+                response.close()
+                if not location:
+                    raise ValueError('Feed redirect is missing a Location header')
+                if redirect_index >= self.MAX_FEED_REDIRECTS:
+                    raise ValueError('Feed exceeded the redirect limit')
+                destination = validate_https_feed_url(urljoin(current_url, location))
+                if _origin(destination) != _origin(current_url):
+                    sensitive_headers = {
+                        'authorization', 'cookie', 'proxy-authorization',
+                        'www-authenticate',
+                    }
+                    headers = {
+                        key: value for key, value in headers.items()
+                        if key.lower() not in sensitive_headers
+                    }
+                    kwargs.pop('cookies', None)
+                    kwargs.pop('auth', None)
+                    kwargs.pop('cert', None)
+                    # A requests.Session can add its own auth and cookies. Use
+                    # the stateless module client after crossing an origin.
+                    request_client = requests
+                params = None
+                current_url = destination
+                continue
+            if 300 <= status_code < 400:
+                response.close()
+                raise ValueError(f'Unexpected feed redirect status: {status_code}')
+
+            try:
+                validate_https_feed_url(getattr(response, 'url', current_url))
+                response.raise_for_status()
+                response_headers = response.headers
+                declared_length = response_headers.get('Content-Length')
+                if declared_length is not None:
+                    try:
+                        declared_length = int(declared_length)
+                    except (TypeError, ValueError) as exc:
+                        raise ValueError('Feed has an invalid Content-Length') from exc
+                    if declared_length < 0 or declared_length > self.MAX_FEED_RESPONSE_BYTES:
+                        raise ValueError(
+                            f'Feed exceeds {self.MAX_FEED_RESPONSE_BYTES}-byte download limit'
+                        )
+
+                wire_body = BytesIO()
+                wire_size = 0
+                for chunk in response.raw.stream(
+                    self.FEED_RESPONSE_CHUNK_BYTES, decode_content=False
+                ):
+                    if not chunk:
+                        continue
+                    wire_size += len(chunk)
+                    if wire_size > self.MAX_FEED_RESPONSE_BYTES:
+                        raise ValueError(
+                            f'Feed exceeds {self.MAX_FEED_RESPONSE_BYTES}-byte download limit'
+                        )
+                    wire_body.write(chunk)
+                raw = wire_body.getvalue()
+                if declared_length is not None and wire_size != declared_length:
+                    raise ValueError('Feed body length does not match Content-Length')
+
+                content_encoding = str(
+                    response_headers.get('Content-Encoding', '') or ''
+                ).strip().lower()
+                if content_encoding not in ('', 'identity', 'gzip'):
+                    raise ValueError(f'Unsupported feed content encoding: {content_encoding[:32]}')
+
+                content = raw
+                needs_gzip = content_encoding == 'gzip' or content.startswith(b'\x1f\x8b')
+                for _ in range(2):
+                    if not needs_gzip:
+                        break
+                    with gzip.GzipFile(fileobj=BytesIO(content), mode='rb') as compressed:
+                        expanded = compressed.read(self.MAX_FEED_RESPONSE_BYTES + 1)
+                    if len(expanded) > self.MAX_FEED_RESPONSE_BYTES:
+                        raise ValueError(
+                            f'Expanded feed exceeds {self.MAX_FEED_RESPONSE_BYTES}-byte limit'
+                        )
+                    content = expanded
+                    needs_gzip = content.startswith(b'\x1f\x8b')
+                if needs_gzip:
+                    raise ValueError('Feed has too many nested gzip layers')
+
+                response.close()
+                response._content = content
+                response._content_consumed = True
+                return response
+            except Exception:
+                response.close()
+                raise
+
+        raise ValueError('Feed exceeded the redirect limit')
+
     def update_threatfox_feed(self):
         """Update threat intelligence from ThreatFox (abuse.ch)."""
         try:
             logging.info("Updating ThreatFox feed...")
             
-            _get = self._session.get if self._session else requests.get
+            _get = self._bounded_get
             response = _get(self.feeds['threatfox']['url'], timeout=30)
             response.raise_for_status()
             
@@ -585,7 +722,7 @@ class ThreatIntelligenceManager:
         try:
             logging.info("Updating URLhaus feed...")
             
-            _get = self._session.get if self._session else requests.get
+            _get = self._bounded_get
             response = _get(self.feeds['urlhaus']['url'], timeout=30)
             response.raise_for_status()
             
@@ -636,7 +773,7 @@ class ThreatIntelligenceManager:
         try:
             logging.info("Updating PhishTank feed...")
             
-            _get = self._session.get if self._session else requests.get
+            _get = self._bounded_get
             response = _get(self.feeds['phishtank']['url'], timeout=30)
             response.raise_for_status()
             
@@ -707,7 +844,7 @@ class ThreatIntelligenceManager:
                 'resource': file_hash
             }
             
-            _get = self._session.get if self._session else requests.get
+            _get = self._bounded_get
             response = _get(url, params=params, timeout=10)
             response.raise_for_status()
             
@@ -914,7 +1051,7 @@ class ThreatIntelligenceManager:
         try:
             logging.info("Updating MalwareBazaar feed...")
             
-            _get = self._session.get if self._session else requests.get
+            _get = self._bounded_get
             response = _get(self.feeds['malwarebazaar']['url'], timeout=30)
             response.raise_for_status()
             
@@ -970,7 +1107,7 @@ class ThreatIntelligenceManager:
         try:
             logging.info("Updating MITRE ATT&CK feed...")
             
-            _get = self._session.get if self._session else requests.get
+            _get = self._bounded_get
             response = _get(self.feeds['mitre_attack']['url'], timeout=60)
             response.raise_for_status()
             
@@ -1038,7 +1175,7 @@ class ThreatIntelligenceManager:
             if self.api_keys.get('otx'):
                 headers['X-OTX-API-KEY'] = self.api_keys['otx']
             
-            _get = self._session.get if self._session else requests.get
+            _get = self._bounded_get
             response = _get(self.feeds['alienvault_otx']['url'], headers=headers, timeout=30)
             response.raise_for_status()
             
@@ -1078,7 +1215,7 @@ class ThreatIntelligenceManager:
         """Update domain blacklist from Spamhaus DBL."""
         try:
             logging.info("Updating Spamhaus DBL feed...")
-            _get = self._session.get if self._session else requests.get
+            _get = self._bounded_get
             response = _get(self.feeds['spamhaus_dbl']['url'], timeout=30)
             response.raise_for_status()
             
@@ -1125,7 +1262,7 @@ class ThreatIntelligenceManager:
             # For simplicity, we'll use the compromised hosts rules which contain IPs
             rules_url = "https://rules.emergingthreats.net/open/suricata/rules/compromised.rules"
             
-            _get = self._session.get if self._session else requests.get
+            _get = self._bounded_get
             response = _get(rules_url, timeout=30)
             response.raise_for_status()
             
@@ -1169,7 +1306,7 @@ class ThreatIntelligenceManager:
         try:
             logging.info("Updating CISA ICS-CERT feed...")
             
-            _get = self._session.get if self._session else requests.get
+            _get = self._bounded_get
             response = _get(self.feeds['cisa_ics']['url'], timeout=60)
             response.raise_for_status()
             
@@ -1224,7 +1361,7 @@ class ThreatIntelligenceManager:
         try:
             logging.info("Updating BlockList.de feed...")
             
-            _get = self._session.get if self._session else requests.get
+            _get = self._bounded_get
             response = _get(self.feeds['blocklist_de']['url'], timeout=30)
             response.raise_for_status()
             
@@ -1261,7 +1398,7 @@ class ThreatIntelligenceManager:
         try:
             logging.info("Updating NVD Recent CVEs feed...")
             
-            _get = self._session.get if self._session else requests.get
+            _get = self._bounded_get
             response = _get(self.feeds['nvd_recent']['url'], timeout=60)
             response.raise_for_status()
             
@@ -1312,7 +1449,7 @@ class ThreatIntelligenceManager:
                 return 0
             
             headers = {'Accept': 'application/json'}
-            _get = self._session.get if self._session else requests.get
+            _get = self._bounded_get
             
             # Get recent noise IPs from GreyNoise (192.0.2.1 is a documentation-reserved test IP)
             response = _get('https://api.greynoise.io/v3/community/noise/quick/192.0.2.1', 
@@ -1339,7 +1476,7 @@ class ThreatIntelligenceManager:
             if self.api_keys.get('abuseipdb'):
                 headers['Key'] = self.api_keys['abuseipdb']
             
-            _get = self._session.get if self._session else requests.get
+            _get = self._bounded_get
             response = _get('https://api.abuseipdb.com/api/v2/blacklist',
                           headers=headers, params={'limit': 10000}, timeout=30)
             response.raise_for_status()
@@ -1373,7 +1510,7 @@ class ThreatIntelligenceManager:
                 return 0
             
             headers = {'API-Key': self.api_keys['urlscan']}
-            _get = self._session.get if self._session else requests.get
+            _get = self._bounded_get
             
             # Get recent scans (requires API key)
             response = _get('https://urlscan.io/api/v1/search/?q=malware',
@@ -1405,7 +1542,7 @@ class ThreatIntelligenceManager:
                 return {'error': 'Shodan API key not configured'}
             
             url = f"https://api.shodan.io/shodan/host/{ip}?key={self.api_keys['shodan']}"
-            _get = self._session.get if self._session else requests.get
+            _get = self._bounded_get
             response = _get(url, timeout=30)
             response.raise_for_status()
             
@@ -1423,7 +1560,7 @@ class ThreatIntelligenceManager:
             
             url = f"https://search.censys.io/api/v2/hosts/{ip}"
             headers = {'Authorization': f"Bearer {self.api_keys['censys']}"}
-            _get = self._session.get if self._session else requests.get
+            _get = self._bounded_get
             response = _get(url, headers=headers, timeout=30)
             response.raise_for_status()
             
@@ -1448,7 +1585,7 @@ class ThreatIntelligenceManager:
             if self.api_keys.get('threatwinds'):
                 headers['Authorization'] = f"Bearer {self.api_keys['threatwinds']}"
             
-            _get = self._session.get if self._session else requests.get
+            _get = self._bounded_get
             response = _get(self.feeds['threatwinds']['url'], headers=headers, timeout=30)
             response.raise_for_status()
             
@@ -1484,7 +1621,7 @@ class ThreatIntelligenceManager:
                 return 0
             
             headers = {'Authorization': f"Bearer {self.api_keys['darkapi']}"}
-            _get = self._session.get if self._session else requests.get
+            _get = self._bounded_get
             response = _get(self.feeds['darkapi_urlhaus']['url'], headers=headers, 
                           params={'limit': 1000}, timeout=30)
             response.raise_for_status()
@@ -1524,7 +1661,7 @@ class ThreatIntelligenceManager:
                 return 0
             
             headers = {'Authorization': f"Bearer {self.api_keys['darkapi']}"}
-            _get = self._session.get if self._session else requests.get
+            _get = self._bounded_get
             response = _get(self.feeds['darkapi_malwarebazaar']['url'], headers=headers,
                           params={'limit': 1000}, timeout=30)
             response.raise_for_status()
@@ -1559,7 +1696,7 @@ class ThreatIntelligenceManager:
                 return 0
             
             headers = {'Authorization': f"Bearer {self.api_keys['threatbook']}"}
-            _get = self._session.get if self._session else requests.get
+            _get = self._bounded_get
             response = _get(self.feeds['threatbook_ioc']['url'], headers=headers, timeout=30)
             response.raise_for_status()
             
@@ -1604,7 +1741,7 @@ class ThreatIntelligenceManager:
                 return 0
             
             headers = {'X-API-Key': self.api_keys['threatradar']}
-            _get = self._session.get if self._session else requests.get
+            _get = self._bounded_get
             response = _get(self.feeds['threatradar']['url'], headers=headers,
                           params={'days': 7, 'limit': 100}, timeout=30)
             response.raise_for_status()

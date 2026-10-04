@@ -417,6 +417,19 @@
       "claimed_at": "2026-10-04T05:15:15Z",
       "completed_at": "2026-10-04T05:21:34Z",
       "notes": "Added feed_transport.open_https_feed with a dedicated HTTPS-only redirect handler, initial/final URL validation, and support for the active engine's TLS context. ThreatIntelEngine now uses this opener instead of urllib.request.urlopen, so an HTTPS URL cannot silently redirect to HTTP. Added opener wiring and downgrade/final-URL tests. Python 3.12.10 suite: 467 passed, 1 skipped, one existing sklearn model-version warning; health check 75/76 due to the local signed code-integrity baseline mismatch."
+    },
+    {
+      "id": "TASK-027",
+      "title": "Secure bounded downloads in the legacy threat-intelligence manager",
+      "status": "completed",
+      "assignee": "agent-codex-009",
+      "priority": "critical",
+      "dependencies": [],
+      "files": ["threat_intelligence.py", "tests/test_threat_intel_http_bounds.py"],
+      "created": "2026-10-04T05:25:29Z",
+      "claimed_at": "2026-10-04T05:25:29Z",
+      "completed_at": "2026-10-04T05:36:12Z",
+      "notes": "All 22 ThreatIntelligenceManager feed/reputation HTTP calls now use a bounded HTTPS-only requests client. It rejects insecure redirects, strips explicit and session credentials on cross-origin redirects, enforces a 64 MiB wire/expanded cap, validates declared length and truncation, and preserves Response JSON/text access after closing the socket. Added nine offline tests. Python 3.12.10 full suite: 476 passed, 1 skipped, one existing sklearn model-version warning; health check 75/76 due to its machine-local signed code-integrity manifest reporting source modifications."
     }
   ]
 }
