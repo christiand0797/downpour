@@ -352,6 +352,19 @@
       "claimed_at": "2026-10-03T22:24:34Z",
       "completed_at": "2026-10-03T23:28:05Z",
       "notes": "Fixed confirmed runtime defects and improved tab/gauge responsiveness; pushed source commit 848f926 to main. Added feature-preserving C#/.NET 10 + WinUI 3 successor plan and updated shared context/docs index. Python 3.12.10 tests: 420 passed, 1 skipped. Health check 75/76; remaining failure is the machine-local signed code-integrity baseline reflecting the changed worktree."
+    },
+    {
+      "id": "TASK-022",
+      "title": "Bound threat-feed downloads and gzip expansion to prevent memory exhaustion",
+      "status": "completed",
+      "assignee": "agent-codex-009",
+      "priority": "high",
+      "dependencies": [],
+      "files": ["threat_feed_aggregator.py", "tests/test_feed_download_bounds.py"],
+      "created": "2026-10-04T04:18:32Z",
+      "claimed_at": "2026-10-04T04:18:32Z",
+      "completed_at": "2026-10-04T04:25:43Z",
+      "notes": "Threat-feed HTTP responses now stream in 64 KiB chunks and reject bodies over 64 MiB; gzip feed expansion is capped at 64 MiB before hashing, decoding, or parsing. Added tests for ordinary streaming, oversized declared and chunked bodies, and gzip expansion attacks. Python 3.12.10: 424 passed, 1 skipped; health check 75/76 with only the known machine-local signed code-integrity baseline mismatch."
     }
   ]
 }

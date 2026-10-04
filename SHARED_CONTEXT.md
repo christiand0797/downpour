@@ -9,6 +9,7 @@
 - Performance gauges now recompute their dial size and column count as the window width changes. The process, network, disk, and timeline sections move with the gauge rows.
 - Repository audit fixed confirmed delayed-callback exception captures, PE risk-score initialization, runtime imports/undefined names, IoT KEV result handling, history queries, YARA update failures, and sharded-context unsubscribe/snapshot errors. Code changes were pushed in commit `848f926`.
 - Python 3.12.10 full test run: 420 passed, 1 skipped. `downpour_health_check.py`: 75/76; its sole failure is the machine-local signed code-integrity baseline, which reports source edits from this worktree. Do not regenerate that local baseline as part of a normal source change.
+- Threat-feed downloads now stream in 64 KiB chunks with a 64 MiB response cap; gzip feed bodies are limited to 64 MiB after expansion. Four focused tests cover regular streaming, declared/chunked size rejection, and gzip expansion limits. Full Python 3.12.10 suite: 424 passed, 1 skipped. The health check remains 75/76 for the same local signed-baseline reason.
 - Native-window screenshot review was unavailable in this session. The UI changes were checked by compilation, source structure, and the existing suite; capture and review the application at narrow, standard, and ultrawide sizes before release.
 - See [`docs/CLONE_ARCHITECTURE_GUIDE.md`](docs/CLONE_ARCHITECTURE_GUIDE.md) for the planned feature-parity migration to a native C#/.NET desktop and service architecture.
 

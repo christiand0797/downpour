@@ -678,6 +678,12 @@ class ThreatFeedAggregator:
         'threat_actor': ThreatActorParser,
     }
 
+    # Keep remote feed input bounded. A compromised or misconfigured feed must
+    # not be able to consume unbounded memory before the parser sees it.
+    MAX_DOWNLOAD_BYTES = 64 * 1024 * 1024
+    MAX_DECOMPRESSED_BYTES = 64 * 1024 * 1024
+    DOWNLOAD_CHUNK_BYTES = 64 * 1024
+
     def __init__(self, db: ThreatDatabase = None):
         self.db = db or get_database()
         if _REQUESTS_AVAILABLE:
@@ -716,15 +722,26 @@ class ThreatFeedAggregator:
                                feed_id, url)
                 return None
 
-            response = self.session.get(url, timeout=timeout)
-            response.raise_for_status()
+            with self.session.get(url, timeout=timeout, stream=True) as response:
+                response.raise_for_status()
+                raw_content = self._read_bounded_body(response)
 
-            # Handle compressed content
-            content_type = response.headers.get('Content-Type', '')
-            if 'gzip' in content_type or url.endswith('.gz'):
-                raw_content = gzip.decompress(response.content)
-            else:
-                raw_content = response.content
+                # requests transparently decodes HTTP Content-Encoding. A .gz
+                # feed or gzip media type is a gzip file in the response body,
+                # so expand that separately with a strict output limit.
+                content_type = response.headers.get('Content-Type', '')
+                resource_is_gzip = (
+                    'gzip' in content_type.lower() or
+                    str(url).split('?', 1)[0].lower().endswith('.gz')
+                )
+                if resource_is_gzip:
+                    with gzip.GzipFile(fileobj=BytesIO(raw_content), mode='rb') as compressed:
+                        expanded = compressed.read(self.MAX_DECOMPRESSED_BYTES + 1)
+                    if len(expanded) > self.MAX_DECOMPRESSED_BYTES:
+                        raise ValueError(
+                            f"decompressed feed exceeds {self.MAX_DECOMPRESSED_BYTES} bytes"
+                        )
+                    raw_content = expanded
 
             # Verify against signed manifest (TASK-013)
             if not self._manifest_verifier.verify_feed(feed_id, raw_content):
@@ -740,11 +757,7 @@ class ThreatFeedAggregator:
                         feed_id, content_hash, len(raw_content))
 
             # Decode to text for parsing
-            if 'gzip' in content_type or url.endswith('.gz'):
-                content = raw_content.decode('utf-8', errors='ignore')
-            else:
-                content = raw_content.decode('utf-8', errors='ignore')
-            return content
+            return raw_content.decode('utf-8', errors='ignore')
 
         except requests.exceptions.Timeout:
             logger.warning(f"Timeout fetching {feed_id}")
@@ -754,6 +767,32 @@ class ThreatFeedAggregator:
             logger.error(f"Unexpected error fetching {feed_id}: {e}")
 
         return None
+
+    def _read_bounded_body(self, response) -> bytes:
+        """Read a response in fixed-size chunks, rejecting oversized feeds."""
+        declared_length = response.headers.get('Content-Length')
+        if declared_length is not None:
+            try:
+                declared_length = int(declared_length)
+            except (TypeError, ValueError):
+                raise ValueError("feed has an invalid Content-Length")
+            if declared_length < 0 or declared_length > self.MAX_DOWNLOAD_BYTES:
+                raise ValueError(
+                    f"feed Content-Length exceeds {self.MAX_DOWNLOAD_BYTES} bytes"
+                )
+
+        body = BytesIO()
+        total = 0
+        for chunk in response.iter_content(chunk_size=self.DOWNLOAD_CHUNK_BYTES):
+            if not chunk:
+                continue
+            total += len(chunk)
+            if total > self.MAX_DOWNLOAD_BYTES:
+                raise ValueError(
+                    f"feed body exceeds {self.MAX_DOWNLOAD_BYTES} bytes"
+                )
+            body.write(chunk)
+        return body.getvalue()
 
     def parse_feed(self, feed_id: str, content: str, feed_config: Dict) -> List[ThreatIndicator]:
         """Parse feed content into indicators"""
