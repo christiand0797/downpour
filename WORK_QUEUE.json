@@ -365,6 +365,19 @@
       "claimed_at": "2026-10-04T04:18:32Z",
       "completed_at": "2026-10-04T04:25:43Z",
       "notes": "Threat-feed HTTP responses now stream in 64 KiB chunks and reject bodies over 64 MiB; gzip feed expansion is capped at 64 MiB before hashing, decoding, or parsing. Added tests for ordinary streaming, oversized declared and chunked bodies, and gzip expansion attacks. Python 3.12.10: 424 passed, 1 skipped; health check 75/76 with only the known machine-local signed code-integrity baseline mismatch."
+    },
+    {
+      "id": "TASK-023",
+      "title": "Validate threat-feed identifiers before using them in manifest paths",
+      "status": "completed",
+      "assignee": "agent-codex-009",
+      "priority": "high",
+      "dependencies": [],
+      "files": ["threat_feed_aggregator.py", "tests/test_feed_manifest_paths.py"],
+      "created": "2026-10-04T04:27:47Z",
+      "claimed_at": "2026-10-04T04:27:47Z",
+      "completed_at": "2026-10-04T04:34:14Z",
+      "notes": "FeedManifestVerifier now accepts only 1-128 character alphanumeric/underscore/hyphen IDs, rejects reserved Windows device names, and resolves candidate paths to ensure they remain under the manifest directory. All 159 configured IDs were checked against the rule. Added 15 tests for traversal, both path separator styles, absolute paths, device names, length, valid IDs, and blocked writes. Python 3.12.10 suite: 439 passed, 1 skipped, one existing sklearn model-version warning; health check 75/76 due to the known local signed code-integrity baseline mismatch."
     }
   ]
 }

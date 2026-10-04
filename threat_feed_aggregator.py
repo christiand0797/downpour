@@ -89,7 +89,26 @@ class FeedManifestVerifier:
         return key
 
     def _manifest_path(self, feed_id: str) -> Path:
-        return self.MANIFEST_DIR / f"{feed_id}.json"
+        # Feed IDs become filenames; reject path syntax and Windows alternate
+        # path/device-name tricks before touching the filesystem.
+        valid_feed_id = isinstance(feed_id, str) and re.fullmatch(
+            r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}", feed_id
+        )
+        if not valid_feed_id:
+            raise ValueError("feed ID must be a 1-128 character alphanumeric slug")
+        reserved_names = {
+            "CON", "PRN", "AUX", "NUL",
+            *(f"COM{i}" for i in range(1, 10)),
+            *(f"LPT{i}" for i in range(1, 10)),
+        }
+        if feed_id.upper() in reserved_names:
+            raise ValueError("feed ID is a reserved Windows device name")
+
+        base = self.MANIFEST_DIR.resolve()
+        candidate = (base / f"{feed_id}.json").resolve()
+        if candidate.parent != base:
+            raise ValueError("feed manifest path escapes its directory")
+        return candidate
 
     def create_manifest(self, feed_id: str, expected_sha256: str) -> bool:
         """Create a signed manifest for a feed."""
