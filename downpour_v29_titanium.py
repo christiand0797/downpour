@@ -14170,10 +14170,8 @@ class ThreatIntelEngine:
             for attempt in range(3):
                 try:
                     req: Any = urllib.request.Request(_cand, headers=headers)
-                    kw: Any = {'timeout': 15}
-                    if _cand.startswith('https'):
-                        kw['context'] = _ctx
-                    with urllib.request.urlopen(req, **kw) as resp:
+                    from feed_transport import open_https_feed
+                    with open_https_feed(req, timeout=15, ssl_context=_ctx) as resp:
                         # Bound the wire body and any gzip expansion before
                         # validation/parsing. Reading limit+1 distinguishes a
                         # complete feed at the ceiling from silent truncation.

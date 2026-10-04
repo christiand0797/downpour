@@ -404,6 +404,19 @@
       "claimed_at": "2026-10-04T05:04:28Z",
       "completed_at": "2026-10-04T05:12:47Z",
       "notes": "ThreatIntelEngine._fetch_feed now requests identity encoding, enforces the 50 MiB wire-body limit with a limit+1 probe, validates Content-Length and truncation, rejects unsupported content encodings, and caps gzip expansion at 50 MiB before validation or parsing. Updated a stale test docstring that claimed HTTP fallback. Added six direct active-engine tests. Python 3.12.10 suite: 465 passed, 1 skipped, one existing sklearn model-version warning; health check 75/76 because of the known local signed code-integrity baseline mismatch."
+    },
+    {
+      "id": "TASK-026",
+      "title": "Prevent HTTPS feed requests from downgrading through redirects",
+      "status": "completed",
+      "assignee": "agent-codex-009",
+      "priority": "critical",
+      "dependencies": [],
+      "files": ["feed_transport.py", "downpour_v29_titanium.py", "tests/test_threat_intel_download_bounds.py"],
+      "created": "2026-10-04T05:15:15Z",
+      "claimed_at": "2026-10-04T05:15:15Z",
+      "completed_at": "2026-10-04T05:21:34Z",
+      "notes": "Added feed_transport.open_https_feed with a dedicated HTTPS-only redirect handler, initial/final URL validation, and support for the active engine's TLS context. ThreatIntelEngine now uses this opener instead of urllib.request.urlopen, so an HTTPS URL cannot silently redirect to HTTP. Added opener wiring and downgrade/final-URL tests. Python 3.12.10 suite: 467 passed, 1 skipped, one existing sklearn model-version warning; health check 75/76 due to the local signed code-integrity baseline mismatch."
     }
   ]
 }

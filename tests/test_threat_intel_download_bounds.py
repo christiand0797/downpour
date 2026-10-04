@@ -32,11 +32,11 @@ def _engine(monkeypatch, response, max_bytes=32):
     monkeypatch.setattr(time, "sleep", lambda *_args: None)
     calls = []
 
-    def fake_urlopen(request, **kwargs):
+    def fake_open(request, **kwargs):
         calls.append((request, kwargs))
         return response
 
-    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("feed_transport.open_https_feed", fake_open)
     return engine, calls
 
 

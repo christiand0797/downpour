@@ -1094,11 +1094,11 @@ class TestPEAnalyzerIntegration:
             def __exit__(self, *a):
                 return False
 
-        def fake_urlopen(req, **kw):
-            calls.append((req.full_url, kw.get('context') is not None))
+        def fake_open(req, **kw):
+            calls.append((req.full_url, kw.get('ssl_context') is not None))
             return FakeResp()
 
-        with um.patch('urllib.request.urlopen', side_effect=fake_urlopen):
+        with um.patch('feed_transport.open_https_feed', side_effect=fake_open):
             out = eng._fetch_feed('test_http_feed',
                                   'http://data.phishtank.com/data/online-valid.csv')
         assert out, 'feed should download'

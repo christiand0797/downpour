@@ -5,7 +5,7 @@ from __future__ import annotations
 import gzip
 from urllib.error import URLError
 from urllib.parse import urlsplit
-from urllib.request import HTTPRedirectHandler, Request, build_opener
+from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_opener
 
 
 MAX_CUSTOM_FEED_BYTES = 64 * 1024 * 1024
@@ -70,6 +70,29 @@ class _HTTPSOnlyRedirectHandler(HTTPRedirectHandler):
         except ValueError as exc:
             raise URLError("refusing unsafe custom-feed redirect") from exc
         return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def open_https_feed(request, *, timeout: float = 15, ssl_context=None, opener=None):
+    """Open a feed request with TLS verification and HTTPS-only redirects."""
+    if isinstance(request, str):
+        request = Request(validate_https_feed_url(request))
+    elif isinstance(request, Request):
+        validate_https_feed_url(request.full_url)
+    else:
+        raise TypeError("request must be a URL string or urllib Request")
+
+    if opener is None:
+        opener = build_opener(
+            _HTTPSOnlyRedirectHandler(),
+            HTTPSHandler(context=ssl_context) if ssl_context is not None else HTTPSHandler(),
+        )
+    response = opener.open(request, timeout=timeout)
+    try:
+        validate_https_feed_url(response.geturl())
+    except Exception:
+        response.close()
+        raise
+    return response
 
 
 def count_https_feed_records(

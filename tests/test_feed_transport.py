@@ -3,7 +3,7 @@
 import gzip
 from io import BytesIO
 from urllib.error import URLError
-from urllib.request import Request
+from urllib.request import HTTPSHandler, Request
 
 import pytest
 
@@ -11,6 +11,7 @@ from feed_transport import (
     MAX_CUSTOM_FEED_BYTES,
     _HTTPSOnlyRedirectHandler,
     count_https_feed_records,
+    open_https_feed,
     validate_https_feed_url,
 )
 from downpour_v29_titanium import downpour
@@ -28,6 +29,9 @@ class _FakeResponse:
         return self
 
     def __exit__(self, *_exc):
+        self.closed = True
+
+    def close(self):
         self.closed = True
 
     def geturl(self):
@@ -218,6 +222,38 @@ def test_redirect_handler_accepts_https_destination():
     )
 
     assert redirected.full_url == "https://cdn.example/list.txt"
+
+
+def test_open_https_feed_builds_verified_https_only_opener(monkeypatch):
+    response = _FakeResponse(b"item")
+    opener = _FakeOpener(response)
+    handlers = []
+    context = object()
+
+    def fake_build_opener(*items):
+        handlers.extend(items)
+        return opener
+
+    monkeypatch.setattr("feed_transport.build_opener", fake_build_opener)
+    with open_https_feed("https://feeds.example/list.txt", ssl_context=context) as result:
+        assert result is response
+
+    assert any(isinstance(handler, _HTTPSOnlyRedirectHandler) for handler in handlers)
+    assert any(
+        isinstance(handler, HTTPSHandler) and handler._context is context
+        for handler in handlers
+    )
+    assert opener.timeout == 15
+
+
+def test_open_https_feed_closes_response_with_insecure_final_url():
+    response = _FakeResponse(b"item", url="http://feeds.example/list.txt")
+
+    with pytest.raises(ValueError, match="HTTPS URL"):
+        open_https_feed(
+            "https://feeds.example/start", opener=_FakeOpener(response)
+        )
+    assert response.closed
 
 
 def test_custom_feed_form_rejects_http_before_saving(monkeypatch):
