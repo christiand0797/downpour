@@ -1076,10 +1076,8 @@ class TestPEAnalyzerIntegration:
         assert "for _scheme in ('https', 'http'):" in chunk
         assert 'return {}' in chunk
 
-    def test_feed_fetch_is_https_first_with_http_fallback(self):
-        """_fetch_feed must try HTTPS before plain HTTP for http:// feeds, and
-        fall back to HTTP only if HTTPS fails — the _HTTP_OK hard-lock (which
-        kept sysctl.org / data.phishtank.com plain-HTTP forever) is gone."""
+    def test_feed_fetch_upgrades_legacy_http_url_to_https(self):
+        """Legacy HTTP feed URLs are upgraded and never fetched in cleartext."""
         import unittest.mock as um
         from downpour_v29_titanium import ThreatIntelEngine
         eng = object.__new__(ThreatIntelEngine)
@@ -1109,8 +1107,7 @@ class TestPEAnalyzerIntegration:
         first_url = calls[0][0]
         assert first_url.startswith('https://'), f'HTTPS-first violated: {first_url}'
         assert len(calls) == 1, f'expecting a single successful call, got {calls}'
-        # Plain-HTTP hosts in _HTTP_OK no longer stay HTTP-only.
-        assert 'sysctl.org' not in calls[0][0] or 'https' in calls[0][0]
+        assert calls[0][0].startswith('https://')
 
     def test_vpn_source_fetch_is_https_first(self):
         """_vpn_load_servers must promote http:// source URLs to https:// first

@@ -13271,6 +13271,7 @@ def _get_shared_parse_pool():
 
 class ThreatIntelEngine:
     # 200+ threat intelligence feeds organized by category
+    MAX_FEED_BYTES = 50 * 1024 * 1024
     FEEDS: Any = {
         # -- ABUSE.CH ---------------------------------------------------------
         'urlhaus':          ('https://urlhaus.abuse.ch/downloads/csv_recent/', 'ip', 900),
@@ -14129,7 +14130,7 @@ class ThreatIntelEngine:
         headers: Any = {
             'User-Agent': 'Downpour-Security/28.2050 (Secure-Threat-Intel)',
             'Accept': 'text/plain,text/csv,application/json,*/*',
-            'Accept-Encoding': 'gzip, deflate',
+            'Accept-Encoding': 'identity',
             'Connection': 'close'
         }
         import ssl as _ssl
@@ -14173,11 +14174,42 @@ class ThreatIntelEngine:
                     if _cand.startswith('https'):
                         kw['context'] = _ctx
                     with urllib.request.urlopen(req, **kw) as resp:
-                        # Hard cap: 50 MB  -  prevents memory exhaustion from rogue feeds
-                        raw: Any = resp.read(52_428_800)
-                        if raw[:2] == b'\x1f\x8b':
+                        # Bound the wire body and any gzip expansion before
+                        # validation/parsing. Reading limit+1 distinguishes a
+                        # complete feed at the ceiling from silent truncation.
+                        max_feed_bytes: Any = self.MAX_FEED_BYTES
+                        response_headers: Any = getattr(resp, 'headers', {}) or {}
+                        declared_length: Any = response_headers.get('Content-Length')
+                        if declared_length is not None:
+                            try:
+                                declared_length = int(declared_length)
+                            except (TypeError, ValueError) as _e:
+                                raise ValueError('Feed has invalid Content-Length') from _e
+                            if declared_length < 0 or declared_length > max_feed_bytes:
+                                raise ValueError(f'Feed exceeds {max_feed_bytes}-byte download limit')
+
+                        content_encoding: Any = str(
+                            response_headers.get('Content-Encoding', '') or ''
+                        ).strip().lower()
+                        if content_encoding not in ('', 'identity', 'gzip'):
+                            raise ValueError(f'Unsupported feed content encoding: {content_encoding[:32]}')
+
+                        raw: Any = resp.read(max_feed_bytes + 1)
+                        if len(raw) > max_feed_bytes:
+                            raise ValueError(f'Feed exceeds {max_feed_bytes}-byte download limit')
+                        if declared_length is not None and len(raw) != declared_length:
+                            raise ValueError('Feed body length does not match Content-Length')
+
+                        if content_encoding == 'gzip' or raw[:2] == b'\x1f\x8b':
+                            from io import BytesIO as _BytesIO
                             import gzip as _gz
-                            raw: Any = _gz.decompress(raw[:52_428_800])
+                            with _gz.GzipFile(fileobj=_BytesIO(raw), mode='rb') as _compressed:
+                                expanded: Any = _compressed.read(max_feed_bytes + 1)
+                            if len(expanded) > max_feed_bytes:
+                                raise ValueError(
+                                    f'Expanded feed exceeds {max_feed_bytes}-byte limit'
+                                )
+                            raw = expanded
                         if self._verify_download(raw, name):
                             # v29.42y (TASK-013): per-fetch integrity audit
                             # line + bounded in-memory record of the last
