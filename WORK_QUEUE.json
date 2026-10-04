@@ -456,6 +456,19 @@
       "claimed_at": "2026-10-04T05:50:48Z",
       "completed_at": "2026-10-04T05:55:52Z",
       "notes": "The primary aggregator now disables automatic redirects, validates every redirect and final response URL with the credential-free HTTPS validator, limits redirect count, and switches to stateless requests after crossing origins. Existing bounded streaming/gzip and integrity checks are preserved. Added four offline redirect tests. Python 3.12.10 suite: 497 passed, 1 skipped, one existing sklearn warning; health check 75/76 due to the machine-local signed code-integrity baseline."
+    },
+    {
+      "id": "TASK-030",
+      "title": "Bound vulnerability-scanner external feed responses",
+      "status": "completed",
+      "assignee": "agent-codex-009",
+      "priority": "critical",
+      "dependencies": [],
+      "files": ["vulnerability_scanner.py", "tests/test_vulnerability_scanner_http_bounds.py"],
+      "created": "2026-10-04T05:57:17Z",
+      "claimed_at": "2026-10-04T05:57:17Z",
+      "completed_at": "2026-10-04T06:07:31Z",
+      "notes": "All vulnerability-scanner direct GET/POST feed lookups now use a bounded HTTPS client, including CISA KEV, per-CVE NVD enrichment, recent NVD, ThreatRadar, EPSS batch/trend, and CWE XML. The helper disables auto-redirects, rejects non-HTTPS destinations/final URLs, strips credentials and query data across origins, caps wire and gzip expansion, checks Content-Length/truncation, and returns a cached requests.Response. CVE IDs are sent via params. Added ten offline transport tests. Python 3.12.10 suite: 507 passed, 1 skipped, one existing sklearn warning; health check 75/76 due to the machine-local signed code-integrity baseline."
     }
   ]
 }
