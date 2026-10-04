@@ -34415,7 +34415,15 @@ Verification Status:
             from tkinter import messagebox as _mb
             _mb.showwarning("Missing Info", "Please enter both a Feed Name and a URL.")
             return
-        entry: Any = {'name': name.get().strip(), 'url': url.get().strip(),
+        feed_url: Any = url.get().strip()
+        try:
+            from feed_transport import validate_https_feed_url
+            feed_url = validate_https_feed_url(feed_url)
+        except ValueError as e:
+            from tkinter import messagebox as _mb
+            _mb.showwarning("Invalid Feed URL", str(e))
+            return
+        entry: Any = {'name': name.get().strip(), 'url': feed_url,
                  'type': ftype.get() if ftype else 'ip', 'records': 0,
                  'last_updated': 'Never'}
         # Save to config
@@ -34452,11 +34460,8 @@ Verification Status:
         feed_name = vals[0]; feed_url = vals[2]
         def _do():
             try:
-                import urllib.request as _ur
-                with _ur.urlopen(feed_url, timeout=15) as r:
-                    data: Any = r.read()
-                count: Any = len([l for l in data.decode('utf-8', errors='replace').splitlines()
-                             if l.strip() and not l.startswith('#')])
+                from feed_transport import count_https_feed_records
+                count: Any = count_https_feed_records(feed_url, timeout=15)
                 ts: Any = time.strftime('%Y-%m-%d %H:%M')
                 self.after(0, lambda: tree.item(iid, values=(feed_name, vals[1],
                                                                feed_url, count, ts)))

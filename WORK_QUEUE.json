@@ -378,6 +378,19 @@
       "claimed_at": "2026-10-04T04:27:47Z",
       "completed_at": "2026-10-04T04:34:14Z",
       "notes": "FeedManifestVerifier now accepts only 1-128 character alphanumeric/underscore/hyphen IDs, rejects reserved Windows device names, and resolves candidate paths to ensure they remain under the manifest directory. All 159 configured IDs were checked against the rule. Added 15 tests for traversal, both path separator styles, absolute paths, device names, length, valid IDs, and blocked writes. Python 3.12.10 suite: 439 passed, 1 skipped, one existing sklearn model-version warning; health check 75/76 due to the known local signed code-integrity baseline mismatch."
+    },
+    {
+      "id": "TASK-024",
+      "title": "Secure custom threat-feed validation and preview downloads",
+      "status": "completed",
+      "assignee": "agent-codex-009",
+      "priority": "high",
+      "dependencies": [],
+      "files": ["feed_transport.py", "downpour_v29_titanium.py", "tests/test_feed_transport.py"],
+      "created": "2026-10-04T04:36:52Z",
+      "claimed_at": "2026-10-04T04:36:52Z",
+      "completed_at": "2026-10-04T05:01:57Z",
+      "notes": "Added feed_transport.py and wired custom-feed creation/preview to it. Only credential-free HTTPS URLs are accepted, redirects cannot downgrade to HTTP, response line counts stream without retaining the full body, and both wire and expanded gzip data are capped at 64 MiB. Unsupported encodings and malformed/oversized inputs show a visible preview error. Added 20 focused tests, including headless Add Feed handler checks. Python 3.12.10 full suite: 459 passed, 1 skipped, one existing sklearn model-version warning; health check 75/76 due to the known local signed code-integrity baseline mismatch."
     }
   ]
 }
